@@ -1,0 +1,9 @@
+[package]
+name = "yonder-application"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+yonder-domain = { path = "../domain" }
+yonder-protocol = { path = "../protocol" }

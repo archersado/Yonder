@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Request",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.get"
+        },
+        "params": {
+          "$ref": "#/$defs/GetParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.events"
+        },
+        "params": {
+          "$ref": "#/$defs/EventsParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    }
+  ],
+  "$defs": {
+    "Capability": {
+      "type": "string",
+      "enum": [
+        "task.read"
+      ]
+    },
+    "EventsParams": {
+      "type": "object",
+      "properties": {
+        "after_sequence": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 100,
+          "minimum": 1
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "after_sequence",
+        "limit"
+      ]
+    },
+    "GetParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id"
+      ]
+    },
+    "Version": {
+      "type": "string",
+      "enum": [
+        "2.0"
+      ]
+    }
+  }
+}

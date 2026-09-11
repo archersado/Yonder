@@ -1,0 +1,4 @@
+[workspace]
+resolver = "3"
+members = ["crates/domain", "crates/application", "crates/adapters", "crates/protocol"]
+exclude = ["spikes/desktop-foundation", "spikes/desktop-foundation/src-tauri", "spikes/ooxml-adapter-comparison", "spikes/encrypted-context-storage"]

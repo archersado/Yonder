@@ -1,0 +1,12 @@
+[package]
+name = "yonder-adapters"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+yonder-application = { path = "../application" }
+rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openssl"] }
+
+[dev-dependencies]
+yonder-protocol = { path = "../protocol" }

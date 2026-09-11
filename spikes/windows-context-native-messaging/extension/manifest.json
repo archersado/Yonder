@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Yonder 上下文通道验证",
+  "version": "0.0.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtrLOEHUyE+he0Y55fX3jdSYTfXjGK+3a/d2PXzasg/LrHtZu/5NllbcJsREZI3dYWLt+It7eLn70TSfbgzrWGNdzHicQdv73uTGHFlzwFaBd3E7cxIbIdch/vBbyeb/qPLgrmLn3mLhLFkSA3GvE0CSwY8djGcuS+tflRdc9MVBehhpF+PPqVOV5MXJNt15UoGrrPj9J3Mm/w7CpwwaVXJK+7oqr/eIUZjFkYlhP/1vSYLCFMPYoFAMayrV/VLzwz8FHH7b3ggqm9G2CQqhsraQnDrM5mrO00N1AhfFl4OvKFbXwB1UPKLoYNlcXsbeBsEujwGe4c6PTpdbY9EzavQIDAQAB",
+  "permissions": ["nativeMessaging", "tabs", "storage"],
+  "background": { "service_worker": "service-worker.js" },
+  "action": { "default_title": "开始/停止 Yonder Record" },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Ctrl+Shift+Y" },
+      "description": "开始或停止 Yonder Record"
+    }
+  },
+  "incognito": "split"
+}

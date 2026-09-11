@@ -1,0 +1,10 @@
+{
+  "name": "yonder-ooxml-node-spike",
+  "private": true,
+  "type": "module",
+  "scripts": { "test:node": "node node-harness.mjs" },
+  "dependencies": {
+    "@xmldom/xmldom": "0.9.12",
+    "fflate": "0.8.3"
+  }
+}

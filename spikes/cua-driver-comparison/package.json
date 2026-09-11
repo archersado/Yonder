@@ -1,0 +1,21 @@
+{
+  "name": "yonder-cua-driver-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "probe:qwen": "node probe.mjs qwen",
+    "probe:trycua": "node probe.mjs trycua",
+    "fault:qwen": "node fault-probe.mjs qwen",
+    "fault:trycua": "node fault-probe.mjs trycua",
+    "wps:qwen": "node wps-probe.mjs qwen",
+    "wps:trycua": "node wps-probe.mjs trycua",
+    "notepad:qwen": "node notepad-probe.mjs qwen",
+    "notepad:trycua": "node notepad-probe.mjs trycua",
+    "crash:trycua": "node crash-recovery-probe.mjs",
+    "explorer:trycua": "node explorer-probe.mjs"
+  },
+  "dependencies": {
+    "@qwen-code/cua-sdk": "0.20.5",
+    "@trycua/cua-driver": "0.25.0"
+  }
+}

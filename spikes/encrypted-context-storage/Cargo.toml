@@ -1,0 +1,9 @@
+[package]
+name = "yonder-encrypted-context-storage-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+aes-gcm = "=0.11.1"
+rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openssl"] }

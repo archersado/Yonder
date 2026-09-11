@@ -1,0 +1,13 @@
+[package]
+name = "yonder-desktop-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[build-dependencies]
+ico = "0.5"
+png = "0.18"
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }

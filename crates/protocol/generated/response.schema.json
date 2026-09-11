@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Response",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "result": {
+          "$ref": "#/$defs/QueryResult"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/RpcError"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "id",
+        "error"
+      ]
+    }
+  ],
+  "$defs": {
+    "QueryResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "snapshot"
+            },
+            "task": {
+              "$ref": "#/$defs/TaskSnapshot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TaskEvent"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "events"
+            },
+            "task_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task_id",
+            "events"
+          ]
+        }
+      ]
+    },
+    "RpcError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "TaskEvent": {
+      "type": "object",
+      "properties": {
+        "previous": {
+          "$ref": "#/$defs/TaskStatus"
+        },
+        "sequence": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "previous",
+        "status",
+        "sequence"
+      ]
+    },
+    "TaskSnapshot": {
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "status",
+        "sequence"
+      ]
+    },
+    "TaskStatus": {
+      "type": "string",
+      "enum": [
+        "created",
+        "running",
+        "waiting-for-user",
+        "paused",
+        "interrupted",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "Version": {
+      "type": "string",
+      "enum": [
+        "2.0"
+      ]
+    }
+  }
+}
