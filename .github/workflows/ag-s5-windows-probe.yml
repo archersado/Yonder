@@ -1,0 +1,20 @@
+name: AG-S5 Windows Named Pipe Spike
+
+on:
+  push:
+    branches: [spike/ag-s5-windows-named-pipe]
+
+permissions:
+  contents: read
+
+jobs:
+  named-pipe:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: 验证双向Agent输入
+        shell: pwsh
+        run: ./spikes/agent-input/windows_named_pipe_probe.ps1
