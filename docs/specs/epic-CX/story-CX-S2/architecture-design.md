@@ -8,7 +8,7 @@ Application拥有一次圈选请求的状态和临时附件生命周期；Window
 
 ## 状态与契约
 
-候选状态为`idle → selecting → reviewing → submitting → submitted|cancelled|failed`。同一设备最多一个圈选会话；进入`selecting`前检查CUA前台租约并触发现有用户接管/暂停机制。截图与转写只保存在有界临时内存或受控临时文件，完成后清理。
+候选状态为`idle → selecting → reviewing → submitting → submitted|cancelled|failed`。`selecting` 接受框选或笔画；笔画只在选择层内临时绘制，并以外接矩形调用既有区域截图能力，不持久化轨迹。同一设备最多一个圈选会话；进入`selecting`前检查CUA前台租约并触发现有用户接管/暂停机制。截图与转写只保存在有界临时内存或受控临时文件，完成后清理。
 
 ## 双平台原生路线
 

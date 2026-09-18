@@ -85,7 +85,7 @@ fn region_preview_capture(window: WebviewWindow, rect: RegionRect) -> Result<Str
 fn region_preview_show_review(window: WebviewWindow, rect: RegionRect) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
     let monitor = window.current_monitor().map_err(|_| "屏幕不可用")?.ok_or("屏幕不可用")?;
-    let area = monitor.work_area(); let size = tauri::PhysicalSize::new(360, 340);
+    let area = monitor.work_area(); let size = tauri::PhysicalSize::new(440, 460);
     let x = (f64::from(area.position.x) + rect.x * f64::from(area.size.width) / rect.viewport_width + 12.0).round() as i32;
     let y = (f64::from(area.position.y) + rect.y * f64::from(area.size.height) / rect.viewport_height + 12.0).round() as i32;
     let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(size.width) as i32);
