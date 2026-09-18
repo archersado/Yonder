@@ -1,3 +1,5 @@
+当前归属 Story：CX-S1；规划：`docs/specs/epic-CX/story-CX-S1/README.md`。旧编号保留历史追溯。
+
 # Verification Goal：E0-S5
 
 复核 Windows 原生窗口探针、Chrome/Edge Native Messaging 实连、协议边界、隐私窗口排除及 Recording 默认关闭/启停证据。若读取 History DB、允许通配扩展来源、停止 Recording 后仍保留输入钩子，或缺少真实 Chrome/Edge 任一实连，Goal 失败。

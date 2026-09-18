@@ -1,0 +1,49 @@
+{
+  "version": 5,
+  "source": "assets/mascot/互动动画生命周期-v1.md",
+  "reference": "assets/mascot/yonda-dragon-concept-v1.png",
+  "items": [
+    {
+      "id": "idle",
+      "label": "待命",
+      "action": "轻微呼吸、自然眨眼、尾尖轻摆",
+      "duration_ms": 3600,
+      "playback": "loop",
+      "grid": [
+        2,
+        2
+      ],
+      "frames": 4,
+      "kind": "state",
+      "source_sheet": "idle-source.png",
+      "entry_ms": 0,
+      "blink_interval_ms": [
+        6000,
+        10000
+      ],
+      "body_frames": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "blink_frame": 2,
+      "files": [
+        "frames/idle-00.png",
+        "frames/idle-01.png",
+        "frames/idle-02.png",
+        "frames/idle-03.png"
+      ],
+      "static_frame": 0
+    }
+  ],
+  "canvas_px": [
+    400,
+    400
+  ],
+  "logical_px": [
+    200,
+    200
+  ],
+  "status": "待人工边缘与姿态验收"
+}

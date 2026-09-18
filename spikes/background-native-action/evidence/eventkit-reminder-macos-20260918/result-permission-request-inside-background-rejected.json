@@ -1,0 +1,10 @@
+{
+  "authorization_before": "not-determined",
+  "authorization_after": "full-access",
+  "saved": true,
+  "observed_by_identifier": true,
+  "cleanup_confirmed": true,
+  "foreground_unchanged": true,
+  "passed": false,
+  "reason": "permission-request-must-be-a-separate-explicit-step"
+}

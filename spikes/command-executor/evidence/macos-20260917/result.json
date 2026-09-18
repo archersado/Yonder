@@ -1,0 +1,10 @@
+{
+  "platform": "macOS",
+  "literal_args": true,
+  "shell_expansion": false,
+  "process_tree_stopped": true,
+  "output_bytes": 65536,
+  "truncated": true,
+  "product_gateway_connected": false,
+  "passed": true
+}

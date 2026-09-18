@@ -1,0 +1,4 @@
+{"capture_exit":0,"onscreen":false,"pet_bounds":[1654,616,56,112],"phase":"normal","pid":39025,"test_active":false,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":18531}
+{"capture_exit":1,"onscreen":true,"pet_bounds":[-3751,616,56,112],"phase":"fullscreen","pid":39025,"test_active":true,"test_frame":[0,0,1710,1073],"test_fullscreen":true,"window_id":18531}
+{"capture_exit":0,"onscreen":false,"pet_bounds":[1654,616,56,112],"phase":"restored","pid":39025,"test_active":false,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":18531}
+{"result":"全屏与返回取证完成；截图需人工核对"}

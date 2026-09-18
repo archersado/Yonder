@@ -1,0 +1,9 @@
+{
+  "closedPose": true,
+  "reopened": true,
+  "intervalMs": [
+    3000,
+    5000
+  ],
+  "fixtureOnly": true
+}

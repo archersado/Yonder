@@ -1,0 +1,8 @@
+{
+  "capabilityUnavailable": true,
+  "paging": true,
+  "detail": true,
+  "staleError": true,
+  "filterReset": true,
+  "fixtureOnly": true
+}

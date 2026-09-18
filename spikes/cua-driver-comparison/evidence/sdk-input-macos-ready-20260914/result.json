@@ -1,0 +1,18 @@
+{
+  "sdk_only": true,
+  "accessibility": true,
+  "input_dispatched": true,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "native_inflight_stop_verified": false,
+  "yonder_host_verified": false,
+  "target_unique": true,
+  "input_error": false,
+  "sdk_observe_matches": true,
+  "fixture_matches": true,
+  "input_length": 18,
+  "after_shutdown_input_rejected": true,
+  "stopped_sdk_observe_matches": true,
+  "stopped_fixture_stable": true,
+  "passed": true
+}

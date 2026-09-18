@@ -1,0 +1,5 @@
+# 设计
+
+共享现有rusqlite连接初始化与TaskStore实现，中性SqliteTaskStore支持显式open_unencrypted；旧SqlCipherTaskStore别名保留既有调用。原加密open不改密钥规则。初始化先验证user_version可读，未知版本拒绝后不写入；新空库才建schema v2。
+
+事务状态、事件、Outbox及恢复用例不变。错误沿用StorageUnavailable，不探测失败后自动重建。加密迁移与Credential Store仍归延期ST-S2。

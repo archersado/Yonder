@@ -1,0 +1,17 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 16
+  },
+  "task_id": "task_adefc66bce5dc4bba93ca6143a57a6bb",
+  "legacy_page_count": 20,
+  "legacy_page_contains_running_task": false,
+  "filtered_page": [
+    {
+      "task_id": "task_adefc66bce5dc4bba93ca6143a57a6bb",
+      "status": "running"
+    }
+  ],
+  "final_status": "completed",
+  "passed": true
+}

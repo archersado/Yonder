@@ -1,0 +1,22 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-18",
+  "explicit_start": true,
+  "permission_state": "authorized_before_run",
+  "permission_reset_attempt": "authorization_remained_effective_for_adhoc_preview",
+  "runtime_permission_reset_during_capture": "capture_remained_active_without_revocation_event",
+  "input_device_count": 1,
+  "device_switch_test": "blocked_single_input_device",
+  "listening_state_observed": true,
+  "test_audio": "system_synthesized_public_phrase",
+  "nonempty_zh_cn_transcript": true,
+  "transcript_recorded_in_evidence": false,
+  "automatic_agent_delivery": "accepted",
+  "second_capture_acquired_after_final": true,
+  "manual_stop_observed": true,
+  "agent_disconnected_error_observed": true,
+  "escape_cancel_closed_card": true,
+  "pcm_written_to_disk": false,
+  "windows_deferred": true,
+  "passed": true
+}

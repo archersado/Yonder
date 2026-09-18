@@ -1,0 +1,53 @@
+{
+  "story": "DS-S1",
+  "scope": "既有 macOS 预览构建；本轮未重新编译",
+  "binary_sha256": "d22cc6400bc76228ec33783b30a294513f2dd1711b54aa65eb62bcf175b9f28e",
+  "screen_capture_allowed": true,
+  "accessibility_trusted": true,
+  "before": {
+    "pid": 62803,
+    "window_id": 13060,
+    "bounds": {
+      "x": 1864,
+      "y": 460,
+      "width": 56,
+      "height": 112
+    }
+  },
+  "tray": {
+    "container_press_ax_result": -25204,
+    "show_menu_item_ax_result": 0,
+    "after_show_bounds": {
+      "x": 1720,
+      "y": 418,
+      "width": 200,
+      "height": 200
+    },
+    "show_capture_size": [
+      56,
+      112
+    ],
+    "show_visual_result": "未通过：截图与原生尺寸不一致，存在裁切；原因未确定",
+    "quit_menu_item_ax_result": 0,
+    "pgrep_after_quit_exit_code": 1
+  },
+  "restarted": {
+    "pid": 39025,
+    "window_id": 18531,
+    "bounds": {
+      "x": 860,
+      "y": 440,
+      "width": 200,
+      "height": 200
+    },
+    "capture": "restarted.png",
+    "visual": "截图可见完整小龙和透明背景"
+  },
+  "limitations": [
+    "窗口列表未标记 pet 为 onscreen，不证明当前 Space 可见",
+    "AX 菜单项激活成功，不等于鼠标点击托盘图标成功",
+    "未验证 WebKit 辅助进程完全退出",
+    "未复测 Windows",
+    "未接入 TM-S6 或生产 IPC"
+  ]
+}

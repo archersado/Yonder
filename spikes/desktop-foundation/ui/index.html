@@ -4,11 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Yonder E0</title>
-    <style>
-      html, body { margin: 0; width: 100%; height: 100%; background: transparent; }
-      body { display: grid; place-items: center; font: 14px system-ui; color: #fff; }
-      main { padding: 22px; border-radius: 50%; background: #6558d3e6; box-shadow: 0 8px 28px #0004; cursor: grab; user-select: none; }
-    </style>
+    <link rel="stylesheet" href="pet.css" />
+    <script src="pet.js" defer></script>
   </head>
-  <body><main data-tauri-drag-region title="按住鼠标左键拖动">Yonder E0</main></body>
+  <body>
+    <main id="pet" role="button" tabindex="0" aria-label="轻点 Yonda 小龙，按住移动可拖动">
+      <div class="response"><div class="breath">
+        <div class="tail"><img src="runtime/yonda-dragon-v1.png" alt="" draggable="false" /></div>
+        <img class="dragon" src="runtime/yonda-dragon-v1.png" alt="" draggable="false" />
+        <img class="eyelids" src="runtime/yonda-eyes-closed-v1.png" alt="" draggable="false" aria-hidden="true" />
+      </div></div>
+      <div class="peek" aria-hidden="true"><div class="peek-body">
+        <img src="runtime/yonda-peek-v1.png" alt="" draggable="false" />
+        <img class="peek-eyelids" src="runtime/yonda-peek-closed-v1.png" alt="" draggable="false" />
+      </div></div>
+    </main>
+  </body>
 </html>

@@ -1,0 +1,11 @@
+{
+  "probe": "CGEventTap listen-only source classification",
+  "sample": "cua_repl click on Yonda",
+  "captured": 51,
+  "user_candidates": 51,
+  "injected_excluded": 0,
+  "gaps": 0,
+  "payload_recorded": false,
+  "source_pid_heuristic_reliable": false,
+  "passed": false
+}

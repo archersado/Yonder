@@ -1,0 +1,15 @@
+{
+  "browser_fixture": {
+    "running_only": true,
+    "paused_and_cancelled_visible_in_all": true,
+    "pagination_regression": true
+  },
+  "macos_native": {
+    "filter": "进行中",
+    "visible_items": 0,
+    "message": "暂无正在执行的任务",
+    "paused_or_cancelled_visible": false
+  },
+  "windows": "按用户决定暂缓",
+  "passed": true
+}

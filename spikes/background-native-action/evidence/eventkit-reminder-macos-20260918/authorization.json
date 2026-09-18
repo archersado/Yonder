@@ -1,0 +1,27 @@
+{
+  "authorization_after" : "full-access",
+  "authorization_before" : "not-determined",
+  "cleanup_confirmed" : false,
+  "failure" : "none",
+  "foreground_unchanged" : true,
+  "mode" : "authorize",
+  "native_api" : "EventKit",
+  "observed_by_identifier" : false,
+  "passed" : true,
+  "permission_granted" : true,
+  "platform" : "macos",
+  "saved" : false,
+  "task_space_facts" : [
+    {
+      "kind" : "permission-required",
+      "result" : "not-determined",
+      "sequence" : 1
+    },
+    {
+      "kind" : "permission-observed",
+      "result" : "full-access",
+      "sequence" : 2
+    }
+  ],
+  "timeline_mappable" : true
+}

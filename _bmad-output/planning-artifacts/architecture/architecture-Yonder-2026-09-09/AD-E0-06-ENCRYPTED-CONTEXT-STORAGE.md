@@ -1,5 +1,7 @@
 # AD-E0-06 加密上下文存储
 
+2026-09-14范围调整：依用户变更及Accepted AD-ST-01，产品加密实施延期至MVP之后，既有Spike证据保留；不再作为MVP真实任务库接线门禁。
+
 - 状态：Accepted（Windows 范围）
 - Story：E0-S6
 - OpenSpec：`e0-validate-encrypted-context-storage`
@@ -30,3 +32,9 @@
 - Credential 名称可记录，Credential Blob、SQLCipher key、附件 key 和 nonce 生成材料不得写入数据库、附件或日志。
 - Windows 构建机必须固定 MSVC Build Tools 与 Perl；最终应用静态包含 SQLCipher/OpenSSL，不要求用户安装构建工具。
 - macOS Keychain 与原生构建证据延期，本 ADR 不构成 macOS 技术路线完成。
+
+## macOS 补充验证（2026-09-11，Keychain 探针通过）
+
+恢复延期的 Keychain Spike，时间盒为本次研发增量。直接使用系统 Security.framework 的 SecItem API 与系统随机源，生成独立 UUID 服务名，仅写入/读取/删除本次临时条目；不枚举凭据，不将密钥传入命令参数或日志。统一样本为 32 字节，要求写入、重复写入拒绝、精确读取、精确删除和删除后 errSecItemNotFound 全部通过；任一失败不接受路线。保持 Windows 已接受范围，单个探针通过不代表 macOS 完整加密栈或产品身份认证通过。
+
+实测补充：本机探针退出 0，写入、重复项拒绝、32 字节往返、删除后不可读全部通过。证据见 `openspec/changes/e0-validate-encrypted-context-storage/verification-keychain-macos.md`；签名、锁定、跨进程以及完整存储栈尚待验证，Accepted 仍限定 Windows。

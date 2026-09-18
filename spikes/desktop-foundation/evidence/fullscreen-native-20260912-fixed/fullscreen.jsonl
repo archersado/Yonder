@@ -1,0 +1,7 @@
+{"capture_exit":0,"onscreen":false,"pet_bounds":[1444,688,200,200],"phase":"normal","pid":63504,"test_active":false,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20295}
+{"result":"等待全屏回调超时，关闭临时窗口"}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1444,688,200,200],"phase":"normal","pid":63504,"test_active":true,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20295}
+{"capture_exit":0,"onscreen":false,"pet_bounds":[1444,688,200,200],"phase":"fullscreen-1s","pid":63504,"test_active":true,"test_frame":[0,0,1710,1073],"test_fullscreen":true,"window_id":20295}
+{"capture_exit":0,"onscreen":false,"pet_bounds":[1444,688,200,200],"phase":"fullscreen-4s","pid":63504,"test_active":true,"test_frame":[0,0,1710,1073],"test_fullscreen":true,"window_id":20295}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1444,688,200,200],"phase":"restored","pid":63504,"test_active":true,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20295}
+{"result":"全屏与返回取证完成；截图需人工核对"}

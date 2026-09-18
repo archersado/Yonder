@@ -1,3 +1,5 @@
+当前归属 Story：DS-S1；规划：`docs/specs/epic-DS/story-DS-S1/README.md`。旧编号保留历史追溯。
+
 # 独立 Verification Goal：E0-S1 桌宠拖动补充
 
 日期：2026-09-11。关联：E0-S1、同 Change 的「拖动桌宠窗口」场景、AD-E0-01（仍未通过双平台门禁）。

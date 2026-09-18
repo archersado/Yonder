@@ -1,0 +1,7 @@
+{"waiting_seconds":20}
+{"waiting_seconds":40}
+{"waiting_seconds":60}
+{"waiting_seconds":80}
+{"waiting_seconds":100}
+{"app_active":false,"before_label":"点击趴在边缘的 Yonda 唤醒它","before_role":"AXButton"}
+{"after_label":"轻点 Yonda 小龙，按住移动可拖动","height":201,"latency_ms":107.84466666518711,"passed":true,"press_result":0,"width":200,"window_id":27386}

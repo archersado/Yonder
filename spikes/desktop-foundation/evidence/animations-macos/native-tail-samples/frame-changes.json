@@ -1,0 +1,94 @@
+{
+  "duration" : 11.976666666666667,
+  "maximumChangedChannels" : 190738,
+  "samples" : [
+    {
+      "changedChannels" : 0,
+      "second" : 1
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 1.5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 2
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 2.5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 3
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 3.5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 4
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 4.5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 5.5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 6
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 6.5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 7
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 7.5
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 8
+    },
+    {
+      "changedChannels" : 0,
+      "second" : 8.5
+    },
+    {
+      "changedChannels" : 189153,
+      "second" : 9
+    },
+    {
+      "changedChannels" : 190738,
+      "second" : 9.5
+    },
+    {
+      "changedChannels" : 189635,
+      "second" : 10
+    },
+    {
+      "changedChannels" : 186639,
+      "second" : 10.5
+    },
+    {
+      "changedChannels" : 184299,
+      "second" : 11
+    },
+    {
+      "changedChannels" : 183738,
+      "second" : 11.5
+    }
+  ]
+}

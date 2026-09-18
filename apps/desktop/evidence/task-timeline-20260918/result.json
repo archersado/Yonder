@@ -1,0 +1,16 @@
+{
+  "browser_fixture": {
+    "keyboard_menu_focus": true,
+    "timeline": true,
+    "timeline_partial_failure": true
+  },
+  "macos_native": {
+    "agent_step_visible": true,
+    "keyboard_menu_persisted": true,
+    "timeline_visible": true
+  },
+  "test_task": {
+    "cancelled_after_verification": true,
+    "data_retained": true
+  }
+}

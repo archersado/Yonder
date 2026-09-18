@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentResponse",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "result": {
+          "$ref": "#/$defs/AgentInputResult"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/RpcError"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "error"
+      ]
+    }
+  ],
+  "$defs": {
+    "AgentInputResult": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "accepted"
+      ]
+    },
+    "RpcError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "Version": {
+      "type": "string",
+      "enum": [
+        "2.0"
+      ]
+    }
+  }
+}

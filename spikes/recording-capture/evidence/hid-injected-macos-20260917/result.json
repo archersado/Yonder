@@ -1,0 +1,13 @@
+{
+  "sample": "cua_repl click on Yonda",
+  "hid_access": "granted",
+  "captured": 28,
+  "hid_marks": 0,
+  "hardware_correlated": 0,
+  "external_unknown": 28,
+  "window_ms": 20.0,
+  "gaps": 0,
+  "payload_recorded": false,
+  "injected_not_classified_as_user": true,
+  "passed": true
+}

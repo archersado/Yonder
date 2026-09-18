@@ -1,0 +1,17 @@
+{
+  "sdk_only": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "yonder_host_verified": false,
+  "other_space_verified": false,
+  "windows_verified": false,
+  "phase": "normal_focus",
+  "normal_native": {
+    "mapping_not_unique": true,
+    "refused": true,
+    "exit_code": 4
+  },
+  "failure": "隔离窗口定位验证失败",
+  "passed": false
+}

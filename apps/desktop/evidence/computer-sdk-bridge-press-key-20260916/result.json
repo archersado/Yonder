@@ -1,0 +1,16 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 11
+  },
+  "computer_capability": "available",
+  "sdk_tool": "press_key",
+  "task_id": "task_762aaaf157d32682d554e10e5eaddcbf",
+  "native_target_matches": true,
+  "attempt_phase": "observed",
+  "final_status": "completed",
+  "final_sequence": "6",
+  "events": 6,
+  "recording_started": false,
+  "passed": true
+}

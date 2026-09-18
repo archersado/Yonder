@@ -1,0 +1,4 @@
+task_id: task_d884324efb3bc4817836cb8ce4b1b877
+owner_agent_id: codex-cli
+status: created
+sequence: 1

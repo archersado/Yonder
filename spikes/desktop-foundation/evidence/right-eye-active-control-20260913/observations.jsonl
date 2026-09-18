@@ -1,0 +1,6 @@
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"before","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"before","screen_capture_exit":0}
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"docked","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"docked","screen_capture_exit":0}
+{"activate_for_control":true,"active_before_input":false}
+{"activation_requested":true,"active_after_activation":false}

@@ -1,0 +1,27 @@
+{
+  "click": true,
+  "breath": {
+    "start": "matrix(1.00001, 0, 0, 1.00001, 0, 0)",
+    "end": "matrix(1.00412, 0, 0, 1.00619, 0, 0)"
+  },
+  "naturalBlink": true,
+  "reopens": true,
+  "drag": {
+    "receipt": {
+      "cmd": "plugin:window|start_dragging",
+      "args": {
+        "label": "pet"
+      }
+    },
+    "classes": "active"
+  },
+  "reduced": {
+    "classes": "",
+    "animations": 0
+  },
+  "blur": {
+    "classes": "",
+    "animations": 0
+  },
+  "focus": "active"
+}

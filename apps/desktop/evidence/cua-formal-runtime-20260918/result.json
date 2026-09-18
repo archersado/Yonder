@@ -1,0 +1,7 @@
+{
+  "sdk_version": "0.25.0",
+  "node_present": true,
+  "worker_matches": true,
+  "qwen_absent": true,
+  "passed": true
+}

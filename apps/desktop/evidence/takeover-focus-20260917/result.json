@@ -1,0 +1,14 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 13
+  },
+  "task_id": "task_ce4aff3f1f0cb40032b13532d213fb5f",
+  "task_status": "paused",
+  "control_phase": "stopped",
+  "focus_phase": "focused",
+  "native_target_frontmost": true,
+  "events": 8,
+  "recording_started": false,
+  "passed": true
+}

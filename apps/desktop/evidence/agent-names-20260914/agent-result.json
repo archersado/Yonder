@@ -1,0 +1,10 @@
+{
+  "pid": 66662,
+  "live_desktop_connection": true,
+  "registered_tasks": 2,
+  "idempotent_replay": true,
+  "created_only": true,
+  "agent_names": true,
+  "passed": true,
+  "cancelled_after_native_test": true
+}

@@ -1,0 +1,15 @@
+{
+  "work_ref_id": "work_1",
+  "process_start_bound": true,
+  "normal_focus": true,
+  "minimized_restore": true,
+  "geometry_preserved": true,
+  "ambiguous_refused": true,
+  "decoy_untouched": true,
+  "closed_refused": true,
+  "closed_reason": "MappingNotUnique",
+  "released_refused": true,
+  "sidecar_app_started": false,
+  "recording_started": false,
+  "passed": true
+}

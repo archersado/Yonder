@@ -1,0 +1,18 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 11
+  },
+  "computer_capability": "available",
+  "sdk_tool": "type_text",
+  "task_id": "task_04573fa1dff252f69134f424a4a26f10",
+  "native_target_matches": true,
+  "attempt_phase": "observed",
+  "worker_pid_reused": "70077",
+  "worker_exited_after_completion": true,
+  "final_status": "completed",
+  "final_sequence": "10",
+  "events": 10,
+  "recording_started": false,
+  "passed": true
+}

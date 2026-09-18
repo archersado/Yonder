@@ -1,0 +1,93 @@
+[
+  {
+    "bounds": [
+      1509,
+      943,
+      112,
+      56
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "before",
+    "pid": 39025,
+    "pixels": [
+      112,
+      56
+    ],
+    "window_id": 18531
+  },
+  {
+    "phase": "before",
+    "screen_capture_exit": 0
+  },
+  {
+    "bounds": [
+      1509,
+      943,
+      112,
+      56
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "docked",
+    "pid": 39025,
+    "pixels": [
+      112,
+      56
+    ],
+    "window_id": 18531
+  },
+  {
+    "phase": "docked",
+    "screen_capture_exit": 0
+  },
+  {
+    "show_ax_result": 0
+  },
+  {
+    "bounds": [
+      1465,
+      545,
+      200,
+      200
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "awake-1s",
+    "pid": 39025,
+    "pixels": [
+      200,
+      200
+    ],
+    "window_id": 18531
+  },
+  {
+    "phase": "awake-1s",
+    "screen_capture_exit": 0
+  },
+  {
+    "bounds": [
+      1465,
+      545,
+      200,
+      200
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "awake-3s",
+    "pid": 39025,
+    "pixels": [
+      200,
+      200
+    ],
+    "window_id": 18531
+  },
+  {
+    "phase": "awake-3s",
+    "screen_capture_exit": 0
+  },
+  {
+    "observation_seconds": 3.502302050590515,
+    "result": "可见桌面休眠与唤醒尺寸检查通过"
+  }
+]

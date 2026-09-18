@@ -1,0 +1,9 @@
+{
+  "captures": 3,
+  "transparent_window": true,
+  "pixels_changed": [
+    true,
+    true
+  ],
+  "scope": "idle原生图像变化，不证明全部动作丝滑"
+}

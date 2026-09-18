@@ -1,0 +1,58 @@
+[
+  {
+    "file": "frames/idle-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      23,
+      32,
+      333,
+      376
+    ]
+  },
+  {
+    "file": "frames/idle-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      24,
+      32,
+      334,
+      376
+    ]
+  },
+  {
+    "file": "frames/idle-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      23,
+      32,
+      334,
+      376
+    ]
+  },
+  {
+    "file": "frames/idle-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      23,
+      32,
+      334,
+      376
+    ]
+  }
+]

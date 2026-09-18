@@ -1,0 +1,326 @@
+[
+  {
+    "state": "idle",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "idle",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "idle",
+    "frame": 2,
+    "eyes_detected": [
+      false,
+      false
+    ],
+    "rgba": true
+  },
+  {
+    "state": "idle",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "listening",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "listening",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "listening",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "listening",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "thinking",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "thinking",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "thinking",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "thinking",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "executing",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "executing",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "executing",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "executing",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "waiting_for_user",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "waiting_for_user",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "waiting_for_user",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "waiting_for_user",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "paused",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "paused",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "paused",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "paused",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "recording",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "recording",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "recording",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "recording",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "success",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "success",
+    "frame": 1,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "success",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "success",
+    "frame": 3,
+    "eyes_detected": [
+      false,
+      false
+    ],
+    "rgba": true
+  },
+  {
+    "state": "failed",
+    "frame": 0,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "failed",
+    "frame": 1,
+    "eyes_detected": [
+      false,
+      false
+    ],
+    "rgba": true
+  },
+  {
+    "state": "failed",
+    "frame": 2,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  },
+  {
+    "state": "failed",
+    "frame": 3,
+    "eyes_detected": [
+      true,
+      true
+    ],
+    "rgba": true
+  }
+]

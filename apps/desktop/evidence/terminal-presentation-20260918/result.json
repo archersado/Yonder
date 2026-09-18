@@ -1,0 +1,28 @@
+{
+  "platform": "macos",
+  "formal_app_pid": 67309,
+  "gateway_transport": "uds",
+  "task_id": "task_bbf3c6b8130c2a120489f7f0a230d529",
+  "browser_reference": "ego:81",
+  "terminal_write": "browser.execute(finish)",
+  "final_status": "completed",
+  "final_sequence": "10",
+  "application_checks": {
+    "completed_write_emits_success": true,
+    "failed_write_emits_failed": true,
+    "read_does_not_replay": true,
+    "rejected_write_does_not_emit": true
+  },
+  "ego_browser": {
+    "task_space_id": 78,
+    "closed": true,
+    "success_entered": true,
+    "restored_after_ms": 1800,
+    "duplicate_ignored": true,
+    "hidden_pet_woke": true
+  },
+  "workspace_tests": 52,
+  "architecture_check": "passed",
+  "windows": "deferred-by-user",
+  "passed": true
+}

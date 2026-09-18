@@ -1,0 +1,5 @@
+{
+  "fixture_residual": true,
+  "passed": false,
+  "reason": "fixture-exit-not-confirmed"
+}

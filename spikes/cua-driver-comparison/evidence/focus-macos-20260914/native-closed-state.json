@@ -1,0 +1,20 @@
+{
+  "sdk_only": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "yonder_host_verified": false,
+  "other_space_verified": false,
+  "windows_verified": false,
+  "phase": "initial_observe",
+  "target_listed": true,
+  "initial_sdk_observe": false,
+  "failure": "隔离窗口定位验证失败",
+  "passed": false,
+  "final_fixture": {
+    "ready": true,
+    "target_key": false,
+    "decoy_key": true,
+    "app_active": true
+  }
+}

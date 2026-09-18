@@ -1,0 +1,77 @@
+[
+  {
+    "bounds": [
+      1864,
+      589,
+      56,
+      112
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "before",
+    "pid": 39025,
+    "pixels": [
+      56,
+      112
+    ],
+    "window_id": 18531
+  },
+  {
+    "bounds": [
+      1864,
+      589,
+      56,
+      112
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "docked",
+    "pid": 39025,
+    "pixels": [
+      56,
+      112
+    ],
+    "window_id": 18531
+  },
+  {
+    "show_ax_result": 0
+  },
+  {
+    "bounds": [
+      1465,
+      545,
+      200,
+      200
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "awake-1s",
+    "pid": 39025,
+    "pixels": [
+      200,
+      200
+    ],
+    "window_id": 18531
+  },
+  {
+    "bounds": [
+      1465,
+      545,
+      200,
+      200
+    ],
+    "capture_exit": 0,
+    "onscreen": true,
+    "phase": "awake-3s",
+    "pid": 39025,
+    "pixels": [
+      200,
+      200
+    ],
+    "window_id": 18531
+  },
+  {
+    "observation_seconds": 3.2309470176696777,
+    "result": "可见桌面休眠与唤醒尺寸检查通过"
+  }
+]

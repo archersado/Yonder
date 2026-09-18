@@ -1,0 +1,10 @@
+{
+  "mcp_protocol": "2025-06-18",
+  "tools": 8,
+  "task_control_exposed": true,
+  "owner": "codex-cli",
+  "created": true,
+  "read_back": true,
+  "cancelled_retained": true,
+  "passed": true
+}

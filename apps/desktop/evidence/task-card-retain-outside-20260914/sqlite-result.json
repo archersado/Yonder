@@ -1,0 +1,9 @@
+{
+  "schema": 3,
+  "tasks": 2,
+  "events": 4,
+  "outbox": 4,
+  "idempotency_records": 2,
+  "nonempty_descriptions": 2,
+  "cancelled_tasks": 2
+}

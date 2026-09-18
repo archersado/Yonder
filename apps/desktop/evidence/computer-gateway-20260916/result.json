@@ -1,0 +1,15 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 10
+  },
+  "computer_capability": "available",
+  "task_id": "task_4606d3f5fe3b9ea3727a04bcf50c43a5",
+  "native_target_matches": true,
+  "attempt_phase": "observed",
+  "final_status": "completed",
+  "final_sequence": "6",
+  "events": 6,
+  "recording_started": false,
+  "passed": true
+}

@@ -1,0 +1,16 @@
+{
+  "mode": "内置imagegen",
+  "reference": "assets/mascot/yonda-dragon-concept-v1.png",
+  "common": "Use case: stylized-concept. Generate a 2x2 FOUR FRAME sprite sheet of the SAME Yonda dragon from reference. Reference is ONLY for character identity, ignore its background and cutout artifacts. Cream white baby dragon, soft blue Y-branched antlers, blue-gold eyes with tiny star reflection, blue eyebrows, blue-gold small wings, curled blue-tipped tail, soft matte 3D. Exact same full-body scale, fixed forward three-quarter camera and feet anchor in all four equal cells, 12% safe margin on ALL sides, no clipped horn or wing. Read frames top-left top-right bottom-left bottom-right. BACKGROUND MUST BE UNIFORM SOLID PURE CHROMA GREEN RGB(0,255,0), #00FF00 everywhere outside the character, including gaps between horns, wings, tail and legs. Flat unlit green color ONLY, no gradient, no floor, NO shadow, NO green reflection or green lighting on character. This solid color will be removed for actual transparency. NEVER draw checkerboard, grid, cell borders, labels, letters or props. Preserve clean smooth character edges.",
+  "actions": {
+    "idle": "Four frames: relaxed paws down, neutral breathing, slight chest expansion, both eyes closed gently only in frame 3, relaxed eyes open in frame4. Tail tip moves very slightly.",
+    "listening": "Four frames: paws down and folded wings, attentive gently closed mouth. Slight head lift from frame1 to frame2, tiny 3-degree listening tilt frame3 and holdframe4. No waving.",
+    "thinking": "Four frames: paws down wings folded, same forward body facing and same camera; only head tiny angles 0,+3,0,-3 degrees, tail tip subtly moves. Do not mirror character.",
+    "executing": "Four frames: focused closed-mouth expression, body gently leaning forward. frame1 both paws near chest. Frame2 raise IMAGE-RIGHT paw, lower IMAGE-LEFT paw. Frame3 both near chest. Frame4 raise IMAGE-LEFT paw, lower IMAGE-RIGHT paw. Tiny folded wing flutter.",
+    "waiting_for_user": "Four frames: gentle concerned expression, gaze towards viewer, paws near belly then gradually raise only image-right paw asking for help, hold final. Tiny head tilt, no jumping.",
+    "paused": "Four frames: gradually lower both paws and fold small wings against body; relaxed quiet final pose, no waving or celebration.",
+    "recording": "Four frames: calm focused closed-mouth face, paws near chest, subtle tail sway only. No red dot baked into image, no blinking or smile changes.",
+    "success": "Four frames: neutral crouch, tiny joyful hop with wings briefly open, descend with happy paw wave, landed relaxed smile. Same scale, hop offset only 3 percent of cell height.",
+    "failed": "Four frames: folded wings, paws lowered; gentle brief head bow, then look up towards viewer asking for help. No waving, no smile celebration, no tears."
+  }
+}

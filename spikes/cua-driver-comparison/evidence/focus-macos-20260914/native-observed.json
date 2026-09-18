@@ -1,0 +1,12 @@
+{
+  "sdk_only": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "yonder_host_verified": false,
+  "other_space_verified": false,
+  "windows_verified": false,
+  "phase": "fixture_ready",
+  "failure": "隔离窗口定位验证失败",
+  "passed": false
+}

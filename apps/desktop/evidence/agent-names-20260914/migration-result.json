@@ -1,0 +1,12 @@
+{
+  "schema": 5,
+  "tasks": 4,
+  "cancelled": 4,
+  "named_tasks": 2,
+  "events": 8,
+  "outbox": 8,
+  "creations": 4,
+  "consistent_backup": true,
+  "all_legacy_rows_unchanged": true,
+  "passed": true
+}

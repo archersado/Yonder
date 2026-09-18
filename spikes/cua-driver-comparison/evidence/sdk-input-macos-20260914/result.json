@@ -1,0 +1,12 @@
+{
+  "sdk_only": true,
+  "accessibility": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "native_inflight_stop_verified": false,
+  "yonder_host_verified": false,
+  "fixture_spawn_error": true,
+  "failure": "隔离目标观察超时",
+  "passed": false
+}

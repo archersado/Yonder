@@ -1,0 +1,47 @@
+name: 架构与任务状态验证
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: 记录现有工具链
+        run: |
+          rustc --version
+          cargo --version
+          python3 --version
+      - name: 检查门禁自身
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: 检查依赖与 PR 关联
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            python3 scripts/check_architecture.py --event "$GITHUB_EVENT_PATH"
+          else
+            python3 scripts/check_architecture.py
+          fi
+      - name: 验证 Workspace
+        run: cargo test --workspace --locked
+      - name: 检查协议生成一致性
+        run: cargo run -p yonder-protocol --example generate --locked -- --check

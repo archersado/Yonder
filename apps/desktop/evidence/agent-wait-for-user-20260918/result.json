@@ -1,0 +1,26 @@
+{
+  "date": "2026-09-18",
+  "result": "PASS",
+  "scope": "macOS 子范围",
+  "protocol": "1.17",
+  "schema": 14,
+  "desktop_pid": 62198,
+  "formal_task_count": 110,
+  "checks": {
+    "safe_boundary_wait": true,
+    "active_attempt_rejected": true,
+    "old_protocol_rejected": true,
+    "reason_transactional_event": true,
+    "old_event_projection_hides_reason": true,
+    "admission_released_after_commit": true,
+    "task_space_wait_reason": true,
+    "ego_task_space": 74,
+    "workspace_tests": 51,
+    "architecture_check": true
+  },
+  "deferred": [
+    "Resume与用户回答路由",
+    "等待外部响应状态",
+    "Windows原生证据"
+  ]
+}

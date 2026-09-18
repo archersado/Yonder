@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Yonda · 语音输入</title><link rel="stylesheet" href="voice-input.css" /><script src="voice-input.js" defer></script>
+</head><body><main class="card" aria-labelledby="title">
+  <header><div><small>YONDA</small><h1 id="title">语音输入</h1></div><button id="close" aria-label="取消并关闭">×</button></header>
+  <p id="status" role="status">正在准备麦克风…</p>
+  <div class="level" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <textarea id="transcript" aria-label="转写文字" placeholder="说话后，文字会出现在这里" readonly></textarea>
+  <footer><button id="retry" hidden>重新开始</button><button id="stop">停止</button></footer>
+</main></body></html>

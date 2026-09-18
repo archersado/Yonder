@@ -1,0 +1,19 @@
+{
+  "coalition": [
+    "29939",
+    "application.com.yonder.e0-spike.1138601.1138604.2463A88C-EEF0-4844-BBFF-59AAE596FFF2",
+    "com.yonder.e0-spike"
+  ],
+  "members_before": {
+    "88825": "yonder-desktop-spike",
+    "88830": "com.apple.WebKit.GPU",
+    "88831": "com.apple.WebKit.Networking",
+    "88832": "com.apple.WebKit.WebContent"
+  },
+  "status": "托盘退出后已归属进程全部结束",
+  "menu": {
+    "quit_ax_result": 0
+  },
+  "elapsed_seconds": 0.5550522499999999,
+  "remaining_pids": []
+}

@@ -1,0 +1,30 @@
+{
+  "sample": "physical input requested from user",
+  "runs": [
+    {
+      "window_ms": 20.0,
+      "captured": 3,
+      "hid_marks": 1,
+      "hardware_correlated": 0,
+      "external_unknown": 3
+    },
+    {
+      "window_ms": 100.0,
+      "captured": 0,
+      "hid_marks": 0,
+      "hardware_correlated": 0,
+      "external_unknown": 0
+    },
+    {
+      "window_ms": 100.0,
+      "captured": 1,
+      "hid_marks": 0,
+      "hardware_correlated": 0,
+      "external_unknown": 1
+    }
+  ],
+  "hid_access": "granted",
+  "payload_recorded": false,
+  "stable_user_classification": false,
+  "passed": false
+}

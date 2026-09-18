@@ -1,0 +1,21 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 12
+  },
+  "computer_capability": "available",
+  "sdk_tool": "type_text",
+  "task_id": "task_6666836eb9df82fa6805c0016a00b33b",
+  "native_target_matches": true,
+  "attempt_phase": "observed",
+  "one_call_step": true,
+  "observe_element_count": 67,
+  "observe_screenshot_created_and_cleaned": false,
+  "worker_pid_reused": "78537",
+  "worker_exited_after_completion": true,
+  "final_status": "completed",
+  "final_sequence": "10",
+  "events": 10,
+  "recording_started": false,
+  "passed": true
+}

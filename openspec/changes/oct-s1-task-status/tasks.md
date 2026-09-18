@@ -1,14 +1,28 @@
+当前归属 Story：TM-S1；规划：`docs/specs/epic-TM/story-TM-S1/README.md`。旧编号保留历史追溯。
+
 # 任务
 
-- [x] 建立正式 Workspace 与 Domain 状态转换
-- [x] Application 查询、增量事件和 compare-and-commit 用例
-- [x] SQLCipher 事务存储实现及 Linux 双连接/回滚测试
-- [x] 有界启动恢复用例与故障回滚验证（Linux/WSL 和 Windows 原生测试通过）
-- [ ] 生产宿主单实例所有权及恢复完成后开放执行的启动接线
-- [x] 只读 Rust 协议、Schema/TypeScript 生成与漂移检查、进程内查询分派
-- [ ] 完整步骤/观察/意图契约、hello 协商及 Gateway 身份绑定
-- [ ] 生产 Credential Manager 子密钥接线
-- [ ] 本地 Gateway 和 CLI 查询
-- [ ] 桌面状态展示
-- [ ] Windows 原生端到端验证
-- [ ] 独立 Verification Goal 与 Archive
+## 已实施的历史范围
+
+- [x] 记录多任务需求及 AD-OCT-03 Proposed 决策，同步 Epic/Story/OpenSpec
+- [x] task.list 进程内契约、Rust 派生协议、SQLCipher 游标分页及 macOS 核心验证（verification-task-list.md）
+- [x] AD-OCT-04 归属字段与可信 AuthContext 查询隔离（verification-task-ownership.md）
+- [x] AD-OCT-05 gateway.hello、版本协商及连接内查询门禁（verification-gateway-hello.md）
+- [x] AD-OCT-06 进程内资源准入及多线程竞争验证（verification-resource-admission.md）
+- [x] 可信启动用例串联资源准入和状态事务（verification-admitted-start.md）
+- [x] 确认停止后的终态事务与资源释放（verification-admitted-finish.md）
+- [x] 正式 Workspace、Domain 状态转换、Application CAS/恢复用例、SQLite 事务与 Rust 只读协议历史批次
+- [x] CI 依赖方向、协议漂移和 Story/OpenSpec/PR 关联的本地门禁（verification-ci.md）
+
+## 后续范围迁出
+
+- [x] 生产本地/云端认证、AuthContext、Gateway、CLI/MCP与双平台传输从本Change撤出，由AG-S1及关联Change承接；不表示已完成
+- [x] task.list全量查询与忙碌派生从本Change撤出，由TM-S6承接；不表示完整TM-S1已完成
+- [x] 任务总览、分页、详情、桌宠状态与ego-lite关联从本Change撤出，由DS-S2、BU-S2与TM-S5承接
+- [x] 真实执行attempt、Driver派发/Observe、步骤声明与停止确认从本Change撤出，由TM-S2/TM-S3、CU-S2与AG-S3承接
+- [x] 文件身份、同文件互斥与安全写入从本Change撤出，由FI-S1承接
+- [x] 桌面组合根、单实例、恢复和原生UI从本Change撤出，由DS-S1/DS-S2承接
+- [x] Credential Store、加密与密钥接线从本Change撤出，依AD-ST-01延期至MVP之后ST-S2；不得从本Change恢复实施
+- [x] Windows/macOS CI、原生E2E、PR隔离及Archive从本混合Change撤出，由EN-S1和各产品Story独立验证
+
+本Change冻结且不Archive。上述勾选表示“迁出动作完成”，不表示目标Story的产品验收完成。

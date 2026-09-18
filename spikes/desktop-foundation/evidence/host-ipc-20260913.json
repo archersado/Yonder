@@ -1,0 +1,9 @@
+{
+  "host_pid": 88825,
+  "uds_owned_by_host": true,
+  "host_tcp_sockets": 0,
+  "rejected_bad_version": true,
+  "subsequent_echo_count": 2,
+  "binary_sha256": "1cdf0a38eebbc3f9c3c47fa1c0a0441b337d4597af327d6421e2f1a50f4dcb2a",
+  "scope": "macOS预览宿主，同用户；无正式Gateway/任务或跨用户拒绝验收"
+}

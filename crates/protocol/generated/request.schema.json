@@ -13,6 +13,281 @@
         },
         "method": {
           "type": "string",
+          "const": "browser.execute"
+        },
+        "params": {
+          "$ref": "#/$defs/BrowserExecuteParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "computer.execute"
+        },
+        "params": {
+          "$ref": "#/$defs/ComputerExecuteParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "computer.step"
+        },
+        "params": {
+          "$ref": "#/$defs/ComputerStepParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.cancel"
+        },
+        "params": {
+          "$ref": "#/$defs/CancelParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.create"
+        },
+        "params": {
+          "$ref": "#/$defs/CreateParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.control"
+        },
+        "params": {
+          "$ref": "#/$defs/ControlParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.complete"
+        },
+        "params": {
+          "$ref": "#/$defs/CompleteParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.fail"
+        },
+        "params": {
+          "$ref": "#/$defs/CompleteParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.wait_for_user"
+        },
+        "params": {
+          "$ref": "#/$defs/WaitForUserParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "gateway.hello"
+        },
+        "params": {
+          "$ref": "#/$defs/HelloParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.list"
+        },
+        "params": {
+          "$ref": "#/$defs/ListParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
           "const": "task.get"
         },
         "params": {
@@ -51,13 +326,392 @@
         "id",
         "params"
       ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.step.declare"
+        },
+        "params": {
+          "$ref": "#/$defs/StepDeclareParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.step.get"
+        },
+        "params": {
+          "$ref": "#/$defs/GetParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.browser.get"
+        },
+        "params": {
+          "$ref": "#/$defs/GetParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "task.step.advance"
+        },
+        "params": {
+          "$ref": "#/$defs/StepAdvanceParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
     }
   ],
   "$defs": {
+    "BrowserExecuteParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/BrowserOperation"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "operation"
+      ]
+    },
+    "BrowserOperation": {
+      "type": "string",
+      "enum": [
+        "create",
+        "observe",
+        "hand-off",
+        "take-over",
+        "finish"
+      ]
+    },
+    "CancelParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence"
+      ]
+    },
     "Capability": {
       "type": "string",
       "enum": [
-        "task.read"
+        "task.read",
+        "task.create",
+        "task.cancel",
+        "task.complete",
+        "task.fail",
+        "task.control",
+        "task.wait-for-user",
+        "task.step.declare",
+        "task.step.advance",
+        "browser.execute",
+        "computer.execute"
+      ]
+    },
+    "CompleteParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence"
+      ]
+    },
+    "ComputerExecuteParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "arguments": true,
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "tool_name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "tool_name",
+        "arguments"
+      ]
+    },
+    "ComputerStepParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "arguments": true,
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "tool_name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "step_id",
+        "label",
+        "tool_name",
+        "arguments"
+      ]
+    },
+    "ControlKind": {
+      "type": "string",
+      "enum": [
+        "pause",
+        "cancel",
+        "takeover"
+      ]
+    },
+    "ControlParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ControlKind"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "kind"
+      ]
+    },
+    "CreateParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "description": {
+          "type": "string"
+        },
+        "idempotency_key": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "idempotency_key",
+        "description"
       ]
     },
     "EventsParams": {
@@ -126,10 +780,229 @@
         "task_id"
       ]
     },
+    "HelloParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "offered_capabilities": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/OfferedCapability"
+          }
+        },
+        "protocol_version": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "session_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "protocol_version"
+      ]
+    },
+    "ListParams": {
+      "type": "object",
+      "properties": {
+        "after_task_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "include_finished": {
+          "type": "boolean",
+          "default": false
+        },
+        "limit": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 100,
+          "minimum": 1
+        },
+        "running_only": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "limit"
+      ]
+    },
+    "OfferedCapability": {
+      "type": "string",
+      "enum": [
+        "user_input"
+      ]
+    },
+    "ProtocolVersion": {
+      "type": "object",
+      "properties": {
+        "major": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "StepAdvanceParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence"
+      ]
+    },
+    "StepDeclareParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "step_id",
+        "label"
+      ]
+    },
     "Version": {
       "type": "string",
       "enum": [
         "2.0"
+      ]
+    },
+    "WaitForUserParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "reason"
       ]
     }
   }

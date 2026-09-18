@@ -35,3 +35,10 @@
 - **WHEN** 用户删除设备数据
 - **THEN** 系统删除对应 Credential
 - **AND** 后续读取返回不存在
+
+## ADDED Requirement：macOS 原生 Keychain 补充探针
+
+关联 E0-S6、AD-E0-06 补充验证；Architecture Impact：conforming。期限为 2026-09-11 本次增量；仅验证待定技术路线，不启动产品凭据 Adapter。
+
+### Scenario：临时凭据往返与精确清理
+使用系统随机源创建 32 字节测试密钥和 UUID 隔离条目；SecItemAdd 成功、同名添加返回 errSecDuplicateItem、读取字节一致、删除成功且随后读取严格返回 errSecItemNotFound。所有查询限定临时 service/account，禁止宽泛枚举或删除。清理失败输出条目标识便于人工处理；输出不得包含密钥。Windows 以既有 Credential Manager 探针为统一样本对照。

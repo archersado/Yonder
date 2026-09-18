@@ -1,6 +1,27 @@
+当前归属 Story：TM-S1；规划：`docs/specs/epic-TM/story-TM-S1/README.md`。旧编号保留历史追溯。
+
 # Verification Goal：OCT-S1
 
 状态：未通过，Story 仍在实施。
+
+2026-09-11 任务归属/授权增量见 `verification-task-ownership.md`：可信 AuthContext、归属过滤、统一错误和 v1 文件保护，macOS Workspace 9 项测试通过。实际认证、Gateway、旧库迁移和桌面 E2E 仍待完成。
+
+2026-09-11 进程内 task.list 增量见 `verification-task-list.md`：真实 SQLCipher 跨连接分页与状态筛选、协议生成和 macOS Workspace 8 项测试通过。尚无任务归属/认证、并行执行或桌面总览，不据此通过整项 Story。
+
+## 多任务增量验证目标（待执行）
+
+2026-09-11 关联 AD-OCT-03、Story AC 6–8 和 task-status 的多任务场景。task.list 进程内增量已有独立验证，授权、执行器和 UI 仍未交付。
+
+- 两个不同资源后台任务同时 running，独立更新序号；取消一个不影响另一个（取消操作在 OCT-S2 验证）。
+- 两个 CUA 任务只有一个持有前台租约，同文件写入串行；等待原因真实且可见。
+- 超过一页的授权非终态任务均可访问，新增/终态变化刷新正确；伪造身份不能查询他人任务。
+- 未选中/未加载页的 running 任务阻止小龙隐藏，最后一个结束后重新计时三分钟。
+- 多任务重启恢复全部 running 为 interrupted，不重放动作。
+- Windows/macOS 原生任务总览与交互分别提供证据。所有依赖门禁通过前不 Archive。
+
+## CI 增量验证入口
+
+2026-09-11 独立记录：`verification-ci.md`。本地 macOS 真实依赖检查、6 个 Rust 测试、协议生成检查及 11 个 Python 门禁测试通过。Windows/macOS GitHub 工作流尚未实际运行；本记录先前的“CI 尚未接线”描述对应只读协议批次，现已补充配置，但不得据此认定 CI 已通过或 Story Done。
 
 当前证据：`cargo test --workspace --offline` 通过 Domain 生命周期测试与 Application 故障注入测试。测试验证旧序号拒绝、提交失败错误传播、终态保护及排他游标分页。
 

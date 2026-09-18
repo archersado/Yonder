@@ -1,0 +1,3 @@
+桌宠停靠：edge=bottom, position=PhysicalPosition { x: 2474, y: 1958 }, size=PhysicalSize { width: 224, height: 112 }
+桌宠唤醒：position=PhysicalPosition { x: 2386, y: 1054 }, size=PhysicalSize { width: 400, height: 402 }
+桌宠停靠：edge=right, position=PhysicalPosition { x: 3308, y: 1427 }, size=PhysicalSize { width: 112, height: 224 }

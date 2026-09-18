@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentRequest",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "agent.input"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentInputParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    }
+  ],
+  "$defs": {
+    "AgentInputParams": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "input_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/AgentInputSource"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_id",
+        "session_id",
+        "source",
+        "content",
+        "created_at",
+        "deadline"
+      ]
+    },
+    "AgentInputSource": {
+      "type": "string",
+      "enum": [
+        "voice",
+        "selection"
+      ]
+    },
+    "Version": {
+      "type": "string",
+      "enum": [
+        "2.0"
+      ]
+    }
+  }
+}

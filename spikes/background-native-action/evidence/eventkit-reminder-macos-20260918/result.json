@@ -1,0 +1,39 @@
+{
+  "authorization_after" : "full-access",
+  "authorization_before" : "full-access",
+  "cleanup_confirmed" : true,
+  "failure" : "none",
+  "foreground_unchanged" : true,
+  "mode" : "background",
+  "native_api" : "EventKit",
+  "observed_by_identifier" : true,
+  "passed" : true,
+  "permission_granted" : true,
+  "platform" : "macos",
+  "saved" : true,
+  "task_space_facts" : [
+    {
+      "capability" : "eventkit.reminder",
+      "execution_class" : "background-native",
+      "kind" : "step-declared",
+      "sequence" : 1
+    },
+    {
+      "capability" : "eventkit.reminder",
+      "execution_class" : "background-native",
+      "kind" : "attempt-started",
+      "sequence" : 2
+    },
+    {
+      "kind" : "observe",
+      "result" : "observed",
+      "sequence" : 3
+    },
+    {
+      "kind" : "attempt-result",
+      "result" : "observed",
+      "sequence" : 4
+    }
+  ],
+  "timeline_mappable" : true
+}

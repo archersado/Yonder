@@ -1,0 +1,101 @@
+{
+  "package": "@trycua/cua-driver",
+  "version": "0.25.0",
+  "platform": "macos",
+  "lifecycle": {
+    "completed": true,
+    "result": {
+      "unknown_tool": {
+        "resolved": true,
+        "is_error": true
+      },
+      "pre_aborted_read": {
+        "resolved": false,
+        "code": "unknown"
+      },
+      "shutdown": {
+        "resolved": true,
+        "is_error": null
+      },
+      "after_shutdown": {
+        "resolved": false,
+        "code": "unknown"
+      },
+      "second_shutdown": {
+        "resolved": true,
+        "is_error": null
+      }
+    }
+  },
+  "crash": {
+    "expected_exit": true,
+    "timeout": false
+  },
+  "recovery": {
+    "completed": true,
+    "result": {
+      "read_after_crash": {
+        "resolved": true,
+        "is_error": false
+      }
+    }
+  },
+  "input_dispatched": false,
+  "recording_started": false,
+  "native_input_stop_verified": false,
+  "submitted": {
+    "completed": true,
+    "result": {
+      "abort_before_settlement": true,
+      "native_admission_observed": false,
+      "submitted_read": {
+        "resolved": false,
+        "code": "unknown"
+      },
+      "read_after_abort": {
+        "resolved": true,
+        "is_error": false
+      },
+      "shutdown_read": {
+        "resolved": true,
+        "is_error": false
+      },
+      "shutdown": {
+        "resolved": true,
+        "is_error": null
+      },
+      "after_shutdown": {
+        "resolved": false,
+        "code": "unknown"
+      }
+    }
+  },
+  "sdk_workers": {
+    "terminated": {
+      "ready": true,
+      "completed": true,
+      "timeout": false,
+      "exit_code": null,
+      "exit_signal": "SIGTERM"
+    },
+    "disconnected": {
+      "ready": true,
+      "completed": true,
+      "timeout": false,
+      "exit_code": 0,
+      "exit_signal": null
+    },
+    "recovery": {
+      "completed": true,
+      "result": {
+        "read_after_crash": {
+          "resolved": true,
+          "is_error": false
+        }
+      }
+    }
+  },
+  "sdk_worker_lifecycle_passed": true,
+  "readonly_lifecycle_passed": true,
+  "submitted_lifecycle_passed": true
+}

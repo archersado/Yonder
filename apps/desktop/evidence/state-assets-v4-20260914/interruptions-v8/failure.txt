@@ -1,0 +1,1 @@
+Error: page.waitForFunction timed out after 10000ms on page p1; last URL was "file:///private/tmp/yonda-transition-check.html"; last title was "Yonda".

@@ -1,0 +1,28 @@
+{
+  "sdk_only": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "yonder_host_verified": false,
+  "other_space_verified": false,
+  "windows_verified": false,
+  "phase": "normal_focus",
+  "target_listed": true,
+  "initial_sdk_observe": true,
+  "normal_native": {
+    "ax_windows": 0,
+    "frame_matches": 0,
+    "mapping_not_unique": true,
+    "refused": true,
+    "title_matches": 0,
+    "exit_code": 4
+  },
+  "failure": "隔离窗口定位验证失败",
+  "passed": false,
+  "final_fixture": {
+    "ready": true,
+    "target_key": false,
+    "decoy_key": true,
+    "app_active": true
+  }
+}

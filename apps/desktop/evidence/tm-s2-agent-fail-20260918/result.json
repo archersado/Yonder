@@ -1,0 +1,27 @@
+{
+  "platform": "macos",
+  "formal_app_pid": 72307,
+  "protocol_version": "1.18",
+  "gateway_method": "task.fail",
+  "sqlite_schema_changed": false,
+  "checks": {
+    "observed_false_stopped_fails": true,
+    "failed_action_cannot_complete": true,
+    "unknown_cannot_fail": true,
+    "terminal_request_response_pairing": true,
+    "resource_released_after_commit": true
+  },
+  "ego_browser": {
+    "task_space_id": 83,
+    "closed": true,
+    "success_and_failed_entered": true,
+    "restored_after_ms": 1800,
+    "duplicate_ignored": true
+  },
+  "workspace_tests": 52,
+  "architecture_check": "passed",
+  "javascript_check": "passed",
+  "diff_check": "passed",
+  "windows": "deferred-by-user",
+  "passed": true
+}

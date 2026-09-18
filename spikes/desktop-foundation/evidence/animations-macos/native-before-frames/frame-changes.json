@@ -1,0 +1,1122 @@
+{
+  "duration" : 13.986666666666666,
+  "maximumChangedChannels" : 34011,
+  "samples" : [
+    {
+      "changedChannels" : 0,
+      "second" : 0
+    },
+    {
+      "changedChannels" : 2728,
+      "second" : 0.050000000000000003
+    },
+    {
+      "changedChannels" : 7837,
+      "second" : 0.10000000000000001
+    },
+    {
+      "changedChannels" : 11771,
+      "second" : 0.14999999999999999
+    },
+    {
+      "changedChannels" : 14203,
+      "second" : 0.20000000000000001
+    },
+    {
+      "changedChannels" : 16684,
+      "second" : 0.25
+    },
+    {
+      "changedChannels" : 19025,
+      "second" : 0.29999999999999999
+    },
+    {
+      "changedChannels" : 20997,
+      "second" : 0.34999999999999998
+    },
+    {
+      "changedChannels" : 22809,
+      "second" : 0.40000000000000002
+    },
+    {
+      "changedChannels" : 24600,
+      "second" : 0.45000000000000001
+    },
+    {
+      "changedChannels" : 26342,
+      "second" : 0.5
+    },
+    {
+      "changedChannels" : 27615,
+      "second" : 0.55000000000000004
+    },
+    {
+      "changedChannels" : 28917,
+      "second" : 0.59999999999999998
+    },
+    {
+      "changedChannels" : 30008,
+      "second" : 0.65000000000000002
+    },
+    {
+      "changedChannels" : 31093,
+      "second" : 0.69999999999999996
+    },
+    {
+      "changedChannels" : 31625,
+      "second" : 0.75
+    },
+    {
+      "changedChannels" : 32328,
+      "second" : 0.80000000000000004
+    },
+    {
+      "changedChannels" : 32970,
+      "second" : 0.84999999999999998
+    },
+    {
+      "changedChannels" : 33229,
+      "second" : 0.90000000000000002
+    },
+    {
+      "changedChannels" : 33553,
+      "second" : 0.94999999999999996
+    },
+    {
+      "changedChannels" : 33961,
+      "second" : 1
+    },
+    {
+      "changedChannels" : 33965,
+      "second" : 1.05
+    },
+    {
+      "changedChannels" : 33961,
+      "second" : 1.1000000000000001
+    },
+    {
+      "changedChannels" : 33808,
+      "second" : 1.1499999999999999
+    },
+    {
+      "changedChannels" : 33536,
+      "second" : 1.2
+    },
+    {
+      "changedChannels" : 33297,
+      "second" : 1.25
+    },
+    {
+      "changedChannels" : 32572,
+      "second" : 1.3
+    },
+    {
+      "changedChannels" : 31718,
+      "second" : 1.3500000000000001
+    },
+    {
+      "changedChannels" : 30754,
+      "second" : 1.3999999999999999
+    },
+    {
+      "changedChannels" : 29898,
+      "second" : 1.45
+    },
+    {
+      "changedChannels" : 28593,
+      "second" : 1.5
+    },
+    {
+      "changedChannels" : 27184,
+      "second" : 1.55
+    },
+    {
+      "changedChannels" : 25840,
+      "second" : 1.6000000000000001
+    },
+    {
+      "changedChannels" : 24064,
+      "second" : 1.6499999999999999
+    },
+    {
+      "changedChannels" : 22141,
+      "second" : 1.7
+    },
+    {
+      "changedChannels" : 20184,
+      "second" : 1.75
+    },
+    {
+      "changedChannels" : 18067,
+      "second" : 1.8
+    },
+    {
+      "changedChannels" : 15854,
+      "second" : 1.8500000000000001
+    },
+    {
+      "changedChannels" : 13179,
+      "second" : 1.8999999999999999
+    },
+    {
+      "changedChannels" : 10202,
+      "second" : 1.95
+    },
+    {
+      "changedChannels" : 6083,
+      "second" : 2
+    },
+    {
+      "changedChannels" : 1769,
+      "second" : 2.0499999999999998
+    },
+    {
+      "changedChannels" : 1512,
+      "second" : 2.1000000000000001
+    },
+    {
+      "changedChannels" : 5553,
+      "second" : 2.1499999999999999
+    },
+    {
+      "changedChannels" : 9103,
+      "second" : 2.2000000000000002
+    },
+    {
+      "changedChannels" : 10888,
+      "second" : 2.25
+    },
+    {
+      "changedChannels" : 13747,
+      "second" : 2.2999999999999998
+    },
+    {
+      "changedChannels" : 15545,
+      "second" : 2.3500000000000001
+    },
+    {
+      "changedChannels" : 17018,
+      "second" : 2.3999999999999999
+    },
+    {
+      "changedChannels" : 18166,
+      "second" : 2.4500000000000002
+    },
+    {
+      "changedChannels" : 19264,
+      "second" : 2.5
+    },
+    {
+      "changedChannels" : 20180,
+      "second" : 2.5499999999999998
+    },
+    {
+      "changedChannels" : 20904,
+      "second" : 2.6000000000000001
+    },
+    {
+      "changedChannels" : 21176,
+      "second" : 2.6499999999999999
+    },
+    {
+      "changedChannels" : 21637,
+      "second" : 2.7000000000000002
+    },
+    {
+      "changedChannels" : 21820,
+      "second" : 2.75
+    },
+    {
+      "changedChannels" : 21933,
+      "second" : 2.7999999999999998
+    },
+    {
+      "changedChannels" : 21974,
+      "second" : 2.8500000000000001
+    },
+    {
+      "changedChannels" : 21922,
+      "second" : 2.8999999999999999
+    },
+    {
+      "changedChannels" : 21900,
+      "second" : 2.9500000000000002
+    },
+    {
+      "changedChannels" : 21651,
+      "second" : 3
+    },
+    {
+      "changedChannels" : 21302,
+      "second" : 3.0499999999999998
+    },
+    {
+      "changedChannels" : 20584,
+      "second" : 3.1000000000000001
+    },
+    {
+      "changedChannels" : 20027,
+      "second" : 3.1499999999999999
+    },
+    {
+      "changedChannels" : 18945,
+      "second" : 3.2000000000000002
+    },
+    {
+      "changedChannels" : 17668,
+      "second" : 3.25
+    },
+    {
+      "changedChannels" : 16464,
+      "second" : 3.2999999999999998
+    },
+    {
+      "changedChannels" : 14867,
+      "second" : 3.3500000000000001
+    },
+    {
+      "changedChannels" : 12825,
+      "second" : 3.3999999999999999
+    },
+    {
+      "changedChannels" : 10440,
+      "second" : 3.4500000000000002
+    },
+    {
+      "changedChannels" : 7577,
+      "second" : 3.5
+    },
+    {
+      "changedChannels" : 3693,
+      "second" : 3.5499999999999998
+    },
+    {
+      "changedChannels" : 1031,
+      "second" : 3.6000000000000001
+    },
+    {
+      "changedChannels" : 3774,
+      "second" : 3.6499999999999999
+    },
+    {
+      "changedChannels" : 8355,
+      "second" : 3.7000000000000002
+    },
+    {
+      "changedChannels" : 11752,
+      "second" : 3.75
+    },
+    {
+      "changedChannels" : 14546,
+      "second" : 3.7999999999999998
+    },
+    {
+      "changedChannels" : 16815,
+      "second" : 3.8500000000000001
+    },
+    {
+      "changedChannels" : 19204,
+      "second" : 3.8999999999999999
+    },
+    {
+      "changedChannels" : 21133,
+      "second" : 3.9500000000000002
+    },
+    {
+      "changedChannels" : 22940,
+      "second" : 4
+    },
+    {
+      "changedChannels" : 24730,
+      "second" : 4.0499999999999998
+    },
+    {
+      "changedChannels" : 26466,
+      "second" : 4.0999999999999996
+    },
+    {
+      "changedChannels" : 27652,
+      "second" : 4.1500000000000004
+    },
+    {
+      "changedChannels" : 29011,
+      "second" : 4.2000000000000002
+    },
+    {
+      "changedChannels" : 30085,
+      "second" : 4.25
+    },
+    {
+      "changedChannels" : 31022,
+      "second" : 4.2999999999999998
+    },
+    {
+      "changedChannels" : 31791,
+      "second" : 4.3499999999999996
+    },
+    {
+      "changedChannels" : 32515,
+      "second" : 4.4000000000000004
+    },
+    {
+      "changedChannels" : 33013,
+      "second" : 4.4500000000000002
+    },
+    {
+      "changedChannels" : 33254,
+      "second" : 4.5
+    },
+    {
+      "changedChannels" : 33766,
+      "second" : 4.5499999999999998
+    },
+    {
+      "changedChannels" : 33906,
+      "second" : 4.5999999999999996
+    },
+    {
+      "changedChannels" : 33969,
+      "second" : 4.6500000000000004
+    },
+    {
+      "changedChannels" : 33950,
+      "second" : 4.7000000000000002
+    },
+    {
+      "changedChannels" : 33780,
+      "second" : 4.75
+    },
+    {
+      "changedChannels" : 33459,
+      "second" : 4.7999999999999998
+    },
+    {
+      "changedChannels" : 33213,
+      "second" : 4.8499999999999996
+    },
+    {
+      "changedChannels" : 32577,
+      "second" : 4.9000000000000004
+    },
+    {
+      "changedChannels" : 31572,
+      "second" : 4.9500000000000002
+    },
+    {
+      "changedChannels" : 30989,
+      "second" : 5
+    },
+    {
+      "changedChannels" : 29857,
+      "second" : 5.0499999999999998
+    },
+    {
+      "changedChannels" : 28583,
+      "second" : 5.0999999999999996
+    },
+    {
+      "changedChannels" : 27436,
+      "second" : 5.1500000000000004
+    },
+    {
+      "changedChannels" : 25715,
+      "second" : 5.2000000000000002
+    },
+    {
+      "changedChannels" : 23987,
+      "second" : 5.25
+    },
+    {
+      "changedChannels" : 22095,
+      "second" : 5.2999999999999998
+    },
+    {
+      "changedChannels" : 20307,
+      "second" : 5.3499999999999996
+    },
+    {
+      "changedChannels" : 18041,
+      "second" : 5.4000000000000004
+    },
+    {
+      "changedChannels" : 15748,
+      "second" : 5.4500000000000002
+    },
+    {
+      "changedChannels" : 13087,
+      "second" : 5.5
+    },
+    {
+      "changedChannels" : 10358,
+      "second" : 5.5499999999999998
+    },
+    {
+      "changedChannels" : 6223,
+      "second" : 5.5999999999999996
+    },
+    {
+      "changedChannels" : 1882,
+      "second" : 5.6500000000000004
+    },
+    {
+      "changedChannels" : 1578,
+      "second" : 5.7000000000000002
+    },
+    {
+      "changedChannels" : 5598,
+      "second" : 5.75
+    },
+    {
+      "changedChannels" : 9176,
+      "second" : 5.7999999999999998
+    },
+    {
+      "changedChannels" : 11730,
+      "second" : 5.8499999999999996
+    },
+    {
+      "changedChannels" : 20239,
+      "second" : 5.9000000000000004
+    },
+    {
+      "changedChannels" : 21677,
+      "second" : 5.9500000000000002
+    },
+    {
+      "changedChannels" : 22366,
+      "second" : 6
+    },
+    {
+      "changedChannels" : 18159,
+      "second" : 6.0499999999999998
+    },
+    {
+      "changedChannels" : 19338,
+      "second" : 6.0999999999999996
+    },
+    {
+      "changedChannels" : 20217,
+      "second" : 6.1500000000000004
+    },
+    {
+      "changedChannels" : 20637,
+      "second" : 6.2000000000000002
+    },
+    {
+      "changedChannels" : 21351,
+      "second" : 6.25
+    },
+    {
+      "changedChannels" : 21682,
+      "second" : 6.2999999999999998
+    },
+    {
+      "changedChannels" : 22017,
+      "second" : 6.3499999999999996
+    },
+    {
+      "changedChannels" : 22085,
+      "second" : 6.4000000000000004
+    },
+    {
+      "changedChannels" : 22077,
+      "second" : 6.4500000000000002
+    },
+    {
+      "changedChannels" : 22069,
+      "second" : 6.5
+    },
+    {
+      "changedChannels" : 21988,
+      "second" : 6.5499999999999998
+    },
+    {
+      "changedChannels" : 21684,
+      "second" : 6.5999999999999996
+    },
+    {
+      "changedChannels" : 21284,
+      "second" : 6.6500000000000004
+    },
+    {
+      "changedChannels" : 20652,
+      "second" : 6.7000000000000002
+    },
+    {
+      "changedChannels" : 19987,
+      "second" : 6.75
+    },
+    {
+      "changedChannels" : 18975,
+      "second" : 6.7999999999999998
+    },
+    {
+      "changedChannels" : 17753,
+      "second" : 6.8499999999999996
+    },
+    {
+      "changedChannels" : 16463,
+      "second" : 6.9000000000000004
+    },
+    {
+      "changedChannels" : 14780,
+      "second" : 6.9500000000000002
+    },
+    {
+      "changedChannels" : 12784,
+      "second" : 7
+    },
+    {
+      "changedChannels" : 10496,
+      "second" : 7.0499999999999998
+    },
+    {
+      "changedChannels" : 7688,
+      "second" : 7.0999999999999996
+    },
+    {
+      "changedChannels" : 3412,
+      "second" : 7.1500000000000004
+    },
+    {
+      "changedChannels" : 1019,
+      "second" : 7.2000000000000002
+    },
+    {
+      "changedChannels" : 3905,
+      "second" : 7.25
+    },
+    {
+      "changedChannels" : 8310,
+      "second" : 7.2999999999999998
+    },
+    {
+      "changedChannels" : 11846,
+      "second" : 7.3499999999999996
+    },
+    {
+      "changedChannels" : 13681,
+      "second" : 7.4000000000000004
+    },
+    {
+      "changedChannels" : 16939,
+      "second" : 7.4500000000000002
+    },
+    {
+      "changedChannels" : 19230,
+      "second" : 7.5
+    },
+    {
+      "changedChannels" : 21120,
+      "second" : 7.5499999999999998
+    },
+    {
+      "changedChannels" : 23004,
+      "second" : 7.5999999999999996
+    },
+    {
+      "changedChannels" : 24825,
+      "second" : 7.6500000000000004
+    },
+    {
+      "changedChannels" : 26615,
+      "second" : 7.7000000000000002
+    },
+    {
+      "changedChannels" : 27772,
+      "second" : 7.75
+    },
+    {
+      "changedChannels" : 29117,
+      "second" : 7.7999999999999998
+    },
+    {
+      "changedChannels" : 30348,
+      "second" : 7.8499999999999996
+    },
+    {
+      "changedChannels" : 31146,
+      "second" : 7.9000000000000004
+    },
+    {
+      "changedChannels" : 31866,
+      "second" : 7.9500000000000002
+    },
+    {
+      "changedChannels" : 32629,
+      "second" : 8
+    },
+    {
+      "changedChannels" : 32944,
+      "second" : 8.0500000000000007
+    },
+    {
+      "changedChannels" : 33436,
+      "second" : 8.0999999999999996
+    },
+    {
+      "changedChannels" : 33685,
+      "second" : 8.1500000000000004
+    },
+    {
+      "changedChannels" : 33814,
+      "second" : 8.1999999999999993
+    },
+    {
+      "changedChannels" : 33772,
+      "second" : 8.25
+    },
+    {
+      "changedChannels" : 33763,
+      "second" : 8.3000000000000007
+    },
+    {
+      "changedChannels" : 33662,
+      "second" : 8.3499999999999996
+    },
+    {
+      "changedChannels" : 33478,
+      "second" : 8.4000000000000004
+    },
+    {
+      "changedChannels" : 33094,
+      "second" : 8.4499999999999993
+    },
+    {
+      "changedChannels" : 32490,
+      "second" : 8.5
+    },
+    {
+      "changedChannels" : 31759,
+      "second" : 8.5500000000000007
+    },
+    {
+      "changedChannels" : 31014,
+      "second" : 8.5999999999999996
+    },
+    {
+      "changedChannels" : 29884,
+      "second" : 8.6500000000000004
+    },
+    {
+      "changedChannels" : 29069,
+      "second" : 8.6999999999999993
+    },
+    {
+      "changedChannels" : 27324,
+      "second" : 8.75
+    },
+    {
+      "changedChannels" : 25759,
+      "second" : 8.8000000000000007
+    },
+    {
+      "changedChannels" : 24001,
+      "second" : 8.8499999999999996
+    },
+    {
+      "changedChannels" : 22060,
+      "second" : 8.9000000000000004
+    },
+    {
+      "changedChannels" : 20185,
+      "second" : 8.9499999999999993
+    },
+    {
+      "changedChannels" : 17960,
+      "second" : 9
+    },
+    {
+      "changedChannels" : 15724,
+      "second" : 9.0500000000000007
+    },
+    {
+      "changedChannels" : 13308,
+      "second" : 9.0999999999999996
+    },
+    {
+      "changedChannels" : 10127,
+      "second" : 9.1500000000000004
+    },
+    {
+      "changedChannels" : 6196,
+      "second" : 9.1999999999999993
+    },
+    {
+      "changedChannels" : 1830,
+      "second" : 9.25
+    },
+    {
+      "changedChannels" : 1545,
+      "second" : 9.3000000000000007
+    },
+    {
+      "changedChannels" : 5623,
+      "second" : 9.3499999999999996
+    },
+    {
+      "changedChannels" : 9115,
+      "second" : 9.4000000000000004
+    },
+    {
+      "changedChannels" : 11630,
+      "second" : 9.4499999999999993
+    },
+    {
+      "changedChannels" : 13265,
+      "second" : 9.5
+    },
+    {
+      "changedChannels" : 15632,
+      "second" : 9.5500000000000007
+    },
+    {
+      "changedChannels" : 16900,
+      "second" : 9.5999999999999996
+    },
+    {
+      "changedChannels" : 18193,
+      "second" : 9.6500000000000004
+    },
+    {
+      "changedChannels" : 19352,
+      "second" : 9.6999999999999993
+    },
+    {
+      "changedChannels" : 20263,
+      "second" : 9.75
+    },
+    {
+      "changedChannels" : 20672,
+      "second" : 9.8000000000000007
+    },
+    {
+      "changedChannels" : 21337,
+      "second" : 9.8499999999999996
+    },
+    {
+      "changedChannels" : 21690,
+      "second" : 9.9000000000000004
+    },
+    {
+      "changedChannels" : 21938,
+      "second" : 9.9499999999999993
+    },
+    {
+      "changedChannels" : 22125,
+      "second" : 10
+    },
+    {
+      "changedChannels" : 22124,
+      "second" : 10.050000000000001
+    },
+    {
+      "changedChannels" : 22116,
+      "second" : 10.1
+    },
+    {
+      "changedChannels" : 22006,
+      "second" : 10.15
+    },
+    {
+      "changedChannels" : 21761,
+      "second" : 10.199999999999999
+    },
+    {
+      "changedChannels" : 21250,
+      "second" : 10.25
+    },
+    {
+      "changedChannels" : 20759,
+      "second" : 10.300000000000001
+    },
+    {
+      "changedChannels" : 19952,
+      "second" : 10.35
+    },
+    {
+      "changedChannels" : 18959,
+      "second" : 10.4
+    },
+    {
+      "changedChannels" : 17887,
+      "second" : 10.449999999999999
+    },
+    {
+      "changedChannels" : 16461,
+      "second" : 10.5
+    },
+    {
+      "changedChannels" : 14878,
+      "second" : 10.550000000000001
+    },
+    {
+      "changedChannels" : 12829,
+      "second" : 10.6
+    },
+    {
+      "changedChannels" : 10580,
+      "second" : 10.65
+    },
+    {
+      "changedChannels" : 7485,
+      "second" : 10.699999999999999
+    },
+    {
+      "changedChannels" : 3493,
+      "second" : 10.75
+    },
+    {
+      "changedChannels" : 1038,
+      "second" : 10.800000000000001
+    },
+    {
+      "changedChannels" : 3908,
+      "second" : 10.85
+    },
+    {
+      "changedChannels" : 8257,
+      "second" : 10.9
+    },
+    {
+      "changedChannels" : 11583,
+      "second" : 10.949999999999999
+    },
+    {
+      "changedChannels" : 14460,
+      "second" : 11
+    },
+    {
+      "changedChannels" : 16853,
+      "second" : 11.050000000000001
+    },
+    {
+      "changedChannels" : 19220,
+      "second" : 11.1
+    },
+    {
+      "changedChannels" : 21083,
+      "second" : 11.15
+    },
+    {
+      "changedChannels" : 23084,
+      "second" : 11.199999999999999
+    },
+    {
+      "changedChannels" : 24879,
+      "second" : 11.25
+    },
+    {
+      "changedChannels" : 26434,
+      "second" : 11.300000000000001
+    },
+    {
+      "changedChannels" : 27822,
+      "second" : 11.35
+    },
+    {
+      "changedChannels" : 29123,
+      "second" : 11.4
+    },
+    {
+      "changedChannels" : 30294,
+      "second" : 11.449999999999999
+    },
+    {
+      "changedChannels" : 31062,
+      "second" : 11.5
+    },
+    {
+      "changedChannels" : 32029,
+      "second" : 11.550000000000001
+    },
+    {
+      "changedChannels" : 32698,
+      "second" : 11.6
+    },
+    {
+      "changedChannels" : 33036,
+      "second" : 11.65
+    },
+    {
+      "changedChannels" : 33540,
+      "second" : 11.699999999999999
+    },
+    {
+      "changedChannels" : 33856,
+      "second" : 11.75
+    },
+    {
+      "changedChannels" : 33940,
+      "second" : 11.800000000000001
+    },
+    {
+      "changedChannels" : 33906,
+      "second" : 11.85
+    },
+    {
+      "changedChannels" : 34011,
+      "second" : 11.9
+    },
+    {
+      "changedChannels" : 33804,
+      "second" : 11.949999999999999
+    },
+    {
+      "changedChannels" : 33605,
+      "second" : 12
+    },
+    {
+      "changedChannels" : 33058,
+      "second" : 12.050000000000001
+    },
+    {
+      "changedChannels" : 32345,
+      "second" : 12.1
+    },
+    {
+      "changedChannels" : 31881,
+      "second" : 12.15
+    },
+    {
+      "changedChannels" : 30876,
+      "second" : 12.199999999999999
+    },
+    {
+      "changedChannels" : 29758,
+      "second" : 12.25
+    },
+    {
+      "changedChannels" : 28567,
+      "second" : 12.300000000000001
+    },
+    {
+      "changedChannels" : 27382,
+      "second" : 12.35
+    },
+    {
+      "changedChannels" : 30215,
+      "second" : 12.4
+    },
+    {
+      "changedChannels" : 29125,
+      "second" : 12.449999999999999
+    },
+    {
+      "changedChannels" : 27179,
+      "second" : 12.5
+    },
+    {
+      "changedChannels" : 20203,
+      "second" : 12.550000000000001
+    },
+    {
+      "changedChannels" : 18023,
+      "second" : 12.6
+    },
+    {
+      "changedChannels" : 15797,
+      "second" : 12.65
+    },
+    {
+      "changedChannels" : 13232,
+      "second" : 12.699999999999999
+    },
+    {
+      "changedChannels" : 10221,
+      "second" : 12.75
+    },
+    {
+      "changedChannels" : 6242,
+      "second" : 12.800000000000001
+    },
+    {
+      "changedChannels" : 1699,
+      "second" : 12.85
+    },
+    {
+      "changedChannels" : 1036,
+      "second" : 12.9
+    },
+    {
+      "changedChannels" : 5586,
+      "second" : 12.949999999999999
+    },
+    {
+      "changedChannels" : 9069,
+      "second" : 13
+    },
+    {
+      "changedChannels" : 11653,
+      "second" : 13.050000000000001
+    },
+    {
+      "changedChannels" : 13817,
+      "second" : 13.1
+    },
+    {
+      "changedChannels" : 15607,
+      "second" : 13.15
+    },
+    {
+      "changedChannels" : 16897,
+      "second" : 13.199999999999999
+    },
+    {
+      "changedChannels" : 18229,
+      "second" : 13.25
+    },
+    {
+      "changedChannels" : 19381,
+      "second" : 13.300000000000001
+    },
+    {
+      "changedChannels" : 20284,
+      "second" : 13.35
+    },
+    {
+      "changedChannels" : 20732,
+      "second" : 13.4
+    },
+    {
+      "changedChannels" : 21402,
+      "second" : 13.449999999999999
+    },
+    {
+      "changedChannels" : 21702,
+      "second" : 13.5
+    },
+    {
+      "changedChannels" : 21862,
+      "second" : 13.550000000000001
+    },
+    {
+      "changedChannels" : 22188,
+      "second" : 13.6
+    },
+    {
+      "changedChannels" : 22209,
+      "second" : 13.65
+    },
+    {
+      "changedChannels" : 22143,
+      "second" : 13.699999999999999
+    },
+    {
+      "changedChannels" : 22059,
+      "second" : 13.75
+    },
+    {
+      "changedChannels" : 21782,
+      "second" : 13.800000000000001
+    },
+    {
+      "changedChannels" : 21180,
+      "second" : 13.85
+    },
+    {
+      "changedChannels" : 20800,
+      "second" : 13.9
+    }
+  ]
+}

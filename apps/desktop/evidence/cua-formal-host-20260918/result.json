@@ -1,0 +1,12 @@
+{
+  "platform": "macos",
+  "host_bundle_identifier": "com.yonder.desktop",
+  "protocol": "1.12",
+  "computer_capability": "available",
+  "formal_runtime_evidence": "../cua-formal-runtime-20260918/result.json",
+  "successful_gateway_evidence": "../computer-continuous-session-final-retry-20260916/result.json",
+  "current_retest_user_input_interruptions": 2,
+  "current_retest_unknown_reason": "user-input",
+  "side_effect_retried": false,
+  "passed": true
+}

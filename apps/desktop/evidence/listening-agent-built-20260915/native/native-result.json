@@ -1,0 +1,14 @@
+{
+  "bounds" : {
+    "Height" : 201,
+    "Width" : 200,
+    "X" : 755,
+    "Y" : 435
+  },
+  "captures" : 3,
+  "elapsed_seconds" : 2.2237769583298359,
+  "no_task_mutation_by_probe" : true,
+  "pet_on_visible_desktop" : true,
+  "pid" : 7336,
+  "single_host" : true
+}

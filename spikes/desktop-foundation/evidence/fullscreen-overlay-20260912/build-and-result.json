@@ -1,0 +1,8 @@
+{
+  "binary_sha256": "b9feea3ba691dd61f82e0f25853e30845f73e2e6a9d4efc0485907225ecdfe32",
+  "LSUIElement": true,
+  "pid": 66418,
+  "policy": "Accessory（原生观察值 1）",
+  "scope": "macOS 本机，清醒小龙；未验证本版本休眠眼睛或 Windows",
+  "result": "全屏 1 秒及 4 秒屏幕区域可见完整小龙，位置与 CG 边界不变，测试应用保持激活"
+}

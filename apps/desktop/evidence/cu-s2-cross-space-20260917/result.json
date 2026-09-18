@@ -1,0 +1,20 @@
+{
+  "platform": "macOS",
+  "task_id": "task_b24c51cb03a47731ff0587e813575108",
+  "start_application": "Visual Studio Code",
+  "target_application": "企业微信",
+  "launch_app": {
+    "action_succeeded": true,
+    "target_visible": false,
+    "sequence": "5"
+  },
+  "bring_to_front": {
+    "action_succeeded": true,
+    "target_visible": true,
+    "sequence": "9"
+  },
+  "final_status": "completed",
+  "final_sequence": "10",
+  "sdk_only": true,
+  "passed": true
+}

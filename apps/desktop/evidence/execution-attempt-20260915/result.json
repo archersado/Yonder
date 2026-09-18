@@ -1,0 +1,11 @@
+{
+  "schema_before": 6,
+  "schema_after": 7,
+  "tasks_before": 14,
+  "tasks_after": 14,
+  "steps_before": 1,
+  "steps_after": 1,
+  "attempts_after": 0,
+  "tests_passed": 35,
+  "passed": true
+}

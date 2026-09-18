@@ -1,0 +1,38 @@
+html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+body { user-select: none; -webkit-user-select: none; }
+#pet { width: min(100vw, 100vh, 200px); height: min(100vw, 100vh, 200px); box-sizing: border-box; padding: 6px; cursor: grab; touch-action: none; outline: none; }
+#pet:focus-visible .dragon { filter: brightness(1.04); }
+#pet.held { cursor: grabbing; }
+.peek { display: none; }
+#pet[data-mode="docked"] { width: 112px; height: 56px; padding: 0; cursor: pointer; }
+#pet[data-mode="docked"] .response { display: none; }
+#pet[data-mode="docked"] .peek { display: block; width: 112px; height: 56px; overflow: hidden; }
+.peek-body { position: relative; width: 112px; height: 56px; transform-origin: 0 0; }
+#pet[data-mode="docked"][data-edge="left"], #pet[data-mode="docked"][data-edge="right"],
+#pet[data-mode="docked"][data-edge="left"] .peek, #pet[data-mode="docked"][data-edge="right"] .peek { width: 56px; height: 112px; }
+[data-edge="left"] .peek-body { transform: translateX(56px) rotate(90deg); }
+[data-edge="right"] .peek-body { transform: translateY(112px) rotate(-90deg); }
+[data-edge="top"] .peek-body { transform: translate(112px, 56px) rotate(180deg); }
+.peek img { width: 112px; height: 56px; object-fit: contain; object-position: center bottom; }
+.peek-eyelids { position: absolute; inset: 0; opacity: 0; clip-path: inset(0 0 3.7% 0);
+  /* 只取闭眼参考的脸内区域，阻止参考图棋盘背景进入透明窗口。 */
+  -webkit-mask-image: radial-gradient(ellipse 7% 14% at 38.3% 89%, #000 92%, transparent 100%), radial-gradient(ellipse 6.8% 14% at 65.4% 86.5%, #000 92%, transparent 100%);
+  mask-image: radial-gradient(ellipse 7% 14% at 38.3% 89%, #000 92%, transparent 100%), radial-gradient(ellipse 6.8% 14% at 65.4% 86.5%, #000 92%, transparent 100%);
+}
+.blinking .peek-eyelids { opacity: 1; }
+.response, .breath { width: 100%; height: 100%; position: relative; transform-origin: 50% 96%; }
+img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+.tail { position: absolute; inset: 0; transform-origin: 40% 84%; }
+/* 同一原图按尾根分层，尾根处剪切位移为零，不增加素材或露出重复尾巴。 */
+.tail img { clip-path: polygon(0 56%, 30% 56%, 30% 71%, 25% 76%, 33% 78%, 40% 78%, 40% 100%, 0 100%); }
+.dragon { clip-path: polygon(0 0, 100% 0, 100% 100%, 40% 100%, 40% 78%, 33% 78%, 25% 76%, 30% 71%, 30% 56%, 0 56%); }
+.eyelids {
+  position: absolute; inset: 0; opacity: 0;
+  /* 仅显示脸内部，生成参考图的背景和身体不会进入画面。 */
+  -webkit-mask-image: radial-gradient(ellipse 9% 9.3% at 44.9% 48.8%, #000 85%, transparent 100%), radial-gradient(ellipse 8% 9.2% at 69.7% 40.8%, #000 85%, transparent 100%);
+  mask-image: radial-gradient(ellipse 9% 9.3% at 44.9% 48.8%, #000 85%, transparent 100%), radial-gradient(ellipse 8% 9.2% at 69.7% 40.8%, #000 85%, transparent 100%);
+}
+.blinking .eyelids { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .blinking .eyelids, .blinking .peek-eyelids { opacity: 0; }
+}

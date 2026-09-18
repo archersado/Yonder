@@ -1,0 +1,2 @@
+首次检查失败：listening must not crossfade whole images，maxMix=0.999996。
+根因：同一姿态索引仍计算混合权重，body_file与完整nextFrame混合。修复：index===nextIndex时mix归零。保留本次失败，不覆盖。

@@ -1,0 +1,8 @@
+桌宠启动：visible=Ok(true), position=Ok(PhysicalPosition { x: 1510, y: 864 }), size=Ok(PhysicalSize { width: 400, height: 402 })
+桌宠页面加载：Started
+桌宠页面加载：Finished
+桌宠渲染：ready=true, width=189.13522338867188, height=189.24896240234375, image_width=600, style_loaded=true, script_ready=true, page_hidden=true
+桌宠动画采样（14秒）：breathing=true, blinks=3, reduced=false
+桌宠停靠：edge=right, position=PhysicalPosition { x: 3308, y: 1343 }, size=PhysicalSize { width: 112, height: 224 }
+桌宠唤醒：position=PhysicalPosition { x: 2920, y: 1254 }, size=PhysicalSize { width: 400, height: 402 }
+桌宠停靠：edge=right, position=PhysicalPosition { x: 3308, y: 1343 }, size=PhysicalSize { width: 112, height: 224 }

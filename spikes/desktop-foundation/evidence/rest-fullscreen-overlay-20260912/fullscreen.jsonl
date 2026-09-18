@@ -1,0 +1,9 @@
+{"meaning":"0=regular, 1=accessory, 2=prohibited","pet_activation_policy":1}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1654,758,56,112],"phase":"normal-resting","pid":66418,"test_active":true,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20605}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1654,758,56,112],"phase":"fullscreen-1s","pid":66418,"test_active":true,"test_frame":[0,0,1710,1073],"test_fullscreen":true,"window_id":20605}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1654,758,56,112],"phase":"fullscreen-4s","pid":66418,"test_active":true,"test_frame":[0,0,1710,1073],"test_fullscreen":true,"window_id":20605}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1654,758,56,112],"phase":"restored","pid":66418,"test_active":true,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20605}
+{"wake_ax_result":0}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1468,713,200,201],"phase":"awake-1s","pid":66418,"test_active":false,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20605}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[1468,713,200,201],"phase":"awake-3s","pid":66418,"test_active":false,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20605}
+{"result":"休眠全屏与返回唤醒取证完成；截图需人工核对"}

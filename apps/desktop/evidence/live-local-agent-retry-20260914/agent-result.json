@@ -1,0 +1,8 @@
+{
+  "pid": 10353,
+  "live_desktop_connection": true,
+  "registered_tasks": 2,
+  "idempotent_replay": true,
+  "created_only": true,
+  "passed": true
+}

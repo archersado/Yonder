@@ -1,0 +1,11 @@
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"before","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"before","screen_capture_exit":0}
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"docked","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"docked","screen_capture_exit":0}
+{"wake_input":"native_pointer","x":1682,"y":803}
+{"geometry_latency_ms":-1,"geometry_restored":false,"poll_interval_ms":10}
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"awake-1s","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"awake-1s","screen_capture_exit":0}
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"awake-3s","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"awake-3s","screen_capture_exit":0}
+{"observation_seconds":6.9244550466537476,"result":"唤醒尺寸检查失败"}

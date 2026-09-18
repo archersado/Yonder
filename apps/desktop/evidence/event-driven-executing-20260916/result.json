@@ -1,0 +1,9 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-16",
+  "trigger": "computer.execute",
+  "presentation": "executing",
+  "database_polling": false,
+  "native_screenshot": "executing.png",
+  "passed": true
+}

@@ -1,0 +1,22 @@
+{
+  "result": "PASS",
+  "scope": "用户指出的两处侧鳞片归头部，身体不重复保留",
+  "points": [
+    {
+      "point": [
+        105,
+        223
+      ],
+      "head_alpha": 235,
+      "body_alpha": 0
+    },
+    {
+      "point": [
+        134,
+        250
+      ],
+      "head_alpha": 255,
+      "body_alpha": 0
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-18",
+  "codex_cli_version": "0.154.0",
+  "target": "current_active_thread",
+  "cli_result": "queued_message",
+  "active_turn_steer_observed": false,
+  "pending_queue_record_after_cli_success": true,
+  "delivered_after_previous_turn_completed": true,
+  "pending_queue_record_after_delivery": false,
+  "delivery_mode": "new_turn_after_previous_turn_completed",
+  "content_recorded_in_evidence": false,
+  "second_agent_started": false,
+  "unsupported_bridge_fails_closed": true,
+  "passed": false
+}

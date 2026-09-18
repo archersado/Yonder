@@ -1,3 +1,4 @@
 /node_modules/
 /.native/
 /evidence/*.json
+/evidence/stop-macos-package-20260914/

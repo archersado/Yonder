@@ -2,7 +2,13 @@
 
 ## 主流程
 
-小型全栈团队采用 SDD：`Epic → Story → OpenSpec Change → 实现 → Verification Goal → Archive`。BMAD 管理 Epic/Story，OpenSpec 只表达 Story 内的增量规格，避免重复事实源。
+输入基线：`_bmad-output/planning-artifacts` 中的产品简报及补充材料定义产品目标，ARCHITECTURE-SPINE 和适用的已接受 ADR 定义架构约束，后续用户明确变更单独记录。每个 Story 产品需求必须有「需求来源」章节，映射来源章节与验收条件；Proposed ADR、实现代码和工程假设不能充当已确认产品需求。发现冲突先记录和解决，不用技术模块划分遗漏原主干链路。
+
+依据 AD-DEV-01，采用 SDD：`技术模块 Epic 目录 → Story 三份设计 → OpenSpec Proposal → 实现 → 独立 Verification Goal → Archive`。规划唯一入口为 `docs/specs/README.md`。月份只作为里程碑，不作为 Epic。
+
+Epic 目录 `docs/specs/epic-<模块>/` 下，每个 `story-<ID>/` 必须含 README.md（状态、依赖、Change 关联）、product-requirements.md（问题、范围、验收）、architecture-design.md（边界、状态、接口、依赖、失败和验证）、visual-interaction-design.md（入口、状态反馈、键盘/无障碍、平台证据）。无 UI 仍需写调用交互与错误表现，不能省略。
+
+Story 按 draft → design-review → ready → implementing → verifying → done 推进，可明确 deferred。ready 前完成设计审阅和前置 ADR/Spike 门禁；工程审阅不要求用户逐步确认，但不得把未决产品问题视为已解决。先有 Story 设计，再生成 proposal/design/tasks/specs；实现后独立验证，失败回实施，通过才能归档。历史迁移文档不追认完成。
 
 每个 Story 默认对应一个短生命周期分支 `story/<id>-<slug>`、一个 OpenSpec Change 和一个 PR。主干必须始终可构建。
 

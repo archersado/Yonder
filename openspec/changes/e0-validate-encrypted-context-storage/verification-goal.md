@@ -1,3 +1,5 @@
+当前归属 Story：ST-S1；规划：`docs/specs/epic-ST/story-ST-S1/README.md`。旧编号保留历史追溯。
+
 # Verification Goal：E0-S6
 
 复核真实 SQLCipher 版本、密文文件头、错误密钥拒绝、加密库内 FTS5、三表事务原子性、附件认证加密篡改拒绝及 Windows Credential Manager 删除后不可读。若仅使用普通 SQLite、主密钥落数据库/附件/日志、错误密钥可读、篡改返回明文或事务出现部分提交，Goal 失败。

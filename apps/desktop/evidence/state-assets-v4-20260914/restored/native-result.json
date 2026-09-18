@@ -1,0 +1,13 @@
+{
+  "bounds" : {
+    "Height" : 112,
+    "Width" : 56,
+    "X" : 1654,
+    "Y" : 789
+  },
+  "captures" : 3,
+  "pet_on_visible_desktop" : true,
+  "pid" : 80985,
+  "single_host" : true,
+  "task_state_unchanged" : true
+}

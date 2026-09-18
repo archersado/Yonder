@@ -1,0 +1,13 @@
+{
+  "platform": "macos",
+  "sdk_version": "0.25.0",
+  "upstream_app_started": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "worker_exited": true,
+  "product_known_success": true,
+  "result_persisted": true,
+  "occupancy_retained": true,
+  "native_target_matches": true,
+  "passed": true
+}

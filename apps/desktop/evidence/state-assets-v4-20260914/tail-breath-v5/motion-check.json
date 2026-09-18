@@ -1,0 +1,11 @@
+{
+  "native_animation_changes": true,
+  "eye_open_before": 7,
+  "eye_closing_frame": 8,
+  "eye_open_after": 9,
+  "blink_observed": true,
+  "tail_seam_visual": "原生九图目测未见摆动连接处断裂；仅本次采样范围",
+  "browser_regression_passed": true,
+  "fixed_axis_clip": true,
+  "breathing_translate_rotate_scale": true
+}

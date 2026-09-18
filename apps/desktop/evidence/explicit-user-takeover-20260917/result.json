@@ -1,0 +1,11 @@
+{
+  "task_id": "task_ae5d2eb538b7f9fd228d7daa5e830946",
+  "trigger": "task-space/user_takeover",
+  "task_status": "paused",
+  "control_phase": "stopped",
+  "focus_phase": "failed",
+  "focus_failure": "reference-unavailable",
+  "recording_started": false,
+  "trusted_intent_passed": true,
+  "focus_regression_passed": false
+}

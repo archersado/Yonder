@@ -1,0 +1,7 @@
+{
+  "scope": "LaunchServices .app启动至既有渲染诊断报告，含页面加载后300ms等待及20ms轮询；非冷缓存或完整交互就绪",
+  "binary_sha256": "9ee83d06b71615125aac0b208559ed64a3ce8d9ca8db787df2badd7574988402",
+  "ready": true,
+  "pid": 61042,
+  "report_latency_ms": 4314.508333
+}

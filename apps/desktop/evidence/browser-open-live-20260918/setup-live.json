@@ -1,0 +1,7 @@
+{
+  "task_id": "task_4fdc6a6f7a0463b204c343f4396c02eb",
+  "name": "Browser 打开验证 332000",
+  "sequence": "6",
+  "external_task_ref": "ego:64",
+  "ownership": "agent"
+}

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Yonda · Task Space</title>
+  <link rel="stylesheet" href="task-space.css" />
+  <script src="task-space.js" defer></script>
+</head>
+<body>
+  <div class="menu">
+  <header><div><span class="eyebrow">YONDA</span><h1>任务总览 <span>Task Space</span></h1></div>
+    <div class="actions"><button id="refresh">刷新</button><button id="close" aria-label="关闭任务总览">关闭</button></div></header>
+  <nav aria-label="任务筛选"><button id="ongoing" aria-pressed="true">进行中</button><button id="all" aria-pressed="false">全部</button></nav>
+  <p id="notice" role="status" aria-live="polite">正在读取任务…</p>
+  <main><section aria-label="任务列表"><ul id="tasks"></ul><div class="pagination"><span id="page-label"></span><button id="next" hidden>下一页</button></div></section>
+    <section id="detail" aria-label="任务详情"><p class="placeholder">选择任务查看详情</p></section></main>
+  </div>
+</body>
+</html>

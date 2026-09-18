@@ -1,0 +1,14 @@
+{
+  "platform": "macOS",
+  "application": "WPS Office",
+  "open": {
+    "wps_detected": true,
+    "advisory_lock_detected": true,
+    "passed": true
+  },
+  "closed": {
+    "wps_detected": false,
+    "advisory_lock_detected": false,
+    "passed": true
+  }
+}

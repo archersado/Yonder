@@ -1,0 +1,5 @@
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"before","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"before","screen_capture_exit":0}
+{"bounds":[1654,747,56,112],"capture_exit":0,"onscreen":true,"phase":"docked","pid":32717,"pixels":[112,224],"window_id":24408}
+{"phase":"docked","screen_capture_exit":0}
+{"result":"目标眼睛入口不可确认，不发送点击"}

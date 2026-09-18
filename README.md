@@ -84,6 +84,8 @@ Yonder 希望把这些操作连接起来，让你可以对身边的桌面伙伴�
 
 ## 路线图
 
+项目 Epic 与 Story 的唯一规划入口：[技术模块总规划](docs/specs/README.md)。每个 Story 先明确产品需求、架构设计、视觉交互设计，再生成 OpenSpec Proposal 实施；下方清单仅作产品方向概览。
+
 - [ ] 桌面伙伴基础形态与交互状态
 - [ ] Agent 接入与任务执行循环
 - [ ] Browser Use 工具接入

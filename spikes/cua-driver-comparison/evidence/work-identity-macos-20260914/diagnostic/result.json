@@ -1,0 +1,11 @@
+{
+  "passed": false,
+  "sdk_version": "0.25.0",
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "windows_verified": false,
+  "yonder_host_verified": false,
+  "samples": {},
+  "failure": "隔离工作身份验证失败"
+}

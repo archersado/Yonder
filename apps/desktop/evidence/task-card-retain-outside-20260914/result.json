@@ -1,0 +1,15 @@
+{
+  "cancel_keeps_history" : true,
+  "card_actions_present" : true,
+  "history_via_tray" : true,
+  "leave_hides" : true,
+  "no_data_delete_action" : true,
+  "panel_hover_keeps_open" : true,
+  "passed" : true,
+  "pid" : 18740,
+  "real_agent_tasks" : true,
+  "refresh_operable" : true,
+  "same_visible_desktop" : true,
+  "takeover_disabled_before_execution" : true,
+  "tasks_hover_opens" : false
+}

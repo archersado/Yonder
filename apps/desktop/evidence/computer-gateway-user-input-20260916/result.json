@@ -1,0 +1,13 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 10
+  },
+  "computer_capability": "available",
+  "task_id": "task_468e57f08fc4f65a9c99db3e8d5a16c2",
+  "final_status": "interrupted",
+  "unknown_reason": "user-input",
+  "final_sequence": "5",
+  "recording_started": false,
+  "passed": true
+}

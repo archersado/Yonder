@@ -1,0 +1,59 @@
+{
+  "sdk_only": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "yonder_host_verified": false,
+  "other_space_verified": false,
+  "windows_verified": false,
+  "phase": "close",
+  "target_listed": true,
+  "initial_sdk_observe": true,
+  "initial_observe_reads": 1,
+  "normal_native": {
+    "focused": true,
+    "geometry_unchanged": true,
+    "refused": false,
+    "restored": true,
+    "unique_mapping": true,
+    "exit_code": 0
+  },
+  "normal_focus": true,
+  "normal_geometry_unchanged": true,
+  "normal_sdk_observe": true,
+  "minimized_fixture_confirmed": true,
+  "restored_native": {
+    "focused": true,
+    "geometry_unchanged": true,
+    "refused": false,
+    "restored": true,
+    "unique_mapping": true,
+    "exit_code": 0
+  },
+  "minimized_restore_focus": true,
+  "restored_geometry_unchanged": true,
+  "restored_sdk_observe": true,
+  "closed_native": {
+    "ax_errors": {},
+    "ax_windows": 1,
+    "frame_matches": 0,
+    "mapping_not_unique": true,
+    "refused": true,
+    "title_matches": 1,
+    "exit_code": 4
+  },
+  "closed_target_refused": true,
+  "same_name_decoy_untouched": true,
+  "closed_sdk_error": false,
+  "closed_sdk_ax_empty": true,
+  "closed_sdk_degraded": true,
+  "closed_sdk_degraded_reason": "other",
+  "closed_sdk_target_unavailable": true,
+  "passed": true,
+  "final_fixture": {
+    "ready": true,
+    "target_key": false,
+    "decoy_key": false,
+    "app_active": false
+  }
+}

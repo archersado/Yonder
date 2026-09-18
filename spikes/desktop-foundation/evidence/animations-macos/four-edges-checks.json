@@ -1,0 +1,30 @@
+[
+  {
+    "edge": "bottom",
+    "width": 112,
+    "height": 56,
+    "blinking": true,
+    "wake": true
+  },
+  {
+    "edge": "left",
+    "width": 56,
+    "height": 112,
+    "blinking": true,
+    "wake": true
+  },
+  {
+    "edge": "right",
+    "width": 56,
+    "height": 112,
+    "blinking": true,
+    "wake": true
+  },
+  {
+    "edge": "top",
+    "width": 112,
+    "height": 56,
+    "blinking": true,
+    "wake": true
+  }
+]

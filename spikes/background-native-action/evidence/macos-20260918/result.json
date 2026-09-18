@@ -1,0 +1,41 @@
+{
+  "activates" : false,
+  "cleanup_forced" : false,
+  "cleanup_skipped_existing" : false,
+  "cleanup_terminated" : true,
+  "foreground_unchanged" : true,
+  "launch_completed" : true,
+  "launch_failed" : false,
+  "native_api" : "NSWorkspace.OpenConfiguration",
+  "new_trycua_workers" : 0,
+  "observe_ready" : true,
+  "passed" : true,
+  "platform" : "macos",
+  "target_kind" : "fixture",
+  "target_preexisting" : false,
+  "task_space_facts" : [
+    {
+      "execution_class" : "background-native",
+      "kind" : "step-declared",
+      "sequence" : 1
+    },
+    {
+      "execution_class" : "background-native",
+      "kind" : "attempt-started",
+      "sequence" : 2
+    },
+    {
+      "kind" : "observe",
+      "result" : "observed",
+      "sequence" : 3
+    },
+    {
+      "kind" : "attempt-result",
+      "result" : "observed",
+      "sequence" : 4
+    }
+  ],
+  "timeline_mappable" : true,
+  "unsupported_classification" : "unsupported",
+  "unsupported_no_fallback" : true
+}

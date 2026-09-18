@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-16",
+  "platform": "macOS",
+  "workspace_tests": 40,
+  "two_observed_steps": true,
+  "permit_retained_between_steps": true,
+  "pending_control_refused": true,
+  "unknown_refused": true,
+  "outbox_rollback_verified": true,
+  "formal_database": {
+    "before_schema": 10,
+    "after_schema": 11,
+    "before_counts": {"tasks": 15, "events": 31, "outbox": 31, "attempts": 0, "controls": 0},
+    "after_counts": {"tasks": 15, "events": 31, "outbox": 31, "attempts": 0, "controls": 0},
+    "foreign_key_check": []
+  },
+  "running_pid": 17862,
+  "windows": "deferred"
+}

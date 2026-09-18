@@ -1,0 +1,13 @@
+{
+  "app_intent_protocol_present": true,
+  "concrete_call_as_function_present": true,
+  "concrete_perform_requirement_present": true,
+  "donation_manager_present": true,
+  "generic_cross_app_entrypoint_count": 0,
+  "generic_cross_app_invocation_supported": false,
+  "metadata_action_count": 1,
+  "passed": true,
+  "platform": "macos",
+  "sdk_version": "26.5",
+  "shortcuts_command_route_present": true
+}

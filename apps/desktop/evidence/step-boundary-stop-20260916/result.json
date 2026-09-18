@@ -1,0 +1,17 @@
+{
+  "platform": "macos",
+  "database_before": {
+    "schema": 8,
+    "tasks": 14,
+    "attempts": 0
+  },
+  "database_after": {
+    "schema": 9,
+    "tasks": 14,
+    "attempts": 0,
+    "stop_columns": 3
+  },
+  "backup": "/Users/archersado/Library/Application Support/com.yonder.desktop/tasks.db.pre-attempt-v8-85873-1789531090218099000.db",
+  "yonda_pid": 85873,
+  "passed": true
+}

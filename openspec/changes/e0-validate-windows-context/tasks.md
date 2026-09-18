@@ -1,3 +1,5 @@
+当前归属 Story：CX-S1；规划：`docs/specs/epic-CX/story-CX-S1/README.md`。旧编号保留历史追溯。
+
 # 任务
 
 - [x] 固化采集边界与淘汰条件

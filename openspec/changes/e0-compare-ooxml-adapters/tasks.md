@@ -1,3 +1,5 @@
+当前归属 Story：DO-S1；规划：`docs/specs/epic-DO/story-DO-S1/README.md`。旧编号保留历史追溯。
+
 # 任务
 
 - [x] 定义统一用例、保真门槛和淘汰规则

@@ -1,0 +1,15 @@
+{
+  "task_id": "task_9f59c1d26ba6b3073943a0ccbc37756f",
+  "task_name": "查看今日微博热搜",
+  "owner_agent_id": "codex-cli",
+  "final_status": "completed",
+  "final_sequence": "14",
+  "external_task_ref": "ego:49",
+  "reference_finished": true,
+  "managed_pages": 1,
+  "observed_attempts": 3,
+  "events": 14,
+  "outbox_records": 14,
+  "external_space_closed": true,
+  "passed": true
+}

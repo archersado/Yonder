@@ -1,8 +1,10 @@
 CREATE TABLE tasks (
     id TEXT PRIMARY KEY NOT NULL,
+    owner_agent_id TEXT NOT NULL,
     state TEXT NOT NULL,
     sequence INTEGER NOT NULL CHECK(sequence > 0)
 );
+CREATE INDEX tasks_owner_id ON tasks(owner_agent_id,id);
 CREATE TABLE events (
     task_id TEXT NOT NULL REFERENCES tasks(id),
     sequence INTEGER NOT NULL CHECK(sequence > 0),
@@ -17,4 +19,4 @@ CREATE TABLE outbox (
     PRIMARY KEY(task_id, sequence),
     FOREIGN KEY(task_id, sequence) REFERENCES events(task_id, sequence)
 );
-PRAGMA user_version=1;
+PRAGMA user_version=2;

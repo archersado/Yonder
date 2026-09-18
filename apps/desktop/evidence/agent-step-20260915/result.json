@@ -1,0 +1,15 @@
+{
+  "pid": 24717,
+  "protocol": {
+    "major": 1,
+    "minor": 4
+  },
+  "task_id": "task_ed1c4b2b0fcfff0d98707e8460f33b2c",
+  "declared_sequence": "2",
+  "current_matches": true,
+  "events_14_have_step": true,
+  "events_13_hide_step": true,
+  "task_retained_as": "cancelled",
+  "retry_after_cancel": "cancelled",
+  "passed": true
+}

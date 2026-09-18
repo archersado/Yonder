@@ -1,0 +1,46 @@
+{
+  "package": "@trycua/cua-driver",
+  "version": "0.25.0",
+  "platform": "macos",
+  "lifecycle": {
+    "completed": true,
+    "result": {
+      "unknown_tool": {
+        "resolved": true,
+        "is_error": true
+      },
+      "pre_aborted_read": {
+        "resolved": false,
+        "code": "unknown"
+      },
+      "shutdown": {
+        "resolved": true,
+        "is_error": null
+      },
+      "after_shutdown": {
+        "resolved": false,
+        "code": "unknown"
+      },
+      "second_shutdown": {
+        "resolved": true,
+        "is_error": null
+      }
+    }
+  },
+  "crash": {
+    "expected_exit": true,
+    "timeout": false
+  },
+  "recovery": {
+    "completed": true,
+    "result": {
+      "read_after_crash": {
+        "resolved": true,
+        "is_error": false
+      }
+    }
+  },
+  "input_dispatched": false,
+  "recording_started": false,
+  "native_input_stop_verified": false
+}

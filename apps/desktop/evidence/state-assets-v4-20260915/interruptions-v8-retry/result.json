@@ -1,0 +1,8 @@
+{
+  "result": "PASS",
+  "scope": "独立夹具，录制打断与减少动态效果；不覆盖真实系统设置",
+  "flashClearedOnExit": true,
+  "recordingStatic": true,
+  "pausedWingsFolded": true,
+  "decorationRemoved": true
+}

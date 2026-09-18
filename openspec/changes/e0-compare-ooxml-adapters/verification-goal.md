@@ -1,3 +1,5 @@
+当前归属 Story：DO-S1；规划：`docs/specs/epic-DO/story-DO-S1/README.md`。旧编号保留历史追溯。
+
 # Verification Goal：E0-S4
 
 复核统一样本、两候选可运行证据、原文件不变、hash 冲突 fail closed、未修改 part 保真、输出结构有效、WPS 实际打开及唯一选型。缺失 DOCX/XLSX/PPTX 任一格式、只验证自行生成样本、或长期保留双实现时，Goal 失败。

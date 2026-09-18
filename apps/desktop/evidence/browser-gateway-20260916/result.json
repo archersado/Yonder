@@ -1,0 +1,14 @@
+{
+  "protocol": {
+    "major": 1,
+    "minor": 8
+  },
+  "browser_capability": "available",
+  "task_id": "task_131967a3d2d18fc12b629d47da1f70df",
+  "external_task_ref": "ego:43",
+  "final_status": "completed",
+  "final_sequence": "10",
+  "events": 10,
+  "observed_attempts": 2,
+  "passed": true
+}

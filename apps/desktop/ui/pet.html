@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yonda</title>
+    <link rel="stylesheet" href="pet.css" />
+    <script src="pet.js" defer></script>
+  </head>
+  <body>
+    <button id="region-trigger" type="button" aria-label="圈选提问" title="圈选提问"><span aria-hidden="true">⌑</span></button><button id="voice-trigger" type="button" aria-label="语音输入" title="语音输入"><span aria-hidden="true">🎙</span></button>
+    <main id="pet" role="button" tabindex="0" aria-label="轻点 Yonda 小龙，按住移动可拖动">
+      <script id="state-animations" type="application/json">{"idle":{"duration_ms":3600,"playback":"loop","static_frame":0,"files":["runtime/lifecycle-v5/idle-00.png","runtime/lifecycle-v5/idle-01.png","runtime/lifecycle-v5/idle-02.png","runtime/lifecycle-v5/idle-03.png"],"body_frames":[0,0,0,0],"blink_frame":2,"blink_files":["runtime/lifecycle-v6/idle-blink-00.png","runtime/lifecycle-v6/idle-blink-01.png","runtime/lifecycle-v6/idle-blink-02.png","runtime/lifecycle-v6/idle-blink-03.png"]},"executing":{"duration_ms":1400,"playback":"loop","static_frame":0,"files":["runtime/lifecycle-v4/executing-00.png","runtime/lifecycle-v4/executing-01.png","runtime/lifecycle-v4/executing-02.png","runtime/lifecycle-v4/executing-03.png"],"blink_files":["runtime/lifecycle-v6/executing-blink-00.png","runtime/lifecycle-v6/executing-blink-01.png","runtime/lifecycle-v6/executing-blink-02.png","runtime/lifecycle-v6/executing-blink-03.png"],"body_file":"runtime/lifecycle-v6/executing-body.png"},"waiting_for_user":{"duration_ms":4800,"playback":"loop","static_frame":3,"files":["runtime/lifecycle-v10/waiting_for_user-00.png","runtime/lifecycle-v10/waiting_for_user-01.png","runtime/lifecycle-v10/waiting_for_user-02.png","runtime/lifecycle-v10/waiting_for_user-03.png"],"blink_files":["runtime/lifecycle-v6/waiting_for_user-blink-00.png","runtime/lifecycle-v6/waiting_for_user-blink-01.png","runtime/lifecycle-v6/waiting_for_user-blink-02.png","runtime/lifecycle-v6/waiting_for_user-blink-03.png"],"pose_loop":true,"body_frames":[0,1,2,3,3,2,1,0]},"paused":{"duration_ms":3600,"playback":"loop","static_frame":3,"files":["runtime/lifecycle-v4/paused-00.png","runtime/lifecycle-v4/paused-01.png","runtime/lifecycle-v4/paused-02.png","runtime/lifecycle-v4/paused-03.png"],"blink_files":["runtime/lifecycle-v6/paused-blink-00.png","runtime/lifecycle-v6/paused-blink-01.png","runtime/lifecycle-v6/paused-blink-02.png","runtime/lifecycle-v6/paused-blink-03.png"],"pose_loop":false,"body_frames":[3,3,3,3],"gesture_file":"runtime/lifecycle-v7/paused-gesture.png"},"listening":{"duration_ms":2800,"playback":"loop","static_frame":3,"files":["runtime/lifecycle-v4/listening-00.png","runtime/lifecycle-v4/listening-01.png","runtime/lifecycle-v4/listening-02.png","runtime/lifecycle-v4/listening-03.png"],"blink_files":["runtime/lifecycle-v6/listening-blink-00.png","runtime/lifecycle-v6/listening-blink-01.png","runtime/lifecycle-v6/listening-blink-02.png","runtime/lifecycle-v6/listening-blink-03.png"],"body_frames":[3,3,3,3]}}</script>
+      <div class="response"><div class="breath">
+        <div class="state-tail"><img alt="" draggable="false" aria-hidden="true" /></div>
+        <img class="state-frame" alt="" draggable="false" aria-hidden="true" />
+        <img class="state-frame-next" alt="" draggable="false" aria-hidden="true" />
+        <img class="state-paw state-paw-right" alt="" draggable="false" aria-hidden="true" />
+        <img class="state-paw state-paw-left" alt="" draggable="false" aria-hidden="true" />
+        <img class="state-gesture" alt="" draggable="false" aria-hidden="true" /><div class="state-prop"><img alt="" draggable="false" aria-hidden="true" /><img class="camera-grip" alt="" draggable="false" aria-hidden="true" /><span class="camera-flash"></span></div><span class="record-badge" aria-hidden="true"><i></i>REC</span><img class="state-eyelids" alt="" draggable="false" aria-hidden="true" /><div class="tail"><img src="runtime/yonda-dragon-v1.png" alt="" draggable="false" /></div>
+        <img class="dragon" src="runtime/yonda-dragon-v1.png" alt="" draggable="false" />
+        <img class="work-paw work-paw-right" src="runtime/yonda-dragon-v1.png" alt="" draggable="false" aria-hidden="true" />
+        <img class="work-paw work-paw-left" src="runtime/yonda-dragon-v1.png" alt="" draggable="false" aria-hidden="true" />
+        <img class="eyelids" src="runtime/yonda-eyes-closed-v1.png" alt="" draggable="false" aria-hidden="true" />
+      </div></div>
+      <div class="state-cue" aria-hidden="true"><span class="ack-mark">✓</span><span class="pause-mark">Ⅱ</span><span class="voice-mark"><i></i></span></div><div class="state-hint" aria-hidden="true"><span class="wait-dots"><i></i><i></i><i></i></span></div><div class="peek" aria-hidden="true"><div class="peek-body">
+        <img src="runtime/yonda-peek-v1.png" alt="" draggable="false" />
+        <img class="peek-eyelids" src="runtime/yonda-peek-closed-v1.png" alt="" draggable="false" />
+      </div></div>
+      <span class="agent-connection" aria-hidden="true"></span>
+    </main>
+  </body>
+</html>

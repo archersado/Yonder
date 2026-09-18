@@ -1,0 +1,14 @@
+{
+  "emptyHoverHidden": true,
+  "tasksArriveWhileHovering": true,
+  "executingAnimation": true,
+  "menuHoverKeepsOpen": true,
+  "leaveHides": true,
+  "waitingAndPaused": true,
+  "holdFinalPose": true,
+  "reducedMotionStaticExecuting": true,
+  "clickDoesNotOpen": true,
+  "keyboardAndDrag": true,
+  "unknownOnFailure": true,
+  "fixtureOnly": true
+}

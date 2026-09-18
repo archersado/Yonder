@@ -1,0 +1,21 @@
+{
+  "sdk_only": true,
+  "accessibility": true,
+  "input_dispatched": true,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "native_inflight_stop_verified": false,
+  "yonder_host_verified": false,
+  "target_unique": true,
+  "failure": "隔离目标观察超时",
+  "passed": false,
+  "native_write_started": false,
+  "native_write_applied": false,
+  "worker_input_completed": true,
+  "worker_input_error": false,
+  "input_route": "accessibility",
+  "input_effect": "confirmed",
+  "fixture_matches": true,
+  "worker_target_error": false,
+  "worker_exit_code": null
+}

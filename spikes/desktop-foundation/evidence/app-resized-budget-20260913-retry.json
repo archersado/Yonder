@@ -1,0 +1,20 @@
+{
+  "scope": "宿主及同一系统 resource coalition 的 WebKit 进程",
+  "scenario": "五分钟保持展开，每120秒触发托盘找回；包含该交互开销",
+  "coalition": [
+    "27092",
+    "application.com.yonder.e0-spike.1138601.1138604.FA7CAFA1-FAED-4337-B6DA-C2B85DD89856",
+    "com.yonder.e0-spike"
+  ],
+  "samples": [],
+  "status": "采样不完整",
+  "initial_wake": {
+    "app_hidden": false,
+    "height": 200,
+    "onscreen": true,
+    "wake_requested": true,
+    "width": 200,
+    "window_id": 23237
+  },
+  "error": "CalledProcessError: Command '['/private/tmp/yonda-awake-probe', '15225', 'check', '/Users/archersado/workspace/Yonder/spikes/desktop-foundation/evidence/app-resized-budget-20260913-retry.frames/00.png']' returned non-zero exit status 5."
+}

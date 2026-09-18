@@ -10,4 +10,9 @@ png = "0.18"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+yonder-ipc-spike = { path = ".." }
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.4"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSWindow"] }

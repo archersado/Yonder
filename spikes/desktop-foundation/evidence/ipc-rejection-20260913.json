@@ -1,0 +1,28 @@
+{
+  "platform": "macOS 26.5.1 arm64",
+  "binary_sha256": "28f0ba406d3b4c70483f1630f71f0d05b27a0f371153b3d62503b1e16695db1e",
+  "command": "python3 spikes/desktop-foundation/check-ipc.py",
+  "exit": 0,
+  "cases": [
+    {
+      "case": "正常往返",
+      "server_exit": 0,
+      "tcp_sockets": 0,
+      "endpoint_removed": true,
+      "parent_mode": "0o700"
+    },
+    {
+      "case": "错误版本",
+      "rejected": true,
+      "exit": 1,
+      "endpoint_removed": true
+    },
+    {
+      "case": "无效JSON",
+      "rejected": true,
+      "exit": 1,
+      "endpoint_removed": true
+    }
+  ],
+  "scope": "独立IPC Spike，同用户；不含桌宠宿主IPC接线或跨用户权限拒绝"
+}

@@ -1,0 +1,3 @@
+{"meaning":"0=regular, 1=accessory, 2=prohibited","pet_activation_policy":1}
+{"capture_exit":0,"onscreen":true,"pet_bounds":[755,453,200,201],"phase":"normal","pid":66418,"test_active":false,"test_frame":[405,274,900,732],"test_fullscreen":false,"window_id":20605}
+{"result":"等待全屏回调超时，关闭临时窗口"}

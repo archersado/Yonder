@@ -1,0 +1,18 @@
+{
+  "task_id": "task_4fdc6a6f7a0463b204c343f4396c02eb",
+  "external_task_ref": "ego:64",
+  "state": "running",
+  "sequence": 8,
+  "ownership": "agentDelegatedToUser",
+  "managed_pages": 1,
+  "finished": false,
+  "updated_sequence": 8,
+  "events": 8,
+  "ego_visible_task_name": "Browser 打开验证 332000",
+  "passed": true,
+  "cleanup": {
+    "final_status": "completed",
+    "final_sequence": 18,
+    "external_space_finished": true
+  }
+}

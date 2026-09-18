@@ -1,3 +1,5 @@
+当前归属 Story：DO-S1；规划：`docs/specs/epic-DO/story-DO-S1/README.md`。旧编号保留历史追溯。
+
 # 设计
 
 Harness 对两个候选提交相同 JSON 用例：读取文本、按稳定位置替换文本、另存、校验和冲突测试。实现只修改目标 XML part，其余 ZIP entry 原样复制；不实现复杂排版、图表、宏或旧二进制格式。

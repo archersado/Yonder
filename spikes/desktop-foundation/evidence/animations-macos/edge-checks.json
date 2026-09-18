@@ -1,0 +1,5 @@
+{
+  "busyBlocked": "awake",
+  "wakeFailureRetryable": "docked",
+  "retryRecovered": "awake"
+}

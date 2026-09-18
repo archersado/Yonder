@@ -1,0 +1,14 @@
+{
+  "driver": "cua_repl",
+  "bundle_id": "com.yonder.desktop",
+  "pid": 26790,
+  "window": "Yonda · Task Space",
+  "task_id": "task_ed1c4b2b0fcfff0d98707e8460f33b2c",
+  "task_status": "cancelled",
+  "task_sequence": "3",
+  "step_label": "打开目标文档",
+  "step_id": "open-document",
+  "accepted_sequence": "2",
+  "visual_screenshot_observed": true,
+  "passed": true
+}

@@ -1,0 +1,9 @@
+{
+  "actual_product_sqlite": true,
+  "agent_tasks": 2,
+  "created_tasks": 1,
+  "cancelled_tasks": 1,
+  "events_and_outbox_match": true,
+  "history_preserved": true,
+  "passed": true
+}

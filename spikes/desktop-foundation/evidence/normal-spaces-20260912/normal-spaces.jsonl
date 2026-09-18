@@ -1,0 +1,9 @@
+{"error":"无法确认唯一新增普通桌面"}
+{"ordinary_desktops":2}
+{"bounds":[1654,758,56,112],"capture_exit":0,"phase":"ordinary-a","window_id":20605}
+{"bounds":[1654,758,56,112],"capture_exit":0,"phase":"ordinary-b","window_id":20605}
+{"bounds":[1654,758,56,112],"capture_exit":0,"phase":"ordinary-a-returned","window_id":20605}
+{"result":"普通桌面往返采样完成；截图需人工核对"}
+{"remove_temporary_ax":0}
+{"ordinary_desktops_after_cleanup":1}
+{"restore_original_window_ax":0}

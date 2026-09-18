@@ -1,0 +1,2031 @@
+{
+  "scope": "宿主及同一系统 resource coalition 的 WebKit 进程",
+  "scenario": "五分钟自然闲置，不触发交互或重置三分钟计时",
+  "coalition": [
+    "22190",
+    "application.com.yonder.e0-spike.1138601.1138604.B4FDF6DA-7E78-4DE2-936A-070892A276C6",
+    "com.yonder.e0-spike"
+  ],
+  "samples": [
+    {
+      "elapsed": 1.7920000000004599e-06,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 715939862,
+          "resident_bytes": 54640640,
+          "footprint_bytes": 26428472
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1288541698,
+          "resident_bytes": 18710528,
+          "footprint_bytes": 18088704
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12188325,
+          "resident_bytes": 8732672,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1133242434,
+          "resident_bytes": 13189120,
+          "footprint_bytes": 50774976
+        }
+      }
+    },
+    {
+      "elapsed": 5.0471375,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716070342,
+          "resident_bytes": 54525952,
+          "footprint_bytes": 26166328
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1288755139,
+          "resident_bytes": 18808832,
+          "footprint_bytes": 18105088
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12196280,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1133376158,
+          "resident_bytes": 13271040,
+          "footprint_bytes": 50742208
+        }
+      }
+    },
+    {
+      "elapsed": 10.054587042000001,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716165085,
+          "resident_bytes": 54525952,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1288988174,
+          "resident_bytes": 18857984,
+          "footprint_bytes": 15778560
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12196280,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1133538436,
+          "resident_bytes": 13271040,
+          "footprint_bytes": 50742208
+        }
+      }
+    },
+    {
+      "elapsed": 15.0526765,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716369702,
+          "resident_bytes": 54525952,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1289407261,
+          "resident_bytes": 18874368,
+          "footprint_bytes": 18121472
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1133826525,
+          "resident_bytes": 13287424,
+          "footprint_bytes": 50742208
+        }
+      }
+    },
+    {
+      "elapsed": 20.034926542,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716462202,
+          "resident_bytes": 54525952,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1289635796,
+          "resident_bytes": 18857984,
+          "footprint_bytes": 15778560
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1133992577,
+          "resident_bytes": 13287424,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 25.05866025,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716585780,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26166328
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1289978914,
+          "resident_bytes": 18874368,
+          "footprint_bytes": 60883712
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1134185730,
+          "resident_bytes": 13287424,
+          "footprint_bytes": 50791360
+        }
+      }
+    },
+    {
+      "elapsed": 30.05338425,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716690240,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26166328
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1290201690,
+          "resident_bytes": 18874368,
+          "footprint_bytes": 60588800
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1134333955,
+          "resident_bytes": 13287424,
+          "footprint_bytes": 50791360
+        }
+      }
+    },
+    {
+      "elapsed": 35.047636167,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716816676,
+          "resident_bytes": 54525952,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1290430233,
+          "resident_bytes": 18874368,
+          "footprint_bytes": 60588800
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1134512337,
+          "resident_bytes": 13287424,
+          "footprint_bytes": 50791360
+        }
+      }
+    },
+    {
+      "elapsed": 40.050920709,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 716926431,
+          "resident_bytes": 54525952,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1290645143,
+          "resident_bytes": 18841600,
+          "footprint_bytes": 18121472
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1134688861,
+          "resident_bytes": 13287424,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 45.059419500000004,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717025292,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1290908279,
+          "resident_bytes": 18743296,
+          "footprint_bytes": 15827712
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1134857998,
+          "resident_bytes": 13320192,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 50.057416125,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717130774,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1291222842,
+          "resident_bytes": 18939904,
+          "footprint_bytes": 15778560
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1135015956,
+          "resident_bytes": 13320192,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 55.049641334,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717286812,
+          "resident_bytes": 54558720,
+          "footprint_bytes": 26166328
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1291573772,
+          "resident_bytes": 18939904,
+          "footprint_bytes": 60588800
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1135233522,
+          "resident_bytes": 13320192,
+          "footprint_bytes": 50791360
+        }
+      }
+    },
+    {
+      "elapsed": 60.035534417,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717427285,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1291858729,
+          "resident_bytes": 18907136,
+          "footprint_bytes": 18105088
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1135446168,
+          "resident_bytes": 13320192,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 65.037269125,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717540174,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1292135590,
+          "resident_bytes": 18939904,
+          "footprint_bytes": 15762176
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1135625686,
+          "resident_bytes": 13320192,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 70.02894037499999,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717641487,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1292354143,
+          "resident_bytes": 18939904,
+          "footprint_bytes": 15762176
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1135786822,
+          "resident_bytes": 13336576,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 75.036371334,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717751599,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1292633713,
+          "resident_bytes": 18939904,
+          "footprint_bytes": 15762176
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1135942647,
+          "resident_bytes": 13369344,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 80.03030125,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 717950123,
+          "resident_bytes": 54542336,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1293158662,
+          "resident_bytes": 18923520,
+          "footprint_bytes": 18105088
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12197757,
+          "resident_bytes": 8749056,
+          "footprint_bytes": 6767216
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1136223968,
+          "resident_bytes": 13369344,
+          "footprint_bytes": 50676672
+        }
+      }
+    },
+    {
+      "elapsed": 85.02255625,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 718298550,
+          "resident_bytes": 54804480,
+          "footprint_bytes": 26248248
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1293396770,
+          "resident_bytes": 18956288,
+          "footprint_bytes": 18105088
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12243344,
+          "resident_bytes": 8798208,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1136456318,
+          "resident_bytes": 13565952,
+          "footprint_bytes": 50693056
+        }
+      }
+    },
+    {
+      "elapsed": 90.05026141699999,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 718395768,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1293636030,
+          "resident_bytes": 18939904,
+          "footprint_bytes": 15713024
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12243344,
+          "resident_bytes": 8798208,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1136613910,
+          "resident_bytes": 13565952,
+          "footprint_bytes": 50693056
+        }
+      }
+    },
+    {
+      "elapsed": 95.05381104199999,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 718561338,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1294000553,
+          "resident_bytes": 18956288,
+          "footprint_bytes": 60506880
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1136826751,
+          "resident_bytes": 13582336,
+          "footprint_bytes": 50807744
+        }
+      }
+    },
+    {
+      "elapsed": 100.056409167,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 718672244,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1294260949,
+          "resident_bytes": 18956288,
+          "footprint_bytes": 60506880
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1137003199,
+          "resident_bytes": 13582336,
+          "footprint_bytes": 50807744
+        }
+      }
+    },
+    {
+      "elapsed": 105.04903720899999,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 718800007,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1294530631,
+          "resident_bytes": 18972672,
+          "footprint_bytes": 15713024
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1137212935,
+          "resident_bytes": 13582336,
+          "footprint_bytes": 50693056
+        }
+      }
+    },
+    {
+      "elapsed": 110.035193459,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 718900575,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1294795357,
+          "resident_bytes": 18923520,
+          "footprint_bytes": 15663872
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1137381238,
+          "resident_bytes": 13582336,
+          "footprint_bytes": 50693056
+        }
+      }
+    },
+    {
+      "elapsed": 115.03630249999999,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 718996720,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1295020492,
+          "resident_bytes": 18972672,
+          "footprint_bytes": 15713024
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1137537140,
+          "resident_bytes": 13582336,
+          "footprint_bytes": 50693056
+        }
+      }
+    },
+    {
+      "elapsed": 120.05348074999999,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 719160560,
+          "resident_bytes": 54722560,
+          "footprint_bytes": 26166328
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1295410602,
+          "resident_bytes": 19005440,
+          "footprint_bytes": 60850944
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1137774134,
+          "resident_bytes": 13598720,
+          "footprint_bytes": 50824128
+        }
+      }
+    },
+    {
+      "elapsed": 125.035589042,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 719290724,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1295697960,
+          "resident_bytes": 19021824,
+          "footprint_bytes": 60293888
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1137971593,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50709440
+        }
+      }
+    },
+    {
+      "elapsed": 130.053758875,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 719405450,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1295966366,
+          "resident_bytes": 19021824,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1138147740,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50709440
+        }
+      }
+    },
+    {
+      "elapsed": 135.05351841700002,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 719573847,
+          "resident_bytes": 54722560,
+          "footprint_bytes": 26166328
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1296327298,
+          "resident_bytes": 19021824,
+          "footprint_bytes": 60850944
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1138368603,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50824128
+        }
+      }
+    },
+    {
+      "elapsed": 140.05518112500002,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 719696512,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1296546681,
+          "resident_bytes": 19021824,
+          "footprint_bytes": 60556032
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1138535218,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50824128
+        }
+      }
+    },
+    {
+      "elapsed": 145.044872042,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 719794361,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1296785694,
+          "resident_bytes": 19021824,
+          "footprint_bytes": 18088704
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1138691027,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50709440
+        }
+      }
+    },
+    {
+      "elapsed": 150.032636542,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 719879800,
+          "resident_bytes": 54706176,
+          "footprint_bytes": 26149944
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1297012543,
+          "resident_bytes": 19038208,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12244820,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1138834311,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50709440
+        }
+      }
+    },
+    {
+      "elapsed": 155.03070225000002,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 720156843,
+          "resident_bytes": 55476224,
+          "footprint_bytes": 26395704
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1297254429,
+          "resident_bytes": 19054592,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12264229,
+          "resident_bytes": 8798208,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1139020157,
+          "resident_bytes": 13664256,
+          "footprint_bytes": 50709440
+        }
+      }
+    },
+    {
+      "elapsed": 160.053869834,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 720585300,
+          "resident_bytes": 55541760,
+          "footprint_bytes": 26444856
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1297638394,
+          "resident_bytes": 19054592,
+          "footprint_bytes": 60556032
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12327321,
+          "resident_bytes": 8798208,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1139285050,
+          "resident_bytes": 13664256,
+          "footprint_bytes": 50824128
+        }
+      }
+    },
+    {
+      "elapsed": 165.0345025,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 720896172,
+          "resident_bytes": 55541760,
+          "footprint_bytes": 26444856
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1297925057,
+          "resident_bytes": 19054592,
+          "footprint_bytes": 18088704
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12363334,
+          "resident_bytes": 8798208,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1139482451,
+          "resident_bytes": 13664256,
+          "footprint_bytes": 50709440
+        }
+      }
+    },
+    {
+      "elapsed": 170.036925292,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 721076760,
+          "resident_bytes": 55328768,
+          "footprint_bytes": 26412088
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1298102028,
+          "resident_bytes": 18923520,
+          "footprint_bytes": 18154240
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12376571,
+          "resident_bytes": 8798208,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1139589414,
+          "resident_bytes": 13598720,
+          "footprint_bytes": 50774976
+        }
+      }
+    },
+    {
+      "elapsed": 175.05332245900001,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 721187422,
+          "resident_bytes": 55246848,
+          "footprint_bytes": 26412088
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1298302610,
+          "resident_bytes": 18939904,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12377041,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1139739022,
+          "resident_bytes": 13598720,
+          "footprint_bytes": 50758592
+        }
+      }
+    },
+    {
+      "elapsed": 180.056174542,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 721431729,
+          "resident_bytes": 55214080,
+          "footprint_bytes": 26346552
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1298703819,
+          "resident_bytes": 18956288,
+          "footprint_bytes": 60556032
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12377041,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1139987590,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50873280
+        }
+      }
+    },
+    {
+      "elapsed": 185.0569295,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 721572183,
+          "resident_bytes": 55197696,
+          "footprint_bytes": 26330168
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1298945546,
+          "resident_bytes": 19005440,
+          "footprint_bytes": 18121472
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12380813,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1140199514,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50758592
+        }
+      }
+    },
+    {
+      "elapsed": 190.04183037500002,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 721691678,
+          "resident_bytes": 55197696,
+          "footprint_bytes": 26330168
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1299202629,
+          "resident_bytes": 19005440,
+          "footprint_bytes": 15778560
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12380813,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1140369886,
+          "resident_bytes": 13615104,
+          "footprint_bytes": 50758592
+        }
+      }
+    },
+    {
+      "elapsed": 195.056426334,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 721809911,
+          "resident_bytes": 55197696,
+          "footprint_bytes": 26330168
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1299488756,
+          "resident_bytes": 18972672,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12380813,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1140560900,
+          "resident_bytes": 13647872,
+          "footprint_bytes": 50742208
+        }
+      }
+    },
+    {
+      "elapsed": 200.055034917,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 722015242,
+          "resident_bytes": 55230464,
+          "footprint_bytes": 26379320
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1299738268,
+          "resident_bytes": 18972672,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12406044,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1140724148,
+          "resident_bytes": 13647872,
+          "footprint_bytes": 50758592
+        }
+      }
+    },
+    {
+      "elapsed": 205.054747375,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 722328343,
+          "resident_bytes": 55853056,
+          "footprint_bytes": 26477624
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1300080948,
+          "resident_bytes": 19070976,
+          "footprint_bytes": 60588800
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12426333,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1140971226,
+          "resident_bytes": 14024704,
+          "footprint_bytes": 50906048
+        }
+      }
+    },
+    {
+      "elapsed": 210.036191292,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 722608571,
+          "resident_bytes": 55984128,
+          "footprint_bytes": 26477624
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1300359022,
+          "resident_bytes": 19087360,
+          "footprint_bytes": 18121472
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12450879,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1141200545,
+          "resident_bytes": 14041088,
+          "footprint_bytes": 50774976
+        }
+      }
+    },
+    {
+      "elapsed": 215.05684525,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 722789524,
+          "resident_bytes": 55984128,
+          "footprint_bytes": 26477624
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1300608128,
+          "resident_bytes": 19087360,
+          "footprint_bytes": 15778560
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12464888,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1141355542,
+          "resident_bytes": 14041088,
+          "footprint_bytes": 50774976
+        }
+      }
+    },
+    {
+      "elapsed": 220.053718292,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 722939333,
+          "resident_bytes": 55853056,
+          "footprint_bytes": 26346552
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1300950147,
+          "resident_bytes": 19087360,
+          "footprint_bytes": 60621568
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12464888,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1141654508,
+          "resident_bytes": 15728640,
+          "footprint_bytes": 50938816
+        }
+      }
+    },
+    {
+      "elapsed": 225.0343985,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 723722442,
+          "resident_bytes": 56033280,
+          "footprint_bytes": 26444856
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1301201269,
+          "resident_bytes": 19103744,
+          "footprint_bytes": 60506880
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12568225,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1142054814,
+          "resident_bytes": 15892480,
+          "footprint_bytes": 50758592
+        }
+      }
+    },
+    {
+      "elapsed": 230.04885362500002,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724286049,
+          "resident_bytes": 56229888,
+          "footprint_bytes": 26461240
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1301472232,
+          "resident_bytes": 19120128,
+          "footprint_bytes": 18055936
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12651411,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1142305411,
+          "resident_bytes": 15843328,
+          "footprint_bytes": 50594752
+        }
+      }
+    },
+    {
+      "elapsed": 235.050332042,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724364612,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26313784
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1301617250,
+          "resident_bytes": 19136512,
+          "footprint_bytes": 15713024
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12652315,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1142412815,
+          "resident_bytes": 15859712,
+          "footprint_bytes": 50529216
+        }
+      }
+    },
+    {
+      "elapsed": 240.05134287500002,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724467253,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26297400
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1301914410,
+          "resident_bytes": 19152896,
+          "footprint_bytes": 51888896
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12652315,
+          "resident_bytes": 8781824,
+          "footprint_bytes": 6799984
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1142580356,
+          "resident_bytes": 15859712,
+          "footprint_bytes": 50643904
+        }
+      }
+    },
+    {
+      "elapsed": 245.05473275,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724652687,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26297400
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1302256578,
+          "resident_bytes": 19169280,
+          "footprint_bytes": 60556032
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1142803267,
+          "resident_bytes": 15859712,
+          "footprint_bytes": 50643904
+        }
+      }
+    },
+    {
+      "elapsed": 250.032072125,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724778065,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26297400
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1302529822,
+          "resident_bytes": 19169280,
+          "footprint_bytes": 18088704
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1142993678,
+          "resident_bytes": 15859712,
+          "footprint_bytes": 50529216
+        }
+      }
+    },
+    {
+      "elapsed": 255.047855542,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724883865,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1302759984,
+          "resident_bytes": 19169280,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143154761,
+          "resident_bytes": 15859712,
+          "footprint_bytes": 50529216
+        }
+      }
+    },
+    {
+      "elapsed": 260.023425125,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724933921,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1302891365,
+          "resident_bytes": 19169280,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143231115,
+          "resident_bytes": 15859712,
+          "footprint_bytes": 50529216
+        }
+      }
+    },
+    {
+      "elapsed": 265.026431417,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 724976936,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1302990896,
+          "resident_bytes": 19185664,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143296028,
+          "resident_bytes": 15876096,
+          "footprint_bytes": 50512832
+        }
+      }
+    },
+    {
+      "elapsed": 270.02679295900003,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 725016771,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1303088140,
+          "resident_bytes": 19185664,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143355416,
+          "resident_bytes": 15876096,
+          "footprint_bytes": 50512832
+        }
+      }
+    },
+    {
+      "elapsed": 275.02695816700003,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 725107360,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1303287743,
+          "resident_bytes": 19185664,
+          "footprint_bytes": 18088704
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143483505,
+          "resident_bytes": 15876096,
+          "footprint_bytes": 50512832
+        }
+      }
+    },
+    {
+      "elapsed": 280.026440417,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 725173023,
+          "resident_bytes": 56098816,
+          "footprint_bytes": 26297400
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1303462680,
+          "resident_bytes": 19185664,
+          "footprint_bytes": 60850944
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143581220,
+          "resident_bytes": 15876096,
+          "footprint_bytes": 50627520
+        }
+      }
+    },
+    {
+      "elapsed": 285.026118667,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 725238965,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1303575254,
+          "resident_bytes": 19185664,
+          "footprint_bytes": 18088704
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143667732,
+          "resident_bytes": 15876096,
+          "footprint_bytes": 50512832
+        }
+      }
+    },
+    {
+      "elapsed": 290.026366834,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 725283575,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1303675743,
+          "resident_bytes": 19202048,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143741609,
+          "resident_bytes": 15908864,
+          "footprint_bytes": 50529216
+        }
+      }
+    },
+    {
+      "elapsed": 295.022331375,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 725327354,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1303773288,
+          "resident_bytes": 19202048,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143803428,
+          "resident_bytes": 15908864,
+          "footprint_bytes": 50529216
+        }
+      }
+    },
+    {
+      "elapsed": 300.026657584,
+      "processes": {
+        "66418": {
+          "role": "host",
+          "start": 1280017881161,
+          "cpu_ns": 725369580,
+          "resident_bytes": 56082432,
+          "footprint_bytes": 26281016
+        },
+        "66439": {
+          "role": "com.apple.WebKit.GPU",
+          "start": 1280054456606,
+          "cpu_ns": 1303876557,
+          "resident_bytes": 19202048,
+          "footprint_bytes": 15745792
+        },
+        "66440": {
+          "role": "com.apple.WebKit.Networking",
+          "start": 1280054719350,
+          "cpu_ns": 12654313,
+          "resident_bytes": 8765440,
+          "footprint_bytes": 6783600
+        },
+        "66441": {
+          "role": "com.apple.WebKit.WebContent",
+          "start": 1280054788810,
+          "cpu_ns": 1143866205,
+          "resident_bytes": 15908864,
+          "footprint_bytes": 50496448
+        }
+      }
+    }
+  ],
+  "status": "采样完成；分进程 footprint 相加，不是系统去重后的组内存",
+  "summary": {
+    "duration_seconds": 300.02665579200004,
+    "cpu_percent_one_core": 0.011950383510209437,
+    "mean_sum_footprint_mib": 107.9597279282867,
+    "peak_sum_footprint_mib": 138.0657730102539
+  }
+}

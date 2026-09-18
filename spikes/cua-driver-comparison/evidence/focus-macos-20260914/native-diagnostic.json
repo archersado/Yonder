@@ -1,0 +1,42 @@
+{
+  "sdk_only": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "yonder_host_verified": false,
+  "other_space_verified": false,
+  "windows_verified": false,
+  "phase": "close",
+  "normal_native": {
+    "focused": true,
+    "geometry_unchanged": true,
+    "refused": false,
+    "restored": true,
+    "unique_mapping": true,
+    "exit_code": 0
+  },
+  "normal_focus": true,
+  "normal_geometry_unchanged": true,
+  "normal_sdk_observe": true,
+  "minimized_fixture_confirmed": true,
+  "restored_native": {
+    "focused": true,
+    "geometry_unchanged": true,
+    "refused": false,
+    "restored": true,
+    "unique_mapping": true,
+    "exit_code": 0
+  },
+  "minimized_restore_focus": true,
+  "restored_geometry_unchanged": true,
+  "restored_sdk_observe": true,
+  "closed_native": {
+    "mapping_not_unique": true,
+    "refused": true,
+    "exit_code": 4
+  },
+  "closed_target_refused": false,
+  "same_name_decoy_untouched": true,
+  "closed_sdk_observe_refused": false,
+  "passed": false
+}

@@ -1,0 +1,11 @@
+{
+  "platform": "macOS",
+  "hardlink_same": true,
+  "symlink_same": true,
+  "second_lock_rejected": true,
+  "escape_rejected": true,
+  "atomic_commit": true,
+  "office_wps_lock_verified": false,
+  "product_gateway_connected": false,
+  "passed": true
+}

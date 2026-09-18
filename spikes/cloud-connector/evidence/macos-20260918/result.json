@@ -1,0 +1,12 @@
+{
+  "bounded_backoff": true,
+  "clean_close": true,
+  "credential_persisted": false,
+  "frame_limit_bytes": 65536,
+  "invalid_tls_rejected": true,
+  "ping_pong": true,
+  "reconnected_after_close": true,
+  "second_process": false,
+  "transport": "wss",
+  "trusted_tls": true
+}

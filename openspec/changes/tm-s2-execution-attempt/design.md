@@ -1,0 +1,5 @@
+# 设计
+
+Application定义`ExecutionAttempt`，TaskStore提供supports/prepare/get。prepare只接受created任务的最新已声明步骤及合法完整身份；Adapter使用IMMEDIATE事务提交running、Start事件、Outbox和task_attempts记录。同一完整身份重试返回已有事实，不同身份/旧序号拒绝。
+
+schema6明文库先一致备份再升级7；未知或加密旧库拒绝。部分唯一索引限制每任务一个未停止尝试。Admission取得Permit后调用prepare，失败释放从未派发的本次Permit；成功Permit继续保守持有。

@@ -6,7 +6,11 @@
 
 ## 开工门禁
 
-- 采用 SDD：`Epic → Story → OpenSpec Change → 实现 → Verification Goal → Archive`。
+- 采用 SDD：`技术模块 Epic 目录 → Story 三份设计 → OpenSpec Proposal → 实现 → 独立 Verification Goal → Archive`。
+- 规划唯一入口为 `docs/specs/README.md`，目录采用 `docs/specs/epic-<模块>/story-<ID>/`；Epic 不按月份组织。
+- Epic/Story 必须从 `_bmad-output/planning-artifacts` 的既有产品简报、补充材料和架构材料拆解。每份 Story 产品需求须写明来源章节与验收映射；区分原始需求、后续用户变更、架构约束和待审设计建议，不得从已有代码反推产品范围或自行删减原需求。
+- 每个 Story 必须含 `README.md`、`product-requirements.md`、`architecture-design.md`、`visual-interaction-design.md`；无 UI 也须定义调用方交互、可观察状态与错误反馈。设计缺失、验收不清或前置门禁未满足时不得实施。
+- Story 设计明确后才能生成关联它的 OpenSpec proposal/design/tasks/delta spec；不得先写代码再补设计，不得以 OpenSpec 代替 Story 文档。详见 AD-DEV-01-MODULE-EPICS.md。
 - 技术路线未验证时先建有期限的 Spike；Spike 必须有统一样本、淘汰门槛、双平台证据和 ADR。ADR 定案前不得开始依赖该技术路线的产品 Story。
 - 首批必做验证：Tauri/IPC 跨平台基础栈、Qwen 与 trycua CUA Driver、ego-lite 集成、Rust 与 Node OOXML 实现、原生上下文采集、SQLCipher/FTS5/附件加密。
 - 改变系统边界、依赖方向、状态所有者、协议、持久化或技术栈时，必须先更新 Architecture Decision，再修改 OpenSpec 和代码。
@@ -46,7 +50,7 @@
 - Document Port 不暴露 XML。OOXML 修改默认另存，覆盖须显式请求；使用 `expected_hash`、临时文件、结构校验和原子替换。不得绕过 Office/WPS 文件锁。
 - Recording 默认关闭且仅由用户手动开始；原始时间线不可变。只把 `user` 输入派生为轨迹，不得重新录制 `agent_cua` 或 `replay` 输入。
 - 密码框、隐私窗口、系统安全界面和用户排除应用始终不采集。禁止全盘扫描和读取浏览器内部 History 数据库。
-- SQLite/FTS 使用 SQLCipher；内容附件文件级加密；主密钥只存系统 Credential Store。日志不得记录正文、截图、输入、完整命令输出或完整 Agent Payload。
+- 2026-09-14用户变更（AD-ST-01）：MVP暂不加密，SQLite/FTS及附件加密、系统Credential Store密钥接线延期至MVP之后；不得自动修改或覆盖已有加密库。状态/事件/Outbox仍同事务。日志不得记录正文、截图、输入、完整命令输出或完整 Agent Payload。
 - 采集、索引、同步使用有界队列和本地配额；不得写满磁盘，不得自动删除未同步数据、轨迹或用户固定内容。
 
 ## 验证与完成

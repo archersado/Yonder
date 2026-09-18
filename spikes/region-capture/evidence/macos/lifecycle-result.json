@@ -1,0 +1,17 @@
+{
+  "escape_event": "synthetic-native",
+  "escape_handled": true,
+  "escape_closed": true,
+  "timeout_closed": true,
+  "escape_on_screen_after_close": false,
+  "timeout_on_screen_after_close": false,
+  "windows_gone": true,
+  "probe_never_frontmost": true,
+  "local_monitor_removed": true,
+  "global_monitor_installed": false,
+  "screenshot_attempted": false,
+  "three_consecutive_runs": true,
+  "residual_process": false,
+  "residual_binary": false,
+  "passed": true
+}

@@ -1,0 +1,506 @@
+[
+  {
+    "file": "frames/idle-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      22,
+      32,
+      334,
+      376
+    ]
+  },
+  {
+    "file": "frames/idle-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      24,
+      32,
+      334,
+      376
+    ]
+  },
+  {
+    "file": "frames/idle-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      23,
+      32,
+      334,
+      376
+    ]
+  },
+  {
+    "file": "frames/idle-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      23,
+      32,
+      334,
+      376
+    ]
+  },
+  {
+    "file": "frames/listening-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      36,
+      41,
+      304,
+      376
+    ]
+  },
+  {
+    "file": "frames/listening-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      36,
+      39,
+      293,
+      376
+    ]
+  },
+  {
+    "file": "frames/listening-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      37,
+      38,
+      308,
+      376
+    ]
+  },
+  {
+    "file": "frames/listening-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      38,
+      39,
+      299,
+      376
+    ]
+  },
+  {
+    "file": "frames/thinking-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      28,
+      37,
+      296,
+      376
+    ]
+  },
+  {
+    "file": "frames/thinking-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      32,
+      37,
+      294,
+      376
+    ]
+  },
+  {
+    "file": "frames/thinking-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      32,
+      37,
+      296,
+      376
+    ]
+  },
+  {
+    "file": "frames/thinking-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      26,
+      39,
+      290,
+      376
+    ]
+  },
+  {
+    "file": "frames/executing-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      31,
+      43,
+      316,
+      376
+    ]
+  },
+  {
+    "file": "frames/executing-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      30,
+      43,
+      313,
+      376
+    ]
+  },
+  {
+    "file": "frames/executing-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      30,
+      42,
+      315,
+      376
+    ]
+  },
+  {
+    "file": "frames/executing-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      30,
+      41,
+      312,
+      376
+    ]
+  },
+  {
+    "file": "frames/waiting_for_user-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      27,
+      33,
+      314,
+      376
+    ]
+  },
+  {
+    "file": "frames/waiting_for_user-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      27,
+      34,
+      314,
+      376
+    ]
+  },
+  {
+    "file": "frames/waiting_for_user-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      27,
+      33,
+      323,
+      376
+    ]
+  },
+  {
+    "file": "frames/waiting_for_user-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      27,
+      32,
+      323,
+      376
+    ]
+  },
+  {
+    "file": "frames/paused-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      29,
+      37,
+      333,
+      376
+    ]
+  },
+  {
+    "file": "frames/paused-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      33,
+      38,
+      302,
+      377
+    ]
+  },
+  {
+    "file": "frames/paused-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      32,
+      37,
+      297,
+      376
+    ]
+  },
+  {
+    "file": "frames/paused-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      31,
+      38,
+      295,
+      376
+    ]
+  },
+  {
+    "file": "frames/recording-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      26,
+      37,
+      324,
+      376
+    ]
+  },
+  {
+    "file": "frames/recording-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      22,
+      37,
+      323,
+      376
+    ]
+  },
+  {
+    "file": "frames/recording-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      26,
+      36,
+      324,
+      376
+    ]
+  },
+  {
+    "file": "frames/recording-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      36,
+      36,
+      323,
+      376
+    ]
+  },
+  {
+    "file": "frames/success-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      33,
+      35,
+      309,
+      377
+    ]
+  },
+  {
+    "file": "frames/success-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      18,
+      28,
+      318,
+      360
+    ]
+  },
+  {
+    "file": "frames/success-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      31,
+      30,
+      331,
+      368
+    ]
+  },
+  {
+    "file": "frames/success-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      32,
+      38,
+      317,
+      377
+    ]
+  },
+  {
+    "file": "frames/failed-00.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      35,
+      32,
+      318,
+      376
+    ]
+  },
+  {
+    "file": "frames/failed-01.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      45,
+      68,
+      325,
+      376
+    ]
+  },
+  {
+    "file": "frames/failed-02.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      36,
+      54,
+      310,
+      376
+    ]
+  },
+  {
+    "file": "frames/failed-03.png",
+    "size": [
+      400,
+      400
+    ],
+    "mode": "RGBA",
+    "bounds": [
+      42,
+      54,
+      301,
+      376
+    ]
+  }
+]

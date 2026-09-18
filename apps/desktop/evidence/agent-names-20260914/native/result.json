@@ -1,0 +1,12 @@
+{
+  "agent_names_visible" : true,
+  "leave_hides" : true,
+  "named_detail_and_task_id_visible" : true,
+  "panel_hover_keeps_open" : true,
+  "passed" : true,
+  "pid" : 66662,
+  "real_agent_tasks" : true,
+  "refresh_operable" : true,
+  "same_visible_desktop" : true,
+  "tasks_hover_opens" : true
+}

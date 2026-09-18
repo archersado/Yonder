@@ -1,0 +1,15 @@
+{
+  "event_path": "cghid-native-synthetic",
+  "selection_width": 160,
+  "selection_height": 100,
+  "selection_valid": true,
+  "overlay_closed": true,
+  "pointer_restored": true,
+  "probe_became_frontmost": false,
+  "global_monitor_installed": false,
+  "screenshot_attempted": false,
+  "three_consecutive_runs": true,
+  "residual_process": false,
+  "residual_binary": false,
+  "passed": true
+}

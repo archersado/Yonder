@@ -1,0 +1,12 @@
+{
+  "bundle_id": "com.yonder.spike.region-capture-permission",
+  "preflight_authorized": false,
+  "capture_attempted": false,
+  "permission_requested": false,
+  "classification": "permission-required",
+  "fail_closed": true,
+  "two_consecutive_runs": true,
+  "residual_process": false,
+  "residual_bundle": false,
+  "passed": true
+}

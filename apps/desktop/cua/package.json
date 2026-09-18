@@ -1,0 +1,8 @@
+{
+  "name": "yonder-cua-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "dependencies": {
+    "@trycua/cua-driver": "0.25.0"
+  }
+}

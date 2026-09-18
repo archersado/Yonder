@@ -1,0 +1,17 @@
+{
+  "platform": "macos",
+  "database_before": {
+    "schema": 7,
+    "tasks": 14,
+    "attempts": 0
+  },
+  "database_after": {
+    "schema": 8,
+    "tasks": 14,
+    "attempts": 0,
+    "result_columns": 4
+  },
+  "backup": "/Users/archersado/Library/Application Support/com.yonder.desktop/tasks.db.pre-attempt-v7-72536-1789522237971160000.db",
+  "native_dispatch_evidence": "../cua-dispatch-20260915/result.json",
+  "passed": true
+}

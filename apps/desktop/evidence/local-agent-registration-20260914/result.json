@@ -1,0 +1,9 @@
+{
+  "local_stdio_agent": true,
+  "actual_sqlite_tasks": 2,
+  "idempotent_replay": true,
+  "conflicting_key_rejected": true,
+  "atomic_rows": true,
+  "product_data_modified": false,
+  "live_desktop_connection": false
+}

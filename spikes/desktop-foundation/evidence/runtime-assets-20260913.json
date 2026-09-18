@@ -1,0 +1,74 @@
+[
+  {
+    "original": {
+      "path": "spikes/desktop-foundation/ui/yonda-dragon-v1.png",
+      "width": 1254,
+      "height": 1254,
+      "png_color_type": 6,
+      "bytes": 1150626,
+      "sha256": "bf9d1c5956a25ca803d60f1a4566fcb454ff163d2465c9ec250b7dd8b19c26c3"
+    },
+    "runtime": {
+      "path": "spikes/desktop-foundation/ui/runtime/yonda-dragon-v1.png",
+      "width": 600,
+      "height": 600,
+      "png_color_type": 6,
+      "bytes": 324688,
+      "sha256": "b119fff552d3a06589f82e09e473b4477d5aa8a2c557915500e5e81fe1e29f6b"
+    }
+  },
+  {
+    "original": {
+      "path": "spikes/desktop-foundation/ui/yonda-eyes-closed-v1.png",
+      "width": 1254,
+      "height": 1254,
+      "png_color_type": 2,
+      "bytes": 1721967,
+      "sha256": "02000927ac53eb51702810f0c099d89ce3bc4c3eeb1bbecc0a706439e1066335"
+    },
+    "runtime": {
+      "path": "spikes/desktop-foundation/ui/runtime/yonda-eyes-closed-v1.png",
+      "width": 600,
+      "height": 600,
+      "png_color_type": 2,
+      "bytes": 517024,
+      "sha256": "de09fd6ab26d1c6ed61e68a422b8d963eb584312ebc505940ea3308b60c371bc"
+    }
+  },
+  {
+    "original": {
+      "path": "spikes/desktop-foundation/ui/yonda-peek-closed-v1.png",
+      "width": 1774,
+      "height": 887,
+      "png_color_type": 2,
+      "bytes": 1850654,
+      "sha256": "2c4d9be0be56fa1ea8048caa287ba949ab3a1aa705a62db1fc8ee481981b2be1"
+    },
+    "runtime": {
+      "path": "spikes/desktop-foundation/ui/runtime/yonda-peek-closed-v1.png",
+      "width": 336,
+      "height": 168,
+      "png_color_type": 2,
+      "bytes": 104786,
+      "sha256": "e79e3c57573fc156e08c5c5fa1419e0c56a0b18a00686f06dac15ec9877c8d20"
+    }
+  },
+  {
+    "original": {
+      "path": "spikes/desktop-foundation/ui/yonda-peek-v1.png",
+      "width": 1774,
+      "height": 887,
+      "png_color_type": 6,
+      "bytes": 959229,
+      "sha256": "58b86a2d1b7578136404bdbc1a1e4296152dadbb9abd70a6d9af155837538ca5"
+    },
+    "runtime": {
+      "path": "spikes/desktop-foundation/ui/runtime/yonda-peek-v1.png",
+      "width": 336,
+      "height": 168,
+      "png_color_type": 6,
+      "bytes": 50546,
+      "sha256": "3d60ae58ebd4a988a6a606d6e1c8ad7d26e82bfe9c5e6802fe1bc13bc9c12712"
+    }
+  }
+]

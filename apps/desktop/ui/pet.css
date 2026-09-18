@@ -1,0 +1,120 @@
+html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+body { user-select: none; -webkit-user-select: none; }
+#voice-trigger,#region-trigger { position: absolute; z-index: 20; top: 10px; width: 34px; height: 34px; border: 1px solid #ddd5eb; border-radius: 50%; background: #fffdfbeF; color: #69528f; box-shadow: 0 2px 7px #38285030; font-size: 17px; cursor: pointer; opacity: 0; transform: scale(.85); transition: opacity .14s, transform .14s; }
+#voice-trigger{right:9px}#region-trigger{left:9px;font-size:21px;line-height:1}
+body:hover #voice-trigger,body:hover #region-trigger,#voice-trigger:focus-visible,#region-trigger:focus-visible { opacity: 1; transform: scale(1); }
+#voice-trigger:focus-visible,#region-trigger:focus-visible { outline: 2px solid #7864ba; outline-offset: 2px; }
+body:has(#pet[data-mode="docked"]) #voice-trigger,body:has(#pet[data-mode="docked"]) #region-trigger { display: none; }
+#pet { position:relative; width: min(100vw, 100vh, 200px); height: min(100vw, 100vh, 200px); box-sizing: border-box; padding: 6px; cursor: grab; touch-action: none; outline: none; }
+#pet:focus-visible .dragon { filter: brightness(1.04); }
+#pet.held { cursor: grabbing; }
+.agent-connection { position:absolute; z-index:15; right:14px; bottom:17px; width:11px; height:11px; box-sizing:border-box; border:2px solid #fffdfb; border-radius:50%; background:#9298a1; box-shadow:0 1px 4px #2337; pointer-events:none; }
+#pet[data-agent-connected="true"] .agent-connection { background:#49b96e; box-shadow:0 0 0 2px #49b96e33,0 1px 4px #2337; }
+#pet[data-mode="docked"] .agent-connection { right:5px; bottom:5px; }
+#pet[data-mode="docked"][data-edge="left"] .agent-connection,#pet[data-mode="docked"][data-edge="right"] .agent-connection { right:5px; bottom:5px; }
+.peek { display: none; }
+#pet[data-mode="docked"] { width: 112px; height: 56px; padding: 0; cursor: pointer; }
+#pet[data-mode="docked"] .response { display: none; }
+#pet[data-mode="docked"] .peek { display: block; width: 112px; height: 56px; overflow: hidden; }
+.peek-body { position: relative; width: 112px; height: 56px; transform-origin: 0 0; }
+#pet[data-mode="docked"][data-edge="left"], #pet[data-mode="docked"][data-edge="right"],
+#pet[data-mode="docked"][data-edge="left"] .peek, #pet[data-mode="docked"][data-edge="right"] .peek { width: 56px; height: 112px; }
+[data-edge="left"] .peek-body { transform: translateX(56px) rotate(90deg); }
+[data-edge="right"] .peek-body { transform: translateY(112px) rotate(-90deg); }
+[data-edge="top"] .peek-body { transform: translate(112px, 56px) rotate(180deg); }
+.peek img { width: 112px; height: 56px; object-fit: contain; object-position: center bottom; }
+.peek-eyelids { position: absolute; inset: 0; opacity: 0; clip-path: inset(0 0 3.7% 0);
+  /* 只取闭眼参考的脸内区域，阻止参考图棋盘背景进入透明窗口。 */
+  -webkit-mask-image: radial-gradient(ellipse 7% 14% at 38.3% 89%, #000 92%, transparent 100%), radial-gradient(ellipse 6.8% 14% at 65.4% 86.5%, #000 92%, transparent 100%);
+  mask-image: radial-gradient(ellipse 7% 14% at 38.3% 89%, #000 92%, transparent 100%), radial-gradient(ellipse 6.8% 14% at 65.4% 86.5%, #000 92%, transparent 100%);
+}
+.blinking .peek-eyelids { opacity: 1; }
+.response, .breath { width: 100%; height: 100%; position: relative; transform-origin: 50% 96%; }
+img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+.tail { position: absolute; inset: 0; transform-origin: 40% 84%; }
+/* 同一原图按尾根分层，尾根处剪切位移为零，不增加素材或露出重复尾巴。 */
+.tail img { clip-path: polygon(0 56%, 30% 56%, 30% 71%, 25% 76%, 33% 78%, 40% 78%, 40% 100%, 0 100%); }
+.dragon { clip-path: polygon(0 0, 100% 0, 100% 100%, 40% 100%, 40% 78%, 33% 78%, 25% 76%, 30% 71%, 30% 56%, 0 56%); }
+.eyelids {
+  position: absolute; inset: 0; opacity: 0;
+  /* 仅显示脸内部，生成参考图的背景和身体不会进入画面。 */
+  -webkit-mask-image: radial-gradient(ellipse 9% 9.3% at 44.9% 48.8%, #000 85%, transparent 100%), radial-gradient(ellipse 8% 9.2% at 69.7% 40.8%, #000 85%, transparent 100%);
+  mask-image: radial-gradient(ellipse 9% 9.3% at 44.9% 48.8%, #000 85%, transparent 100%), radial-gradient(ellipse 8% 9.2% at 69.7% 40.8%, #000 85%, transparent 100%);
+}
+.blinking .eyelids { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .blinking .eyelids, .blinking .peek-eyelids { opacity: 0; }
+}
+
+.work-paw { display: none; position: absolute; inset: 0; }
+.state-frame, .state-frame-next { display: none; position: absolute; inset: 0; mix-blend-mode: normal; }
+#pet.frames-ready .breath { isolation: isolate; }
+.state-tail { display: none; position: absolute; inset: 0; transform-origin: 26% 83%; }
+#pet.frames-ready:is([data-state="idle"], [data-state="thinking"], [data-state="recording"]) .state-tail { display: block; }
+/* 尾尖只在x=26%处分层；skewY在此轴位移为零，尾根与双脚保持原图。 */
+.state-tail img { clip-path: inset(55% 73.75% 0 0); }
+#pet.frames-ready:is([data-state="idle"], [data-state="thinking"], [data-state="recording"]) .state-frame, #pet.frames-ready:is([data-state="idle"], [data-state="thinking"], [data-state="recording"]) .state-frame-next {
+ clip-path: polygon(0 0,100% 0,100% 100%,26% 100%,26% 55%,0 55%);
+}
+.state-paw { display: none; position: absolute; inset: 0; }
+#pet.frames-ready[data-state="executing"] .state-paw { display: block; }
+.state-paw-right { transform-origin: 66% 74%; transform: rotate(var(--state-paw-right, 0deg));
+ -webkit-mask-image: radial-gradient(ellipse 7% 8% at 61% 68%, #000 92%, transparent 100%);
+ mask-image: radial-gradient(ellipse 7% 8% at 61% 68%, #000 92%, transparent 100%); }
+.state-paw-left { transform-origin: 44% 74%; transform: rotate(var(--state-paw-left, 0deg));
+ -webkit-mask-image: radial-gradient(ellipse 8% 9% at 48% 70%, #000 92%, transparent 100%);
+ mask-image: radial-gradient(ellipse 8% 9% at 48% 70%, #000 92%, transparent 100%); }
+.state-eyelids { display: none; position: absolute; inset: 0; opacity: 0; }
+#pet.frames-ready .state-eyelids { display: block; }
+#pet.frames-ready .state-frame, #pet.frames-ready .state-frame-next { display: block; }
+#pet.frames-ready .tail, #pet.frames-ready .dragon, #pet.frames-ready .work-paw,
+#pet.frames-ready .eyelids { display: none; }
+[data-state="executing"] .work-paw { display: block; }
+.work-paw-right { transform-origin: 70% 70%; transform: rotate(var(--paw-right, 0deg));
+  -webkit-mask-image: radial-gradient(ellipse 8% 10% at 76% 67%, #000 92%, transparent 100%);
+  mask-image: radial-gradient(ellipse 8% 10% at 76% 67%, #000 92%, transparent 100%); }
+.work-paw-left { transform-origin: 59% 77%; transform: rotate(var(--paw-left, 0deg));
+  -webkit-mask-image: radial-gradient(ellipse 7% 8% at 61% 86%, #000 92%, transparent 100%);
+  mask-image: radial-gradient(ellipse 7% 8% at 61% 86%, #000 92%, transparent 100%); }
+[data-state="executing"] .dragon {
+  -webkit-mask-image: linear-gradient(#000,#000), radial-gradient(ellipse 8% 10% at 76% 67%, #000 90%, transparent 100%), radial-gradient(ellipse 7% 8% at 61% 86%, #000 90%, transparent 100%);
+  -webkit-mask-composite: source-out, source-over;
+  mask-image: linear-gradient(#000,#000), radial-gradient(ellipse 8% 10% at 76% 67%, #000 90%, transparent 100%), radial-gradient(ellipse 7% 8% at 61% 86%, #000 90%, transparent 100%);
+  mask-composite: subtract, add;
+}
+
+
+.state-gesture { display:none; position:absolute; inset:0; transform-origin:62% 73%; }
+[data-state="paused"] .state-gesture { transform-origin:66% 64%; }
+[data-state="success"] .state-gesture { transform-origin:62% 70%; }
+
+.state-prop { display:none; position:absolute; inset:0; transform-origin:55% 76%; }
+.camera-flash { position:absolute; width:20%; height:20%; left:40%; top:59%; opacity:0; background:radial-gradient(ellipse,#fff 0,#fff7b8 28%,#ffd86a99 48%,transparent 72%); filter:drop-shadow(0 0 5px #fff4a8); pointer-events:none; }
+.record-badge { display:none; position:absolute; left:70%; top:57%; align-items:center; gap:3px; padding:2px 5px; border-radius:6px; background:#fffdfbe8; color:#d92e3a; box-shadow:0 1px 3px #36202a55; font:700 8px/1 -apple-system,BlinkMacSystemFont,sans-serif; letter-spacing:.4px; pointer-events:none; }
+.record-badge i { width:5px; height:5px; border-radius:50%; background:#ef2638; box-shadow:0 0 4px #ff4050; }
+[data-state="recording"] .record-badge { display:flex; }
+
+[data-state="waiting_for_user"] .state-gesture { transform-origin:58% 73%; }
+[data-state="recording"] .state-gesture { transform-origin:55% 76%; }
+
+.camera-grip { position:absolute; inset:0; mask-image:radial-gradient(ellipse 3% 3% at 53% 69%,#000 80%,transparent),radial-gradient(ellipse 3% 3% at 59% 69%,#000 80%,transparent); -webkit-mask-image:radial-gradient(ellipse 3% 3% at 53% 69%,#000 80%,transparent),radial-gradient(ellipse 3% 3% at 59% 69%,#000 80%,transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  #pet.frames-ready[data-state="paused"] .state-gesture { visibility:hidden; }
+}
+
+
+.state-cue { display:none; position:absolute; left:79%; top:51%; width:13%; height:13%; border-radius:50%; background:#eef6fc; color:#5f89a8; box-shadow:0 1px 3px #3454; align-items:center; justify-content:center; font-size:13px; font-weight:700; transform-origin:center; pointer-events:none; }
+[data-state="listening"] .state-cue,[data-state="voice_listening"] .state-cue,[data-state="paused"] .state-cue { display:flex; }
+.pause-mark,.ack-mark,.voice-mark { display:none; }
+[data-state="listening"] .ack-mark,[data-state="paused"] .pause-mark { display:block; }
+[data-state="voice_listening"] .voice-mark { display:block; position:relative; width:9px; height:12px; }
+.voice-mark i { position:absolute; left:3px; top:0; width:4px; height:7px; border:1.5px solid currentColor; border-radius:4px; }
+.voice-mark::before { content:''; position:absolute; left:1px; top:3px; width:7px; height:6px; border:1.5px solid currentColor; border-top:0; border-radius:0 0 7px 7px; }
+.voice-mark::after { content:''; position:absolute; left:4px; top:9px; width:1.5px; height:3px; background:currentColor; }
+.state-hint { display:none; position:absolute; left:78%; top:43%; width:17%; height:10%; border-radius:45%; background:#eef6fc; box-shadow:0 1px 3px #3454; pointer-events:none; align-items:center; justify-content:center; }
+.state-hint::after { content:''; position:absolute; left:1px; bottom:-3px; border:4px solid transparent; border-top-color:#eef6fc; transform:rotate(22deg); }
+[data-state="thinking"] .state-hint { display:flex; }
+.wait-dots { display:flex; gap:3px; }
+.wait-dots i { width:3px; height:3px; border-radius:50%; background:#7298b7; }
+[data-mode="docked"] .state-cue,[data-mode="tucking"] .state-cue,[data-mode="docked"] .state-hint,[data-mode="tucking"] .state-hint { display:none; }

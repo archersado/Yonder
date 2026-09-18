@@ -1,0 +1,12 @@
+{
+  "result": "PASS",
+  "intact_states": [
+    "listening",
+    "thinking",
+    "success",
+    "failed"
+  ],
+  "waiting_user_complete_pose": 3,
+  "waiting_user_local_arm": true,
+  "round_prompt_removed": true
+}

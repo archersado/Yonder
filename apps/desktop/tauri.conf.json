@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Yonda",
+  "version": "0.1.0",
+  "identifier": "com.yonder.desktop",
+  "build": { "frontendDist": "ui" },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [{
+      "label": "task-space", "url": "index.html", "title": "Yonda · Task Space",
+      "width": 320, "height": 400,
+      "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
+      "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
+      "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
+    }, {
+      "label": "pet", "url": "pet.html", "title": "Yonda", "width": 200, "height": 200,
+      "acceptFirstMouse": true, "center": true, "transparent": true, "decorations": false, "shadow": false,
+      "alwaysOnTop": true, "visibleOnAllWorkspaces": true, "backgroundThrottling": "disabled",
+      "resizable": false, "maximizable": false
+    }, {
+      "label": "voice-input", "url": "voice-input.html", "title": "Yonda · 语音输入", "width": 310, "height": 220,
+      "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
+      "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
+      "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
+    }, {
+      "label": "region-preview", "url": "region-preview.html", "title": "Yonda · 圈选提问", "width": 640, "height": 480,
+      "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
+      "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
+      "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
+    }],
+    "security": {
+      "capabilities": [{
+        "identifier": "task-space-local", "description": "仅允许本地任务面板隐藏自身",
+        "local": true, "windows": ["task-space"], "permissions": ["core:window:allow-hide"]
+      }, {
+        "identifier": "pet-local", "description": "仅允许本地小龙原生拖动",
+        "local": true, "windows": ["pet"], "permissions": ["core:window:allow-start-dragging"]
+      }, {
+        "identifier": "region-preview-local", "description": "仅允许圈选预览窗口自行隐藏",
+        "local": true, "windows": ["region-preview"], "permissions": ["core:window:allow-hide"]
+      }],
+      "csp": "default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'"
+    }
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.png"] }
+}

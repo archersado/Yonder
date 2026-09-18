@@ -1,0 +1,20 @@
+{
+  "sdk_only": true,
+  "accessibility": true,
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "native_inflight_stop_verified": false,
+  "yonder_host_verified": false,
+  "failure": "唯一可编辑AX token未取得",
+  "passed": false,
+  "native_write_started": false,
+  "native_write_applied": false,
+  "worker_input_completed": false,
+  "worker_input_error": null,
+  "input_route": null,
+  "input_effect": null,
+  "fixture_matches": false,
+  "worker_target_error": false,
+  "worker_exit_code": null
+}

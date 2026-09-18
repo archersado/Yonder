@@ -1,0 +1,209 @@
+{
+  "result": "PASS",
+  "scope": "九态预览视觉采样；不代表原生或真实事件接线通过",
+  "top_observation_ms": 17000,
+  "bottom_observation_ms": 11000,
+  "checks": {
+    "idle": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "none",
+      "maxMix": 0,
+      "gestureChanged": false,
+      "gesture": "",
+      "poses": [
+        "0"
+      ],
+      "headChanged": false,
+      "head": "",
+      "actionChanged": true,
+      "action": "skewY(0deg)",
+      "breath": "translateY(-0.598052px) rotate(1.58234deg) scale(1.00419, 1.00748)",
+      "paws": ""
+    },
+    "listening": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "none",
+      "maxMix": 0,
+      "gestureChanged": false,
+      "gesture": "",
+      "poses": [
+        null,
+        "0"
+      ],
+      "headChanged": true,
+      "head": "translateY(-2.85291px) rotate(-3.80388deg)",
+      "actionChanged": false,
+      "action": "",
+      "breath": "translateY(-0.117539px) scale(1.00071, 1.00141)",
+      "paws": ""
+    },
+    "thinking": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "flex",
+      "maxMix": 0,
+      "gestureChanged": false,
+      "gesture": "",
+      "poses": [
+        null,
+        "0"
+      ],
+      "headChanged": true,
+      "head": "rotate(1.42358deg)",
+      "actionChanged": true,
+      "action": "skewY(1.48629deg)",
+      "breath": "translateY(-0.075976px) scale(1.00046, 1.00091)",
+      "paws": ""
+    },
+    "executing": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": true,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "none",
+      "maxMix": 0,
+      "gestureChanged": false,
+      "gesture": "",
+      "poses": [
+        "0"
+      ],
+      "headChanged": false,
+      "head": "",
+      "actionChanged": false,
+      "action": "",
+      "breath": "translateY(-0.0529229px) scale(1.00032, 1.00064)",
+      "paws": "0deg-12.015940064406509deg"
+    },
+    "waiting_for_user": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "flex",
+      "maxMix": 0,
+      "gestureChanged": true,
+      "gesture": "rotate(-0.0546506deg)",
+      "poses": [
+        null,
+        "3"
+      ],
+      "headChanged": false,
+      "head": "",
+      "actionChanged": true,
+      "action": "translateY(0.580212px) rotate(0.628563deg)",
+      "breath": "translateY(-0.0242028px) scale(1.00015, 1.00029)",
+      "paws": ""
+    },
+    "paused": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "none",
+      "maxMix": 0,
+      "gestureChanged": true,
+      "gesture": "perspective(500px) rotateY(25.9747deg)",
+      "poses": [
+        "3"
+      ],
+      "headChanged": false,
+      "head": "",
+      "actionChanged": true,
+      "action": "translateY(1.52832px) rotate(-0.955203deg)",
+      "breath": "translateY(-0.37383px) scale(1.00224, 1.00449)",
+      "paws": ""
+    },
+    "recording": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": true,
+      "prop": "translateY(2.59671px) rotate(-0.100824deg)",
+      "flashSeen": true,
+      "hint": "none",
+      "maxMix": 0,
+      "gestureChanged": true,
+      "gesture": "translateY(2.59671px) rotate(-0.100824deg)",
+      "poses": [
+        "0"
+      ],
+      "headChanged": false,
+      "head": "",
+      "actionChanged": true,
+      "action": "rotate(-0.439907deg)skewY(2.66552deg)",
+      "breath": "translateY(-0.0226196px) scale(1.00014, 1.00027)",
+      "paws": ""
+    },
+    "success": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "none",
+      "maxMix": 0,
+      "gestureChanged": true,
+      "gesture": "rotate(-10.4236deg)",
+      "poses": [
+        "2"
+      ],
+      "headChanged": false,
+      "head": "",
+      "actionChanged": true,
+      "action": "translateY(-0.45232px) rotate(0.269019deg)",
+      "breath": "translateY(-0.013012px) scale(1.00008, 1.00016)",
+      "paws": ""
+    },
+    "failed": {
+      "ready": true,
+      "breathChanged": true,
+      "blinkSeen": true,
+      "pawsChanged": false,
+      "propChanged": false,
+      "prop": "",
+      "flashSeen": false,
+      "hint": "none",
+      "maxMix": 0,
+      "gestureChanged": false,
+      "gesture": "",
+      "poses": [
+        "3"
+      ],
+      "headChanged": true,
+      "head": "translateY(3.99507px) perspective(500px) rotateX(21.9729deg) rotate(2.9963deg)",
+      "actionChanged": false,
+      "action": "",
+      "breath": "translateY(-0.0144329px) scale(1.00009, 1.00017)",
+      "paws": ""
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "capture": {
+    "points_width": 240,
+    "points_height": 161,
+    "pixels_width": 480,
+    "pixels_height": 322
+  },
+  "scale": 2,
+  "display_count": 1,
+  "negative_origin_available": false,
+  "color_checks": true,
+  "scale_check": true,
+  "three_consecutive_runs": true,
+  "pixels_released_after_check": true,
+  "screenshot_persisted": false,
+  "residual_process": false,
+  "residual_binary": false,
+  "passed": true
+}

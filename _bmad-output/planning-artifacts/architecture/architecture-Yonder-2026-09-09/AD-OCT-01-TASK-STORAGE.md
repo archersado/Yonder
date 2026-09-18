@@ -1,6 +1,12 @@
 # AD-OCT-01 任务事务存储
 
+2026-09-14由Accepted AD-ST-01覆盖当前MVP加密门禁：任务存储允许显式未加密SQLite路径，不依赖Key Provider；下述SQLCipher决定保留历史。表结构、事务、恢复与版本拒绝规则不变，不自动解密或迁移旧库。
+
+未定案建议见 AD-TM-01-TASK-METADATA.md（Proposed）：元数据、事件和版本方案须先对齐既有产品需求；不是当前决定。当前数据库仍为 v2，禁止自动迁移旧库。
+
 状态：Accepted（OCT-S1 存储实现范围）。依赖 AD-E0-06。
+
+2026-09-11 当前格式更新：依 AD-OCT-04，新库改为 schema_version=2，增加不可变任务归属。v1 保留但拒绝打开，迁移必须另建 Change；下述 v1 为初批历史决定，不再是新建库格式。
 
 任务数据库初版 schema_version 为 1。tasks 保存当前状态和序号；events 保存前后状态；outbox 保存对应事件外键及待投递状态。三者同事务写入，Outbox 不复制第二份事件正文。创建产生序号 1 的 created 事件；迁移通过 expected_sequence 和前状态共同比较更新。
 

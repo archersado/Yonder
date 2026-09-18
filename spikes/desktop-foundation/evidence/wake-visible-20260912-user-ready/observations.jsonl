@@ -1,0 +1,10 @@
+{"bounds":[1465,545,200,200],"capture_exit":0,"onscreen":true,"phase":"before","pid":39025,"pixels":[200,200],"window_id":18531}
+{"waiting_seconds":20}
+{"waiting_seconds":40}
+{"waiting_seconds":60}
+{"waiting_seconds":80}
+{"waiting_seconds":100}
+{"waiting_seconds":120}
+{"waiting_seconds":140}
+{"bounds":[1864,589,56,112],"capture_exit":0,"onscreen":false,"phase":"docked","pid":39025,"pixels":[56,112],"window_id":18531}
+{"result":"休眠未出现或不可见，停止"}

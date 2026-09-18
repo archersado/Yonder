@@ -1,0 +1,13 @@
+{
+  "authorization_after" : "full-access",
+  "authorization_before" : "not-determined",
+  "cleanup_confirmed" : true,
+  "failure" : "none",
+  "foreground_unchanged" : false,
+  "native_api" : "EventKit",
+  "observed_by_identifier" : true,
+  "passed" : false,
+  "permission_granted" : true,
+  "platform" : "macos",
+  "saved" : true
+}

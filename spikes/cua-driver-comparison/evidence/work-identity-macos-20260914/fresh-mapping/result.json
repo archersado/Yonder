@@ -1,0 +1,64 @@
+{
+  "passed": true,
+  "sdk_version": "0.25.0",
+  "input_dispatched": false,
+  "recording_started": false,
+  "screenshot_requested": false,
+  "windows_verified": false,
+  "yonder_host_verified": false,
+  "samples": {
+    "normal": {
+      "passed": true,
+      "retained_object": true,
+      "sdk_observe": true,
+      "geometry_unchanged": true
+    },
+    "contract_negatives": {
+      "passed": true,
+      "same_pid_changed_start_refused": true,
+      "permission_refused": true,
+      "synthetic_only": true
+    },
+    "ambiguous": {
+      "passed": true,
+      "reason": "mapping_not_unique",
+      "decoy_untouched": true
+    },
+    "minimized": {
+      "passed": true,
+      "geometry_unchanged": true,
+      "sdk_observe": true
+    },
+    "closed": {
+      "passed": true,
+      "reason": "retained_object_missing",
+      "decoy_untouched": true
+    },
+    "replacement": {
+      "passed": true,
+      "old_reference_refused": true,
+      "reason": "retained_object_missing",
+      "replacement_untouched": true,
+      "new_observe_valid": true
+    },
+    "restart": {
+      "passed": true,
+      "old_reference_refused": true,
+      "new_observe_valid": true,
+      "pid_reuse_native_verified": false
+    }
+  },
+  "phase": "restart",
+  "minimized_native": {
+    "focused": true,
+    "geometry_unchanged": true,
+    "refused": false,
+    "restored": true,
+    "side_effect_dispatched": true,
+    "unique_mapping": true
+  },
+  "minimized_fixture": {
+    "key": true,
+    "minimized": false
+  }
+}

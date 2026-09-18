@@ -1,0 +1,3 @@
+# 设计
+
+Application新增BrowserReferenceRecord与TaskStore读写Port。Browser成功结果使用带引用的AttemptConclusion；SQLite结果事务更新attempt并upsert task_browser_refs。finish沿用已有引用并写finished=true。unknown走原结果路径，不更新引用。

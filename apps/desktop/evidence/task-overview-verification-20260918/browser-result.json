@@ -1,0 +1,16 @@
+{
+  "capabilityUnavailable": true,
+  "pendingTakeover": true,
+  "pendingSurvivesRefresh": true,
+  "paging": true,
+  "detail": true,
+  "timeline": true,
+  "timelinePartialFailure": true,
+  "staleError": true,
+  "latestResponseWins": true,
+  "filterReset": true,
+  "runningOnly": true,
+  "otherStatesInAll": true,
+  "fixtureOnly": true,
+  "passed": true
+}

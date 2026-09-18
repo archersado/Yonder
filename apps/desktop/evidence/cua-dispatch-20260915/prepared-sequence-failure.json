@@ -1,0 +1,8 @@
+{
+  "stage": "verification_harness",
+  "cause": "requested_attempt_accepted_sequence_was_not_zero",
+  "application_rejected": "InvalidInput",
+  "worker_started": false,
+  "native_target_changed": false,
+  "product_defect": false
+}

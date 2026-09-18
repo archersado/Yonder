@@ -1,0 +1,13 @@
+{
+  "cancelled_history_visible" : true,
+  "leave_hides" : true,
+  "other_task_preserved" : true,
+  "panel_hover_keeps_open" : true,
+  "passed" : true,
+  "pending_cancel_button" : true,
+  "pid" : 13288,
+  "real_agent_tasks" : true,
+  "refresh_operable" : true,
+  "same_visible_desktop" : true,
+  "tasks_hover_opens" : true
+}

@@ -1,0 +1,22 @@
+{
+  "package": "@trycua/cua-driver",
+  "version": "0.25.0",
+  "platform": "macos",
+  "lifecycle": {
+    "completed": false,
+    "timeout": false,
+    "exit_code": 1
+  },
+  "crash": {
+    "expected_exit": false,
+    "timeout": false
+  },
+  "recovery": {
+    "completed": false,
+    "timeout": false,
+    "exit_code": 1
+  },
+  "input_dispatched": false,
+  "recording_started": false,
+  "native_input_stop_verified": false
+}

@@ -1,0 +1,14 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-16",
+  "runtime": "ego-lite",
+  "external_task_ref": "ego:40",
+  "create": true,
+  "observe": true,
+  "hand_off": true,
+  "take_over": true,
+  "finish": true,
+  "finished_space_cleaned": true,
+  "diagnostic_spaces_cleaned": [31, 32, 33, 35, 36, 37, 38, 39],
+  "windows": "deferred"
+}

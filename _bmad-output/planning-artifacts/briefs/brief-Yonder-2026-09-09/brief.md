@@ -54,7 +54,7 @@ Task Space 记录发起 Agent、授权范围、生命周期、资源引用、事
 
 ## 2026 年 10 月人机协作里程碑
 
-10 月优先交付 Windows CUA 的人机协作闭环：任务状态可见、暂停/取消、用户接管、明确归还、归还后重新观察与局部重规划、结果确认和协作时间线；同时完成一次用户手动开启的 Record → 审阅 → Replay。详细范围见 `planning-artifacts/epics/EPIC-2026-10-HUMAN-AGENT-COLLABORATION.md`。
+10 月的人机协作闭环保留为产品里程碑，不再作为 Epic。项目按技术模块拆分，规划唯一入口为 `docs/specs/README.md`：任务状态/接管/恢复归 TM、展示归 DS、Driver 归 CU、录制回放归 RC。各 Story 完成三份设计后才转 OpenSpec 实施。
 
 首批权限包括：
 

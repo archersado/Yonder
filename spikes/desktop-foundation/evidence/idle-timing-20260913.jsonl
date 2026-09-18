@@ -1,0 +1,11 @@
+{"wake_completed_seconds":0.93900095832941588}
+{"awake_seconds":0.96029899999848567,"window_id":25039}
+{"awake_seconds":21.878577041672543,"window_id":25039}
+{"awake_seconds":42.746417791669955,"window_id":25039}
+{"awake_seconds":63.595534083331586,"window_id":25039}
+{"awake_seconds":84.496153833330027,"window_id":25039}
+{"awake_seconds":105.44649304167251,"window_id":25039}
+{"awake_seconds":126.43327620833588,"window_id":25039}
+{"awake_seconds":147.4508506666607,"window_id":25039}
+{"awake_seconds":168.417650125004,"window_id":25039}
+{"first_docked_seconds":180.49798216666386,"height":56,"last_awake_seconds":180.23485333332792,"passed":true,"scope":"托盘调用开始至几何收起，250ms轮询；未扣除IPC及缩身动画","width":112,"window_id":25039}

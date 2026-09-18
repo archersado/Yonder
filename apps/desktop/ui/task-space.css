@@ -1,0 +1,51 @@
+:root { color-scheme: light dark; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #303346; background: transparent; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 7px; }
+.menu { height: calc(100vh - 14px); border: 1px solid #e1dce9; border-radius: 16px; background: #faf8fffa; padding: 13px; overflow: auto; box-shadow: 0 3px 7px #30204418; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.eyebrow { color: #7d7991; font-size: 10px; letter-spacing: 2px; }
+h1 { margin: 4px 0 8px; font-size: 15px; font-weight: 650; }
+h1 span { display: block; font-size: 11px; font-weight: 400; color: #858194; margin-top: 3px; }
+button { font: inherit; color: inherit; border: 1px solid #e0dfeb; background: #fff; border-radius: 8px; padding: 5px 8px; cursor: pointer; }
+button:focus-visible { outline: 2px solid #7864ba; outline-offset: 2px; }
+button:disabled { opacity: .5; cursor: default; }
+.actions { display: flex; gap: 6px; }
+nav { display: flex; gap: 6px; }
+nav button { border-color: transparent; background: transparent; }
+nav button[aria-pressed="true"] { background: #ece8f8; color: #5b468e; }
+#notice { min-height: 18px; margin: 12px 0; color: #777286; font-size: 12px; }
+#notice[data-error="true"] { color: #9f483a; }
+main { display: flex; flex-direction: column; gap: 10px; }
+main > section { min-width: 0; max-height: 210px; overflow: auto; }
+ul { list-style: none; margin: 0; padding: 0; }
+.task-actions { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 8px 8px; }
+.task-actions button { font-size: 11px; }
+#tasks > li { margin-bottom: 8px; border: 1px solid #e0dfeb; border-radius: 10px; background: #fff; }
+.task { width: 100%; text-align: left; margin-bottom: 0; padding: 10px; border-color: transparent; }
+.task[aria-pressed="true"] { border-color: #8f79c9; background: #f4f0fb; }
+.task strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.task small { display: block; margin-top: 6px; color: #847e91; overflow-wrap: anywhere; }
+.status { display: inline-block; font-size: 11px; margin-top: 7px; color: #5e5280; }
+#detail { background: #fff; border: 1px solid #e9e7ef; border-radius: 12px; padding: 14px; }
+#detail h2 { margin: 0 0 15px; font-size: 14px; overflow-wrap: anywhere; }
+#detail h3 { margin: 18px 0 8px; font-size: 13px; }
+dl { margin: 0; }
+dt { color: #8a8496; font-size: 11px; margin: 12px 0 4px; }
+dd { margin: 0; overflow-wrap: anywhere; }
+.browser-open { margin-top: 7px; }
+.placeholder { color: #8a8496; font-size: 12px; }
+.timeline { margin: 0; padding-left: 22px; }
+.timeline li { margin: 8px 0; padding-left: 3px; }
+.timeline small { display: block; color: #8a8496; font-size: 10px; }
+.timeline span { display: block; margin-top: 2px; overflow-wrap: anywhere; }
+.timeline-error { color: #9f483a; }
+.timeline-empty, .timeline-more { color: #8a8496; font-size: 12px; }
+.timeline-more p { margin: 8px 0; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: #8a8496; font-size: 11px; }
+@media (prefers-color-scheme: dark) {
+  :root { color: #ebe7f1; }
+  .menu { background: #28242ffa; border-color: #45404f; }
+  button, #detail, #tasks > li { background: #2e2b37; border-color: #45404f; }
+  nav button[aria-pressed="true"], .task[aria-pressed="true"] { background: #403451; color: #e1d1fb; }
+  .status { color: #ccb4f0; }
+}

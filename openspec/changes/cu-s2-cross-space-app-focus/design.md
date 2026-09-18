@@ -1,0 +1,5 @@
+# 设计
+
+Node Worker在同一受监管SDK会话内暂存最近一次成功`launch_app`返回的bundle id、PID及最大普通窗口，连同task_id绑定。每次Observe通过SDK应用清单按bundle id刷新主进程PID，兼容启动器向主进程交接；后续显式`bring_to_front`复用该可信目标。其他工具和任务仍使用请求到达时的可信前台目标。缓存不进入协议、SQLite、事件、Outbox或日志，Worker结束即清除。
+
+Yonder不把`launch_app`隐式组合为其他动作。SDK精确前置失败时保持失败，Agent可显式调用SDK的系统应用切换或Dock键盘导航工具后再次Observe；禁止系统脚本、硬编码Dock坐标或第二执行栈。屏幕截图不可用时，Worker用SDK `list_apps`按bundle id刷新主进程，再以`list_windows`派生可选`target_visible`。后台启动按SDK契约返回false；显式前置步骤要求`bring_to_front`成功与后置窗口可见；其他动作返回null，避免用瞬时active或单独的on-screen状态猜测前台。`on_current_space=null`保持SDK三态语义，不误判为false。前置动作最多等待2秒吸收Space动画。不返回完整SDK Payload或窗口身份。

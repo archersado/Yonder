@@ -47,8 +47,370 @@
     }
   ],
   "$defs": {
+    "AttemptResult": {
+      "type": "object",
+      "properties": {
+        "action_succeeded": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "attempt_id": {
+          "type": "string"
+        },
+        "host_session_id": {
+          "type": "string"
+        },
+        "observe_valid": {
+          "type": "boolean"
+        },
+        "phase": {
+          "$ref": "#/$defs/AttemptResultPhase"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptUnknownReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "worker_instance_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "step_id",
+        "attempt_id",
+        "worker_instance_id",
+        "host_session_id",
+        "phase",
+        "observe_valid"
+      ]
+    },
+    "AttemptResultPhase": {
+      "type": "string",
+      "enum": [
+        "observed",
+        "unknown"
+      ]
+    },
+    "AttemptUnknownReason": {
+      "type": "string",
+      "enum": [
+        "invalid-input",
+        "dependency-unavailable",
+        "worker-failed",
+        "timed-out",
+        "invalid-response",
+        "identity-mismatch",
+        "observe-failed",
+        "user-input"
+      ]
+    },
+    "Availability": {
+      "type": "string",
+      "enum": [
+        "available",
+        "permission_required",
+        "dependency_missing",
+        "temporarily_unavailable"
+      ]
+    },
+    "BrowserReference": {
+      "type": "object",
+      "properties": {
+        "external_task_ref": {
+          "type": "string"
+        },
+        "finished": {
+          "type": "boolean"
+        },
+        "managed_pages": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "ownership": {
+          "type": "string"
+        },
+        "updated_sequence": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "external_task_ref",
+        "ownership",
+        "managed_pages",
+        "finished",
+        "updated_sequence"
+      ]
+    },
+    "Capability": {
+      "type": "string",
+      "enum": [
+        "task.read",
+        "task.create",
+        "task.cancel",
+        "task.complete",
+        "task.fail",
+        "task.control",
+        "task.wait-for-user",
+        "task.step.declare",
+        "task.step.advance",
+        "browser.execute",
+        "computer.execute"
+      ]
+    },
+    "CapabilityInfo": {
+      "type": "object",
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Availability"
+        },
+        "name": {
+          "$ref": "#/$defs/Capability"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/ProtocolVersion"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "availability",
+        "reason"
+      ]
+    },
+    "ComputerObservation": {
+      "type": "object",
+      "properties": {
+        "element_count": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "screenshot_mime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "screenshot_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_visible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "element_count",
+        "screenshot_path",
+        "screenshot_mime",
+        "target_visible"
+      ]
+    },
+    "ControlKind": {
+      "type": "string",
+      "enum": [
+        "pause",
+        "cancel",
+        "takeover"
+      ]
+    },
+    "ControlPhase": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "stopped"
+      ]
+    },
+    "ControlRecord": {
+      "type": "object",
+      "properties": {
+        "accepted_sequence": {
+          "type": "string"
+        },
+        "attempt_id": {
+          "type": "string"
+        },
+        "control_id": {
+          "type": "string"
+        },
+        "focus_failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FocusFailure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focus_phase": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FocusPhase"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ControlKind"
+        },
+        "phase": {
+          "$ref": "#/$defs/ControlPhase"
+        },
+        "stopped_sequence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "control_id",
+        "kind",
+        "phase",
+        "accepted_sequence",
+        "stopped_sequence"
+      ]
+    },
+    "FocusFailure": {
+      "type": "string",
+      "enum": [
+        "permission-unavailable",
+        "process-changed",
+        "window-missing",
+        "mapping-not-unique",
+        "activation-failed",
+        "verification-failed",
+        "geometry-changed",
+        "reference-unavailable"
+      ]
+    },
+    "FocusPhase": {
+      "type": "string",
+      "enum": [
+        "locating",
+        "focused",
+        "failed"
+      ]
+    },
+    "Platform": {
+      "type": "string",
+      "enum": [
+        "windows",
+        "macos"
+      ]
+    },
+    "ProtocolVersion": {
+      "type": "object",
+      "properties": {
+        "major": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "minor": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
     "QueryResult": {
       "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "capabilities": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CapabilityInfo"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "hello"
+            },
+            "platform": {
+              "$ref": "#/$defs/Platform"
+            },
+            "protocol_version": {
+              "$ref": "#/$defs/ProtocolVersion"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "protocol_version",
+            "platform",
+            "capabilities"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "tasks"
+            },
+            "next_after_task_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tasks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TaskSnapshot"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "tasks",
+            "next_after_task_id"
+          ]
+        },
         {
           "type": "object",
           "properties": {
@@ -89,6 +451,179 @@
             "task_id",
             "events"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "step"
+            },
+            "step": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/StepDeclaration"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "task": {
+              "$ref": "#/$defs/TaskSnapshot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task",
+            "step"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "browser-state"
+            },
+            "reference": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserReference"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "task": {
+              "$ref": "#/$defs/TaskSnapshot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task",
+            "reference"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "control": {
+              "$ref": "#/$defs/ControlRecord"
+            },
+            "kind": {
+              "type": "string",
+              "const": "control"
+            },
+            "task": {
+              "$ref": "#/$defs/TaskSnapshot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task",
+            "control"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "browser"
+            },
+            "reference": {
+              "$ref": "#/$defs/BrowserReference"
+            },
+            "task": {
+              "$ref": "#/$defs/TaskSnapshot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task",
+            "reference"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_result": {
+              "$ref": "#/$defs/AttemptResult"
+            },
+            "kind": {
+              "type": "string",
+              "const": "computer"
+            },
+            "task": {
+              "$ref": "#/$defs/TaskSnapshot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task",
+            "attempt_result"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_succeeded": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "computer-step"
+            },
+            "observation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ComputerObservation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/$defs/TaskStatus"
+            },
+            "task_id": {
+              "type": "string"
+            },
+            "unknown_reason": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AttemptUnknownReason"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task_id",
+            "status",
+            "sequence",
+            "action_succeeded",
+            "unknown_reason",
+            "observation"
+          ]
         }
       ]
     },
@@ -109,9 +644,39 @@
         "message"
       ]
     },
+    "StepDeclaration": {
+      "type": "object",
+      "properties": {
+        "accepted_sequence": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "step_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "step_id",
+        "label",
+        "accepted_sequence"
+      ]
+    },
     "TaskEvent": {
       "type": "object",
       "properties": {
+        "attempt_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "previous": {
           "$ref": "#/$defs/TaskStatus"
         },
@@ -120,6 +685,22 @@
         },
         "status": {
           "$ref": "#/$defs/TaskStatus"
+        },
+        "step_declaration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepDeclaration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "wait_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false,
@@ -132,6 +713,15 @@
     "TaskSnapshot": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "owner_agent_id": {
+          "type": "string"
+        },
         "sequence": {
           "type": "string"
         },
@@ -145,6 +735,7 @@
       "additionalProperties": false,
       "required": [
         "task_id",
+        "owner_agent_id",
         "status",
         "sequence"
       ]

@@ -1,0 +1,12 @@
+{
+  "capture_framework": "AVFoundation",
+  "microphone_permission": "not_determined",
+  "on_device_supported": true,
+  "opened_microphone": false,
+  "platform": "macOS",
+  "recognizer_available": true,
+  "requested_permission": false,
+  "speech_framework": "Speech",
+  "speech_permission": "not_determined",
+  "zh_cn_recognizer": true
+}

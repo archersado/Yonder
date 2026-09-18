@@ -1,0 +1,17 @@
+{
+  "samples": 61,
+  "stable_window_and_processes": true,
+  "wake_count_during_sampling": 2,
+  "binary_sha256": "1cdf0a38eebbc3f9c3c47fa1c0a0441b337d4597af327d6421e2f1a50f4dcb2a",
+  "sample_file_created_epoch": 1789300682.8401532,
+  "sample_file_completed_epoch": 1789300982.8565335,
+  "frame_created_epoch": 1789301792.810329,
+  "frame_after_sampling_seconds": 809.9537954330444,
+  "summary": {
+    "duration_seconds": 300.01477825,
+    "cpu_percent_one_core": 0.1695014888820731,
+    "mean_sum_footprint_mib": 122.23565461205655,
+    "peak_sum_footprint_mib": 135.54996490478516
+  },
+  "scope": "图片在采样结束后取得，不作为同步视觉证据"
+}
