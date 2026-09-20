@@ -4,7 +4,7 @@
   let start, points, timer, openedAt = 0, mode = 'rect';
   const close = () => invoke('region_preview_close').catch(() => {});
   const clearStroke = () => { points=undefined; line.setAttribute('points',''); stroke.hidden=true; };
-  const clear = () => { start=undefined; clearStroke(); selection.hidden = review.hidden = true; preview.removeAttribute('src'); clearTimeout(timer); };
+  const clear = () => { start=undefined; clearStroke(); selection.hidden = review.hidden = true; selection.removeAttribute('style'); preview.removeAttribute('src'); clearTimeout(timer); };
   const armTimeout = () => { clearTimeout(timer); timer = setTimeout(close, 30000); };
   const rectFor = point => { const x=Math.min(start.x,point.x), y=Math.min(start.y,point.y), width=Math.abs(start.x-point.x), height=Math.abs(start.y-point.y); return {x,y,width,height,viewportWidth:innerWidth,viewportHeight:innerHeight}; };
   const drawRect = point => { const rect = rectFor(point); Object.assign(selection.style,{left:`${rect.x}px`,top:`${rect.y}px`,width:`${rect.width}px`,height:`${rect.height}px`}); selection.hidden=false; return rect; };

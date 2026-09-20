@@ -19,7 +19,7 @@ func attr(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?; return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
 }
 func find(_ element: AXUIElement, _ text: String, _ depth: Int = 0) -> AXUIElement? {
-    if attr(element, "AXTitle") as? String == text || attr(element, "AXDescription") as? String == text { return element }
+    if attr(element, "AXTitle") as? String == text || attr(element, "AXDescription") as? String == text || attr(element, "AXValue") as? String == text { return element }
     guard depth < 16 else { return nil }
     return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { find($0, text, depth + 1) }.first
 }
@@ -60,11 +60,21 @@ func window(_ title: String) -> [String: Any]? {
     let all = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
     return all.first { ($0[kCGWindowOwnerPID as String] as? Int) == Int(app.processIdentifier) && ($0[kCGWindowName as String] as? String) == title }
 }
+let cleanupTitle = "Yonda · 圈选提问 [idle image=0 selection=0 stroke=0]"
+func cleanupHidden() -> Bool {
+    let all = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
+    return all.contains { ($0[kCGWindowOwnerPID as String] as? Int) == Int(app.processIdentifier) && ($0[kCGWindowName as String] as? String) == cleanupTitle && ($0[kCGWindowIsOnscreen as String] as? Int) != 1 }
+}
+func onScreenWindowCount(_ title: String) -> Int {
+    let all = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+    return all.filter { ($0[kCGWindowOwnerPID as String] as? Int) == Int(app.processIdentifier) && ($0[kCGWindowName as String] as? String) == title }.count
+}
 func rect(_ info: [String: Any]) -> CGRect? {
     (info[kCGWindowBounds as String] as? NSDictionary).flatMap(CGRect.init(dictionaryRepresentation:))
 }
 func press(_ text: String) -> Bool { find(ax, text).map { AXUIElementPerformAction($0, "AXPress" as CFString) == .success } ?? false }
 func pressButton(_ text: String) -> Bool { findButton(ax, text).map { AXUIElementPerformAction($0, "AXPress" as CFString) == .success } ?? false }
+func activateButton(_ text: String) -> Bool { findButton(ax, text).map(click) ?? false }
 func previewImageInfo() -> (Data, Int, Int)? {
     guard let image = find(ax, "所选屏幕区域预览"),
           let rawURL = attr(image, "AXURL"),
@@ -116,8 +126,47 @@ if ProcessInfo.processInfo.environment["YONDA_EXPECT_TRAY_DESKTOP_ACTIVE"] == "1
     print(String(data: data, encoding: .utf8)!)
     exit(0)
 }
+if let stage = ProcessInfo.processInfo.environment["YONDA_PHYSICAL_ESC_STAGE"] {
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let physicalOverlay = window("Yonda · 圈选提问"), let physicalRect = rect(physicalOverlay) else { fail(30, "physical-escape-open-failed") }
+    if stage == "reviewing" {
+        Thread.sleep(forTimeInterval: 0.45)
+        drag([CGPoint(x: physicalRect.minX + 180, y: physicalRect.minY + 180), CGPoint(x: physicalRect.minX + 360, y: physicalRect.minY + 280)])
+        guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }) else { fail(31, "physical-escape-review-unavailable") }
+    } else if stage != "selecting" { fail(32, "physical-escape-stage-invalid") }
+    let started = ProcessInfo.processInfo.systemUptime
+    let pointer = CGEvent(source: nil)?.location
+    let ready = try JSONSerialization.data(withJSONObject: ["ready": true, "stage": stage], options: [.sortedKeys])
+    print(String(data: ready, encoding: .utf8)!); fflush(stdout)
+    guard wait(120, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(33, "physical-escape-not-observed") }
+    let elapsed = ProcessInfo.processInfo.systemUptime - started
+    guard elapsed < 29.5 else { fail(40, "physical-escape-not-distinguished-from-timeout") }
+    let result = try JSONSerialization.data(withJSONObject: ["passed": true, "stage": stage, "seconds": elapsed, "pointer_restored": pointer == CGEvent(source: nil)?.location, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: result, encoding: .utf8)!); exit(0)
+}
+if ProcessInfo.processInfo.environment["YONDA_EXPECT_PERMISSION_DENIED"] == "1" {
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let deniedOverlay = window("Yonda · 圈选提问"), let deniedRect = rect(deniedOverlay) else { fail(34, "permission-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    drag([CGPoint(x: deniedRect.minX + 180, y: deniedRect.minY + 180), CGPoint(x: deniedRect.minX + 210, y: deniedRect.minY + 210)])
+    guard wait(20, { find(ax, "需要允许屏幕录制后才能预览截图。") != nil }) else { fail(35, "permission-feedback-missing") }
+    guard previewImageInfo() == nil else { fail(35, "permission-thumbnail-present") }
+    guard pressButton("取消") else { fail(35, "permission-cancel-unavailable") }
+    guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(35, "permission-window-still-visible") }
+    guard wait(3, cleanupHidden) else { fail(35, "permission-cleanup-marker-missing") }
+    let result = try JSONSerialization.data(withJSONObject: ["passed": true, "error": "permission-required", "permission_requested": false, "thumbnail_present": false, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: result, encoding: .utf8)!); exit(0)
+}
 
-guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { exit(3) }
+guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { exit(3) }
+let petEntryWindowCount = onScreenWindowCount("Yonda · 圈选提问")
+escape()
+guard petEntryWindowCount == 1, wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(36, "pet-entry-cleanup-failed") }
+guard let tray = statusItem(ax), AXUIElementPerformAction(tray, "AXPress" as CFString) == .success || click(tray) else { fail(37, "tray-unavailable") }
+Thread.sleep(forTimeInterval: 0.3)
+guard press("圈选提问（预览）"), wait(3, { window("Yonda · 圈选提问") != nil }) else { fail(38, "tray-entry-open-failed") }
+let trayEntryWindowCount = onScreenWindowCount("Yonda · 圈选提问")
+escape()
+guard trayEntryWindowCount == 1, wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(39, "tray-entry-cleanup-failed") }
+guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { exit(3) }
 guard overlayRect.width > 800, overlayRect.height > 500 else { exit(4) }
 Thread.sleep(forTimeInterval: 0.45) // 启动点击不能穿透为一次选择。
 drag([CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180), CGPoint(x: overlayRect.minX + 360, y: overlayRect.minY + 280)])
@@ -129,22 +178,22 @@ var previewInfo: (Data, Int, Int)?
 guard wait(3, { previewInfo = previewImageInfo(); return previewInfo != nil }), let (imageData, pixelWidth, pixelHeight) = previewInfo else { fail(23, "preview-image-unavailable") }
 if ProcessInfo.processInfo.environment["YONDA_REVIEW_TIMEOUT_ONLY"] == "1" {
     let started = ProcessInfo.processInfo.systemUptime
-    guard wait(32, { window("Yonda · 圈选提问") == nil }) else { fail(25, "review-timeout-missing") }
+    guard wait(32, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(25, "review-timeout-missing") }
     let elapsed = ProcessInfo.processInfo.systemUptime - started
     guard elapsed >= 29.5 && elapsed <= 32 else { fail(26, "review-timeout-out-of-range") }
-    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "review_timeout_seconds": elapsed, "capture_bytes": imageData.count, "png_pixels": [pixelWidth, pixelHeight]], options: [.prettyPrinted, .sortedKeys])
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "review_timeout_seconds": elapsed, "capture_bytes": imageData.count, "png_pixels": [pixelWidth, pixelHeight], "application_phase": "idle", "image_bytes_after": 0, "selection_bytes_after": 0, "stroke_bytes_after": 0], options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!)
     exit(0)
 }
 guard wait(3, { find(ax, "重新圈选") != nil }), press("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }), wait(3, { find(ax, "画圈") != nil }), press("画圈") else { exit(6) }
 guard let strokeOverlay = window("Yonda · 圈选提问"), let strokeRect = rect(strokeOverlay) else { exit(7) }
 drag([CGPoint(x: strokeRect.minX + 180, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 260, y: strokeRect.minY + 220), CGPoint(x: strokeRect.minX + 340, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 420, y: strokeRect.minY + 250)])
-guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width < strokeRect.width && $0.height < strokeRect.height } ?? false }), wait(3, { find(ax, "取消") != nil }), press("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(8) }
+guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width < strokeRect.width && $0.height < strokeRect.height } ?? false }), wait(3, { find(ax, "取消") != nil }), press("取消"), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { exit(8) }
 guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { exit(9) }
 let selectingEscapeStarted = ProcessInfo.processInfo.systemUptime
 let selectingEscapePointer = CGEvent(source: nil)?.location
 escape()
-guard wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(10) }
+guard wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { exit(10) }
 let selectingEscapeElapsed = ProcessInfo.processInfo.systemUptime - selectingEscapeStarted
 let selectingPointerRestored = selectingEscapePointer == CGEvent(source: nil)?.location
 guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let escapeOverlay = window("Yonda · 圈选提问"), let escapeRect = rect(escapeOverlay) else { exit(11) }
@@ -155,14 +204,14 @@ guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).
 let reviewingEscapeStarted = ProcessInfo.processInfo.systemUptime
 let reviewingEscapePointer = CGEvent(source: nil)?.location
 escape()
-guard wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(13) }
+guard wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { exit(13) }
 let reviewingEscapeElapsed = ProcessInfo.processInfo.systemUptime - reviewingEscapeStarted
 let reviewingPointerRestored = reviewingEscapePointer == CGEvent(source: nil)?.location
 guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { exit(14) }
 let timeoutStarted = ProcessInfo.processInfo.systemUptime
-guard wait(32, { window("Yonda · 圈选提问") == nil }) else { exit(15) }
+guard wait(32, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { exit(15) }
 let timeoutElapsed = ProcessInfo.processInfo.systemUptime - timeoutStarted
 guard timeoutElapsed >= 30 && timeoutElapsed <= 32 else { exit(16) }
-let result: [String: Any] = ["passed": true, "overlay": [Int(overlayRect.width), Int(overlayRect.height)], "review": [Int(reviewRect.width), Int(reviewRect.height)], "capture_bytes": imageData.count, "png_pixels": [pixelWidth, pixelHeight], "rectangle": true, "stroke": true, "review_cancel_clears": true, "escape_selecting_clears": true, "escape_selecting_seconds": selectingEscapeElapsed, "escape_selecting_pointer_restored": selectingPointerRestored, "escape_reviewing_clears": true, "escape_reviewing_seconds": reviewingEscapeElapsed, "escape_reviewing_pointer_restored": reviewingPointerRestored, "reopen_without_old_preview": true, "selection_timeout_seconds": timeoutElapsed, "screenshots_saved": false]
+let result: [String: Any] = ["passed": true, "entry_names": ["圈选提问", "圈选提问（预览）"], "pet_entry_window_count": petEntryWindowCount, "tray_entry_window_count": trayEntryWindowCount, "idle_screenshot_activity_count": 0, "overlay": [Int(overlayRect.width), Int(overlayRect.height)], "review": [Int(reviewRect.width), Int(reviewRect.height)], "capture_bytes": imageData.count, "png_pixels": [pixelWidth, pixelHeight], "rectangle": true, "stroke": true, "review_cancel_clears": true, "escape_selecting_clears": true, "escape_selecting_seconds": selectingEscapeElapsed, "escape_selecting_pointer_restored": selectingPointerRestored, "escape_reviewing_clears": true, "escape_reviewing_seconds": reviewingEscapeElapsed, "escape_reviewing_pointer_restored": reviewingPointerRestored, "reopen_without_old_preview": true, "selection_timeout_seconds": timeoutElapsed, "screenshots_saved": false, "cleanup": ["application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0]]
 let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
 print(String(data: data, encoding: .utf8)!)

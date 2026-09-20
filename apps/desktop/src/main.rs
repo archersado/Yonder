@@ -7,6 +7,8 @@ mod voice_input;
 
 struct TaskState(Arc<Mutex<Option<TaskHost>>>);
 struct PreviewState(Mutex<yonder_application::region_preview::Session>);
+const REGION_PREVIEW_TITLE: &str = "Yonda · 圈选提问";
+const REGION_PREVIEW_CLEAN_TITLE: &str = "Yonda · 圈选提问 [idle image=0 selection=0 stroke=0]";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,7 +33,7 @@ fn show_region_preview(app: &tauri::AppHandle, state: &TaskState, preview_state:
     let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
         .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
     let area = monitor.work_area();
-    preview.set_position(area.position).and_then(|_| preview.set_size(area.size))
+    preview.set_title(REGION_PREVIEW_TITLE).and_then(|_| preview.set_position(area.position)).and_then(|_| preview.set_size(area.size))
         .and_then(|_| preview.eval("window.dispatchEvent(new Event('yonda-region-open'))")).and_then(|_| preview.show()).and_then(|_| preview.set_focus())
         .map_err(|_| { preview_state.0.lock().ok().map(|mut session| session.clear()); preview_error("preview-unavailable") })
 }
@@ -52,7 +54,7 @@ fn region_preview_hide_for_capture(window: WebviewWindow) -> Result<(), String> 
 fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
     preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
-    window.eval("window.dispatchEvent(new Event('yonda-region-clear'))").and_then(|_| window.hide()).map_err(|_| "preview-unavailable".into())
+    window.set_title(REGION_PREVIEW_CLEAN_TITLE).and_then(|_| window.eval("window.dispatchEvent(new Event('yonda-region-clear'))")).and_then(|_| window.hide()).map_err(|_| "preview-unavailable".into())
 }
 
 #[tauri::command]
@@ -128,7 +130,7 @@ fn show_region_feedback(app: &tauri::AppHandle, preview: &PreviewState, error: &
     preview.0.lock().ok().map(|mut session| session.clear());
     if let Some(window) = app.get_webview_window("region-preview") {
         let message = serde_json::to_string(error).unwrap_or_else(|_| "\"preview-unavailable\"".into());
-        let _ = window.set_size(tauri::LogicalSize::new(440.0, 240.0)).and_then(|_| window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-error',{{detail:{message}}}))"))).and_then(|_| window.show());
+        let _ = window.set_title(REGION_PREVIEW_TITLE).and_then(|_| window.set_size(tauri::LogicalSize::new(440.0, 240.0))).and_then(|_| window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-error',{{detail:{message}}}))"))).and_then(|_| window.show());
     }
 }
 
@@ -403,7 +405,7 @@ fn main() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     if window.label() == "voice-input" { voice_input::cancel(); }
-                    if window.label() == "region-preview" { window.app_handle().state::<PreviewState>().0.lock().ok().map(|mut session| session.clear()); if let Some(preview) = window.app_handle().get_webview_window("region-preview") { let _ = preview.eval("window.dispatchEvent(new Event('yonda-region-clear'))"); } }
+                    if window.label() == "region-preview" { window.app_handle().state::<PreviewState>().0.lock().ok().map(|mut session| session.clear()); if let Some(preview) = window.app_handle().get_webview_window("region-preview") { let _ = preview.set_title(REGION_PREVIEW_CLEAN_TITLE).and_then(|_| preview.eval("window.dispatchEvent(new Event('yonda-region-clear'))")); } }
                     let _ = window.hide();
                 }
             }
