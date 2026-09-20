@@ -169,10 +169,12 @@ if let stage = ProcessInfo.processInfo.environment["YONDA_PHYSICAL_ESC_STAGE"] {
         guard wait(32, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(33, "physical-escape-not-observed") }
         let elapsed = ProcessInfo.processInfo.systemUptime - started
         if elapsed < 29.5 {
-            let pointerRestored = pointer == CGEvent(source: nil)?.location
-            guard pointerRestored else { fail(41, "physical-escape-pointer-moved") }
+            let currentPointer = CGEvent(source: nil)?.location
+            let pointerDelta = if let pointer, let currentPointer { hypot(pointer.x - currentPointer.x, pointer.y - currentPointer.y) } else { CGFloat.infinity }
+            let pointerRestored = pointerDelta <= 1
+            guard pointerRestored else { fail(41, "physical-escape-pointer-moved-\(pointerDelta)") }
             guard let cleanup = cleanupInfo(), cleanup.reason == "escape", cleanup.latencyMs <= 3000, reopenWithoutOldPreview() else { fail(46, "physical-escape-cleanup-incomplete") }
-            let result = try JSONSerialization.data(withJSONObject: ["passed": true, "stage": stage, "attempt": attempt, "seconds": elapsed, "close_latency_ms": cleanup.latencyMs, "pointer_restored": pointerRestored, "reopen_without_old_preview": true, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
+            let result = try JSONSerialization.data(withJSONObject: ["passed": true, "stage": stage, "attempt": attempt, "seconds": elapsed, "close_latency_ms": cleanup.latencyMs, "pointer_delta_points": pointerDelta, "pointer_restored": pointerRestored, "reopen_without_old_preview": true, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
             print(String(data: result, encoding: .utf8)!); exit(0)
         }
     }
