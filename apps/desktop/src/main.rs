@@ -95,7 +95,14 @@ async fn region_preview_capture(window: WebviewWindow, rect: RegionRect, preview
         Ok(captured) => captured,
         Err(_) => { preview.0.lock().ok().map(|mut session| session.clear()); return Err("capture-failed".into()); }
       };
-      match captured { Ok(image) => preview.0.lock().map_err(|_| "preview-unavailable")?.review(image).map_err(|_| "capture-failed".into()), Err(_) => { preview.0.lock().ok().map(|mut session| session.clear()); Err("permission-required".into()) } }
+      match captured {
+        Ok(image) => match preview.0.lock().map_err(|_| "preview-unavailable")?.review(image) {
+          Ok(image) => Ok(image),
+          Err(yonder_application::region_preview::Error::ImageTooLarge) => Err("capture-too-large".into()),
+          Err(_) => Err("capture-failed".into()),
+        },
+        Err(_) => { preview.0.lock().ok().map(|mut session| session.clear()); Err("permission-required".into()) }
+      }
     }
     #[cfg(not(target_os = "macos"))]
     { let _ = (x, y, width, height); Err("Windows 圈选预览仍在验证中".into()) }

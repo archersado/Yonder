@@ -46,6 +46,7 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 ## 已有检查
 
 - 2026-09-20：正式 macOS Preview 真实运行，框选、笔画、确认卡 440×560 点、取消清场、选择层/确认卡 Esc 清场，以及选择层 30.264 秒超时清场均通过；用户随后手工复核确认卡超时通过。见 `apps/desktop/evidence/cx-s2-region-preview-macos-20260920/result.json`。证据不含截图正文。
+- 2026-09-20：临时 bundle `com.yonder.desktop.cx2.permissioncheck` 未获屏幕录制权限时，用户小范围圈选后确认界面显示稳定错误 `permission-required` 对应文案“需要允许屏幕录制后才能预览截图”，不再误报通用截图错误。该项只通过权限反馈子判据；权限行的数据清理和文件边界仍待独立验证者复跑。
 - `cargo check -p yonder-desktop` 通过。
 - `python3 scripts/check_architecture.py` 与 `git diff --check` 通过。
 - `cargo test -p yonder-application admission::tests --lib` 通过。
@@ -56,6 +57,6 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 
 - 阻塞：Application会话所有权、结束时截图字节清零和无正文诊断尚未实现；修复前不可调度独立验证。
 - 风险：macOS TCC按bundle身份授权；拒绝测试若复用正式身份会污染用户权限。必须使用临时身份，禁止自动执行`tccutil reset`。
-- 风险：入口错误当前对用户可能静默。研发须让小龙和菜单栏都显示同一稳定错误分类，证据不得只依赖stderr。
+- 已收口：权限拒绝会在确认卡显示稳定错误分类，不依赖stderr；两入口一致性仍由独立验证复跑。
 - 延期：Agent发送、文字/语音降级、暂停CUA、多显示器/负坐标、显示器变化、运行中撤权、进程崩溃恢复、快捷键和Windows；这些不影响本Preview验证，也不得标记CX-S2完整Story完成。
 - 无需用户决策：以上均由已接受Preview边界决定。只有需要重置正式Yonda屏幕权限时才必须先取得用户明确同意；当前方案不需要该操作。

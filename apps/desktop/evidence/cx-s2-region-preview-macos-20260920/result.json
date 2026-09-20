@@ -7,6 +7,9 @@
   "escape_reviewing_clears": true,
   "selection_timeout_seconds": 30.264,
   "review_timeout_manual": true,
+  "permission_feedback_manual": true,
+  "permission_error": "permission-required",
+  "permission_bundle_id": "com.yonder.desktop.cx2.permissioncheck",
   "overlay_points": [1710, 1009],
   "review_points": [440, 560],
   "screenshots_saved": false

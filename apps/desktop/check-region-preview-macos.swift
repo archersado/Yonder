@@ -11,7 +11,8 @@ func fail(_ code: Int32, _ reason: String) -> Never {
 }
 guard AXIsProcessTrusted() else { fail(2, "accessibility-denied") }
 guard CGPreflightPostEventAccess() else { fail(3, "input-event-denied") }
-guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.yonder.desktop").first else { fail(4, "preview-not-running") }
+let bundleID = ProcessInfo.processInfo.environment["YONDA_BUNDLE_ID"] ?? "com.yonder.desktop"
+guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else { fail(4, "preview-not-running") }
 let ax = AXUIElementCreateApplication(app.processIdentifier)
 func attr(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?; return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
