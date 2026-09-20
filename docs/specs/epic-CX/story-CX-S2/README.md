@@ -3,7 +3,7 @@
 Story: CX-S2  
 Epic: CX  
 Status: verifying
-OpenSpec: cx-s2-agent-attachment-submit
+OpenSpec: cx-s2-text-only-submit
 
 ## 设计文档
 
