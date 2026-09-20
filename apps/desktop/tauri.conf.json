@@ -39,7 +39,7 @@
         "identifier": "region-preview-local", "description": "仅允许圈选预览窗口自行隐藏",
         "local": true, "windows": ["region-preview"], "permissions": ["core:window:allow-hide"]
       }],
-      "csp": "default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'"
+      "csp": "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'"
     }
   },
   "bundle": { "active": false, "icon": ["icons/icon.png"] }
