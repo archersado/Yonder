@@ -13,7 +13,8 @@ const REGION_PREVIEW_CLEAN_TITLE: &str = "Yonda · 圈选提问 [idle image=0 se
 fn region_preview_clean_title(reason: Option<&str>, event_at_ms: Option<u64>) -> String {
     let reason = match reason {
         Some("escape") => "escape", Some("toolbar-cancel") => "toolbar-cancel", Some("review-cancel") => "review-cancel",
-        Some("timeout") => "timeout", _ => "close",
+        Some("timeout") => "timeout", Some("close-button") => "close-button", Some("reselect-error") => "reselect-error",
+        Some("review-error") => "review-error", _ => "close",
     };
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |value| value.as_millis() as u64);
     format!("Yonda · 圈选提问 [idle image=0 selection=0 stroke=0 reason={reason} latency_ms={}]", event_at_ms.map_or(0, |at| now.saturating_sub(at)))
@@ -72,9 +73,13 @@ fn region_preview_hide_for_capture(window: WebviewWindow) -> Result<(), String> 
 #[tauri::command]
 fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>, reason: Option<String>, event_at_ms: Option<u64>) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
-    preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
+    let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
+    if session.snapshot().0 == yonder_application::region_preview::Phase::Idle && !window.is_visible().unwrap_or(false) { return Ok(()); }
+    session.clear();
     let title = region_preview_clean_title(reason.as_deref(), event_at_ms);
-    window.eval("window.dispatchEvent(new Event('yonda-region-clear'))").and_then(|_| window.hide()).and_then(|_| window.set_title(&title)).map_err(|_| "preview-unavailable".into())
+    let result = window.eval("window.dispatchEvent(new Event('yonda-region-clear'))").and_then(|_| window.hide()).and_then(|_| window.set_title(&title)).map_err(|_| "preview-unavailable".into());
+    drop(session);
+    result
 }
 
 #[tauri::command]

@@ -190,6 +190,22 @@ if ProcessInfo.processInfo.environment["YONDA_EXPECT_PERMISSION_DENIED"] == "1" 
     let result = try JSONSerialization.data(withJSONObject: ["passed": true, "error": "permission-required", "permission_requested": false, "thumbnail_present": false, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
     print(String(data: result, encoding: .utf8)!); exit(0)
 }
+if ProcessInfo.processInfo.environment["YONDA_REVIEW_TIMEOUT_ONLY"] == "1" {
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let timeoutOverlay = window("Yonda · 圈选提问"), let timeoutRect = rect(timeoutOverlay) else { fail(50, "review-timeout-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    drag([CGPoint(x: timeoutRect.minX + 180, y: timeoutRect.minY + 180), CGPoint(x: timeoutRect.minX + 360, y: timeoutRect.minY + 280)])
+    guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }) else { fail(51, "review-timeout-review-missing") }
+    var timeoutPreview: (Data, Int, Int)?
+    guard wait(3, { timeoutPreview = previewImageInfo(); return timeoutPreview != nil }), let (imageData, pixelWidth, pixelHeight) = timeoutPreview else { fail(52, "review-timeout-image-missing") }
+    let started = ProcessInfo.processInfo.systemUptime
+    guard wait(32, { window("Yonda · 圈选提问") == nil }) else { fail(25, "review-timeout-window-visible") }
+    guard wait(3, cleanupHidden), let cleanup = cleanupInfo(), cleanup.reason == "timeout", cleanup.latencyMs <= 3000 else { fail(25, "review-timeout-cleanup-invalid") }
+    let elapsed = ProcessInfo.processInfo.systemUptime - started
+    guard elapsed >= 29.5 && elapsed <= 32 else { fail(26, "review-timeout-out-of-range") }
+    guard reopenWithoutOldPreview() else { fail(47, "review-timeout-stale-preview") }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "review_timeout_seconds": elapsed, "close_latency_ms": cleanup.latencyMs, "reopen_without_old_preview": true, "capture_bytes": imageData.count, "png_pixels": [pixelWidth, pixelHeight], "application_phase": "idle", "image_bytes_after": 0, "selection_bytes_after": 0, "stroke_bytes_after": 0], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
 
 guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { exit(3) }
 let petEntryWindowCount = onScreenWindowCount("Yonda · 圈选提问")
@@ -211,16 +227,6 @@ guard wait(firstReviewTimeout, { window("Yonda · 圈选提问").flatMap(rect).m
 if ProcessInfo.processInfo.environment["YONDA_STOP_AFTER_FIRST_REVIEW"] == "1" { exit(0) }
 var previewInfo: (Data, Int, Int)?
 guard wait(3, { previewInfo = previewImageInfo(); return previewInfo != nil }), let (imageData, pixelWidth, pixelHeight) = previewInfo else { fail(23, "preview-image-unavailable") }
-if ProcessInfo.processInfo.environment["YONDA_REVIEW_TIMEOUT_ONLY"] == "1" {
-    let started = ProcessInfo.processInfo.systemUptime
-    guard wait(32, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), let cleanup = cleanupInfo(), cleanup.reason == "timeout", cleanup.latencyMs <= 3000 else { fail(25, "review-timeout-missing") }
-    let elapsed = ProcessInfo.processInfo.systemUptime - started
-    guard elapsed >= 29.5 && elapsed <= 32 else { fail(26, "review-timeout-out-of-range") }
-    guard reopenWithoutOldPreview() else { fail(47, "review-timeout-stale-preview") }
-    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "review_timeout_seconds": elapsed, "close_latency_ms": cleanup.latencyMs, "reopen_without_old_preview": true, "capture_bytes": imageData.count, "png_pixels": [pixelWidth, pixelHeight], "application_phase": "idle", "image_bytes_after": 0, "selection_bytes_after": 0, "stroke_bytes_after": 0], options: [.prettyPrinted, .sortedKeys])
-    print(String(data: data, encoding: .utf8)!)
-    exit(0)
-}
 guard wait(3, { find(ax, "重新圈选") != nil }), press("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }), wait(3, { find(ax, "画圈") != nil }), press("画圈") else { exit(6) }
 guard let strokeOverlay = window("Yonda · 圈选提问"), let strokeRect = rect(strokeOverlay) else { exit(7) }
 drag([CGPoint(x: strokeRect.minX + 180, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 260, y: strokeRect.minY + 220), CGPoint(x: strokeRect.minX + 340, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 420, y: strokeRect.minY + 250)])
