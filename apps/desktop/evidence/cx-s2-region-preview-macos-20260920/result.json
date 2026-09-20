@@ -6,6 +6,7 @@
   "escape_selecting_clears": true,
   "escape_reviewing_clears": true,
   "selection_timeout_seconds": 30.264,
+  "review_timeout_manual": true,
   "overlay_points": [1710, 1009],
   "review_points": [440, 560],
   "screenshots_saved": false
