@@ -1,0 +1,7 @@
+{
+  "secure_input_active": true,
+  "controlled_session_inputs": 0,
+  "excluded_secure_input": 0,
+  "payload_recorded": false,
+  "scope": "macOS 系统设置更改密码认证框聚焦期间的无正文状态验证"
+}
