@@ -14,7 +14,7 @@ pub(crate) fn status(value: Status) -> TaskStatus {
 pub(crate) fn error(value: Error) -> RpcError {
     match value {
         Error::Conflict => RpcError::new(-32011, "任务状态已更新，请刷新"),
-        Error::StopRequired => RpcError::new(-32012, "此任务需要执行器停止确认，暂不支持取消"),
+        Error::StopRequired => RpcError::new(-32012, "当前步骤结果待核实或尚未到达安全边界，无法取消"),
         Error::IdempotencyConflict => RpcError::new(-32009, "幂等键对应不同任务名称或说明"),
         Error::StepConflict => RpcError::new(-32013, "步骤标识对应不同标签"),
         Error::QuotaExceeded => RpcError::new(-32014, "步骤声明已达配额"),

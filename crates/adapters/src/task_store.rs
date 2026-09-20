@@ -1364,7 +1364,7 @@ mod tests {
         let (unknown_task,unknown) = record_dispatch_outcome(&mut store,&rollback.id,&accepted.attempt_id,DispatchOutcome::Unknown(UnknownReason::TimedOut)).unwrap();
         assert_eq!((unknown_task.sequence,unknown.conclusion,store.get_attempt(&rollback.id).unwrap().unwrap().phase),(4,AttemptConclusion::Unknown { reason:UnknownReason::TimedOut },AttemptPhase::Unknown));
         assert_eq!(yonder_application::advance_after_observe(&mut store,&rollback.id,&accepted.attempt_id),Err(Error::StopRequired));
-        request_control(&mut store,AuthContext::LocalUser("desktop"),&rollback.id,unknown_task.sequence,ControlKind::Pause).unwrap();
+        assert_eq!(request_control(&mut store,AuthContext::LocalUser("desktop"),&rollback.id,unknown_task.sequence,ControlKind::Pause),Err(Error::StopRequired));
         let unknown_permit = match unknown_permit.stop_at_boundary(&mut store,&accepted.attempt_id,ControlKind::Pause) { Err(BoundaryStopError::Task { error:Error::StopRequired,permit }) => permit, _ => panic!("unknown不得停止") };
         assert!(gate.has_occupancy().unwrap());
         drop(unknown_permit);

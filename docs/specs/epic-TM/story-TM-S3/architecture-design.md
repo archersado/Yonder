@@ -10,7 +10,7 @@
 
 schema9将当前 observed attempt 与任务边界停止原子绑定：pause/takeover为running→paused，cancel为running→cancelled；attempt转stopped并记录stop_sequence/control_id/control_kind。Application按当前sequence生成稳定control_id。Permit封装先提交事务再释放，失败返回Permit。首批无外部协议/UI、WorkRef定位或Recording。
 
-按 AD-TM-01 联合矩阵：控制请求与确认停止分别记录，不能用 request_id 代替已派发 attempt_id。撤销/暂停后禁止新输入，但宿主仍处理原尝试的可信停止和结果，不因权限撤销丢弃安全确认；外部 Agent 不因此恢复读取或执行权。停止信号、确认和资源释放顺序在本 Story 具体定义，当前仅是跨 Story 约束。
+按 AD-TM-01 联合矩阵：控制请求与确认停止分别记录，不能用 request_id 代替已派发 attempt_id。`prepared`尚未派发副作用，可登记控制以冻结后续派发；`observed`或已停止的安全步骤边界也可登记控制。只有`unknown`必须返回结果待核实，保留占用且不写入无法确认的pending控制。撤销/暂停后禁止新输入，但宿主仍处理原尝试的可信停止和结果，不因权限撤销丢弃安全确认；外部 Agent 不因此恢复读取或执行权。停止信号、确认和资源释放顺序在本 Story 具体定义，当前仅是跨 Story 约束。
 
 SQLCipher 保持任务当前事实源；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
 
