@@ -27,4 +27,6 @@ OpenSpec: cx-s2-text-only-submit
 
 [无截图文字提交Change](../../../../openspec/changes/cx-s2-text-only-submit/proposal.md)已完成直接点击与屏幕录制权限缺失后的“仅提问”路径；macOS原生accepted/rejected/unknown和临时未授权bundle证据已生成，等待独立Verification Goal复核。
 
+当前实施路径：openspec/changes/cx-s2-text-only-submit/
+
 2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、显示器变化、物理键盘/鼠标和Windows仍未验证。
