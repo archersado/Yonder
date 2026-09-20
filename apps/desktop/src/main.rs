@@ -76,8 +76,10 @@ fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>,
     let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
     if session.snapshot().0 == yonder_application::region_preview::Phase::Idle && !window.is_visible().unwrap_or(false) { return Ok(()); }
     session.clear();
-    let title = region_preview_clean_title(reason.as_deref(), event_at_ms);
-    let result = window.eval("window.dispatchEvent(new Event('yonda-region-clear'))").and_then(|_| window.hide()).and_then(|_| window.set_title(&title)).map_err(|_| "preview-unavailable".into());
+    let result = window.eval("window.dispatchEvent(new Event('yonda-region-clear'))").and_then(|_| window.hide()).and_then(|_| {
+        let title = region_preview_clean_title(reason.as_deref(), event_at_ms);
+        window.set_title(&title)
+    }).map_err(|_| "preview-unavailable".into());
     drop(session);
     result
 }
