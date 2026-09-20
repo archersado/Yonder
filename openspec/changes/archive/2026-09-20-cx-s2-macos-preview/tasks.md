@@ -5,7 +5,7 @@
 - [x] 实现显式入口、单显示器选择层与临时内存截图
 - [x] 实现确认卡、Esc/取消/超时/权限失败清场
 - [x] 修复确认卡尺寸，并实现框选/笔画选择与外接矩形截图
-- [ ] 独立 macOS Verification Goal
+- [x] 独立 macOS Verification Goal
 
 ## 研发任务（按依赖顺序）
 
@@ -36,7 +36,7 @@
 - 验收：验证矩阵每行均有布尔判据；任务/事件/Outbox/索引计数不变；无图片文件、子进程或指针监听残留。
 - 验证：先运行脚本自检与自动回归，再由独立验证者在真实macOS上执行`verification-macos.md`矩阵。
 
-### T4 独立 Verification Goal 与归档门禁
+### [x] T4 独立 Verification Goal 与归档门禁
 
 - 目标：由非实现者复跑同一提交并判定Preview是否通过。
 - 模块：`openspec/changes/cx-s2-macos-preview/verification-macos.md`与证据目录。
@@ -47,7 +47,7 @@
 
 ## 延期任务
 
-- [ ] Agent提交、问题输入与VI-S1语音组合
-- [ ] CUA任务暂停与恢复语义
-- [ ] 多显示器、负坐标、显示器变化与运行中撤权
-- [ ] Windows实现与双平台统一样本
+- [x] Agent提交、问题输入与VI-S1语音组合：已移出本 Preview，留待后续 Change
+- [x] CUA任务暂停与恢复语义：已移出本 Preview，留待后续 Change
+- [x] 多显示器、负坐标、显示器变化与运行中撤权：已移出本 Preview，留待后续 Change
+- [x] Windows实现与双平台统一样本：已移出本 Preview，留待后续 Change

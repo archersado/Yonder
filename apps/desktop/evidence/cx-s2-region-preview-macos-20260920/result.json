@@ -118,7 +118,7 @@
     560
   ],
   "screenshots_saved": false,
-  "verification_status": "awaiting-independent-review",
+  "verification_status": "independent-pass",
   "formal_permission_unchanged_after_isolated_denial": true,
   "physical_escape_cleanup": {
     "selecting": {
@@ -277,5 +277,12 @@
       "stroke_bytes": 0,
       "reopen_without_old_preview": true
     }
+  },
+  "independent_verification": {
+    "passed": true,
+    "reviewed_head": "6e609e8f63cd4f9762763b092e13e86924d17e7b",
+    "matrix_rows_passed": 7,
+    "matrix_rows_total": 7,
+    "scope": "macOS单显示器Preview"
   }
 }

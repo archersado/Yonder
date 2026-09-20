@@ -181,3 +181,5 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-18 DS-S4 扩展为自定义形象生成契约：Yonder 定义九个状态及运行时校验，用户上传参考图后由 Hatch Pet 式 Agent/Skill 生成状态动画并输出 Yonder manifest 包；生成外发须明确确认。用户决定当前只保留设计，等待 AG-S4/FI-S1 后单独排期，不创建实现 Proposal 或代码。
 
 2026-09-18 CX-S2进入macOS Preview实施：用户要求先测试“圈选提问”，Accepted AD-CX-01授权当前显示器的显式选择、临时内存截图、确认卡与取消清场；不发送、不持久化、不支持常驻指针、多显示器或Windows。
+
+2026-09-20 CX-S2 macOS单显示器Preview经非实现者独立复核七行矩阵全部PASS，OpenSpec `2026-09-20-cx-s2-macos-preview`已归档。完整CX-S2保持verifying；Agent提交、多显示器、运行中撤权和Windows仍由后续Change承接。
