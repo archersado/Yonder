@@ -2,7 +2,7 @@
 
 Story: CX-S2  
 Epic: CX  
-Status: implementing  
+Status: verifying
 OpenSpec: cx-s2-macos-preview
 
 ## 设计文档
