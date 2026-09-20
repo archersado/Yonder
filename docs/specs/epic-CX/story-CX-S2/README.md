@@ -13,7 +13,7 @@ OpenSpec: cx-s2-text-only-submit
 
 ## 当前状态与前置条件
 
-用户可理解名称确定为“圈选提问”，不再使用“指针模式”。依赖VI-S1单轮语音、Windows/macOS屏幕区域捕获Spike及AG-S5 Agent用户输入通道。用户已要求先在macOS测试，Accepted AD-CX-01授权受限 Preview：仅当前显示器的显式选择、临时截图、取消清场和确认卡；不发送到Agent、不持久化、不支持多显示器或Windows。
+用户可理解名称确定为“圈选提问”，不再使用“指针模式”。macOS当前已完成单显示器显式选择、临时截图、确认卡、同会话附件提交及无截图文字提交；均不持久化正文或截图。VI-S1语音组合、CUA占用时先暂停、多显示器、云端WSS与Windows仍是后续门禁。
 
 ## OpenSpec 与验证
 
