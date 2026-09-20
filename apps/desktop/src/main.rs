@@ -128,7 +128,7 @@ fn show_region_feedback(app: &tauri::AppHandle, preview: &PreviewState, error: &
     preview.0.lock().ok().map(|mut session| session.clear());
     if let Some(window) = app.get_webview_window("region-preview") {
         let message = serde_json::to_string(error).unwrap_or_else(|_| "\"preview-unavailable\"".into());
-        let _ = window.set_size(tauri::LogicalSize::new(440.0, 240.0)).and_then(|_| window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-error',{{detail:{message}}}))"))).and_then(|_| window.show()).and_then(|_| window.set_focus());
+        let _ = window.set_size(tauri::LogicalSize::new(440.0, 240.0)).and_then(|_| window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-error',{{detail:{message}}}))"))).and_then(|_| window.show());
     }
 }
 

@@ -44,8 +44,11 @@ try:
     assert (executed["status"]=="running" and executed["action_succeeded"] is True) if coarse else (executed["task"]["status"]=="running" and executed["attempt_result"]["phase"]=="observed" and executed["attempt_result"]["action_succeeded"] is True),{"gateway":executed,"fixture":{"pid":state.get("pid"),"window_id":state.get("window_id"),"active":state.get("app_active"),"key":state.get("target_key")}}
     if "--hold" in sys.argv:
         seconds=float(sys.argv[sys.argv.index("--hold")+1])
-        print(json.dumps({"desktop_lease_ready":True,"task_id":created["task_id"]}),flush=True)
+        held_sequence=executed["sequence"] if coarse else executed["task"]["sequence"]
+        print(json.dumps({"desktop_lease_ready":True,"task_id":created["task_id"],"status":"running","sequence":held_sequence}),flush=True)
         time.sleep(seconds)
+        held=call("task.get","task.read",task_id=created["task_id"])["task"]
+        print(json.dumps({"desktop_lease_after_hold":True,"status":held["status"],"sequence":held["sequence"]}),flush=True)
     screenshot=pathlib.Path(executed["observation"]["screenshot_path"]) if coarse and executed.get("observation",{}).get("screenshot_path") else None
     if coarse:
         assert executed.get("observation") and (executed["observation"]["element_count"]>0 or screenshot),executed
