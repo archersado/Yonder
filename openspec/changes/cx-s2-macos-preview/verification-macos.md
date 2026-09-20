@@ -45,7 +45,7 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 
 ## 已有检查
 
-- 2026-09-20：正式 macOS Preview 真实运行，框选、笔画、确认卡 440×560 点、取消清场、选择层/确认卡 Esc 清场，以及选择层 30.264 秒超时清场均通过；见 `apps/desktop/evidence/cx-s2-region-preview-macos-20260920/result.json`。证据不含截图正文。
+- 2026-09-20：正式 macOS Preview 真实运行，框选、笔画、确认卡 440×560 点、取消清场、选择层/确认卡 Esc 清场，以及选择层 30.264 秒超时清场均通过；用户随后手工复核确认卡超时通过。见 `apps/desktop/evidence/cx-s2-region-preview-macos-20260920/result.json`。证据不含截图正文。
 - `cargo check -p yonder-desktop` 通过。
 - `python3 scripts/check_architecture.py` 与 `git diff --check` 通过。
 - `cargo test -p yonder-application admission::tests --lib` 通过。
