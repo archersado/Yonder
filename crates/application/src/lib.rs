@@ -304,6 +304,8 @@ pub fn request_control(store: &mut impl TaskStore, auth: AuthContext<'_>, task_i
     if !auth.can_read(&task) { return Err(Error::NotFound); }
     if task.status != Status::Running { return Err(Error::StopRequired); }
     let attempt = store.get_attempt(task_id)?.ok_or(Error::StopRequired)?;
+    // prepared 尚未派发副作用，控制可安全冻结后续派发；unknown 则不能伪造可确认的停止。
+    if attempt.phase == AttemptPhase::Unknown { return Err(Error::StopRequired); }
     let control_id = format!("control_{}",attempt.accepted_sequence);
     store.request_control(&attempt,expected,&control_id,kind)
 }
