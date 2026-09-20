@@ -50,28 +50,32 @@ impl AgentInputHub {
     pub fn connected(&self) -> bool { self.inner.lock().is_ok_and(|state| !state.sessions.is_empty()) }
 
     pub fn deliver_voice(&self, content: &str) -> Result<DeliveryOutcome, &'static str> {
-        let sink = {
-            let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
-            let session = state.active.as_ref().ok_or(if state.sessions.is_empty() { "当前没有可接收输入的Agent" } else { "请选择接收输入的Agent" })?;
-            state.sessions.get(session).map(|(_, sink)| sink.clone()).ok_or("Agent会话已断开")?
-        };
+        let sink = self.active_sink()?;
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "系统时间不可用")?.as_millis()).map_err(|_| "系统时间不可用")?;
         let id = format!("voice_{}_{}", std::process::id(), self.next_input.fetch_add(1, Ordering::Relaxed) + 1);
         Ok(submit(&sink, &id, &sink.session_id, AgentInputSource::Voice, content, now))
     }
 
     pub fn deliver_selection(&self, content: &str, image_base64: &str) -> Result<DeliveryOutcome, &'static str> {
-        let sink = {
-            let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
-            let session = state.active.as_ref().ok_or(if state.sessions.is_empty() { "当前没有可接收输入的Agent" } else { "请选择接收输入的Agent" })?;
-            let sink = state.sessions.get(session).map(|(_, sink)| sink.clone()).ok_or("Agent会话已断开")?;
-            if !sink.supports_attachment { return Err("当前Agent不支持截图提问"); }
-            sink
-        };
+        let sink = self.active_sink()?;
+        if !sink.supports_attachment { return Err("当前Agent不支持截图提问"); }
         let bytes = base64::engine::general_purpose::STANDARD.decode(image_base64).map_err(|_| "截图数据无效")?;
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "系统时间不可用")?.as_millis()).map_err(|_| "系统时间不可用")?;
         let suffix = self.next_input.fetch_add(1, Ordering::Relaxed) + 1;
         Ok(submit_selection(&sink, &format!("selection_{}_{}", std::process::id(), suffix), &format!("image_{}_{}", std::process::id(), suffix), &sink.session_id, content, bytes, now))
+    }
+
+    pub fn deliver_selection_text(&self, content: &str) -> Result<DeliveryOutcome, &'static str> {
+        let sink = self.active_sink()?;
+        let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "系统时间不可用")?.as_millis()).map_err(|_| "系统时间不可用")?;
+        let suffix = self.next_input.fetch_add(1, Ordering::Relaxed) + 1;
+        Ok(submit(&sink, &format!("selection_{}_{}", std::process::id(), suffix), &sink.session_id, AgentInputSource::Selection, content, now))
+    }
+
+    fn active_sink(&self) -> Result<SessionSink, &'static str> {
+        let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
+        let session = state.active.as_ref().ok_or(if state.sessions.is_empty() { "当前没有可接收输入的Agent" } else { "请选择接收输入的Agent" })?;
+        state.sessions.get(session).map(|(_, sink)| sink.clone()).ok_or("Agent会话已断开")
     }
 
     pub fn deliver_for_agent(&self, agent_id: &str, content: &str) -> Result<DeliveryOutcome, &'static str> {
@@ -119,5 +123,20 @@ mod tests {
         worker.join().unwrap();
         assert!(!hub.unregister("session-b",second_token));
         assert!(!hub.connected());
+    }
+
+    #[test]
+    fn selection_text_does_not_require_attachment_support() {
+        let hub=AgentInputHub::default();
+        let (tx,mut rx)=tokio_mpsc::unbounded_channel();
+        hub.register("agent-a".into(),"session-a".into(),false,tx);
+        let worker=std::thread::spawn(move||{
+            let delivery=rx.blocking_recv().unwrap();
+            assert_eq!(delivery.input.source,AgentInputSource::Selection);
+            assert!(delivery.input.attachment_id.is_none()&&delivery.attachment.is_none());
+            delivery.reply.send(DeliveryOutcome::Accepted).unwrap();
+        });
+        assert_eq!(hub.deliver_selection_text("仅文字"),Ok(DeliveryOutcome::Accepted));
+        worker.join().unwrap();
     }
 }

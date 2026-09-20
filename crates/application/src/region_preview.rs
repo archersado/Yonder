@@ -26,10 +26,14 @@ impl Session {
         self.image = Some(image); self.phase = Phase::Reviewing;
         Ok(self.image.as_ref().expect("刚写入的预览").clone())
     }
-    pub fn begin_submission(&mut self) -> Result<String, Error> {
+    pub fn review_without_image(&mut self) -> Result<(), Error> {
+        if !matches!(self.phase, Phase::Selecting | Phase::Capturing) { return Err(Error::InvalidPhase); }
+        self.image = None; self.phase = Phase::Reviewing; Ok(())
+    }
+    pub fn begin_submission(&mut self) -> Result<Option<String>, Error> {
         if self.phase != Phase::Reviewing { return Err(Error::InvalidPhase); }
         self.phase = Phase::Submitting;
-        self.image.clone().ok_or(Error::InvalidPhase)
+        Ok(self.image.clone())
     }
     pub fn clear(&mut self) { self.image = None; self.phase = Phase::Idle; }
     pub fn snapshot(&self) -> (Phase, usize) { (self.phase, self.image.as_ref().map_or(0, String::len)) }
@@ -43,7 +47,7 @@ mod tests {
         let mut session = Session::default();
         session.begin().unwrap(); session.capture().unwrap(); session.review("image".into()).unwrap();
         assert_eq!(session.snapshot(), (Phase::Reviewing, 5));
-        assert_eq!(session.begin_submission(), Ok("image".into()));
+        assert_eq!(session.begin_submission(), Ok(Some("image".into())));
         assert_eq!(session.snapshot(), (Phase::Submitting, 5));
         session.clear(); assert_eq!(session.snapshot(), (Phase::Idle, 0));
         assert!(matches!(session.begin(), Ok(()))); assert!(matches!(session.begin(), Err(Error::Busy)));
@@ -55,5 +59,14 @@ mod tests {
         session.begin().unwrap(); session.capture().unwrap();
         assert_eq!(session.review("x".repeat(22_400_001)), Err(Error::ImageTooLarge));
         assert_eq!(session.snapshot(), (Phase::Idle, 0));
+    }
+
+    #[test]
+    fn review_and_submit_can_omit_an_image() {
+        let mut session = Session::default();
+        session.begin().unwrap(); session.review_without_image().unwrap();
+        assert_eq!(session.snapshot(), (Phase::Reviewing, 0));
+        assert_eq!(session.begin_submission(), Ok(None));
+        session.clear(); assert_eq!(session.snapshot(), (Phase::Idle, 0));
     }
 }

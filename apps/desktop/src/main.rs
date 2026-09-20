@@ -130,7 +130,7 @@ async fn region_preview_capture(window: WebviewWindow, rect: RegionRect, preview
           Err(yonder_application::region_preview::Error::ImageTooLarge) => Err("capture-too-large".into()),
           Err(_) => Err("capture-failed".into()),
         },
-        Err(_) => { preview.0.lock().ok().map(|mut session| session.clear()); Err("permission-required".into()) }
+        Err(_) => { preview.0.lock().ok().and_then(|mut session| session.review_without_image().ok()); Err("permission-required".into()) }
       }
     }
     #[cfg(not(target_os = "macos"))]
@@ -142,7 +142,7 @@ async fn region_preview_submit(window: WebviewWindow, question: String, preview:
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
     let image = preview.0.lock().map_err(|_| "preview-unavailable")?.begin_submission().map_err(|_| "preview-invalid-state")?;
     let hub = hub.inner().clone();
-    let outcome = tauri::async_runtime::spawn_blocking(move || hub.deliver_selection(&question, &image)).await;
+    let outcome = tauri::async_runtime::spawn_blocking(move || match image { Some(image) => hub.deliver_selection(&question, &image), None => hub.deliver_selection_text(&question) }).await;
     preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
     match outcome.map_err(|_| "delivery-unavailable")? {
         Ok(yonder_application::agent_input::DeliveryOutcome::Accepted) => Ok("accepted"),
@@ -157,13 +157,19 @@ async fn region_preview_submit(window: WebviewWindow, question: String, preview:
 }
 
 #[tauri::command]
-fn region_preview_show_review(window: WebviewWindow, rect: RegionRect) -> Result<(), String> {
+fn region_preview_text_only(window: WebviewWindow, preview: State<'_, PreviewState>) -> Result<(), String> {
+    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+    preview.0.lock().map_err(|_| "preview-unavailable")?.review_without_image().map_err(|_| "preview-invalid-state".into())
+}
+
+#[tauri::command]
+fn region_preview_show_review(window: WebviewWindow, rect: RegionRect, has_image: bool) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
     let monitor = window.current_monitor().map_err(|_| "屏幕不可用")?
         .or(window.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
     let area = monitor.work_area();
     let scale = monitor.scale_factor();
-    let physical_size = tauri::PhysicalSize::new((440.0 * scale).round() as u32, (560.0 * scale).round() as u32);
+    let physical_size = tauri::PhysicalSize::new((440.0 * scale).round() as u32, ((if has_image { 560.0 } else { 350.0 }) * scale).round() as u32);
     let x = (f64::from(area.position.x) + rect.x * f64::from(area.size.width) / rect.viewport_width + 12.0).round() as i32;
     let y = (f64::from(area.position.y) + rect.y * f64::from(area.size.height) / rect.viewport_height + 12.0).round() as i32;
     let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(physical_size.width) as i32);
@@ -384,7 +390,7 @@ async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

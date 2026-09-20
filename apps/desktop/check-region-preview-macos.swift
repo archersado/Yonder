@@ -117,6 +117,29 @@ func reopenWithoutOldPreview() -> Bool {
 }
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
+if let outcome = ProcessInfo.processInfo.environment["YONDA_TEXT_SUBMIT_OUTCOME"] {
+    guard ["accepted", "rejected", "unknown"].contains(outcome) else { fail(70, "text-submit-outcome-invalid") }
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(71, "text-submit-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    let start = CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180)
+    let end = ProcessInfo.processInfo.environment["YONDA_TEXT_PERMISSION_FALLBACK"] == "1" ? CGPoint(x: start.x + 180, y: start.y + 100) : start
+    drag([start, end])
+    guard wait(8, { find(ax, "仅提问") != nil }), previewImageInfo() == nil, let reviewWindow = window("Yonda · 圈选提问"), let reviewRect = rect(reviewWindow), (430...450).contains(Int(reviewRect.width)), (340...360).contains(Int(reviewRect.height)), let input = findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField") else { fail(72, "text-submit-review-missing") }
+    if ProcessInfo.processInfo.environment["YONDA_TEXT_PERMISSION_FALLBACK"] == "1" {
+        guard find(ax, "需要允许屏幕录制；本次不包含截图，可继续发送文字。") != nil else { fail(73, "text-submit-permission-feedback-missing") }
+    }
+    guard AXUIElementSetAttributeValue(input, "AXValue" as CFString, "explain without image" as CFTypeRef) == .success else { fail(74, "text-submit-question-unavailable") }
+    guard wait(3, { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == true }), pressButton("发送") else { fail(75, "text-submit-button-unavailable") }
+    if outcome == "accepted" {
+        guard wait(5, { find(ax, "已发送给 Agent") != nil }), wait(5, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "submitted" else { fail(76, "text-submit-accepted-not-closed") }
+    } else {
+        let expected = outcome == "rejected" ? "Agent 拒绝了本次输入。" : "是否送达未知，未自动重试；请重新圈选。"
+        guard wait(5, { find(ax, expected) != nil }), previewImageInfo() == nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(77, "text-submit-failure-not-cleared") }
+        escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(78, "text-submit-failure-close-failed") }
+    }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "attachment_present": false, "window_closed": true], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
 if let outcome = ProcessInfo.processInfo.environment["YONDA_SUBMIT_OUTCOME"] {
     guard ["accepted", "rejected", "unknown", "unsupported"].contains(outcome) else { fail(60, "submit-outcome-invalid") }
     guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(61, "submit-open-failed") }
