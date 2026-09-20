@@ -2,7 +2,7 @@
 
 Story: DS-S1
 Epic: DS
-Status: design-review
+Status: implementing
 OpenSpec: e0-validate-desktop-foundation
 
 ## 设计文档
