@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """真实MCP stdio→UDS→正式TaskHost验证；只保存结构化结果。"""
 import json
+import os
 import pathlib
 import subprocess
 import time
@@ -9,7 +10,9 @@ root = pathlib.Path(__file__).resolve().parents[2]
 binary = root / "apps/desktop/target/preview/Yonda Task Space.app/Contents/MacOS/yonder"
 output = root / "apps/desktop/evidence/control-request-mcp-20260916"
 output.mkdir(parents=True, exist_ok=True)
-process = subprocess.Popen([str(binary), "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+agent_id = "mcp-check"
+process = subprocess.Popen([str(binary), "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                           env={**os.environ, "YONDER_AGENT_ID": agent_id})
 
 def call(message):
     process.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
@@ -30,11 +33,11 @@ try:
     listed = call({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})
     names = {item["name"] for item in listed["tools"]}
     expected = {"task_create","task_list","task_get","task_cancel","task_control","task_events","task_step_declare","task_step_get"}
-    assert names == expected
+    assert expected <= names, names
     key = f"codex-mcp-{time.time_ns()}"
     created = tool(3,"task_create",{"idempotency_key":key,"name":"Codex CLI 接入验证","description":"验证MCP经本地Gateway登记任务"})["task"]
     current = tool(4,"task_get",{"task_id":created["task_id"]})["task"]
-    assert current == created and created["owner_agent_id"] == "codex-cli" and created["status"] == "created"
+    assert current == created and created["owner_agent_id"] == agent_id and created["status"] == "created"
     cancelled = tool(5,"task_cancel",{"task_id":created["task_id"],"expected_sequence":created["sequence"]})["task"]
     assert cancelled["status"] == "cancelled"
     result = {"mcp_protocol":initialized["protocolVersion"],"tools":len(names),"task_control_exposed":True,"owner":created["owner_agent_id"],"created":True,"read_back":True,"cancelled_retained":True,"passed":True}

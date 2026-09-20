@@ -36,3 +36,5 @@ OpenSpec: ag-s1-local-cli-mcp
 技术路线进入[ag-s1-cloud-connector-spike](../../../../openspec/changes/ag-s1-cloud-connector-spike/proposal.md)：只验证Rust进程内WSS、系统TLS、断线释放和有界重连。产品Connector仍受外部平台契约与凭据门禁阻塞。
 
 2026-09-18 macOS独立Verification Goal通过：`tokio-tungstenite + rustls`单进程样本完成可信WSS、Ping/Pong、关闭后重连、64 KiB帧上限与无效TLS拒绝。Windows按用户决定暂缓，AD-AG-06仍为Proposed，产品Connector未接线。
+
+2026-09-20用户变更：本地UDS不再固定`codex-cli`身份。新增[连接身份绑定 Change](../../../../openspec/changes/ag-s1-session-agent-binding/proposal.md)：首个`gateway.hello`绑定连接，后续请求不得切换身份；CLI必须显式提供`YONDER_AGENT_ID`。

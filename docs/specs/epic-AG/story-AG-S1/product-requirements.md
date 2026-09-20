@@ -44,7 +44,7 @@
 - AC9：安装包内`yonder mcp`以MCP stdio连接该UDS；Codex退出只断开连接，不退出桌面进程或产生第二只小龙。
 - AC10：MCP暴露任务创建、查询、取消和步骤声明工具，所有请求进入既有Gateway；任务创建继续遵守Agent专属、幂等及名称约束。
 - AC11：每条连接先由桥接器完成协议1.4握手，帧最多64KiB；Yonder未运行、连接中断、协议或业务拒绝均返回结构化错误且不输出正文日志。
-- AC12：本轮固定本机逻辑身份`codex-cli`，身份由受限UDS端点绑定而非MCP参数自报；Windows Named Pipe实现与原生证据按用户要求暂缓。
+- AC12：本机连接首个`gateway.hello`的有效`agent_id`绑定其逻辑任务身份，后续请求必须一致；该ID用于归属隔离，不替代当前用户私有UDS认证边界。Windows Named Pipe实现与原生证据按用户要求暂缓。
 
 ## 云端 Connector 增量
 

@@ -10,6 +10,16 @@ pub fn is_execution_request(bytes: &[u8]) -> bool {
     matches!(yonder_protocol::decode(bytes), Ok(Request::BrowserExecute { .. } | Request::ComputerExecute { .. } | Request::ComputerStep { .. }))
 }
 
+/// 本地传输在创建会话前只可读取首个握手的逻辑身份；桌面层不得直接解析协议。
+pub fn local_hello_agent_id(bytes: &[u8], now_ms: u64) -> Result<String, RpcError> {
+    let request = yonder_protocol::decode(bytes)?;
+    request.validate(now_ms)?;
+    match request {
+        Request::Hello { params, .. } => Ok(params.agent_id),
+        _ => Err(RpcError::new(-32002, "请先完成Gateway握手")),
+    }
+}
+
 pub fn local_control_request(bytes:&[u8])->Option<(String,crate::ControlKind)>{match yonder_protocol::decode(bytes).ok()?{Request::Control{params,..}=>Some((params.task_id,match params.kind{yonder_protocol::ControlKind::Pause=>crate::ControlKind::Pause,yonder_protocol::ControlKind::Cancel=>crate::ControlKind::Cancel,yonder_protocol::ControlKind::Takeover=>crate::ControlKind::Takeover})),_=>None}}
 pub fn is_takeover_request(bytes:&[u8])->bool{matches!(yonder_protocol::decode(bytes),Ok(Request::Control{params,..}) if params.kind==yonder_protocol::ControlKind::Takeover)}
 pub fn local_takeover_request(task_id:&str,expected:u64,now_ms:u64)->Result<Vec<u8>,crate::Error>{
@@ -110,6 +120,14 @@ mod tests {
         assert!(is_execution_request(step));
         assert!(!is_execution_request(br#"{"jsonrpc":"2.0","id":"r1","method":"task.get","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"t1"}}"#));
         assert!(!is_execution_request(br#"{"method":"computer.execute"}"#));
+    }
+
+    #[test]
+    fn local_first_hello_binds_the_declared_agent_id() {
+        let hello = |agent| format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":1}}}}}}"#);
+        assert_eq!(local_hello_agent_id(hello("agent-a").as_bytes(), 1000), Ok("agent-a".into()));
+        assert_eq!(local_hello_agent_id(hello("agent-b").as_bytes(), 1000), Ok("agent-b".into()));
+        assert!(local_hello_agent_id(br#"{"jsonrpc":"2.0","id":"list","method":"task.list","params":{"agent_id":"agent-a","capability":"task.read","deadline":2000,"limit":1}}"#, 1000).is_err());
     }
 
     #[test]
