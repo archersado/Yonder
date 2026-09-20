@@ -6,10 +6,22 @@
   "escape_selecting_clears": true,
   "escape_reviewing_clears": true,
   "selection_timeout_seconds": 30.264,
+  "selection_timeout_repeat_seconds": 31.475,
   "review_timeout_manual": true,
   "permission_feedback_manual": true,
   "permission_error": "permission-required",
   "permission_bundle_id": "com.yonder.desktop.cx2.permissioncheck",
+  "desktop_lease_rejection": {
+    "pet_entry_denied": true,
+    "tray_entry_denied": true,
+    "error": "desktop-control-active",
+    "task_id_sha256": "8a8cbd9f84892001142427502dbf892f024aa25a5299bb17a7ba2ed38c303220",
+    "task_attempts": 1,
+    "preview_cua_actions": 0,
+    "final_status": "completed",
+    "final_sequence": 6,
+    "screenshot_files_remaining": 0
+  },
   "overlay_points": [1710, 1009],
   "review_points": [440, 560],
   "screenshots_saved": false

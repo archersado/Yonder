@@ -35,6 +35,15 @@ func rect(_ info: [String: Any]) -> CGRect? {
     (info[kCGWindowBounds as String] as? NSDictionary).flatMap(CGRect.init(dictionaryRepresentation:))
 }
 func press(_ text: String) -> Bool { find(ax, text).map { AXUIElementPerformAction($0, "AXPress" as CFString) == .success } ?? false }
+func parent(_ element: AXUIElement) -> AXUIElement? {
+    guard let value = attr(element, "AXParent"), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+    return unsafeBitCast(value, to: AXUIElement.self)
+}
+func pressTray(_ text: String) -> Bool {
+    guard let item = find(ax, text), let menu = parent(item), let statusItem = parent(menu), AXUIElementPerformAction(statusItem, "AXPress" as CFString) == .success else { return false }
+    Thread.sleep(forTimeInterval: 0.3)
+    return AXUIElementPerformAction(item, "AXPress" as CFString) == .success
+}
 func drag(_ points: [CGPoint]) {
     guard let first = points.first, let last = points.last else { return }
     let source = CGEventSource(stateID: .hidSystemState)
@@ -46,6 +55,13 @@ func escape() {
     let source = CGEventSource(stateID: .hidSystemState)
     CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)
     CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: false)?.post(tap: .cghidEventTap)
+}
+if ProcessInfo.processInfo.environment["YONDA_EXPECT_DESKTOP_ACTIVE"] == "1" {
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { find(ax, "Agent 正在控制桌面，暂不能圈选。") != nil }) else { fail(17, "pet-entry-not-denied") }
+    guard press("关闭"), wait(3, { window("Yonda · 圈选提问") == nil }), pressTray("圈选提问（预览）"), wait(3, { find(ax, "Agent 正在控制桌面，暂不能圈选。") != nil }) else { fail(18, "tray-entry-not-denied") }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "pet_entry_denied": true, "tray_entry_denied": true, "error": "desktop-control-active"], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!)
+    exit(0)
 }
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }

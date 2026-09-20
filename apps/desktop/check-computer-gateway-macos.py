@@ -42,6 +42,10 @@ try:
         result={"protocol":hello["protocol_version"],"computer_capability":"available","task_id":created["task_id"],"final_status":"interrupted","unknown_reason":"user-input","final_sequence":executed["sequence"] if coarse else executed["task"]["sequence"],"recording_started":False,"passed":True}
         (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n");print(json.dumps(result,ensure_ascii=False));raise SystemExit(0)
     assert (executed["status"]=="running" and executed["action_succeeded"] is True) if coarse else (executed["task"]["status"]=="running" and executed["attempt_result"]["phase"]=="observed" and executed["attempt_result"]["action_succeeded"] is True),{"gateway":executed,"fixture":{"pid":state.get("pid"),"window_id":state.get("window_id"),"active":state.get("app_active"),"key":state.get("target_key")}}
+    if "--hold" in sys.argv:
+        seconds=float(sys.argv[sys.argv.index("--hold")+1])
+        print(json.dumps({"desktop_lease_ready":True,"task_id":created["task_id"]}),flush=True)
+        time.sleep(seconds)
     screenshot=pathlib.Path(executed["observation"]["screenshot_path"]) if coarse and executed.get("observation",{}).get("screenshot_path") else None
     if coarse:
         assert executed.get("observation") and (executed["observation"]["element_count"]>0 or screenshot),executed
