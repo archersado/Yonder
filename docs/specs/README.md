@@ -184,4 +184,4 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-20 CX-S2 macOS单显示器Preview经非实现者独立复核七行矩阵全部PASS，OpenSpec `2026-09-20-cx-s2-macos-preview`已归档。完整CX-S2保持verifying；Agent提交、多显示器、运行中撤权和Windows仍由后续Change承接。
 
-2026-09-20 CX-S2下一增量建立Proposed AD-CX-02与`cx-s2-agent-attachment-spike`：先验证同一AgentSession内的64 KiB有界分块、4 MiB总量、会话引用与失败清理；不传本机路径、不持久化截图，Spike通过前不修改产品协议或启用发送。
+2026-09-20 CX-S2 Agent会话临时附件Spike经非实现者六行矩阵复核PASS，AD-CX-02更新为Accepted：同一AgentSession内保持64 KiB帧和4 MiB附件上限，跨会话隔离及所有结束路径清零；不传本机路径、不持久化截图。产品协议与确认卡发送仍须独立Change。

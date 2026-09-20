@@ -16,7 +16,7 @@ Preview 进入`selecting`前只读检查CUA前台租约；租约已占用时返�
 
 ### Agent 临时附件候选
 
-现有`agent.input`仅承载有界文字，不能内嵌截图或发送本机路径。Proposed AD-CX-02候选在同一已认证`AgentSession`上先传输单个不超过4 MiB的会话级附件，再由`agent.input`引用其`attachment_id`。本地与云端共用Rust协议、64 KiB帧上限、哈希校验、deadline和清理语义；任务库、事件、Outbox和日志不保存截图、正文或哈希。隔离Spike通过前不进入产品协议与确认卡。
+现有`agent.input`仅承载有界文字，不能内嵌截图或发送本机路径。Accepted AD-CX-02规定在同一已认证`AgentSession`上先传输单个不超过4 MiB的会话级附件，再由`agent.input`引用其`attachment_id`。本地与云端共用Rust协议、64 KiB帧上限、哈希校验、deadline和清理语义；任务库、事件、Outbox和日志不保存截图、正文或哈希。隔离Spike与独立复核已通过，产品协议和确认卡接线由后续Change实施。
 
 ## 双平台原生路线
 
