@@ -1,7 +1,7 @@
 //! 仅供 Desktop 组合根使用的 Preview 临时会话；不写入任务或存储。
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Phase { Idle, Selecting, Capturing, Reviewing }
+pub enum Phase { Idle, Selecting, Capturing, Reviewing, Submitting }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error { Busy, InvalidPhase, ImageTooLarge }
@@ -26,6 +26,11 @@ impl Session {
         self.image = Some(image); self.phase = Phase::Reviewing;
         Ok(self.image.as_ref().expect("刚写入的预览").clone())
     }
+    pub fn begin_submission(&mut self) -> Result<String, Error> {
+        if self.phase != Phase::Reviewing { return Err(Error::InvalidPhase); }
+        self.phase = Phase::Submitting;
+        self.image.clone().ok_or(Error::InvalidPhase)
+    }
     pub fn clear(&mut self) { self.image = None; self.phase = Phase::Idle; }
     pub fn snapshot(&self) -> (Phase, usize) { (self.phase, self.image.as_ref().map_or(0, String::len)) }
 }
@@ -38,6 +43,8 @@ mod tests {
         let mut session = Session::default();
         session.begin().unwrap(); session.capture().unwrap(); session.review("image".into()).unwrap();
         assert_eq!(session.snapshot(), (Phase::Reviewing, 5));
+        assert_eq!(session.begin_submission(), Ok("image".into()));
+        assert_eq!(session.snapshot(), (Phase::Submitting, 5));
         session.clear(); assert_eq!(session.snapshot(), (Phase::Idle, 0));
         assert!(matches!(session.begin(), Ok(()))); assert!(matches!(session.begin(), Err(Error::Busy)));
     }

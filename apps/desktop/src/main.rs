@@ -14,7 +14,7 @@ fn region_preview_clean_title(reason: Option<&str>, event_at_ms: Option<u64>) ->
     let reason = match reason {
         Some("escape") => "escape", Some("toolbar-cancel") => "toolbar-cancel", Some("review-cancel") => "review-cancel",
         Some("timeout") => "timeout", Some("close-button") => "close-button", Some("reselect-error") => "reselect-error",
-        Some("review-error") => "review-error", _ => "close",
+        Some("review-error") => "review-error", Some("submitted") => "submitted", _ => "close",
     };
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |value| value.as_millis() as u64);
     format!("Yonda · 圈选提问 [idle image=0 selection=0 stroke=0 reason={reason} latency_ms={}]", event_at_ms.map_or(0, |at| now.saturating_sub(at)))
@@ -135,6 +135,25 @@ async fn region_preview_capture(window: WebviewWindow, rect: RegionRect, preview
     }
     #[cfg(not(target_os = "macos"))]
     { let _ = (x, y, width, height); Err("Windows 圈选预览仍在验证中".into()) }
+}
+
+#[tauri::command]
+async fn region_preview_submit(window: WebviewWindow, question: String, preview: State<'_, PreviewState>, hub: State<'_, yonder_desktop::agent_input::AgentInputHub>) -> Result<&'static str, String> {
+    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+    let image = preview.0.lock().map_err(|_| "preview-unavailable")?.begin_submission().map_err(|_| "preview-invalid-state")?;
+    let hub = hub.inner().clone();
+    let outcome = tauri::async_runtime::spawn_blocking(move || hub.deliver_selection(&question, &image)).await;
+    preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
+    match outcome.map_err(|_| "delivery-unavailable")? {
+        Ok(yonder_application::agent_input::DeliveryOutcome::Accepted) => Ok("accepted"),
+        Ok(yonder_application::agent_input::DeliveryOutcome::Rejected) => Ok("rejected"),
+        Ok(yonder_application::agent_input::DeliveryOutcome::Unknown) => Ok("unknown"),
+        Err("当前Agent不支持截图提问") => Err("attachment-unsupported".into()),
+        Err("当前没有可接收输入的Agent") => Err("agent-unavailable".into()),
+        Err("请选择接收输入的Agent") => Err("agent-target-required".into()),
+        Err("截图数据无效") => Err("attachment-invalid".into()),
+        Err(_) => Err("delivery-unavailable".into()),
+    }
 }
 
 #[tauri::command]
@@ -365,7 +384,7 @@ async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

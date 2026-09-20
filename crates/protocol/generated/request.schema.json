@@ -869,7 +869,8 @@
     "OfferedCapability": {
       "type": "string",
       "enum": [
-        "user_input"
+        "user_input",
+        "user_input_attachment"
       ]
     },
     "ProtocolVersion": {

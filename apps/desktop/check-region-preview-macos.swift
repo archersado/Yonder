@@ -28,6 +28,11 @@ func findButton(_ element: AXUIElement, _ text: String, _ depth: Int = 0) -> AXU
     guard depth < 16 else { return nil }
     return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { findButton($0, text, depth + 1) }.first
 }
+func findRole(_ element: AXUIElement, _ role: String, _ depth: Int = 0) -> AXUIElement? {
+    if attr(element, "AXRole") as? String == role { return element }
+    guard depth < 16 else { return nil }
+    return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { findRole($0, role, depth + 1) }.first
+}
 func size(_ element: AXUIElement) -> CGSize? {
     guard let raw = attr(element, "AXSize"), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
     var value = CGSize.zero
@@ -112,6 +117,24 @@ func reopenWithoutOldPreview() -> Bool {
 }
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
+if let outcome = ProcessInfo.processInfo.environment["YONDA_SUBMIT_OUTCOME"] {
+    guard ["accepted", "rejected", "unknown", "unsupported"].contains(outcome) else { fail(60, "submit-outcome-invalid") }
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(61, "submit-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    drag([CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180), CGPoint(x: overlayRect.minX + 360, y: overlayRect.minY + 280)])
+    guard wait(5, { find(ax, "想问什么？") != nil }), let input = findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField") else { fail(62, "submit-question-missing") }
+    guard AXUIElementSetAttributeValue(input, "AXValue" as CFString, "explain selection" as CFTypeRef) == .success else { fail(63, "submit-question-unavailable") }
+    guard wait(3, { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == true }), pressButton("发送") else { fail(64, "submit-button-unavailable") }
+    if outcome == "accepted" {
+        guard wait(5, { find(ax, "已发送给 Agent") != nil }), wait(5, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "submitted" else { fail(65, "submit-accepted-not-closed") }
+    } else {
+        let expected = outcome == "rejected" ? "Agent 拒绝了本次输入，截图未保留。" : outcome == "unknown" ? "是否送达未知，未自动重试；请重新圈选。" : "当前 Agent 不支持截图提问。"
+        guard wait(5, { find(ax, expected) != nil }), previewImageInfo() == nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(66, "submit-failure-not-cleared") }
+        escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(67, "submit-failure-close-failed") }
+    }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "preview_cleared": true, "window_closed": true], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
 if ProcessInfo.processInfo.environment["YONDA_EXPECT_DESKTOP_ACTIVE"] == "1" {
     let pointerBefore = CGEvent(source: nil)?.location
     let frontmostBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier

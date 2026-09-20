@@ -1,13 +1,41 @@
 //! AD-AG-05：macOS当前用户私有Gateway UDS。
 use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName, tokio::{Listener, Stream, prelude::*}};
+use base64::Engine;
+use sha2::{Digest, Sha256};
 use std::{io, os::unix::fs::PermissionsExt, path::PathBuf, sync::{Arc, Mutex}, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use yonder_application::{AuthContext, agent_input::{AgentRequest, AgentResponse, DeliveryOutcome, Version, decode_response, encode_request, hello_accepted, registration}, gateway::{GatewaySession, Platform}};
+use yonder_application::{AuthContext, agent_input::{AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams, AgentRequest, AgentResponse, DeliveryOutcome, Version, decode_response, encode_request, hello_accepted, registration}, gateway::{GatewaySession, Platform}};
 use crate::{TaskHost, agent_input::AgentInputHub, emit_pet_agent_connection, emit_pet_presentation,emit_pet_terminal_presentation};
 use tauri::WebviewWindow;
 
 const AGENT_ID: &str = "codex-cli";
 const MAX_FRAME_BYTES: usize = 64 * 1024;
+const ATTACHMENT_CHUNK_BYTES: usize = 47 * 1024;
+
+async fn send_agent_request(stream: &Stream, request: &AgentRequest) -> io::Result<()> {
+    let mut bytes = encode_request(request).map_err(|error| io::Error::other(error.message))?;
+    if bytes.len() > MAX_FRAME_BYTES { return Err(io::Error::new(io::ErrorKind::InvalidData, "Agent请求帧过大")); }
+    bytes.push(b'\n');
+    (&*stream).write_all(&bytes).await
+}
+
+async fn read_agent_outcome(reader: &mut BufReader<&Stream>, request_id: &str, timeout: Duration) -> DeliveryOutcome {
+    let response = tokio::time::timeout(timeout, async {
+        let mut frame = Vec::new();
+        let read = reader.take(MAX_FRAME_BYTES as u64 + 1).read_until(b'\n', &mut frame).await?;
+        if read == 0 || read > MAX_FRAME_BYTES || frame.last() != Some(&b'\n') { return Err(io::Error::new(io::ErrorKind::InvalidData,"无效Agent确认帧")); }
+        frame.pop();
+        Ok::<_,io::Error>(frame)
+    }).await;
+    match response {
+        Ok(Ok(frame)) => match decode_response(&frame) {
+            Ok(AgentResponse::Success{id,result,..}) if id==request_id&&result.accepted=>DeliveryOutcome::Accepted,
+            Ok(AgentResponse::Success{id,result,..}) if id==request_id&&!result.accepted=>DeliveryOutcome::Rejected,
+            _=>DeliveryOutcome::Unknown,
+        },
+        _=>DeliveryOutcome::Unknown,
+    }
+}
 
 
 pub struct Server {
@@ -105,10 +133,10 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         }
         (&stream).write_all(&response).await?;
         (&stream).write_all(b"\n").await?;
-        if let Some((agent_id, session_id)) = registration {
+        if let Some((agent_id, session_id, supports_attachment)) = registration {
             if !hello_accepted(&response) { continue; }
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-            let (token, connected) = hub.register(agent_id, session_id.clone(), tx);
+            let (token, connected) = hub.register(agent_id, session_id.clone(), supports_attachment, tx);
             emit_pet_agent_connection(&pet, connected);
             let result = async {
                 loop {
@@ -121,25 +149,27 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                         },
                     };
                     let request_id = delivery.input.input_id.clone();
-                    let request = AgentRequest::Input { jsonrpc: Version::V2, request_id: request_id.clone(), params: delivery.input };
-                    let mut bytes = encode_request(&request).map_err(|error|io::Error::other(error.message))?;
-                    bytes.push(b'\n');
-                    (&stream).write_all(&bytes).await?;
-                    let response = tokio::time::timeout(Duration::from_secs(10), async {
-                        let mut frame = Vec::new();
-                        let read = (&mut reader).take(MAX_FRAME_BYTES as u64 + 1).read_until(b'\n', &mut frame).await?;
-                        if read == 0 || read > MAX_FRAME_BYTES || frame.last() != Some(&b'\n') { return Err(io::Error::new(io::ErrorKind::InvalidData,"无效Agent确认帧")); }
-                        frame.pop();
-                        Ok::<_,io::Error>(frame)
-                    }).await;
-                    let outcome = match response {
-                        Ok(Ok(frame)) => match decode_response(&frame) {
-                            Ok(AgentResponse::Success{id,result,..}) if id==request_id&&result.accepted=>DeliveryOutcome::Accepted,
-                            Ok(AgentResponse::Success{id,result,..}) if id==request_id&&!result.accepted=>DeliveryOutcome::Rejected,
-                            _=>DeliveryOutcome::Unknown,
-                        },
-                        _=>DeliveryOutcome::Unknown,
-                    };
+                    let mut outcome = DeliveryOutcome::Accepted;
+                    if let Some(attachment) = delivery.attachment {
+                        let Some(attachment_id) = delivery.input.attachment_id.clone() else { let _=delivery.reply.send(DeliveryOutcome::Unknown); return Ok(()); };
+                        let begin=AgentAttachmentBeginParams{attachment_id:attachment_id.clone(),session_id:delivery.input.session_id.clone(),mime:attachment.mime,byte_length:attachment.bytes.len().try_into().map_err(|_|io::Error::other("Agent附件过大"))?,sha256:format!("{:x}",Sha256::digest(&attachment.bytes)),deadline:delivery.input.deadline};
+                        begin.validate(u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?).map_err(|error|io::Error::other(error.message))?;
+                        send_agent_request(&stream,&AgentRequest::AttachmentBegin{jsonrpc:Version::V2,params:begin}).await?;
+                        for (sequence,bytes) in attachment.bytes.chunks(ATTACHMENT_CHUNK_BYTES).enumerate(){
+                            let params=AgentAttachmentChunkParams{attachment_id:attachment_id.clone(),session_id:delivery.input.session_id.clone(),sequence:sequence.try_into().map_err(|_|io::Error::other("Agent附件分块过多"))?,data_base64:base64::engine::general_purpose::STANDARD.encode(bytes)};
+                            params.validate().map_err(|error|io::Error::other(error.message))?;
+                            send_agent_request(&stream,&AgentRequest::AttachmentChunk{jsonrpc:Version::V2,params}).await?;
+                        }
+                        let finish_id=format!("{}_attachment",request_id);
+                        let params=AgentAttachmentFinishParams{attachment_id,session_id:delivery.input.session_id.clone()};
+                        params.validate().map_err(|error|io::Error::other(error.message))?;
+                        send_agent_request(&stream,&AgentRequest::AttachmentFinish{jsonrpc:Version::V2,request_id:finish_id.clone(),params}).await?;
+                        outcome=read_agent_outcome(&mut reader,&finish_id,Duration::from_secs(60)).await;
+                    }
+                    if outcome==DeliveryOutcome::Accepted {
+                        send_agent_request(&stream,&AgentRequest::Input { jsonrpc: Version::V2, request_id: request_id.clone(), params: delivery.input }).await?;
+                        outcome=read_agent_outcome(&mut reader,&request_id,Duration::from_secs(60)).await;
+                    }
                     let _ = delivery.reply.send(outcome);
                     if outcome == DeliveryOutcome::Unknown { return Ok(()); }
                 }
