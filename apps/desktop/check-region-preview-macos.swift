@@ -126,6 +126,21 @@ if ProcessInfo.processInfo.environment["YONDA_EXPECT_TRAY_DESKTOP_ACTIVE"] == "1
     print(String(data: data, encoding: .utf8)!)
     exit(0)
 }
+if ProcessInfo.processInfo.environment["YONDA_PHYSICAL_TOOLBAR_CANCEL"] == "1" {
+    for attempt in 1...6 {
+        guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { fail(42, "toolbar-cancel-open-failed") }
+        let started = ProcessInfo.processInfo.systemUptime
+        let ready = try JSONSerialization.data(withJSONObject: ["ready": true, "action": "toolbar-cancel", "attempt": attempt], options: [.sortedKeys])
+        print(String(data: ready, encoding: .utf8)!); fflush(stdout)
+        guard wait(32, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(43, "toolbar-cancel-not-observed") }
+        let elapsed = ProcessInfo.processInfo.systemUptime - started
+        if elapsed < 29.5 {
+            let result = try JSONSerialization.data(withJSONObject: ["passed": true, "action": "toolbar-cancel", "attempt": attempt, "seconds": elapsed, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
+            print(String(data: result, encoding: .utf8)!); exit(0)
+        }
+    }
+    fail(44, "toolbar-cancel-not-distinguished-from-timeout")
+}
 if let stage = ProcessInfo.processInfo.environment["YONDA_PHYSICAL_ESC_STAGE"] {
     guard stage == "selecting" || stage == "reviewing" else { fail(32, "physical-escape-stage-invalid") }
     for attempt in 1...6 {
@@ -142,7 +157,9 @@ if let stage = ProcessInfo.processInfo.environment["YONDA_PHYSICAL_ESC_STAGE"] {
         guard wait(32, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(33, "physical-escape-not-observed") }
         let elapsed = ProcessInfo.processInfo.systemUptime - started
         if elapsed < 29.5 {
-            let result = try JSONSerialization.data(withJSONObject: ["passed": true, "stage": stage, "attempt": attempt, "seconds": elapsed, "pointer_restored": pointer == CGEvent(source: nil)?.location, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
+            let pointerRestored = pointer == CGEvent(source: nil)?.location
+            guard pointerRestored else { fail(41, "physical-escape-pointer-moved") }
+            let result = try JSONSerialization.data(withJSONObject: ["passed": true, "stage": stage, "attempt": attempt, "seconds": elapsed, "pointer_restored": pointerRestored, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
             print(String(data: result, encoding: .utf8)!); exit(0)
         }
     }
