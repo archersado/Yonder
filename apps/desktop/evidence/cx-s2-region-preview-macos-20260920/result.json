@@ -52,9 +52,9 @@
     "idle_screenshot_activity_count": 0
   },
   "environment": {
-    "implementation_commit": "9b00281d303dc2c08a9732f8e58f4f67fb4cb8fd",
+    "implementation_commit": "401f0a490fb2b5172e37c472b20cce4f073a3118",
     "bundle_id": "com.yonder.desktop",
-    "binary_sha256": "7c6b117b9688622e553dd1d8000ea6bea946182358aba3e5e77717e74b5e7480",
+    "binary_sha256": "0732fc6056ac85d948401e830d6492c6bf6a3292c15c38bb3f97d10903f83875",
     "macos_version": "26.5.1 (25F80)",
     "display_resolution_pixels": [
       2880,
@@ -63,10 +63,10 @@
     "display_scale": 2.0,
     "display_count": 1,
     "child_processes_idle": 0,
-    "verification_harness_commit": "8f06b367f0733e9cfa1d587b3dc883d677914e6b"
+    "verification_harness_commit": "401f0a490fb2b5172e37c472b20cce4f073a3118"
   },
   "successful_capture": {
-    "png_bytes": 2636,
+    "png_bytes": 19043,
     "png_pixels": [
       360,
       200
@@ -123,9 +123,11 @@
   "physical_escape_cleanup": {
     "selecting": {
       "passed": true,
-      "attempt": 2,
-      "seconds": 4.633564416668378,
+      "attempt": 1,
+      "observed_seconds_from_ready": 2.49297629162902,
+      "close_latency_ms": 5,
       "pointer_restored": true,
+      "reopen_without_old_preview": true,
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
@@ -134,8 +136,10 @@
     "reviewing": {
       "passed": true,
       "attempt": 1,
-      "seconds": 3.136511874967255,
+      "observed_seconds_from_ready": 4.670423791685607,
+      "close_latency_ms": 1,
       "pointer_restored": true,
+      "reopen_without_old_preview": true,
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
@@ -144,7 +148,9 @@
   },
   "toolbar_cancel": {
     "passed": true,
-    "seconds": 14.670546291628852,
+    "observed_seconds_from_ready": 11.453287333308253,
+    "close_latency_ms": 1,
+    "reopen_without_old_preview": true,
     "application_phase": "idle",
     "image_bytes": 0,
     "selection_bytes": 0,
@@ -152,6 +158,9 @@
   },
   "review_cancel": {
     "passed": true,
+    "window_disappear_seconds": 0.44091691670473665,
+    "close_latency_ms": 1,
+    "reopen_without_old_preview": true,
     "application_phase": "idle",
     "image_bytes": 0,
     "selection_bytes": 0,
@@ -159,7 +168,9 @@
   },
   "selection_timeout": {
     "passed": true,
-    "seconds": 30.191731999977492,
+    "seconds": 30.203441458346788,
+    "close_latency_ms": 1,
+    "reopen_without_old_preview": true,
     "application_phase": "idle",
     "image_bytes": 0,
     "selection_bytes": 0,
@@ -167,7 +178,9 @@
   },
   "review_timeout": {
     "passed": true,
-    "seconds": 30.11474683333654,
+    "seconds": 30.00060979166301,
+    "close_latency_ms": 1,
+    "reopen_without_old_preview": true,
     "application_phase": "idle",
     "image_bytes": 0,
     "selection_bytes": 0,
@@ -189,67 +202,78 @@
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "tray-entry": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "review-cancel": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "toolbar-cancel": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "physical-escape-selecting": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "physical-escape-reviewing": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "selection-timeout": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "review-timeout": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "permission-denied": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "cua-pet-denied": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     },
     "cua-tray-denied": {
       "application_phase": "idle",
       "image_bytes": 0,
       "selection_bytes": 0,
-      "stroke_bytes": 0
+      "stroke_bytes": 0,
+      "reopen_without_old_preview": true
     }
   }
 }
