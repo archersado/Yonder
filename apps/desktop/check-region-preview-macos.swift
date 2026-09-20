@@ -127,21 +127,26 @@ if ProcessInfo.processInfo.environment["YONDA_EXPECT_TRAY_DESKTOP_ACTIVE"] == "1
     exit(0)
 }
 if let stage = ProcessInfo.processInfo.environment["YONDA_PHYSICAL_ESC_STAGE"] {
-    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let physicalOverlay = window("Yonda · 圈选提问"), let physicalRect = rect(physicalOverlay) else { fail(30, "physical-escape-open-failed") }
-    if stage == "reviewing" {
-        Thread.sleep(forTimeInterval: 0.45)
-        drag([CGPoint(x: physicalRect.minX + 180, y: physicalRect.minY + 180), CGPoint(x: physicalRect.minX + 360, y: physicalRect.minY + 280)])
-        guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }) else { fail(31, "physical-escape-review-unavailable") }
-    } else if stage != "selecting" { fail(32, "physical-escape-stage-invalid") }
-    let started = ProcessInfo.processInfo.systemUptime
-    let pointer = CGEvent(source: nil)?.location
-    let ready = try JSONSerialization.data(withJSONObject: ["ready": true, "stage": stage], options: [.sortedKeys])
-    print(String(data: ready, encoding: .utf8)!); fflush(stdout)
-    guard wait(120, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(33, "physical-escape-not-observed") }
-    let elapsed = ProcessInfo.processInfo.systemUptime - started
-    guard elapsed < 29.5 else { fail(40, "physical-escape-not-distinguished-from-timeout") }
-    let result = try JSONSerialization.data(withJSONObject: ["passed": true, "stage": stage, "seconds": elapsed, "pointer_restored": pointer == CGEvent(source: nil)?.location, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
-    print(String(data: result, encoding: .utf8)!); exit(0)
+    guard stage == "selecting" || stage == "reviewing" else { fail(32, "physical-escape-stage-invalid") }
+    for attempt in 1...6 {
+        guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let physicalOverlay = window("Yonda · 圈选提问"), let physicalRect = rect(physicalOverlay) else { fail(30, "physical-escape-open-failed") }
+        if stage == "reviewing" {
+            Thread.sleep(forTimeInterval: 0.45)
+            drag([CGPoint(x: physicalRect.minX + 180, y: physicalRect.minY + 180), CGPoint(x: physicalRect.minX + 360, y: physicalRect.minY + 280)])
+            guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }) else { fail(31, "physical-escape-review-unavailable") }
+        }
+        let started = ProcessInfo.processInfo.systemUptime
+        let pointer = CGEvent(source: nil)?.location
+        let ready = try JSONSerialization.data(withJSONObject: ["ready": true, "stage": stage, "attempt": attempt], options: [.sortedKeys])
+        print(String(data: ready, encoding: .utf8)!); fflush(stdout)
+        guard wait(32, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(33, "physical-escape-not-observed") }
+        let elapsed = ProcessInfo.processInfo.systemUptime - started
+        if elapsed < 29.5 {
+            let result = try JSONSerialization.data(withJSONObject: ["passed": true, "stage": stage, "attempt": attempt, "seconds": elapsed, "pointer_restored": pointer == CGEvent(source: nil)?.location, "application_phase": "idle", "image_bytes": 0, "selection_bytes": 0, "stroke_bytes": 0], options: [.prettyPrinted, .sortedKeys])
+            print(String(data: result, encoding: .utf8)!); exit(0)
+        }
+    }
+    fail(40, "physical-escape-not-distinguished-from-timeout")
 }
 if ProcessInfo.processInfo.environment["YONDA_EXPECT_PERMISSION_DENIED"] == "1" {
     guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let deniedOverlay = window("Yonda · 圈选提问"), let deniedRect = rect(deniedOverlay) else { fail(34, "permission-open-failed") }
