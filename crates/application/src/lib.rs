@@ -8,6 +8,7 @@ pub mod browser_use;
 pub mod work_focus;
 pub mod document;
 pub mod agent_input;
+pub mod region_preview;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Task {

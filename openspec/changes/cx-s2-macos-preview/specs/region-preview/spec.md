@@ -15,4 +15,11 @@
 
 - Given 用户按Esc、取消、超时、权限缺失或CUA正在控制桌面
 - When 圈选会话结束
-- Then 系统清理选择层和临时内容，不创建任务、不发送Agent输入
+- Then 系统清理选择层、选区、笔画和截图字节，不创建任务、不发送Agent输入
+- Then 再次打开时不得显示上一会话的预览
+
+### Scenario: CUA租约拒绝
+
+- Given CUA前台租约已被一个运行中任务持有
+- When 用户从任一Preview入口启动圈选
+- Then 系统返回`desktop-control-active`并保持空闲，不显示选择层、不暂停或驱动CUA

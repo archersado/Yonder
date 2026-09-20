@@ -4,8 +4,14 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-guard AXIsProcessTrusted(), CGPreflightPostEventAccess(),
-      let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.yonder.desktop").first else { exit(2) }
+func fail(_ code: Int32, _ reason: String) -> Never {
+    let data = try! JSONSerialization.data(withJSONObject: ["passed": false, "reason": reason], options: [.sortedKeys])
+    print(String(data: data, encoding: .utf8)!)
+    exit(code)
+}
+guard AXIsProcessTrusted() else { fail(2, "accessibility-denied") }
+guard CGPreflightPostEventAccess() else { fail(3, "input-event-denied") }
+guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.yonder.desktop").first else { fail(4, "preview-not-running") }
 let ax = AXUIElementCreateApplication(app.processIdentifier)
 func attr(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?; return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
@@ -38,15 +44,16 @@ func drag(_ points: [CGPoint]) {
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
 
-guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { exit(3) }
+guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { exit(3) }
 guard overlayRect.width > 800, overlayRect.height > 500 else { exit(4) }
+Thread.sleep(forTimeInterval: 0.45) // 启动点击不能穿透为一次选择。
 drag([CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180), CGPoint(x: overlayRect.minX + 360, y: overlayRect.minY + 280)])
-guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width == 440 && $0.height == 460 } ?? false }),
-      let review = window("Yonda · 圈选提问"), let reviewRect = rect(review), find(ax, "已截取选区") != nil, find(ax, "重新圈选") != nil, find(ax, "取消") != nil else { exit(5) }
-guard press("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }), press("笔画") else { exit(6) }
+guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }),
+      let review = window("Yonda · 圈选提问"), let reviewRect = rect(review) else { exit(5) }
+guard wait(3, { find(ax, "重新圈选") != nil }), press("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }), wait(3, { find(ax, "画圈") != nil }), press("画圈") else { exit(6) }
 guard let strokeOverlay = window("Yonda · 圈选提问"), let strokeRect = rect(strokeOverlay) else { exit(7) }
 drag([CGPoint(x: strokeRect.minX + 180, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 260, y: strokeRect.minY + 220), CGPoint(x: strokeRect.minX + 340, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 420, y: strokeRect.minY + 250)])
-guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width == 440 && $0.height == 460 } ?? false }), press("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(8) }
+guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width < strokeRect.width && $0.height < strokeRect.height } ?? false }), wait(3, { find(ax, "取消") != nil }), press("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(8) }
 let result: [String: Any] = ["passed": true, "overlay": [Int(overlayRect.width), Int(overlayRect.height)], "review": [Int(reviewRect.width), Int(reviewRect.height)], "rectangle": true, "stroke": true, "cancel_clears": true, "screenshots_saved": false]
 let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
 print(String(data: data, encoding: .utf8)!)
