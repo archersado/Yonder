@@ -93,6 +93,18 @@ impl TaskHost {
             .map_err(|_| HostError::StorageUnavailable)
     }
 
+    pub fn pause_desktop_for_user(&mut self) -> Result<bool, HostError> {
+        let Some(task_id) = self.admission.task_holding(yonder_application::admission::Resource::Desktop).map_err(|_| HostError::StorageUnavailable)? else { return Ok(false); };
+        let task = self.store.get(&task_id).map_err(|_| HostError::StorageUnavailable)?;
+        let (_, control) = yonder_application::request_control(&mut self.store, AuthContext::LocalUser("desktop"), &task_id, task.sequence, ControlKind::Pause).map_err(|_| HostError::StorageUnavailable)?;
+        if control.phase == yonder_application::ControlPhase::Pending {
+            let attempt = self.store.get_attempt(&task_id).map_err(|_| HostError::StorageUnavailable)?.ok_or(HostError::StorageUnavailable)?;
+            yonder_application::stop_at_boundary(&mut self.store, &task_id, &attempt.attempt_id, ControlKind::Pause).map_err(|_| HostError::StorageUnavailable)?;
+        }
+        self.admission.release_task_after_stop(&task_id).map_err(|_| HostError::StorageUnavailable)?;
+        Ok(true)
+    }
+
     /// 未来GUI命令还须校验本地task-space窗口；不能对Agent暴露本机权限。
     pub fn query(&mut self, request: &[u8], now_ms: u64) -> Result<Vec<u8>, HostError> {
         let response=yonder_application::query::handle_encoded_current(&mut self.store, AuthContext::LocalUser("desktop"), request, now_ms).map_err(|_| HostError::StorageUnavailable)?;
@@ -228,6 +240,32 @@ mod tests {
         for name in ["tasks.db", "host.lock"] { std::fs::remove_file(directory.join(name)).unwrap(); }
         std::fs::remove_dir(directory.join("observations")).unwrap();
         std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn region_entry_pauses_only_confirmed_desktop_boundaries() {
+        use yonder_application::{AttemptPhase, ExecutionAttempt, admission::{Resource,start_attempt}, computer_use::{DispatchOutcome,UnknownReason,record_dispatch_outcome}};
+        let directory = std::env::temp_dir().join(format!("yonda-region-pause-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host=TaskHost::open(&directory).unwrap();
+        for (id,outcome,advance,expected) in [
+            ("stopped",DispatchOutcome::Known{action_succeeded:true,observation:None},true,Ok(true)),
+            ("observed",DispatchOutcome::Known{action_succeeded:true,observation:None},false,Ok(true)),
+            ("unknown",DispatchOutcome::Unknown(UnknownReason::ObserveFailed),false,Err(HostError::StorageUnavailable)),
+        ]{
+            let task=host.store.register("agent",id,"test",Some(id)).unwrap();
+            let (task,step)=host.store.declare_step("agent",&task.id,task.sequence,"step","test").unwrap();
+            let attempt=ExecutionAttempt{task_id:task.id.clone(),step_id:step.step_id,attempt_id:format!("attempt_{}",task.sequence+1),worker_instance_id:"worker".into(),host_session_id:"host".into(),phase:AttemptPhase::Prepared,accepted_sequence:0};
+            let (_,attempt,permit)=start_attempt(&mut host.store,&host.admission,&attempt,task.sequence,&[Resource::Desktop]).unwrap(); drop(permit);
+            let (task,_)=record_dispatch_outcome(&mut host.store,&attempt.task_id,&attempt.attempt_id,outcome).unwrap();
+            if advance { yonder_application::advance_after_observe(&mut host.store,&task.id,&attempt.attempt_id).unwrap(); }
+            assert_eq!(host.pause_desktop_for_user(),expected);
+            assert_eq!(host.admission.holds_resource(&task.id,Resource::Desktop).unwrap(),expected.is_err());
+            if expected.is_err(){break}
+        }
+        drop(host);
+        for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}
+        std::fs::remove_dir(directory.join("observations")).unwrap();std::fs::remove_dir(directory).unwrap();
     }
 
     #[test]

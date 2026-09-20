@@ -14,7 +14,7 @@ Accepted AD-CX-01 首先授权 macOS Preview 使用`idle → selecting → captu
 
 未形成有效区域或截图权限不可用时，Application进入无附件`reviewing`，确认卡允许非空文字通过现有`agent.input`提交；`source=selection`表示来自圈选提问入口，不承诺存在附件。该路径不要求`user_input_attachment`能力，不得生成空附件、伪造截图成功或因附件能力缺失拒绝文字。
 
-Preview 进入`selecting`前只读检查CUA前台租约；租约已占用时返回`desktop-control-active`并保持`idle`，不显示覆盖层，也不调用CUA Driver。该拒绝只验证 CX2-07 的“不争夺指针”部分；完整 Story 的“先暂停任务”仍须在后续 Change 接入既有用户输入停止语义后验证。
+Preview 进入`selecting`前检查CUA前台租约；无租约直接进入。租约已占用时，可信宿主依据AD-CX-01与AD-TM-08取得唯一租约任务并提交`pause`，只在步骤边界停止事实提交且租约释放后进入`selecting`。unknown、身份冲突或持久化失败保持`idle`并显示稳定错误；不使用takeover、不定位、不Recording，也不轮询数据库。
 
 ### Agent 临时附件候选
 

@@ -37,15 +37,9 @@ struct RegionRect { x: f64, y: f64, width: f64, height: f64, viewport_width: f64
 #[cfg(target_os = "macos")]
 unsafe extern "C" { fn yonda_region_capture(x: i32, y: i32, width: i32, height: i32) -> *mut c_char; }
 
-fn desktop_control_active(state: &TaskState) -> Result<bool, String> {
-    state.0.lock().map_err(|_| "桌面状态不可用")?.as_ref()
-        .ok_or("任务状态未就绪")?.desktop_control_active().map_err(|_| "桌面状态不可用".into())
-}
-
 fn preview_error(error: &str) -> String { error.into() }
 
-fn show_region_preview(app: &tauri::AppHandle, state: &TaskState, preview_state: &PreviewState) -> Result<(), String> {
-    if desktop_control_active(state)? { return Err(preview_error("desktop-control-active")); }
+fn show_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
     preview_state.0.lock().map_err(|_| preview_error("preview-unavailable"))?.begin()
         .map_err(|_| preview_error("preview-busy"))?;
     let pet = app.get_webview_window("pet").ok_or("小龙不可用")?;
@@ -58,10 +52,16 @@ fn show_region_preview(app: &tauri::AppHandle, state: &TaskState, preview_state:
         .map_err(|_| { preview_state.0.lock().ok().map(|mut session| session.clear()); preview_error("preview-unavailable") })
 }
 
+async fn pause_for_region(state: Arc<Mutex<Option<TaskHost>>>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || state.lock().map_err(|_| "desktop-stop-unconfirmed".to_owned())?.as_mut().ok_or("desktop-stop-unconfirmed".to_owned())?.pause_desktop_for_user().map(|_|()).map_err(|_|"desktop-stop-unconfirmed".to_owned()))
+        .await.map_err(|_| "desktop-stop-unconfirmed".to_owned())?
+}
+
 #[tauri::command]
-fn region_preview_open(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>) -> Result<(), String> {
+async fn region_preview_open(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>) -> Result<(), String> {
     if window.label() != "pet" { return Err("不允许的窗口".into()); }
-    show_region_preview(window.app_handle(), &state, &preview)
+    pause_for_region(Arc::clone(&state.0)).await?;
+    show_region_preview(window.app_handle(), &preview)
 }
 
 #[tauri::command]
@@ -85,10 +85,11 @@ fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>,
 }
 
 #[tauri::command]
-fn region_preview_reselect(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>) -> Result<(), String> {
+async fn region_preview_reselect(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
     preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
-    show_region_preview(window.app_handle(), &state, &preview)
+    pause_for_region(Arc::clone(&state.0)).await?;
+    show_region_preview(window.app_handle(), &preview)
 }
 
 #[cfg(target_os = "macos")]
@@ -446,7 +447,7 @@ fn main() {
                 .tooltip("Yonda 任务总览").menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "tasks" => { let _ = show_menu(app, true); },
-                    "region" => { let state = app.state::<TaskState>(); let preview = app.state::<PreviewState>(); if let Err(error) = show_region_preview(app, &state, &preview) { show_region_feedback(app, &preview, &error); } },
+                    "region" => { let app=app.clone(); tauri::async_runtime::spawn(async move { let state=Arc::clone(&app.state::<TaskState>().0); let result=pause_for_region(state).await; let preview=app.state::<PreviewState>(); if let Err(error)=result.and_then(|_|show_region_preview(&app,&preview)){show_region_feedback(&app,&preview,&error);} }); },
                     "quit" => app.exit(0),
                     _ => {}
                 }).build(app)?;

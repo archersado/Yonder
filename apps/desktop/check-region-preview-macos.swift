@@ -158,30 +158,19 @@ if let outcome = ProcessInfo.processInfo.environment["YONDA_SUBMIT_OUTCOME"] {
     let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "preview_cleared": true, "window_closed": true], options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!); exit(0)
 }
-if ProcessInfo.processInfo.environment["YONDA_EXPECT_DESKTOP_ACTIVE"] == "1" {
-    let pointerBefore = CGEvent(source: nil)?.location
-    let frontmostBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier
-    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { find(ax, "Agent 正在控制桌面，暂不能圈选。") != nil }) else { fail(17, "pet-entry-not-denied") }
-    let pointerUnchanged = pointerBefore == CGEvent(source: nil)?.location
-    let focusUnchanged = frontmostBefore == NSWorkspace.shared.frontmostApplication?.processIdentifier
-    guard window("Yonda · 圈选提问") == nil else { fail(18, "selection-overlay-opened") }
-    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "pet_entry_denied": true, "selection_overlay_opened": false, "pointer_unchanged": pointerUnchanged, "focus_unchanged": focusUnchanged, "error": "desktop-control-active"], options: [.prettyPrinted, .sortedKeys])
-    print(String(data: data, encoding: .utf8)!)
-    exit(0)
-}
-if ProcessInfo.processInfo.environment["YONDA_EXPECT_TRAY_DESKTOP_ACTIVE"] == "1" {
-    let pointerBefore = CGEvent(source: nil)?.location
-    let frontmostBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier
-    guard let tray = statusItem(ax), AXUIElementPerformAction(tray, "AXPress" as CFString) == .success || click(tray) else { fail(27, "tray-unavailable") }
-    Thread.sleep(forTimeInterval: 0.3)
-    guard press("圈选提问（预览）"), wait(3, { find(ax, "Agent 正在控制桌面，暂不能圈选。") != nil }), let feedback = window("Yonda · 圈选提问"), let feedbackRect = rect(feedback) else { fail(28, "tray-entry-not-denied") }
-    if let pointerBefore { CGWarpMouseCursorPosition(pointerBefore); Thread.sleep(forTimeInterval: 0.1) }
-    let pointerUnchanged = pointerBefore == CGEvent(source: nil)?.location
-    let focusUnchanged = frontmostBefore == NSWorkspace.shared.frontmostApplication?.processIdentifier
-    guard (430...450).contains(Int(feedbackRect.width)), (230...250).contains(Int(feedbackRect.height)), pressButton("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(29, "tray-feedback-not-cleared") }
-    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "tray_entry_denied": true, "selection_overlay_opened": false, "feedback_points": [Int(feedbackRect.width), Int(feedbackRect.height)], "pointer_unchanged": pointerUnchanged, "focus_unchanged": focusUnchanged, "error": "desktop-control-active"], options: [.prettyPrinted, .sortedKeys])
-    print(String(data: data, encoding: .utf8)!)
-    exit(0)
+if let entry = ProcessInfo.processInfo.environment["YONDA_EXPECT_DESKTOP_PAUSE"] {
+    guard entry == "pet" || entry == "tray" else { fail(79, "desktop-pause-entry-invalid") }
+    let opened: Bool
+    if entry == "pet" {
+        opened = wait(3, { find(ax, "圈选提问") != nil }) && press("圈选提问")
+    } else {
+        guard let tray = statusItem(ax), AXUIElementPerformAction(tray, "AXPress" as CFString) == .success || click(tray) else { fail(80, "desktop-pause-tray-unavailable") }
+        Thread.sleep(forTimeInterval: 0.3); opened = press("圈选提问（预览）")
+    }
+    guard opened, wait(8, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(81, "desktop-pause-overlay-missing") }
+    escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(82, "desktop-pause-overlay-not-cleared") }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "entry": entry, "selection_overlay_opened": true, "cleared": true], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
 }
 if ProcessInfo.processInfo.environment["YONDA_PHYSICAL_TOOLBAR_CANCEL"] == "1" {
     for attempt in 1...6 {

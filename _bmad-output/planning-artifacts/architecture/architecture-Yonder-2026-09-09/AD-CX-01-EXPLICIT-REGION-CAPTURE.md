@@ -35,3 +35,9 @@ Yonder如何支持用户在Windows/macOS当前屏幕上圈选一块区域并交�
 用户要求先在 macOS 测试“圈选提问”。据已有单显示器、权限拒绝与清场证据，接受一个受限 Preview：仅当前显示器、显式入口、短生命选择层、临时内存截图、Esc/取消清理和确认卡。Preview 不持久化截图或问题、不自动向 Agent 提交、不在无 AgentSession 时伪造送达，也不支持副屏、跨显示器、运行中撤权或 Windows。
 
 提交到 Agent、原始截图文件、跨显示器和 Windows 必须在各自统一样本、AG-S5 确认通道与后续 Change 通过后另行启用。此决定不授权常驻指针模式或 Record/Replay。
+
+## 2026-09-20 CUA暂停接线定稿
+
+macOS圈选入口复用Accepted AD-TM-08的普通用户输入停止语义。可信Desktop宿主从唯一`Admission`取得当前持有`Resource::Desktop`的任务标识，在同一宿主串行化边界内读取SQLite当前任务与attempt，提交`ControlKind::Pause`。若attempt已经普通stopped则控制事务直接暂停；若动作已返回且Observe有效但尚未推进，宿主在同一临界区确认步骤边界停止。只有paused事实、事件与Outbox提交成功并释放桌面租约后才能创建选择层。
+
+该入口不使用takeover，不定位窗口、不启动Recording、不设置桌面接管闸。prepared、unknown、身份/序号冲突、存储失败或租约所有者缺失均失败关闭并保持选择层隐藏；不得轮询SQLite等待停止、不得仅因窗口隐藏或Worker退出宣称暂停。没有桌面租约时直接进入既有圈选流程。该增量不改变状态所有者、外部协议或持久化模型。

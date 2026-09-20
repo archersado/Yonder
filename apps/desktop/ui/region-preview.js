@@ -25,5 +25,5 @@
   resizeStroke(); addEventListener('resize', resizeStroke); addEventListener('keydown', event => { if (event.key==='Escape') { event.preventDefault(); close('escape'); } });
   addEventListener('yonda-region-open', () => { clear(); openedAt=Date.now(); resizeStroke(); selector.hidden=false; setMode('rect'); status.textContent='截图仅在本次发送期间保留。'; submitting(false); armTimeout(); });
   addEventListener('yonda-region-clear', clear);
-  addEventListener('yonda-region-error', event => { clear(); selector.hidden=true; review.hidden=false; status.textContent=event.detail==='desktop-control-active'?'Agent 正在控制桌面，暂不能圈选。':event.detail==='permission-required'?'需要允许屏幕录制后才能预览截图。':'圈选暂不可用，请稍后重试。'; });
+  addEventListener('yonda-region-error', event => { clear(); selector.hidden=true; review.hidden=false; status.textContent=event.detail==='desktop-stop-unconfirmed'?'当前任务结果待核实，暂不能圈选。':event.detail==='permission-required'?'需要允许屏幕录制后才能预览截图。':'圈选暂不可用，请稍后重试。'; });
 })();
