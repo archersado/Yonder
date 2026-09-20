@@ -14,6 +14,10 @@ Accepted AD-CX-01 只授权 macOS Preview 使用`idle → selecting → capturin
 
 Preview 进入`selecting`前只读检查CUA前台租约；租约已占用时返回`desktop-control-active`并保持`idle`，不显示覆盖层，也不调用CUA Driver。该拒绝只验证 CX2-07 的“不争夺指针”部分；完整 Story 的“先暂停任务”仍须在后续 Change 接入既有用户输入停止语义后验证。
 
+### Agent 临时附件候选
+
+现有`agent.input`仅承载有界文字，不能内嵌截图或发送本机路径。Proposed AD-CX-02候选在同一已认证`AgentSession`上先传输单个不超过4 MiB的会话级附件，再由`agent.input`引用其`attachment_id`。本地与云端共用Rust协议、64 KiB帧上限、哈希校验、deadline和清理语义；任务库、事件、Outbox和日志不保存截图、正文或哈希。隔离Spike通过前不进入产品协议与确认卡。
+
 ## 双平台原生路线
 
 使用系统原生显示器、缩放和截图能力；覆盖层仅在显式圈选期间存在，不迁移参考插件的Electron全屏模式和`ptrtap`常驻进程。全局快捷键优先使用系统注册热键，不以持续输入监听实现。
