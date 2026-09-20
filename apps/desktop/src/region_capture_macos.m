@@ -14,12 +14,23 @@ char *yonda_region_capture(int x, int y, int width, int height) {
     }];
     if (dispatch_semaphore_wait(completed, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)) != 0) return NULL;
     if (!image) return NULL;
+    // Normalize to 8-bit sRGB so the WebKit preview can always decode it.
+    size_t imageWidth = CGImageGetWidth(image), imageHeight = CGImageGetHeight(image);
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = colorSpace ? CGBitmapContextCreate(NULL, imageWidth, imageHeight, 8, imageWidth * 4,
+        colorSpace, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big) : NULL;
+    CGColorSpaceRelease(colorSpace);
+    if (!context) { CGImageRelease(image); return NULL; }
+    CGContextDrawImage(context, CGRectMake(0, 0, imageWidth, imageHeight), image);
+    CGImageRef normalized = CGBitmapContextCreateImage(context);
+    CGContextRelease(context); CGImageRelease(image);
+    if (!normalized) return NULL;
     NSMutableData *png = [NSMutableData data];
     CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)png, CFSTR("public.png"), 1, NULL);
-    if (!destination) { CGImageRelease(image); return NULL; }
-    CGImageDestinationAddImage(destination, image, NULL);
+    if (!destination) { CGImageRelease(normalized); return NULL; }
+    CGImageDestinationAddImage(destination, normalized, NULL);
     BOOL written = CGImageDestinationFinalize(destination);
-    CFRelease(destination); CGImageRelease(image);
+    CFRelease(destination); CGImageRelease(normalized);
     if (!written || png.length == 0) return NULL;
     NSString *encoded = [png base64EncodedStringWithOptions:0];
     return encoded ? strdup(encoded.UTF8String) : NULL;

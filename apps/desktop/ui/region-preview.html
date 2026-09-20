@@ -1,5 +1,5 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Yonda · 圈选提问</title><link rel="stylesheet" href="region-preview.css" /><script src="region-preview.js" defer></script></head>
-<body><main id="selector" aria-label="圈选提问"><p>拖动鼠标圈选内容，按 Esc 取消</p><div id="selection" hidden></div></main>
-<section id="review" hidden aria-labelledby="review-title"><article><button id="close" aria-label="关闭">×</button><small>YONDA · 圈选提问</small><h1 id="review-title">已截取选区</h1><img id="preview" alt="所选屏幕区域预览" /><p id="status">仅在本机内存预览；发送给 Agent 的功能待接入。</p><button id="again">重新圈选</button></article></section></body></html>
+<body><main id="selector" aria-label="圈选提问"><div id="toolbar" role="group" aria-label="选择方式"><button id="rect-mode" aria-pressed="true"><i aria-hidden="true">□</i>框选</button><button id="stroke-mode" aria-pressed="false"><i aria-hidden="true">〰</i>画圈</button><span id="hint">拖动选择内容</span><button id="toolbar-cancel" aria-label="取消圈选">×</button></div><div id="selection" hidden></div><svg id="stroke" hidden aria-hidden="true"><polyline /></svg></main>
+<section id="review" hidden aria-labelledby="review-title"><article><button id="close" aria-label="关闭">×</button><img id="preview" alt="所选屏幕区域预览" /><small>YONDA · 圈选提问</small><h1 id="review-title">已截取选区</h1><p id="status">仅在本机内存预览；发送给 Agent 的功能待接入。</p><button id="again">重新圈选</button><button id="cancel">取消</button></article></section></body></html>
