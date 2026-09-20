@@ -1,4 +1,4 @@
-use std::{ffi::{c_char, CStr}, sync::{Arc, Mutex}};
+use std::{ffi::{c_char, CStr}, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
 use serde::Deserialize;
 use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
 use yonder_desktop::TaskHost;
@@ -9,6 +9,25 @@ struct TaskState(Arc<Mutex<Option<TaskHost>>>);
 struct PreviewState(Mutex<yonder_application::region_preview::Session>);
 const REGION_PREVIEW_TITLE: &str = "Yonda · 圈选提问";
 const REGION_PREVIEW_CLEAN_TITLE: &str = "Yonda · 圈选提问 [idle image=0 selection=0 stroke=0]";
+
+fn region_preview_clean_title(reason: Option<&str>, event_at_ms: Option<u64>) -> String {
+    let reason = match reason {
+        Some("escape") => "escape", Some("toolbar-cancel") => "toolbar-cancel", Some("review-cancel") => "review-cancel",
+        Some("timeout") => "timeout", _ => "close",
+    };
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |value| value.as_millis() as u64);
+    format!("Yonda · 圈选提问 [idle image=0 selection=0 stroke=0 reason={reason} latency_ms={}]", event_at_ms.map_or(0, |at| now.saturating_sub(at)))
+}
+
+#[cfg(test)]
+mod preview_title_tests {
+    use super::*;
+    #[test]
+    fn cleanup_reason_is_bounded() {
+        assert!(region_preview_clean_title(Some("escape"), None).contains("reason=escape"));
+        assert!(region_preview_clean_title(Some("untrusted"), None).contains("reason=close"));
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,10 +70,11 @@ fn region_preview_hide_for_capture(window: WebviewWindow) -> Result<(), String> 
 }
 
 #[tauri::command]
-fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>) -> Result<(), String> {
+fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>, reason: Option<String>, event_at_ms: Option<u64>) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
     preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
-    window.set_title(REGION_PREVIEW_CLEAN_TITLE).and_then(|_| window.eval("window.dispatchEvent(new Event('yonda-region-clear'))")).and_then(|_| window.hide()).map_err(|_| "preview-unavailable".into())
+    let title = region_preview_clean_title(reason.as_deref(), event_at_ms);
+    window.eval("window.dispatchEvent(new Event('yonda-region-clear'))").and_then(|_| window.hide()).and_then(|_| window.set_title(&title)).map_err(|_| "preview-unavailable".into())
 }
 
 #[tauri::command]
