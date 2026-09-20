@@ -52,9 +52,9 @@
     "idle_screenshot_activity_count": 0
   },
   "environment": {
-    "implementation_commit": "401f0a490fb2b5172e37c472b20cce4f073a3118",
+    "implementation_commit": "291c5e7",
     "bundle_id": "com.yonder.desktop",
-    "binary_sha256": "0732fc6056ac85d948401e830d6492c6bf6a3292c15c38bb3f97d10903f83875",
+    "binary_sha256": "8d144426f9106f48e807b0cffca7d725c574aef542a953511fd89f1187168442",
     "macos_version": "26.5.1 (25F80)",
     "display_resolution_pixels": [
       2880,
@@ -63,7 +63,7 @@
     "display_scale": 2.0,
     "display_count": 1,
     "child_processes_idle": 0,
-    "verification_harness_commit": "401f0a490fb2b5172e37c472b20cce4f073a3118"
+    "verification_harness_commit": "b4eecd1da8a4e66939ae5c38777e334b7a383066"
   },
   "successful_capture": {
     "png_bytes": 19043,
@@ -124,8 +124,9 @@
     "selecting": {
       "passed": true,
       "attempt": 1,
-      "observed_seconds_from_ready": 2.49297629162902,
-      "close_latency_ms": 5,
+      "observed_seconds_from_ready": 6.3369027500157245,
+      "hide_completed_latency_ms": 3,
+      "pointer_delta_points": 0,
       "pointer_restored": true,
       "reopen_without_old_preview": true,
       "application_phase": "idle",
@@ -136,8 +137,9 @@
     "reviewing": {
       "passed": true,
       "attempt": 1,
-      "observed_seconds_from_ready": 4.670423791685607,
-      "close_latency_ms": 1,
+      "observed_seconds_from_ready": 1.1076070417184383,
+      "hide_completed_latency_ms": 2,
+      "pointer_delta_points": 0,
       "pointer_restored": true,
       "reopen_without_old_preview": true,
       "application_phase": "idle",
