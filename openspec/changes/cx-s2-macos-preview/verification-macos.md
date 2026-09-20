@@ -48,6 +48,7 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 - 2026-09-20：正式 macOS Preview 真实运行，框选、笔画、确认卡 440×560 点、取消清场、选择层/确认卡 Esc 清场，以及选择层 30.264 秒超时清场均通过；用户随后手工复核确认卡超时通过。见 `apps/desktop/evidence/cx-s2-region-preview-macos-20260920/result.json`。证据不含截图正文。
 - 2026-09-20：临时 bundle `com.yonder.desktop.cx2.permissioncheck` 未获屏幕录制权限时，用户小范围圈选后确认界面显示稳定错误 `permission-required` 对应文案“需要允许屏幕录制后才能预览截图”，不再误报通用截图错误。该项只通过权限反馈子判据；权限行的数据清理和文件边界仍待独立验证者复跑。
 - 2026-09-20：通过正式 UDS Gateway 和 CUA SDK 建立真实 Desktop 租约；小龙入口与菜单栏入口均显示 `desktop-control-active` 对应文案，未打开选择层。验证任务哈希见结构化证据；全程仅有建立租约所需的 1 个 CUA attempt，两个 Preview 请求未新增动作，任务随后完成至 sequence 6，并清理 Observe 截图。此前两次建立租约被真实用户输入中断，系统按设计转为 `interrupted/user-input`，未用于通过结论。
+- 2026-09-20：正式实例再次完整复跑成功路径，框选、画圈、取消、两阶段Esc及30.287秒选择层超时全部通过；小龙和菜单栏正常入口均可打开并取消。前后任务129、事件1131、Outbox1131、Attempt225均不变，应用数据目录文件清单SHA-256均为`ccb5c9bba830d4b1a9317fd6cdf122f73e0b9ce97d1a5967a99ee6c9bf1916b3`，截图文件前后均为0。
 - `cargo check -p yonder-desktop` 通过。
 - `python3 scripts/check_architecture.py` 与 `git diff --check` 通过。
 - `cargo test -p yonder-application admission::tests --lib` 通过。

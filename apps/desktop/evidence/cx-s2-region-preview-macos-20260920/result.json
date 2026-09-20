@@ -22,6 +22,25 @@
     "final_sequence": 6,
     "screenshot_files_remaining": 0
   },
+  "normal_entry": {
+    "pet_opened_and_cleared": true,
+    "tray_opened_and_cleared": true
+  },
+  "data_boundary": {
+    "tasks_before": 129,
+    "tasks_after": 129,
+    "events_before": 1131,
+    "events_after": 1131,
+    "outbox_before": 1131,
+    "outbox_after": 1131,
+    "attempts_before": 225,
+    "attempts_after": 225,
+    "file_manifest_before_sha256": "ccb5c9bba830d4b1a9317fd6cdf122f73e0b9ce97d1a5967a99ee6c9bf1916b3",
+    "file_manifest_after_sha256": "ccb5c9bba830d4b1a9317fd6cdf122f73e0b9ce97d1a5967a99ee6c9bf1916b3",
+    "screenshot_files_before": 0,
+    "screenshot_files_after": 0,
+    "selection_timeout_seconds": 30.287
+  },
   "overlay_points": [1710, 1009],
   "review_points": [440, 560],
   "screenshots_saved": false

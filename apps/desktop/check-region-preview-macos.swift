@@ -67,8 +67,10 @@ guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(
 guard overlayRect.width > 800, overlayRect.height > 500 else { exit(4) }
 Thread.sleep(forTimeInterval: 0.45) // 启动点击不能穿透为一次选择。
 drag([CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180), CGPoint(x: overlayRect.minX + 360, y: overlayRect.minY + 280)])
-guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }),
+let firstReviewTimeout = ProcessInfo.processInfo.environment["YONDA_STOP_AFTER_FIRST_REVIEW"] == "1" ? 15.0 : 5.0
+guard wait(firstReviewTimeout, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }),
       let review = window("Yonda · 圈选提问"), let reviewRect = rect(review) else { exit(5) }
+if ProcessInfo.processInfo.environment["YONDA_STOP_AFTER_FIRST_REVIEW"] == "1" { exit(0) }
 guard wait(3, { find(ax, "重新圈选") != nil }), press("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }), wait(3, { find(ax, "画圈") != nil }), press("画圈") else { exit(6) }
 guard let strokeOverlay = window("Yonda · 圈选提问"), let strokeRect = rect(strokeOverlay) else { exit(7) }
 drag([CGPoint(x: strokeRect.minX + 180, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 260, y: strokeRect.minY + 220), CGPoint(x: strokeRect.minX + 340, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 420, y: strokeRect.minY + 250)])
