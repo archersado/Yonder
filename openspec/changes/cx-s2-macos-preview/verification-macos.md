@@ -5,7 +5,7 @@
 
 ## 复核结论
 
-Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、协议或持久化。Application 现在持有临时会话与截图生命周期，关闭和重新圈选会清零截图；确认卡明确换算为 440×560 点。2026-09-20 实施自测已验证框选、笔画、确认卡和取消清场，见下方证据。Esc、超时、权限拒绝、CUA租约拒绝和数据清理矩阵仍须由独立验证者复跑，当前不得 Archive。
+Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、协议或持久化。Application 持有临时会话与截图生命周期，关闭和重新圈选会清零截图；确认卡明确换算为 440×560 点。2026-09-20 已取得框选、笔画、确认卡、双阶段Esc、取消、双阶段超时、权限拒绝、CUA租约拒绝和数据边界的结构化证据。首次独立复核因证据字段不足返回FAIL；现已补齐并修复确认卡计时与租约拒绝卡抢焦点，等待独立验证者复核提交`351ed50443bb9c68a8afa6f322631b82bf9cd581`，当前不得 Archive。
 
 ## 需求摘要与 Preview 验收映射
 
@@ -49,6 +49,7 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 - 2026-09-20：临时 bundle `com.yonder.desktop.cx2.permissioncheck` 未获屏幕录制权限时，用户小范围圈选后确认界面显示稳定错误 `permission-required` 对应文案“需要允许屏幕录制后才能预览截图”，不再误报通用截图错误。该项只通过权限反馈子判据；权限行的数据清理和文件边界仍待独立验证者复跑。
 - 2026-09-20：通过正式 UDS Gateway 和 CUA SDK 建立真实 Desktop 租约；小龙入口与菜单栏入口均显示 `desktop-control-active` 对应文案，未打开选择层。验证任务哈希见结构化证据；全程仅有建立租约所需的 1 个 CUA attempt，两个 Preview 请求未新增动作，任务随后完成至 sequence 6，并清理 Observe 截图。此前两次建立租约被真实用户输入中断，系统按设计转为 `interrupted/user-input`，未用于通过结论。
 - 2026-09-20：正式实例再次完整复跑成功路径，框选、画圈、取消、两阶段Esc及30.287秒选择层超时全部通过；小龙和菜单栏正常入口均可打开并取消。前后任务129、事件1131、Outbox1131、Attempt225均不变，应用数据目录文件清单SHA-256均为`ccb5c9bba830d4b1a9317fd6cdf122f73e0b9ce97d1a5967a99ee6c9bf1916b3`，截图文件前后均为0。
+- 2026-09-20：补充结构化取证：成功预览PNG为360×200、19,505字节；选择层/确认卡Esc分别在0.354/0.319秒清场且指针恢复，重开无旧预览；确认卡自身超时30.167秒。真实CUA租约期间，小龙与菜单栏入口均返回`desktop-control-active`，无选择层，焦点与指针不变；任务在两次Preview请求前后均保持`running/sequence 5`，之后正常完成至sequence 6。
 - `cargo check -p yonder-desktop` 通过。
 - `python3 scripts/check_architecture.py` 与 `git diff --check` 通过。
 - `cargo test -p yonder-application admission::tests --lib` 通过。
@@ -57,7 +58,7 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 
 ## 风险、阻塞与延期
 
-- 阻塞：完整独立验证矩阵尚未复跑；权限拒绝的数据清理、全路径前后计数与文件边界仍不能仅凭实现代码判定通过。
+- 阻塞：修订后的固定提交尚未由非实现者复跑；物理Esc仍需独立验证者确认，现有结构化数据来自CGHID级按键事件。
 - 风险：macOS TCC按bundle身份授权；拒绝测试若复用正式身份会污染用户权限。必须使用临时身份，禁止自动执行`tccutil reset`。
 - 已收口：权限拒绝会在确认卡显示稳定错误分类，不依赖stderr；两入口一致性仍由独立验证复跑。
 - 延期：Agent发送、文字/语音降级、暂停CUA、多显示器/负坐标、显示器变化、运行中撤权、进程崩溃恢复、快捷键和Windows；这些不影响本Preview验证，也不得标记CX-S2完整Story完成。
