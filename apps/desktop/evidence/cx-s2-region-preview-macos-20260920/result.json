@@ -12,7 +12,7 @@
   "review_timeout_seconds": 30.167,
   "permission_feedback_manual": true,
   "permission_error": "permission-required",
-  "permission_bundle_id": "com.yonder.desktop.cx2.permissioncheck3",
+  "permission_bundle_id": "com.yonder.desktop.cx2.permissioncheck4",
   "permission_requested": false,
   "permission_window_cleared": true,
   "permission_thumbnail_present": false,
@@ -31,7 +31,10 @@
     "pet_focus_unchanged": true,
     "pet_pointer_unchanged": true,
     "tray_selection_overlay_opened": false,
-    "tray_feedback_points": [434, 236],
+    "tray_feedback_points": [
+      434,
+      236
+    ],
     "tray_focus_unchanged": true,
     "tray_pointer_unchanged": true,
     "final_status": "completed",
@@ -39,23 +42,39 @@
     "screenshot_files_remaining": 0
   },
   "normal_entry": {
-    "pet_opened_and_cleared": true,
-    "tray_opened_and_cleared": true
+    "entry_names": [
+      "圈选提问",
+      "圈选提问（预览）"
+    ],
+    "pet_window_count": 1,
+    "tray_window_count": 1,
+    "both_cleared": true,
+    "idle_screenshot_activity_count": 0
   },
   "environment": {
-    "implementation_commit": "351ed50443bb9c68a8afa6f322631b82bf9cd581",
+    "implementation_commit": "9b00281d303dc2c08a9732f8e58f4f67fb4cb8fd",
     "bundle_id": "com.yonder.desktop",
-    "binary_sha256": "b3f113bac36cd91ff8e841219a6321f86cca4185ea22aa62fcf13616dc1a246e",
+    "binary_sha256": "7c6b117b9688622e553dd1d8000ea6bea946182358aba3e5e77717e74b5e7480",
     "macos_version": "26.5.1 (25F80)",
-    "display_resolution_pixels": [2880, 1864],
+    "display_resolution_pixels": [
+      2880,
+      1864
+    ],
     "display_scale": 2.0,
     "display_count": 1,
-    "child_processes_idle": 0
+    "child_processes_idle": 0,
+    "verification_harness_commit": "8f06b367f0733e9cfa1d587b3dc883d677914e6b"
   },
   "successful_capture": {
-    "png_bytes": 19505,
-    "png_pixels": [360, 200],
-    "review_points": [440, 560],
+    "png_bytes": 2636,
+    "png_pixels": [
+      360,
+      200
+    ],
+    "review_points": [
+      440,
+      560
+    ],
     "review_controls_present": true
   },
   "escape_cleanup": {
@@ -72,23 +91,165 @@
   "toolbar_cancel_clears": true,
   "review_cancel_clears": true,
   "data_boundary": {
-    "tasks_before": 129,
-    "tasks_after": 129,
-    "events_before": 1131,
-    "events_after": 1131,
-    "outbox_before": 1131,
-    "outbox_after": 1131,
-    "attempts_before": 225,
-    "attempts_after": 225,
+    "tasks_before": 134,
+    "tasks_after": 134,
+    "events_before": 1161,
+    "events_after": 1161,
+    "outbox_before": 1161,
+    "outbox_after": 1161,
+    "attempts_before": 230,
+    "attempts_after": 230,
     "index_tables_before": 0,
     "index_tables_after": 0,
-    "file_manifest_before_sha256": "ccb5c9bba830d4b1a9317fd6cdf122f73e0b9ce97d1a5967a99ee6c9bf1916b3",
-    "file_manifest_after_sha256": "ccb5c9bba830d4b1a9317fd6cdf122f73e0b9ce97d1a5967a99ee6c9bf1916b3",
+    "file_manifest_before_sha256": "30c150e20cf3250ca2a1f9ca77ff497687b2b44e49c8e75125db213a2328150a",
+    "file_manifest_after_sha256": "30c150e20cf3250ca2a1f9ca77ff497687b2b44e49c8e75125db213a2328150a",
     "screenshot_files_before": 0,
     "screenshot_files_after": 0,
-    "selection_timeout_seconds": 30.287
+    "base64_log_files_before": 0,
+    "base64_log_files_after": 0,
+    "unchanged": true
   },
-  "overlay_points": [1710, 1009],
-  "review_points": [440, 560],
-  "screenshots_saved": false
+  "overlay_points": [
+    1710,
+    1009
+  ],
+  "review_points": [
+    440,
+    560
+  ],
+  "screenshots_saved": false,
+  "verification_status": "awaiting-independent-review",
+  "formal_permission_unchanged_after_isolated_denial": true,
+  "physical_escape_cleanup": {
+    "selecting": {
+      "passed": true,
+      "attempt": 2,
+      "seconds": 4.633564416668378,
+      "pointer_restored": true,
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "reviewing": {
+      "passed": true,
+      "attempt": 1,
+      "seconds": 3.136511874967255,
+      "pointer_restored": true,
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    }
+  },
+  "toolbar_cancel": {
+    "passed": true,
+    "seconds": 14.670546291628852,
+    "application_phase": "idle",
+    "image_bytes": 0,
+    "selection_bytes": 0,
+    "stroke_bytes": 0
+  },
+  "review_cancel": {
+    "passed": true,
+    "application_phase": "idle",
+    "image_bytes": 0,
+    "selection_bytes": 0,
+    "stroke_bytes": 0
+  },
+  "selection_timeout": {
+    "passed": true,
+    "seconds": 30.191731999977492,
+    "application_phase": "idle",
+    "image_bytes": 0,
+    "selection_bytes": 0,
+    "stroke_bytes": 0
+  },
+  "review_timeout": {
+    "passed": true,
+    "seconds": 30.11474683333654,
+    "application_phase": "idle",
+    "image_bytes": 0,
+    "selection_bytes": 0,
+    "stroke_bytes": 0
+  },
+  "permission_cleanup": {
+    "passed": true,
+    "error": "permission-required",
+    "permission_requested": false,
+    "thumbnail_present": false,
+    "application_phase": "idle",
+    "image_bytes": 0,
+    "selection_bytes": 0,
+    "stroke_bytes": 0,
+    "boundary_unchanged": true
+  },
+  "cleanup_paths": {
+    "pet-entry": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "tray-entry": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "review-cancel": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "toolbar-cancel": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "physical-escape-selecting": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "physical-escape-reviewing": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "selection-timeout": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "review-timeout": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "permission-denied": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "cua-pet-denied": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    },
+    "cua-tray-denied": {
+      "application_phase": "idle",
+      "image_bytes": 0,
+      "selection_bytes": 0,
+      "stroke_bytes": 0
+    }
+  }
 }
