@@ -2,7 +2,7 @@
 
 Story: TM-S5
 Epic: TM
-Status: design-review
+Status: implementing
 OpenSpec: tm-s5-readonly-timeline
 
 ## 设计文档

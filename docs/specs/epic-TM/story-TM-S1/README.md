@@ -2,7 +2,7 @@
 
 Story: TM-S1
 Epic: TM
-Status: design-review
+Status: implementing
 OpenSpec: oct-s1-task-status
 
 2026-09-18 增加 `tm-s1-agent-wait-for-user` 子范围：按 Accepted AD-TM-10 将安全步骤边界的 Agent 等待请求接入协议 1.17，持久化等待原因并驱动既有桌宠状态；不实现 Resume。
