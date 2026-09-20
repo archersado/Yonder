@@ -41,6 +41,11 @@ func drag(_ points: [CGPoint]) {
     for point in points.dropFirst() { CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap); Thread.sleep(forTimeInterval: 0.04) }
     CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: last, mouseButton: .left)?.post(tap: .cghidEventTap)
 }
+func escape() {
+    let source = CGEventSource(stateID: .hidSystemState)
+    CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)
+    CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: false)?.post(tap: .cghidEventTap)
+}
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
 
@@ -54,6 +59,20 @@ guard wait(3, { find(ax, "重新圈选") != nil }), press("重新圈选"), wait(
 guard let strokeOverlay = window("Yonda · 圈选提问"), let strokeRect = rect(strokeOverlay) else { exit(7) }
 drag([CGPoint(x: strokeRect.minX + 180, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 260, y: strokeRect.minY + 220), CGPoint(x: strokeRect.minX + 340, y: strokeRect.minY + 180), CGPoint(x: strokeRect.minX + 420, y: strokeRect.minY + 250)])
 guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width < strokeRect.width && $0.height < strokeRect.height } ?? false }), wait(3, { find(ax, "取消") != nil }), press("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(8) }
-let result: [String: Any] = ["passed": true, "overlay": [Int(overlayRect.width), Int(overlayRect.height)], "review": [Int(reviewRect.width), Int(reviewRect.height)], "rectangle": true, "stroke": true, "cancel_clears": true, "screenshots_saved": false]
+guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { exit(9) }
+escape()
+guard wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(10) }
+guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let escapeOverlay = window("Yonda · 圈选提问"), let escapeRect = rect(escapeOverlay) else { exit(11) }
+Thread.sleep(forTimeInterval: 0.45)
+drag([CGPoint(x: escapeRect.minX + 180, y: escapeRect.minY + 180), CGPoint(x: escapeRect.minX + 360, y: escapeRect.minY + 280)])
+guard wait(5, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }) else { exit(12) }
+escape()
+guard wait(3, { window("Yonda · 圈选提问") == nil }) else { exit(13) }
+guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { exit(14) }
+let timeoutStarted = ProcessInfo.processInfo.systemUptime
+guard wait(32, { window("Yonda · 圈选提问") == nil }) else { exit(15) }
+let timeoutElapsed = ProcessInfo.processInfo.systemUptime - timeoutStarted
+guard timeoutElapsed >= 30 && timeoutElapsed <= 32 else { exit(16) }
+let result: [String: Any] = ["passed": true, "overlay": [Int(overlayRect.width), Int(overlayRect.height)], "review": [Int(reviewRect.width), Int(reviewRect.height)], "rectangle": true, "stroke": true, "cancel_clears": true, "escape_selecting_clears": true, "escape_reviewing_clears": true, "selection_timeout_seconds": timeoutElapsed, "screenshots_saved": false]
 let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
 print(String(data: data, encoding: .utf8)!)
