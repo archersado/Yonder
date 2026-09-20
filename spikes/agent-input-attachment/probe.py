@@ -28,14 +28,20 @@ class Receiver:
             raise Rejected("frame-too-large")
 
     def begin(self, session, attachment, size, digest, deadline):
-        self._frame({"kind": "begin", "session": session, "attachment": attachment,
-                     "mime": "image/png", "bytes": size, "sha256": digest, "deadline": deadline})
-        if not 0 < size <= MAX_ATTACHMENT_BYTES:
-            raise Rejected("attachment-too-large")
-        self.pending[(session, attachment)] = {
-            "size": size, "digest": digest, "deadline": deadline,
-            "next": 0, "data": bytearray(), "ready": False,
-        }
+        try:
+            self._frame({"kind": "begin", "session": session, "attachment": attachment,
+                         "mime": "image/png", "bytes": size, "sha256": digest, "deadline": deadline})
+            if not 0 < size <= MAX_ATTACHMENT_BYTES:
+                raise Rejected("attachment-too-large")
+            if any(key[0] == session for key in self.pending):
+                raise Rejected("attachment-in-progress")
+            self.pending[(session, attachment)] = {
+                "size": size, "digest": digest, "deadline": deadline,
+                "next": 0, "data": bytearray(), "ready": False,
+            }
+        except Rejected:
+            self.disconnect(session)
+            raise
 
     def chunk(self, session, attachment, sequence, raw):
         key = (session, attachment)
@@ -68,13 +74,17 @@ class Receiver:
             self.pending.pop(key, None)
             raise
 
-    def consume(self, session, attachment):
+    def complete_input(self, session, attachment, outcome):
         key = (session, attachment)
         state = self.pending.get(key)
-        self._frame({"kind": "input", "session": session, "attachment": attachment})
-        if state is None or not state["ready"]:
-            raise Rejected("attachment-unavailable")
-        self.pending.pop(key)
+        try:
+            self._frame({"kind": "input", "session": session, "attachment": attachment})
+            if state is None or not state["ready"]:
+                raise Rejected("attachment-unavailable")
+            if outcome not in {"accepted", "rejected", "unknown"}:
+                raise Rejected("invalid-outcome")
+        finally:
+            self.pending.pop(key, None)
 
     def expire(self, now):
         self.pending = {key: value for key, value in self.pending.items() if value["deadline"] > now}
@@ -93,7 +103,7 @@ def transfer(receiver, session, attachment, data, deadline=1000, digest=None):
         receiver.chunk(session, attachment, chunks, data[offset:offset + CHUNK_BYTES])
         chunks += 1
     receiver.finish(session, attachment)
-    receiver.consume(session, attachment)
+    receiver.complete_input(session, attachment, "accepted")
     return chunks
 
 
@@ -116,6 +126,23 @@ def main():
     oversize = rejected("attachment-too-large", lambda: receiver.begin(
         "session-a", "oversize", MAX_ATTACHMENT_BYTES + 1, "0" * 64, 1000))
 
+    receiver.begin("session-a", "first", 1, hashlib.sha256(b"x").hexdigest(), 1000)
+    second_begin = rejected("attachment-in-progress", lambda: receiver.begin(
+        "session-a", "second", 1, hashlib.sha256(b"y").hexdigest(), 1000))
+    second_begin_cleared = receiver.buffered_bytes() == 0
+
+    receiver.begin("session-a", "duplicate", 1, hashlib.sha256(b"x").hexdigest(), 1000)
+    receiver.chunk("session-a", "duplicate", 0, b"x")
+    duplicate_begin = rejected("attachment-in-progress", lambda: receiver.begin(
+        "session-a", "duplicate", 1, hashlib.sha256(b"x").hexdigest(), 1000))
+    duplicate_begin_cleared = receiver.buffered_bytes() == 0
+
+    receiver.begin("session-a", "before-oversize", 1, hashlib.sha256(b"x").hexdigest(), 1000)
+    receiver.chunk("session-a", "before-oversize", 0, b"x")
+    oversize_after_begin = rejected("attachment-too-large", lambda: receiver.begin(
+        "session-a", "oversize-after", MAX_ATTACHMENT_BYTES + 1, "0" * 64, 1000))
+    oversize_after_begin_cleared = receiver.buffered_bytes() == 0
+
     receiver.begin("session-a", "unordered", 2, hashlib.sha256(b"ab").hexdigest(), 1000)
     unordered = rejected("chunk-out-of-order", lambda: receiver.chunk("session-a", "unordered", 1, b"a"))
 
@@ -128,7 +155,7 @@ def main():
     receiver.begin("session-a", "isolated", len(isolated), hashlib.sha256(isolated).hexdigest(), 1000)
     receiver.chunk("session-a", "isolated", 0, isolated)
     receiver.finish("session-a", "isolated")
-    cross_session = rejected("attachment-unavailable", lambda: receiver.consume("session-b", "isolated"))
+    cross_session = rejected("attachment-unavailable", lambda: receiver.complete_input("session-b", "isolated", "accepted"))
     cross_session_preserved = receiver.buffered_bytes() == len(isolated)
     receiver.disconnect("session-a")
     owner_disconnect_cleared = receiver.buffered_bytes() == 0
@@ -143,10 +170,22 @@ def main():
     receiver.disconnect("session-a")
     disconnect_cleared = receiver.buffered_bytes() == 0
 
+    input_outcomes = {}
+    for outcome in ("rejected", "unknown"):
+        data = outcome.encode()
+        receiver.begin("session-a", outcome, len(data), hashlib.sha256(data).hexdigest(), 1000)
+        receiver.chunk("session-a", outcome, 0, data)
+        receiver.finish("session-a", outcome)
+        receiver.complete_input("session-a", outcome, outcome)
+        input_outcomes[outcome] = receiver.buffered_bytes() == 0
+
     result = {
-        "passed": all((oversize, unordered, hash_mismatch, cross_session, cross_session_preserved,
+        "passed": all((oversize, second_begin, second_begin_cleared, duplicate_begin,
+                       duplicate_begin_cleared, oversize_after_begin, oversize_after_begin_cleared,
+                       unordered, hash_mismatch, cross_session, cross_session_preserved,
                        owner_disconnect_cleared,
-                       timeout_cleared, disconnect_cleared, receiver.buffered_bytes() == 0,
+                       timeout_cleared, disconnect_cleared, *input_outcomes.values(),
+                       receiver.buffered_bytes() == 0,
                        receiver.largest_frame <= MAX_FRAME_BYTES)),
         "limits": {"frame_bytes": MAX_FRAME_BYTES, "attachment_bytes": MAX_ATTACHMENT_BYTES,
                    "chunk_bytes": CHUNK_BYTES},
@@ -157,9 +196,16 @@ def main():
         },
         "rejections": {"oversize": oversize, "out_of_order": unordered,
                        "hash_mismatch": hash_mismatch, "cross_session": cross_session,
-                       "cross_session_preserved_owner_attachment": cross_session_preserved},
+                       "cross_session_preserved_owner_attachment": cross_session_preserved,
+                       "second_begin": second_begin, "duplicate_begin": duplicate_begin,
+                       "oversize_after_begin": oversize_after_begin},
         "cleanup": {"timeout": timeout_cleared, "disconnect": disconnect_cleared,
                     "owner_disconnect_after_cross_session": owner_disconnect_cleared,
+                    "second_begin": second_begin_cleared,
+                    "duplicate_begin": duplicate_begin_cleared,
+                    "oversize_after_begin": oversize_after_begin_cleared,
+                    "input_rejected": input_outcomes["rejected"],
+                    "input_unknown": input_outcomes["unknown"],
                     "final_buffered_bytes": receiver.buffered_bytes()},
         "largest_frame_bytes": receiver.largest_frame,
         "contains_attachment_content": False,

@@ -17,12 +17,20 @@
     "out_of_order": true,
     "hash_mismatch": true,
     "cross_session": true,
-    "cross_session_preserved_owner_attachment": true
+    "cross_session_preserved_owner_attachment": true,
+    "second_begin": true,
+    "duplicate_begin": true,
+    "oversize_after_begin": true
   },
   "cleanup": {
     "timeout": true,
     "disconnect": true,
     "owner_disconnect_after_cross_session": true,
+    "second_begin": true,
+    "duplicate_begin": true,
+    "oversize_after_begin": true,
+    "input_rejected": true,
+    "input_unknown": true,
     "final_buffered_bytes": 0
   },
   "largest_frame_bytes": 64258,
