@@ -36,6 +36,14 @@ CGEventTap本身可用且无正文探针的容量/停止自检通过，但真实
 
 真实物理正样本三轮分别使用20ms与100ms关联窗：首轮3个CGEvent/1个IOHID标记但0关联，后两轮仍未稳定获得可关联硬件标记。IOHID时间关联无法在当前交付环境稳定证明用户来源，按淘汰门槛失败。纯CGEvent与IOHID关联两条候选均不得接产品；本AD继续Proposed，需重新定义可验证来源契约后才能开展隐私/持久化实现。
 
+## 2026-09-18 受控会话来源契约修订
+
+macOS 无法为每一条桌面事件提供可信的“物理用户”证明，因此不再把 Event Tap 或 IOHID 字段作为产品来源真相。显式接管成功后，Application 建立带 `task_id/control_id/sequence` 的单设备用户控制租约；Admission 在租约期间拒绝 Yonder 的 Agent CUA 与 Replay。原生 Adapter 只把发生在该租约内、已通过隐私门禁的事件上报为 `controlled_session_input`，已知 Agent/Replay 注入与租约外输入一律为 `external_unknown`。
+
+`controlled_session_input` 表示“用户显式接管期间的受控会话行为”，不表示可证明的物理用户来源。它可以作为交回 Agent 前的新鲜 Observe 的本地证据，但 RC-S2 不得据此自动 Replay；任何 Replay 仍需人工审阅、明确确认与独立来源/完整性门禁。密码框、系统安全界面、排除应用、队列溢出、Tap 失效和权限撤销继续只产生 `excluded/gap`，不会产生动作。
+
+本修订仍需在无正文 Spike 中验证：租约外完全静默、已知注入拒绝、隐私排除、停止后静默、队列溢出与权限中断均可观察。通过前不建立产品表、协议或桌宠录制状态；AD 保持 Proposed，Windows 按用户决定暂缓。
+
 ## 2026-09-17 用户控制租约语义定稿
 
 用户确认采用“用户控制租约”。`user`不再由不可靠的OS事件来源字段推断，而由Yonder控制平面的互斥边界定义：只有打包Task Space窗口调用专用本地`user_takeover`命令，宿主生成本次意图身份并在当前任务sequence上接受；Agent、CLI、Gateway及通用JSON查询不能声明该意图。takeover停止与定位完成后才可建立单设备`user_control`租约。
