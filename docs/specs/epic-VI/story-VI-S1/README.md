@@ -2,7 +2,7 @@
 
 Story: VI-S1  
 Epic: VI  
-Status: design-review  
+Status: implementing
 OpenSpec: vi-s1-voice-input-spike
 
 ## 设计文档
