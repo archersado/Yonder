@@ -1,16 +1,35 @@
 # 独立 Verification Goal：EN-S1 模块规划与设计门禁
 
-关联 EN-S1、AD-DEV-01、development-fence 场景。环境：macOS 本机 Python 标准库与现有 Cargo 工具链。状态：本地结构与门禁验证通过，待审阅，不 Archive。
+关联 EN-S1、AD-DEV-01、development-fence 场景。
+
+Result: FAIL
+Verifier: 架构设计师（独立议题 ARCH-208）
+Verified-At: 2026-09-20T12:07:54+08:00
+Verified-Commit: 7b73851a16e8eb9427c36009dede652375af7e48
+Environment: macOS 本机、Python 标准库、现有 Cargo 工具链
+
+本轮不宣称远端 Windows/macOS CI 已运行。结构检查只能验证目录和关联，不能证明设计质量。由于归档模拟失败，本 Story 返回实施阶段，不得 Archive。
 
 ## 验证目标
 
-检查 12 个模块 Epic、19 个 Story、每 Story 四份必需文档；七份旧 Story 迁移且保留历史正文；暂停菜单/密钥不被恢复。验证门禁拒绝缺失或空设计、错配模块、未就绪 Story、旧目录绕过、不完整 OpenSpec 和错误双向关联。
+检查当前 13 个模块 Epic、34 个 Story 及每个 Story 的四份必需文档；验证真实 EN-S1 关联的接受与拒绝路径；确认 Change 归档后仍满足规划门禁。
 
-## 证据与限制
+## 证据与结果
 
-- `python3 -m unittest discover -s scripts -p 'test_*.py' -v`：15 项通过，0 失败，0.043 秒。
-- `PATH=/Users/archersado/.cargo/bin:$PATH python3 scripts/check_architecture.py`：真实 Workspace 依赖和全量规划检查通过。
-- 使用真实 PR 模板与仓库路径调用 check_pr：EN-S1 / module-epic-story-fence / 本验证文件关联通过。
-- 12 个 Epic、19 个 Story，四份文档齐全；7 个历史正文位于对应 legacy-record.md，旧文件改为跳转。新规划不再引用月度 Epic 为实施入口。
+- `python3 -m unittest discover -s scripts -p 'test_*.py' -v`：15 项通过，0 失败，耗时 0.052 秒。
+- `PATH=/Users/archersado/.cargo/bin:$PATH python3 scripts/check_architecture.py`：退出码 0，真实 Workspace 依赖和全量规划检查通过。
+- 使用真实 `.github/pull_request_template.md` 调用 `scripts/check_architecture.py --event`：EN-S1、`module-epic-story-fence` 与本验证记录的关联通过。
+- 将真实模板的 Verification 改为不存在的 `openspec/changes/module-epic-story-fence/absent.md`：退出码 1，稳定拒绝并报告“关联文件不存在或越界”。
+- 对 `docs/specs/epic-*` 和 `story-*` 计数：13 个 Epic、34 个 Story；不再沿用旧 12/19 证据。
+- 在 `git archive` 快照中把 Change 移至 `openspec/changes/archive/2026-09-20-module-epic-story-fence/` 后调用 `check_planning`：退出码 1，报告活动路径下 proposal 不存在。
 
-此变更只调整文档及 Python 研发门禁，未修改运行时或 UI，不需要新桌面截图。CI 工作流继续在 Windows/macOS 调用同一脚本，本轮不宣称远端双平台 CI 已运行。结构检查不能证明设计完整性或自动通过历史技术门禁；新目录中的 draft/design-review 仍待逐 Story 设计审阅，不能直接开始功能实施。
+## 独立审阅结论
+
+当前结构、依赖与活动 Change 的真实关联检查通过，但不满足归档条件：
+
+- `check_planning` 只解析 `openspec/changes/<change>/proposal.md`，归档后 EN-S1 会立即破坏双向关联门禁。
+- 门禁枚举现存目录而不核对权威 Epic/Story 清单；当前 13/34 已人工确认，但整目录误删仍可能漏检。
+- PR 模板预填 EN-S1 的可通过关联，未替换模板的无关 PR 可能错误借用该 Story。
+- Verification 关联只检查 Markdown 包含 Story ID，不区分 PASS、FAIL 或 PENDING；最终结果仍依赖独立审阅流程。
+
+上述问题需要返回 Apply 修复并重新建立独立 Verification Goal。`tasks.md` 的“审阅与 Archive”保持未完成；本轮不移动 Change、不置 Story done。此变更未修改运行时或 UI，因此不需要新增桌面截图。
