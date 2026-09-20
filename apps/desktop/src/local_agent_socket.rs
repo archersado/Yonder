@@ -2,11 +2,10 @@
 use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName, tokio::{Listener, Stream, prelude::*}};
 use std::{io, os::unix::fs::PermissionsExt, path::PathBuf, sync::{Arc, Mutex}, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use yonder_application::{AuthContext, agent_input::{AgentRequest, AgentResponse, DeliveryOutcome, Version, decode_response, encode_request, hello_accepted, registration}, gateway::{GatewaySession, Platform}};
+use yonder_application::{AuthContext, agent_input::{AgentRequest, AgentResponse, DeliveryOutcome, Version, decode_response, encode_request, hello_accepted, registration}, gateway::{GatewaySession, Platform, local_hello_agent_id}};
 use crate::{TaskHost, agent_input::AgentInputHub, emit_pet_agent_connection, emit_pet_presentation,emit_pet_terminal_presentation};
 use tauri::WebviewWindow;
 
-const AGENT_ID: &str = "codex-cli";
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 
 
@@ -70,14 +69,26 @@ async fn serve(listener: Listener, host: Arc<Mutex<Option<TaskHost>>>, pet: Webv
 }
 
 async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: WebviewWindow, hub: AgentInputHub) -> io::Result<()> {
-    let mut session = GatewaySession::new(AuthContext::Agent(AGENT_ID), Platform::Macos);
     let mut reader = BufReader::new(&stream);
+    let mut first = Vec::new();
+    let read = (&mut reader).take(MAX_FRAME_BYTES as u64 + 1).read_until(b'\n', &mut first).await?;
+    if read == 0 || read > MAX_FRAME_BYTES || first.last() != Some(&b'\n') { return Err(io::Error::new(io::ErrorKind::InvalidData, "本地Gateway首帧无效")); }
+    first.pop();
+    let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?;
+    let agent_id = local_hello_agent_id(&first, now).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "本地Gateway必须先握手"))?;
+    let mut session = GatewaySession::new(AuthContext::Agent(&agent_id), Platform::Macos);
+    let mut initial = Some(first);
     loop {
-        let mut frame = Vec::new();
-        let read = (&mut reader).take(MAX_FRAME_BYTES as u64 + 1).read_until(b'\n', &mut frame).await?;
-        if read == 0 { return Ok(()); }
-        if read > MAX_FRAME_BYTES || frame.last() != Some(&b'\n') { return Err(io::Error::new(io::ErrorKind::InvalidData, "无效本地Gateway帧")); }
-        frame.pop();
+        let frame = match initial.take() {
+            Some(frame) => frame,
+            None => {
+                let mut frame = Vec::new();
+                let read = (&mut reader).take(MAX_FRAME_BYTES as u64 + 1).read_until(b'\n', &mut frame).await?;
+                if read == 0 { return Ok(()); }
+                if read > MAX_FRAME_BYTES || frame.last() != Some(&b'\n') { return Err(io::Error::new(io::ErrorKind::InvalidData, "无效本地Gateway帧")); }
+                frame.pop(); frame
+            }
+        };
         let registration = registration(&frame);
         if yonder_application::gateway::is_execution_request(&frame) { emit_pet_presentation(&pet, true, "executing"); }
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?;
