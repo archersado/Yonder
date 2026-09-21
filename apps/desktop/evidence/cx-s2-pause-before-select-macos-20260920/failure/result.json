@@ -5,11 +5,12 @@
   "control_is_pause_pending": true,
   "selection_overlay_opened": false,
   "lease_retained": true,
+  "blocked_error_code": -32012,
   "events": 5,
   "outbox": 5,
   "sequence": 5,
   "atomic_history": true,
-  "recording_started": false,
+  "recording_schema_present": false,
   "focus_started": false,
   "passed": true
 }

@@ -9,7 +9,7 @@
   "sequence": 6,
   "atomic_history": true,
   "selection_overlay_opened": true,
-  "recording_started": false,
+  "recording_schema_present": false,
   "focus_started": false,
   "passed": true
 }
