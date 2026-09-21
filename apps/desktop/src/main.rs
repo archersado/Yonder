@@ -1,4 +1,4 @@
-use std::{ffi::{c_char, CStr}, sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
+use std::{ffi::{c_char, CStr}, sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
 use serde::Deserialize;
 use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
 use yonder_desktop::TaskHost;
@@ -38,8 +38,32 @@ struct RegionRect { x: f64, y: f64, width: f64, height: f64, viewport_width: f64
 unsafe extern "C" {
     fn yonda_region_capture(x: i32, y: i32, width: i32, height: i32) -> *mut c_char;
     fn yonda_region_source_application() -> *mut c_char;
-    fn yonda_region_is_frontmost() -> i32;
+    fn yonda_region_watch_application_switch(callback: extern "C" fn());
+    fn yonda_region_stop_application_switch_watch();
 }
+
+#[cfg(target_os = "macos")]
+static REGION_PREVIEW_APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+#[cfg(target_os = "macos")]
+extern "C" fn clear_region_preview_after_application_switch() {
+    if let Some(app) = REGION_PREVIEW_APP.get() {
+        let app = app.clone();
+        std::thread::spawn(move || { let _ = clear_region_preview(&app, Some("app-switch"), None); });
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn watch_region_application_switch() { unsafe { yonda_region_watch_application_switch(clear_region_preview_after_application_switch); } }
+
+#[cfg(target_os = "macos")]
+fn stop_region_application_switch_watch() { unsafe { yonda_region_stop_application_switch_watch(); } }
+
+#[cfg(not(target_os = "macos"))]
+fn watch_region_application_switch() {}
+
+#[cfg(not(target_os = "macos"))]
+fn stop_region_application_switch_watch() {}
 
 fn preview_error(error: &str) -> String { error.into() }
 
@@ -54,14 +78,8 @@ fn current_source_application() -> Option<String> {
     }
 }
 
-#[cfg(target_os = "macos")]
-fn region_preview_is_frontmost() -> bool { unsafe { yonda_region_is_frontmost() != 0 } }
-
 #[cfg(not(target_os = "macos"))]
 fn current_source_application() -> Option<String> { None }
-
-#[cfg(not(target_os = "macos"))]
-fn region_preview_is_frontmost() -> bool { true }
 
 fn display_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
     let pet = app.get_webview_window("pet").ok_or("小龙不可用")?;
@@ -72,9 +90,11 @@ fn display_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) 
     let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
         .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
     let area = monitor.work_area();
-    preview.set_title(REGION_PREVIEW_TITLE).and_then(|_| preview.set_position(area.position)).and_then(|_| preview.set_size(area.size))
-        .and_then(|_| preview.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-open',{{detail:{{sourceApplication:{source}}}}}))"))).and_then(|_| preview.show()).and_then(|_| preview.set_focus())
-        .map_err(|_| { preview_state.0.lock().ok().map(|mut session| session.clear()); preview_error("preview-unavailable") })
+    let result = preview.set_title(REGION_PREVIEW_TITLE).and_then(|_| preview.set_position(area.position)).and_then(|_| preview.set_size(area.size))
+        .and_then(|_| preview.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-open',{{detail:{{sourceApplication:{source}}}}}))"))).and_then(|_| preview.show())
+        .map_err(|_| { preview_state.0.lock().ok().map(|mut session| session.clear()); preview_error("preview-unavailable") });
+    if result.is_ok() { let _ = preview.set_focus(); watch_region_application_switch(); }
+    result
 }
 
 fn show_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
@@ -104,12 +124,9 @@ fn region_preview_hide_for_capture(window: WebviewWindow, preview: State<'_, Pre
     Ok(())
 }
 
-fn region_preview_is_capturing(app: &tauri::AppHandle) -> bool {
-    app.state::<PreviewState>().0.lock().map(|session| session.snapshot().0 == yonder_application::region_preview::Phase::Capturing).unwrap_or(false)
-}
-
 #[tauri::command]
 fn clear_region_preview(app: &tauri::AppHandle, reason: Option<&str>, event_at_ms: Option<u64>) -> Result<(), String> {
+    stop_region_application_switch_watch();
     app.state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Region);
     let window = app.get_webview_window("region-preview").ok_or("圈选窗口不可用")?;
     let preview = app.state::<PreviewState>();
@@ -199,6 +216,7 @@ async fn region_preview_submit(window: WebviewWindow, question: String, preview:
     let hub = hub.inner().clone();
     let outcome = tauri::async_runtime::spawn_blocking(move || match image { Some(image) => hub.deliver_selection(&question, &image), None => hub.deliver_selection_text(&question) }).await;
     preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
+    stop_region_application_switch_watch();
     match outcome.map_err(|_| "delivery-unavailable")? {
         Ok(yonder_application::agent_input::DeliveryOutcome::Accepted) => Ok("accepted"),
         Ok(yonder_application::agent_input::DeliveryOutcome::Rejected) => Ok("rejected"),
@@ -234,6 +252,7 @@ fn region_preview_show_review(window: WebviewWindow, rect: RegionRect, has_image
 }
 
 fn show_region_feedback(app: &tauri::AppHandle, preview: &PreviewState, error: &str) {
+    stop_region_application_switch_watch();
     preview.0.lock().ok().map(|mut session| session.clear());
     if let Some(window) = app.get_webview_window("region-preview") {
         let message = serde_json::to_string(error).unwrap_or_else(|_| "\"preview-unavailable\"".into());
@@ -485,6 +504,8 @@ fn main() {
             let host = Arc::new(Mutex::new(host));
             app.manage(TaskState(Arc::clone(&host)));
             app.manage(PreviewState(Mutex::new(yonder_application::region_preview::Session::default())));
+            #[cfg(target_os = "macos")]
+            let _ = REGION_PREVIEW_APP.set(app.handle().clone());
             let input_hub = yonder_desktop::agent_input::AgentInputHub::default();
             app.manage(voice_input::VoiceRuntime::new(app.handle().clone(), input_hub.clone()));
             app.manage(input_hub.clone());
@@ -526,9 +547,6 @@ fn main() {
                     if window.label() == "voice-input" { window.app_handle().state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Direct); }
                     if window.label() == "region-preview" { let _ = clear_region_preview(window.app_handle(), Some("close"), None); }
                     else { let _ = window.hide(); }
-                }
-                if window.label() == "region-preview" && matches!(event, tauri::WindowEvent::Focused(false)) && window.is_visible().unwrap_or(false) && !region_preview_is_capturing(window.app_handle()) && !region_preview_is_frontmost() {
-                    let _ = clear_region_preview(window.app_handle(), Some("app-switch"), None);
                 }
             }
         })

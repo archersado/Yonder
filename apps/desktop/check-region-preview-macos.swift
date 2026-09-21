@@ -114,15 +114,15 @@ func escape() {
     CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)
     CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: false)?.post(tap: .cghidEventTap)
 }
-func activateFinder() -> Bool {
-    NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first?.activate(options: []) ?? false
+func activateSwitchTarget() -> Bool {
+    guard NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/TextEdit.app")), wait(3, { NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first != nil }), let target = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first else { return false }
+    return wait(3, { NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier })
 }
-func activateYonda() -> Bool { app.activate(options: []) }
 func openRegion() -> Bool {
-    if press("圈选提问") { return true }
+    if pressButton("圈选提问") || activateButton("圈选提问") { return wait(3, { window("Yonda · 圈选提问") != nil && find(ax, "框选") != nil }) }
     guard let tray = statusItem(ax), AXUIElementPerformAction(tray, "AXPress" as CFString) == .success || click(tray) else { return false }
     Thread.sleep(forTimeInterval: 0.3)
-    return press("圈选提问（预览）")
+    return press("圈选提问（预览）") && wait(3, { window("Yonda · 圈选提问") != nil && find(ax, "框选") != nil })
 }
 func reopenWithoutOldPreview() -> Bool {
     guard press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { return false }
@@ -142,12 +142,13 @@ func provideTestSpeech() throws {
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
 if ProcessInfo.processInfo.environment["YONDA_EXPECT_APP_SWITCH"] == "1" {
-    guard openRegion(), wait(3, { window("Yonda · 圈选提问") != nil }), activateFinder(), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "app-switch" else { fail(101, "selecting-app-switch-not-cleared") }
-    guard activateYonda(), openRegion(), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(102, "app-switch-reopen-failed") }
+    guard openRegion() else { fail(101, "selecting-app-switch-open-failed") }
+    guard activateSwitchTarget(), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "app-switch" else { fail(102, "selecting-app-switch-not-cleared") }
+    guard openRegion(), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(103, "app-switch-reopen-failed") }
     Thread.sleep(forTimeInterval: 0.45)
     drag([CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180), CGPoint(x: overlayRect.minX + 360, y: overlayRect.minY + 280)])
-    guard wait(8, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }), previewImageInfo() != nil else { fail(103, "capture-hide-cleared-session") }
-    guard activateFinder(), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "app-switch" else { fail(104, "reviewing-app-switch-not-cleared") }
+    guard wait(8, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }), previewImageInfo() != nil else { fail(104, "capture-hide-cleared-session") }
+    guard activateSwitchTarget(), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "app-switch" else { fail(105, "reviewing-app-switch-not-cleared") }
     let data = try JSONSerialization.data(withJSONObject: ["passed": true, "selecting_app_switch_cleared": true, "capture_hide_preserved_session": true, "reviewing_app_switch_cleared": true], options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!); exit(0)
 }

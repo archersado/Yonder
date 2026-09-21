@@ -8,6 +8,6 @@
 
 ## What Changes
 
-macOS中，圈选窗口可见且失去焦点时视为用户切换应用：取消本轮语音、清除PreviewSession、清空WebView并隐藏窗口。捕获过程中窗口主动隐藏不触发清场；无可见窗口时的失焦也不改变会话。不会发送输入、创建任务或新增全局监听。
+macOS中，只在圈选会话打开期间于AppKit主线程订阅前台应用切换通知；切换到其他应用时取消本轮语音、清除PreviewSession、清空WebView并隐藏窗口。截图主动隐藏前会先进入捕获态，完成后回到确认卡；不会发送输入、创建任务、轮询状态或安装常驻全局监听。
 
 Architecture Impact：conforming；不新增协议、持久化、权限或依赖。Windows继续按用户决定暂缓。
