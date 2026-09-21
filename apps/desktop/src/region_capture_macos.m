@@ -45,3 +45,7 @@ char *yonda_region_source_application(void) {
     NSString *name = application.localizedName;
     return name.length ? strdup(name.UTF8String) : NULL;
 }
+
+int yonda_region_is_frontmost(void) {
+    return NSApp.isActive ? 1 : 0;
+}
