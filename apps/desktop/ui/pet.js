@@ -23,10 +23,12 @@
   const stateTailImage = stateTail.querySelector('img');
   const statePaws = document.querySelectorAll('.state-paw');
   const stateEyelids = document.querySelector('.state-eyelids');
-  const animations = JSON.parse(document.querySelector('#state-animations').textContent);
+  const packStatus = document.querySelector('#pack-status');
+  let animations = JSON.parse(document.querySelector('#state-animations').textContent);
   const frameImages = {};
   const blinkImages = {};
   const bodyImages = {};
+  let assetUrls = [];
   const voiceFrame = new Image(); voiceFrame.src = 'runtime/lifecycle-v11/voice-listening.png';
   const voiceBlink = new Image(); voiceBlink.src = 'runtime/lifecycle-v11/voice-listening-blink.png';
   let framesReady = false;
@@ -64,6 +66,52 @@
   const canBlink = () => ready && ['awake', 'docked'].includes(mode) && visible && !reduced.matches;
   const native = (command, args) => window.__TAURI_INTERNALS__?.invoke(command, args) ?? Promise.resolve();
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  function setPackStatus(text, error = false) {
+    packStatus.textContent = text;
+    packStatus.dataset.error = String(error);
+  }
+  async function loadFrames(nextAnimations, sourceByFile = {}) {
+    const nextFrameImages = {};
+    const nextBlinkImages = {};
+    const nextBodyImages = {};
+    const nextPropImages = {};
+    const nextGestureImages = {};
+    await Promise.all(Object.entries(nextAnimations).map(async ([state, animation]) => {
+      nextFrameImages[state] = await Promise.all(animation.files.map(async file => {
+        const image = new Image(); image.src = sourceByFile[file] ?? file; await image.decode(); return image;
+      }));
+      const blinkFiles = animation.blink_files ?? animation.files;
+      nextBlinkImages[state] = await Promise.all(blinkFiles.map(async (file, index) => {
+        const image = new Image(); image.src = sourceByFile[file] ?? (blinkFiles === animation.files ? nextFrameImages[state][index].src : file); await image.decode(); return image;
+      }));
+      if (animation.prop_file) { const image = new Image(); image.src = animation.prop_file; await image.decode(); nextPropImages[state] = image; }
+      if (animation.gesture_file) { const image = new Image(); image.src = animation.gesture_file; await image.decode(); nextGestureImages[state] = image; }
+      if (animation.body_file) { const image = new Image(); image.src = animation.body_file; await image.decode(); nextBodyImages[state] = image; }
+    }));
+    for (const map of [frameImages, blinkImages, bodyImages, propImages, gestureImages]) for (const key of Object.keys(map)) delete map[key];
+    Object.assign(frameImages, nextFrameImages);
+    Object.assign(blinkImages, nextBlinkImages);
+    Object.assign(bodyImages, nextBodyImages);
+    Object.assign(propImages, nextPropImages);
+    Object.assign(gestureImages, nextGestureImages);
+    animations = nextAnimations;
+    framesReady = true;
+    const state = displayedState() === 'voice_listening' ? 'listening' : displayedState();
+    stateFrame.src = frameImages[animations[state] ? state : 'idle'][0].src;
+    pet.classList.add('frames-ready');
+    sync();
+  }
+  async function loadActivePack() {
+    const pack = await native('pet_pack_assets');
+    const nextAnimations = pack.manifest?.states;
+    if (!nextAnimations) throw new Error('资源包不符合规范');
+    const sourceByFile = Object.fromEntries(pack.assets.map(([path, bytes]) => [path.replace(/^assets\//, ''), URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: path.endsWith('.webp') ? 'image/webp' : 'image/png' }))]));
+    const oldUrls = assetUrls;
+    assetUrls = Object.values(sourceByFile);
+    await loadFrames(nextAnimations, sourceByFile);
+    for (const url of oldUrls) URL.revokeObjectURL(url);
+    setPackStatus('自定义桌宠资源包已加载');
+  }
   function updateAccessibility() {
     const connection = agentConnected ? 'Agent已连接' : 'Agent未连接';
     document.title = voiceActive ? `Yonda · 正在聆听 · ${connection}` : `Yonda · ${connection}`;
@@ -490,23 +538,20 @@
   if (window.__TAURI_INTERNALS__) checkHover();
   loadAgentConnection();
   refreshVisibility();
-  Promise.all([voiceFrame.decode(), voiceBlink.decode(), ...Object.entries(animations).map(async ([state, animation]) => {
-    frameImages[state] = await Promise.all(animation.files.map(async file => {
-      const image = new Image(); image.src = file; await image.decode(); return image;
-    }));
-    blinkImages[state] = await Promise.all(animation.blink_files.map(async file => {
-      const image = new Image(); image.src = file; await image.decode(); return image;
-    }));
-    if (animation.prop_file) { const image = new Image(); image.src = animation.prop_file; await image.decode(); propImages[state] = image; }
-    if (animation.gesture_file) { const image = new Image(); image.src = animation.gesture_file; await image.decode(); gestureImages[state] = image; }
-    if (animation.body_file) { const image = new Image(); image.src = animation.body_file; await image.decode(); bodyImages[state] = image; }
-  })]).then(() => {
-    // 透明素材全部解码后启用；连续局部动作不依赖整图加法混合。
-    framesReady = true;
-    const state = displayedState() === 'voice_listening' ? 'listening' : displayedState(); stateFrame.src = frameImages[animations[state] ? state : 'idle'][0].src;
-    if (framesReady) pet.classList.add('frames-ready'); sync();
-    if (window.__TAURI_INTERNALS__) loadInitialPresentation();
-  }).catch(error => { pet.dataset.assetError = String(error?.message ?? error); console.warn('状态素材加载失败，保留原透明小龙'); });
+  const loadBuiltIn = () => loadFrames(animations);
+  const start = window.__TAURI_INTERNALS__
+    ? loadActivePack().catch(() => loadBuiltIn())
+    : loadBuiltIn();
+  start.then(() => { if (window.__TAURI_INTERNALS__) loadInitialPresentation(); })
+    .catch(error => { pet.dataset.assetError = String(error?.message ?? error); setPackStatus('状态素材加载失败', true); console.warn('状态素材加载失败，保留原透明小龙'); });
+  window.addEventListener('yonda-pet-pack-status', event => {
+    const detail = event.detail;
+    if (detail === 'validating') setPackStatus('正在检查资源包');
+    else if (detail === 'success') loadActivePack().catch(() => setPackStatus('资源包不符合规范', true));
+    else if (detail === 'unsafe') setPackStatus('资源包无法安全导入', true);
+    else if (detail === 'unavailable') setPackStatus('资源包不可用', true);
+    else if (detail === 'invalid') setPackStatus('资源包不符合规范', true);
+  });
   Promise.all([eyelids.decode(), document.querySelector('.peek-eyelids').decode()]).then(() => { ready = true; setMode('awake'); interact(); }).catch(() => {
     console.warn('闭眼素材加载失败，保留静态小龙');
   });

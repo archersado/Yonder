@@ -2,7 +2,7 @@
 
 Story: DS-S4  
 Epic: DS  
-Status: design-review  
+Status: verifying
 OpenSpec: ds-s4-mascot-pack-import
 
 ## 设计文档
@@ -17,4 +17,8 @@ OpenSpec: ds-s4-mascot-pack-import
 
 ## OpenSpec 与验证
 
-[导入 Change](../../../../openspec/changes/ds-s4-mascot-pack-import/proposal.md)已建立，尚未进入实现。用户已明确 Hatch Pet 生成仅保留设计，不创建生成实现 Proposal 或代码；该部分等待 Proposed [AD-DS-04](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-DS-04-MASCOT-GENERATION-CONTRACT.md)、AG-S4 与 FI-S1 门禁后再单独排期。macOS 先验证导入、拒绝和重启保留，Windows 暂缓，完整 Story 不 Archive。
+[导入 Change](../../../../openspec/changes/ds-s4-mascot-pack-import/proposal.md)已进入实现验证：v1 manifest 限额、九状态 ZIP 校验、暂存与带回滚切换已完成。用户已明确 Hatch Pet 生成仅保留设计，不创建生成实现 Proposal 或代码；该部分等待 Proposed [AD-DS-04](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-DS-04-MASCOT-GENERATION-CONTRACT.md)、AG-S4 与 FI-S1 门禁后再单独排期。macOS 原生导入、拒绝和重启证据仍未取得，Windows 暂缓，完整 Story 不 Archive。
+
+## 子范围验证
+
+- [子范围 Verification Goal](../../../../openspec/changes/ds-s4-mascot-pack-import/verification-goal.md)

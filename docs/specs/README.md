@@ -178,6 +178,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-18 新增[DS-S4 桌宠动画资源包导入](epic-DS/story-DS-S4/README.md)：承接产品简报的资源包导入要求，限定为声明式 PNG/WebP ZIP 的本机校验、暂存与原子切换，不触碰任务、Agent 或录制状态；OpenSpec 已建立，下一步定稿限额后实施。
 
+2026-09-21 DS-S4导入子范围进入验证：v1 manifest限额、九状态ZIP校验、托盘选择、暂存与带回滚切换、桌宠运行时重载和状态反馈已实现；离线子范围PASS。macOS原生选择/拒绝/重启证据与Windows证据未取得，完整Story不Archive。
+
 2026-09-18 DS-S4 扩展为自定义形象生成契约：Yonder 定义九个状态及运行时校验，用户上传参考图后由 Hatch Pet 式 Agent/Skill 生成状态动画并输出 Yonder manifest 包；生成外发须明确确认。用户决定当前只保留设计，等待 AG-S4/FI-S1 后单独排期，不创建实现 Proposal 或代码。
 
 2026-09-18 CX-S2进入macOS Preview实施：用户要求先测试“圈选提问”，Accepted AD-CX-01授权当前显示器的显式选择、临时内存截图、确认卡与取消清场；不发送、不持久化、不支持常驻指针、多显示器或Windows。
