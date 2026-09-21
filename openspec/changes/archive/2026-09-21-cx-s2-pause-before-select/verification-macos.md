@@ -1,7 +1,7 @@
 # macOS Verification Goal：圈选前暂停桌面任务
 
 日期：2026-09-21
-状态：待独立复核
+状态：PASS（独立复核）
 
 ## 实施者证据
 
@@ -22,3 +22,7 @@
 - `git diff --check`
 
 Windows按用户决定暂缓；多显示器、VI-S1语音组合和云端WSS不在本增量范围。完整CX-S2继续保持`verifying`。
+
+## 独立复核
+
+非实现者复核HEAD `34643a2`：`prepared/unknown`均明确返回错误、任务保持running且Admission桌面租约不释放；原生unknown入口不显示圈选层，第二个CUA任务收到精确`-32012`，控制保持`pause/pending`，无聚焦事实，事件与Outbox同序。Recording Schema尚未获Accepted架构授权且正式库不存在对应表，本Change未建立或调用Recording入口。结论PASS，允许归档本Change。
