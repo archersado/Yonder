@@ -14,6 +14,7 @@ Epic: TM
 - [TM-S4 显式继续与恢复](story-TM-S4/README.md)
 - [TM-S5 任务时间线、产物与审计](story-TM-S5/README.md)
 - [TM-S6 全量运行状态查询](story-TM-S6/README.md)：AC11 数据库侧独立子项，完整收起准入仍待宿主整合。
+- [TM-S7 统一执行启动状态](story-TM-S7/README.md)：CUA、BUA、Document 与 Command 首次副作用统一进入 `running`。
 
 ## 验收与依赖
 
