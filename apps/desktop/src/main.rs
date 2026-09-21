@@ -2,10 +2,22 @@ use std::{ffi::{c_char, CStr}, sync::{Arc, Mutex}};
 use serde::Deserialize;
 use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
 use yonder_desktop::TaskHost;
+use yonder_adapters::pet_pack;
 mod pet_window;
 mod voice_input;
 
 struct TaskState(Arc<Mutex<Option<TaskHost>>>);
+
+#[tauri::command]
+fn pet_pack_assets(window: WebviewWindow) -> Result<pet_pack::ActivePetPack, String> {
+    if window.label() != "pet" { return Err("不允许的窗口".into()); }
+    let packs = window.app_handle().path().app_data_dir().map_err(|_| "应用数据目录不可用")?.join("pet-packs");
+    pet_pack::active_pack(&packs).map_err(|error| match error {
+        pet_pack::PetPackError::LimitExceeded => "资源包无法安全导入".into(),
+        pet_pack::PetPackError::Io => "当前资源包不可用".into(),
+        _ => "资源包不符合规范".into(),
+    })
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -298,7 +310,7 @@ async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -342,8 +354,9 @@ fn main() {
             }
             let show = MenuItem::with_id(app, "tasks", "任务总览", true, None::<&str>)?;
             let region = MenuItem::with_id(app, "region", "圈选提问（预览）", true, None::<&str>)?;
+            let import = MenuItem::with_id(app, "pet-pack-import", "导入桌宠资源包", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出任务面板", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &region, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &region, &import, &quit])?;
             let mut rgba = vec![0u8; 16 * 16 * 4];
             for y in 3..13 { for x in 3..13 {
                 if y <= 4 || (7..=8).contains(&x) { rgba[(y * 16 + x) * 4 + 3] = 255; }
@@ -354,6 +367,19 @@ fn main() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "tasks" => { let _ = show_menu(app, true); },
                     "region" => { let state = app.state::<TaskState>(); let _ = show_region_preview(app, &state); },
+                    "pet-pack-import" => {
+                        let Some(path) = rfd::FileDialog::new().add_filter("桌宠资源包", &["zip"]).pick_file() else { return };
+                        let Some(packs) = app.path().app_data_dir().ok().map(|path| path.join("pet-packs")) else { return };
+                        let Some(pet) = app.get_webview_window("pet") else { return };
+                        let _ = pet.eval("window.dispatchEvent(new CustomEvent('yonda-pet-pack-status',{detail:'validating'}))");
+                        let detail = match pet_pack::import_pet_pack(&path, &packs) {
+                            Ok(()) => "success",
+                            Err(pet_pack::PetPackError::LimitExceeded) => "unsafe",
+                            Err(pet_pack::PetPackError::Io) => "unavailable",
+                            Err(_) => "invalid",
+                        };
+                        let _ = pet.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-pet-pack-status',{{detail:'{detail}'}}))"));
+                    },
                     "quit" => app.exit(0),
                     _ => {}
                 }).build(app)?;
