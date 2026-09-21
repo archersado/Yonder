@@ -13,7 +13,7 @@ OpenSpec: cx-s2-voice-submit
 
 ## 当前状态与前置条件
 
-用户可理解名称确定为“圈选提问”，不再使用“指针模式”。macOS当前已完成单显示器显式选择、临时截图、确认卡、同会话附件提交、无截图文字提交及CUA占用时先暂停；均不持久化正文或截图。VI-S1语音组合、多显示器、云端WSS与Windows仍是后续门禁。
+用户可理解名称确定为“圈选提问”，不再使用“指针模式”。macOS当前已完成单显示器显式选择、临时截图、确认卡、同会话附件提交、无截图文字/语音提交及CUA占用时先暂停；均不持久化正文或截图。多显示器、云端WSS与Windows仍是后续门禁。
 
 ## OpenSpec 与验证
 
@@ -27,10 +27,10 @@ OpenSpec: cx-s2-voice-submit
 
 [无截图文字提交Change](../../../../openspec/changes/archive/2026-09-20-cx-s2-text-only-submit/proposal.md)已完成直接点击与屏幕录制权限缺失后的“仅提问”路径；macOS原生accepted/rejected/unknown、临时未授权bundle与独立Verification Goal均PASS并归档。
 
-当前归档路径：openspec/changes/archive/2026-09-21-cx-s2-pause-before-select/
-
 [圈选前暂停Change](../../../../openspec/changes/archive/2026-09-21-cx-s2-pause-before-select/proposal.md)已完成：CUA持有前台桌面租约时先提交可信`pause`并确认步骤边界停止，再显示圈选层；小龙、托盘、unknown拒绝与无租约回归的macOS证据及独立Verification Goal均PASS并归档，不触发定位或Recording。
 
-当前增量为`openspec/changes/cx-s2-voice-submit/`：在既有确认卡内显式开始macOS语音，部分转写只显示，最终非空转写复用当前selection提交与附件清理并自动发送；关闭、取消、重新圈选和超时必须停止收音。
+当前归档路径：openspec/changes/archive/2026-09-21-cx-s2-voice-submit/
+
+[圈选语音提交Change](../../../../openspec/changes/archive/2026-09-21-cx-s2-voice-submit/proposal.md)已完成：在既有确认卡内显式开始macOS语音，部分转写只显示，最终非空转写复用当前selection提交与附件清理并自动发送；带图、无图、取消和普通direct语音均经独立原生复核PASS，且没有双投递。关闭、取消、重新圈选和超时都会停止本轮收音。
 
 2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、显示器变化、物理键盘/鼠标和Windows仍未验证。
