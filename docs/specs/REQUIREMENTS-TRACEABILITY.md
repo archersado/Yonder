@@ -22,6 +22,7 @@
 | B Task Space 与权限模型；A CUA 与 BUA 的 Task Space；S 任务、状态与恢复 | 发起者、权限、生命周期、资源、时间线、产物、审计 | TM / DS | TM-S1 目前字段与范围不完整，不能只保留状态和最新详情 |
 | B MVP 主干 7–8；S 任务、状态与恢复 | 暂停、取消、接管、明确恢复 | TM-S3 / TM-S4 / CU-S2 | 停止确认、控制语义与 UI 仍待设计 |
 | B 两条执行路径；A 执行原则；S CUA 与 BUA | 模型无关 Driver、Observe、单前台租约 | CU / BU | Spike 结论不能替代产品 Driver/Bridge Story |
+| 用户2026-09-21快慢脑变更；B 产品定义/MVP 主干/两条执行路径；A 执行原则；S 产品边界/任务与恢复 | Jev 在 CUA/BUA/Document/Command 之上作有界动作决策，外部 Agent 首次规划及偏离后 replan，均走现有 Gateway；降低慢脑 token 并保持质量 | EX-S1～S4 | Accepted AD-EX-01 已修正禁止内置模型循环的旧边界；Proposed AD-EX-02 与双平台 Spike 仍是技术实施门禁，不删除原始 Driver/Observe/接管要求 |
 | 用户2026-09-18后台原生动作变更；B任务可见可控；S任务恢复 | 原生API/App Intent/SDK后台执行，显式切换CUA，统一Task Space时间线 | CU-S3 / TM-S5 | 已完成Story与Proposed AD-CU-06；先做macOS限时Spike，Windows暂缓，未接产品Gateway |
 | B 首批权限；S Command、File 与 Document | 结构化命令、路径安全、文档默认另存与锁 | CM / FI / DO | 产品协议、确认与失败场景待细拆 |
 | B 产品定义、MVP 主干 3–5；S 个人上下文 | 显式录制、授权查询、同步外部上下文服务 | RC / CX / AG | CX-S1 是采集 Spike，历史检索/客户端同步/删除传播未细拆 |
@@ -39,6 +40,6 @@
 3. 原产品目标要求 Windows/macOS，部分已接受 ADR 只覆盖 Windows。延期不删除产品平台要求，不把单平台证据称为整体完成。
 4. Task Space 历史与审计是原需求。AD-TM-01 的仅最新详情建议不能自动覆盖；先分清最新快照和历史事件/产物职责，再定持久化设计。
 
-当前 13 个 Epic、31 个 Story 仍不是完整产品分解。TM-S1 已补到 16 条验收，时间线/产物/审计归 TM-S5；其他模块缺口继续逐步拆解。本表不授权新实施。
+当前 Epic/Story 仍不是完整产品分解。TM-S1 已补到 16 条验收，时间线/产物/审计归 TM-S5；其他模块缺口继续逐步拆解。本表不授权新实施。
 
 TM-S6 承接 TM-S1 AC11 的全量数据库查询子范围，按 AD-TM-02 独立实施；未关闭完整忙碌/隐藏门禁。

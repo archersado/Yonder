@@ -13,7 +13,9 @@ companions: [DEVELOPMENT-AND-CHANGE-MODE.md]
 
 ## 产品边界
 
-Yonder 是 Windows/macOS 上轻量常驻的 Agent Tool，提供本地系统操作、用户操作感知和个人上下文采集。它可被桌面 Agent、Agent CLI 或外部云端 Agent 驱动，但不是 Agent、规划器或云端服务。BUA 直接复用 ego-lite Browser Task Space，Yonder 不复制该模型。
+2026-09-21 按 Accepted [AD-EX-01](AD-EX-01-BOUNDED-FAST-BRAIN.md) 修正系统边界：Yonder 可在 CUA/BUA/Document/Command Driver 之上运行有界 Jev 快脑决策循环；外部慢脑仍负责首次计划和需要时的 replan，所有慢脑请求继续进入既有 Agent Gateway。Jev 接入路线另由 Proposed [AD-EX-02](AD-EX-02-JEV-INTEGRATION-ROUTE.md) 验证；技术门禁未通过前不修改运行时代码或开放产品能力。
+
+Yonder 是 Windows/macOS 上轻量常驻的 Agent Tool，提供本地系统操作、用户操作感知和个人上下文采集。它可被桌面 Agent、Agent CLI 或外部云端 Agent 驱动；不是通用 Agent、首次计划/语义 replan 的慢脑规划器，也不是云端服务。仅 AD-EX-01 定义的有界 Jev 快脑模型循环可以内置。BUA 直接复用 ego-lite Browser Task Space，Yonder 不复制该模型。
 
 ## 模块与依赖
 
@@ -36,6 +38,7 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 - 本地 Agent 经 MCP stdio 或 CLI，通过共享 Rust IPC Client 接入；IPC 使用 `interprocess 2.x`、Tokio、版本化 JSON-RPC，映射 Unix Domain Socket/Windows Named Pipe，不开放本地 TCP。
 - Yonder 主动建立单一 WSS 连接云端，不开放公网入口、端口映射或 P2P。断线按 `last_sequence` 补传 Outbox，且不影响本地能力。
 - 本地与云端请求统一为 `AgentRequest + AuthContext`。Rust 协议类型生成 JSON Schema 和 TypeScript；hello 协商版本与 capabilities。
+- 外部慢脑的初始计划与 replan 必须沿用本 Gateway 入站并绑定归属 Agent、任务和计划版本。快脑交回的 Observe/失败摘要经任务事件与 Outbox 由同一 Gateway 交付；Jev 不直连慢脑，也不建立第二条 Agent 会话。
 - IPC 限当前 OS 用户，设备凭据进入系统 Credential Store。MVP 不做细粒度授权；支付、发送、删除、安装、提权仍需确认。
 
 ## 任务、状态与恢复
@@ -45,7 +48,7 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 - 持久化状态、步骤、结果、错误、等待原因、恢复信息和外部引用；句柄、连接、窗口对象及订阅仅驻内存。
 - 重启后 running 转 interrupted；重新 Observe 后由外部 Agent 决定继续、跳过或局部 replan，禁止自动重试副作用未知动作。
 - 提供 task.get、task.events(after_sequence)、CLI status/watch、MCP 查询/长轮询与云端事件推送。
-- 每一步后增量 Observe；窗口切换、导航、目标丢失时完整 Observe。Yonder 校验预期条件，不负责语义规划。
+- 每一步后增量 Observe；窗口切换、导航、目标丢失时完整 Observe。Yonder 可在外部计划片段内用 Jev 选择下一受支持操作与目标并校验预期条件；超出计划或需语义 replan 时交回经 Gateway 接入的外部 Agent。
 - CUA 使用唯一前台租约，用户输入即暂停；BUA MVP 单并发。后台读取可并行，同一文件禁止并发写。
 
 2026-09-18 按 Accepted [AD-TM-10](AD-TM-10-AGENT-WAIT-FOR-USER.md) 增加协议 1.17 等待用户提交：仅归属 Agent 在已 Observe 并推进的安全步骤边界写入 `waiting-for-user`，等待原因、事件与 Outbox 同事务，提交后释放准入资源；不提供自动 Resume。
@@ -57,6 +60,10 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 2026-09-18 Proposed [AD-DS-04](AD-DS-04-MASCOT-GENERATION-CONTRACT.md) 定义用户自定义形象的生成边界：Yonder 固定九个状态动画契约与本地校验，Hatch Pet 式 Agent/Skill 仅生成并质检素材包；用户确认前不外发参考图，桌宠不内置模型、密钥或生成 Runtime。
 
 ## 执行能力
+
+### 有界执行快脑
+
+AD-EX-01 允许 Application 在四类既有执行 Adapter 之上持有有界决策循环：外部 Agent 经 Gateway 给出初始计划，Jev 基于最新 Observe 的可信候选选择操作/目标，既有权限/租约/确认/Driver 派发后强制 Observe；片段内可连续执行，偏离或缺参由归属 Agent 经 Gateway 提交 replan。内部连续步骤须有独立可信来源并保留归属 Agent，不伪造 Agent Gateway 会话；最终任务完成/失败仍由归属 Agent 提交。Jev 不生成自由命令、文档正文或新权限，不拥有任务状态。接入形式与质量仍受 AD-EX-02 双平台 Spike 门禁约束。
 
 2026-09-14字段级联合设计见[AD-TM-08](AD-TM-08-EXECUTION-IDENTITY-AND-STOP.md)（Proposed）：执行身份、派发/冻结排序、停止确认、WorkRef失效与事务候选契约。尚未授权协议/迁移或产品接管；与Accepted AD-CU-02/03边界一致，未决门禁保留。
 
@@ -74,7 +81,7 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 
 2026-09-16步骤边界停止增量：schema9仅允许当前observed attempt原子转stopped；暂停/接管提交paused，取消提交cancelled并保留数据。Permit在事务成功后才释放；unknown、旧身份或提交失败继续占用。外部控制协议、工作定位与Recording仍需后续规格。
 
-CUA 只含模型无关 Driver，不内置 Agent/Planner/Model。Qwen cua-driver 与 trycua cua-driver 使用相同 Windows/macOS 黑盒用例验证，只交付胜者；OSWorld 仅作基准。Driver 由 Supervisor 按需启动；崩溃或超时将动作标为 unknown，Observe 后交由 Agent 决策。
+CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。Qwen cua-driver 与 trycua cua-driver 使用相同 Windows/macOS 黑盒用例验证，只交付胜者；OSWorld 仅作基准。Driver 由 Supervisor 按需启动；崩溃或超时将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
 
 BUA Bridge 直接调用 ego-lite/ego-browser，保存 external_task_ref 并映射状态，不复制 Task Space。只有经 Yonder 调用才保证桌宠收到状态。由于 ego-lite 当前没有 Windows Runtime，Windows 首版 BUA 为 `capability_unavailable`；不得自动回退到 CUA 或另一套浏览器引擎。
 
@@ -119,7 +126,7 @@ SQLite 存元数据并使用 FTS5；大内容存加密附件。Agent 只能经 C
 
 ## MVP 明确不做
 
-云端服务、内置 Agent/Planner、完整 Event Sourcing、通用 HTTP Server、全盘采集、本地语义知识库、Office COM/AppleScript/WPS 插件和多个 CUA 同时控制桌面。
+云端服务、内置通用 Agent/首次计划或语义 replan 的慢脑规划器（AD-EX-01 有界 Jev 快脑除外）、完整 Event Sourcing、通用 HTTP Server、全盘采集、本地语义知识库、Office COM/AppleScript/WPS 插件和多个 CUA 同时控制桌面。
 
 2026-09-14创建权限补充（Accepted AD-AG-01）：任务只由已连接且认证/握手的Agent经统一Gateway创建，不支持人工手动创建；用户仍可确认和操作已有任务。具体创建协议/幂等存储按AG-S2联审，未定稿不开放写入口。
 

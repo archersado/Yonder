@@ -18,10 +18,10 @@
 
 ## 系统边界
 
-- Yonder 是 Windows/macOS 常驻桌面 Agent Tool，不是 Agent、Planner、Model、云端 Agent 平台或云端个人上下文服务。
+- Yonder 是 Windows/macOS 常驻桌面 Agent Tool，不是通用 Agent、负责首次计划/语义 replan 的慢脑规划器、云端 Agent 平台或云端个人上下文服务。按 Accepted AD-EX-01，Yonder 可内置有界 Jev 快脑模型决策循环；具体技术接入仍受 AD-EX-02 Spike 门禁约束。
 - Yonder 只实现云端客户端 Connector；不得在本机开放公网服务、端口映射或 P2P。
 - BUA 直接复用 ego-lite Browser Task Space；不得在 Yonder 内复制 Task Space。
-- CUA 只实现模型无关执行 Driver，不得加入语义规划。
+- CUA 仍只实现模型无关执行 Driver；Jev 快脑位于 Application 执行协调层、四类执行 Driver 之上，不得把模型循环塞入 Driver。
 
 ## 代码与依赖
 
@@ -36,11 +36,13 @@
 
 - 本地 Agent 通过 MCP stdio/CLI 和 Local Socket 接入；macOS 使用 Unix Domain Socket，Windows 使用 Named Pipe，不使用本地 HTTP/TCP。
 - 云端通过 Yonder 主动建立的单一 WSS 连接接入。本地与云端请求必须进入同一 Agent Gateway 和 Application 用例。
+- 外部慢脑的首次计划和 replan 均从既有 Agent Gateway 进入；快脑交回依据通过同一任务事件/Outbox 和 Gateway 对归属 Agent 可见，不得直连慢脑或建立第二条 Agent 通道。
+- 快脑连续步骤使用绑定已验证计划的可信内部来源，不得伪造 Agent 会话；任务完成/失败仍由归属 Agent 经 Gateway 提交。
 - 所有调用携带 `request_id`、`agent_id`、`capability`、`deadline`；创建任务支持 `idempotency_key`。
 - 长任务统一返回 `task_id`，并支持 `task.get`、`task.cancel`、`task.events(after_sequence)`。
 - SQLite 当前状态表是当前状态唯一事实源；状态更新、追加事件和 Outbox 写入必须同事务。每任务 `sequence` 严格递增。
 - 副作用操作超时、崩溃或断连时标记 `unknown`，不得自动重试。重启后的运行中任务转为 `interrupted`，重新 Observe 后由外部 Agent 决策。
-- 每一步 CUA/BUA 执行后必须 Observe；Yonder 只验证预期条件，不做语义 replan。
+- 每一步 CUA/BUA 执行后必须 Observe；Yonder 可在外部计划片段内以 Jev 选择下一受支持动作并验证预期条件，片段外的语义 replan 仍由经 Gateway 接入的外部 Agent 负责。
 - CUA 同一时间只允许一个前台桌面租约；用户输入立即暂停。BUA MVP 单并发；同一文件禁止并发写。
 
 ## 执行与数据安全
