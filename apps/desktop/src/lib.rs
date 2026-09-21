@@ -245,27 +245,28 @@ mod tests {
     #[test]
     fn region_entry_pauses_only_confirmed_desktop_boundaries() {
         use yonder_application::{AttemptPhase, ExecutionAttempt, admission::{Resource,start_attempt}, computer_use::{DispatchOutcome,UnknownReason,record_dispatch_outcome}};
-        let directory = std::env::temp_dir().join(format!("yonda-region-pause-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
-        std::fs::create_dir(&directory).unwrap();
-        let mut host=TaskHost::open(&directory).unwrap();
         for (id,outcome,advance,expected) in [
-            ("stopped",DispatchOutcome::Known{action_succeeded:true,observation:None},true,Ok(true)),
-            ("observed",DispatchOutcome::Known{action_succeeded:true,observation:None},false,Ok(true)),
-            ("unknown",DispatchOutcome::Unknown(UnknownReason::ObserveFailed),false,Err(HostError::StorageUnavailable)),
+            ("stopped",Some(DispatchOutcome::Known{action_succeeded:true,observation:None}),true,Ok(true)),
+            ("observed",Some(DispatchOutcome::Known{action_succeeded:true,observation:None}),false,Ok(true)),
+            ("prepared",None,false,Err(HostError::StorageUnavailable)),
+            ("unknown",Some(DispatchOutcome::Unknown(UnknownReason::ObserveFailed)),false,Err(HostError::StorageUnavailable)),
         ]{
+            let directory = std::env::temp_dir().join(format!("yonda-region-pause-{}-{}-{}",id,std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            std::fs::create_dir(&directory).unwrap();
+            let mut host=TaskHost::open(&directory).unwrap();
             let task=host.store.register("agent",id,"test",Some(id)).unwrap();
             let (task,step)=host.store.declare_step("agent",&task.id,task.sequence,"step","test").unwrap();
             let attempt=ExecutionAttempt{task_id:task.id.clone(),step_id:step.step_id,attempt_id:format!("attempt_{}",task.sequence+1),worker_instance_id:"worker".into(),host_session_id:"host".into(),phase:AttemptPhase::Prepared,accepted_sequence:0};
             let (_,attempt,permit)=start_attempt(&mut host.store,&host.admission,&attempt,task.sequence,&[Resource::Desktop]).unwrap(); drop(permit);
-            let (task,_)=record_dispatch_outcome(&mut host.store,&attempt.task_id,&attempt.attempt_id,outcome).unwrap();
+            let task=if let Some(outcome)=outcome{record_dispatch_outcome(&mut host.store,&attempt.task_id,&attempt.attempt_id,outcome).unwrap().0}else{host.store.get(&task.id).unwrap()};
             if advance { yonder_application::advance_after_observe(&mut host.store,&task.id,&attempt.attempt_id).unwrap(); }
             assert_eq!(host.pause_desktop_for_user(),expected);
             assert_eq!(host.admission.holds_resource(&task.id,Resource::Desktop).unwrap(),expected.is_err());
-            if expected.is_err(){break}
+            assert_eq!(host.store.get(&task.id).unwrap().status,if expected.is_err(){yonder_application::Status::Running}else{yonder_application::Status::Paused});
+            drop(host);
+            for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}
+            std::fs::remove_dir(directory.join("observations")).unwrap();std::fs::remove_dir(directory).unwrap();
         }
-        drop(host);
-        for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}
-        std::fs::remove_dir(directory.join("observations")).unwrap();std::fs::remove_dir(directory).unwrap();
     }
 
     #[test]

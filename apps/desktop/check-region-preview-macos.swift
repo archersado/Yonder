@@ -172,6 +172,15 @@ if let entry = ProcessInfo.processInfo.environment["YONDA_EXPECT_DESKTOP_PAUSE"]
     let data = try JSONSerialization.data(withJSONObject: ["passed": true, "entry": entry, "selection_overlay_opened": true, "cleared": true], options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!); exit(0)
 }
+if ProcessInfo.processInfo.environment["YONDA_EXPECT_DESKTOP_STOP_UNCONFIRMED"] == "1" {
+    if window("Yonda · 圈选提问") != nil { escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(83, "desktop-stop-stale-overlay") } }
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(5, { find(ax, "当前任务结果待核实，暂不能圈选。") != nil }) else { fail(83, "desktop-stop-feedback-missing") }
+    let selectionOverlayOpened = window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false
+    guard !selectionOverlayOpened else { fail(84, "desktop-stop-overlay-opened") }
+    if window("Yonda · 圈选提问") != nil { guard pressButton("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(84, "desktop-stop-feedback-not-cleared") } }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "selection_overlay_opened": false, "feedback": "desktop-stop-unconfirmed"], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
 if ProcessInfo.processInfo.environment["YONDA_PHYSICAL_TOOLBAR_CANCEL"] == "1" {
     for attempt in 1...6 {
         guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }) else { fail(42, "toolbar-cancel-open-failed") }

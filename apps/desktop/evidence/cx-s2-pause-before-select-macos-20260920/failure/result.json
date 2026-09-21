@@ -1,0 +1,15 @@
+{
+  "entry": "failure",
+  "native_passed": true,
+  "task_status": "running",
+  "control_is_pause_pending": true,
+  "selection_overlay_opened": false,
+  "lease_retained": true,
+  "events": 5,
+  "outbox": 5,
+  "sequence": 5,
+  "atomic_history": true,
+  "recording_started": false,
+  "focus_started": false,
+  "passed": true
+}
