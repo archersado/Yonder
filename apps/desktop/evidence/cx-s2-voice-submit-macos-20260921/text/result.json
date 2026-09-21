@@ -1,0 +1,15 @@
+{
+  "mode": "text",
+  "frames": 1,
+  "input_frames": 1,
+  "selection_frames": 1,
+  "voice_frames": 0,
+  "attachment_frames": 0,
+  "attachment_valid": true,
+  "content_nonempty": true,
+  "extra_frames": 0,
+  "passed": true,
+  "native_passed": true,
+  "native_reason": "none",
+  "worker_finished": true
+}

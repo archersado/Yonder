@@ -41,3 +41,9 @@ Yonder如何支持用户在Windows/macOS当前屏幕上圈选一块区域并交�
 macOS圈选入口复用Accepted AD-TM-08的普通用户输入停止语义。可信Desktop宿主从唯一`Admission`取得当前持有`Resource::Desktop`的任务标识，在同一宿主串行化边界内读取SQLite当前任务与attempt，提交`ControlKind::Pause`。若attempt已经普通stopped则控制事务直接暂停；若动作已返回且Observe有效但尚未推进，宿主在同一临界区确认步骤边界停止。只有paused事实、事件与Outbox提交成功并释放桌面租约后才能创建选择层。
 
 该入口不使用takeover，不定位窗口、不启动Recording、不设置桌面接管闸。prepared、unknown、身份/序号冲突、存储失败或租约所有者缺失均失败关闭并保持选择层隐藏；不得轮询SQLite等待停止、不得仅因窗口隐藏或Worker退出宣称暂停。没有桌面租约时直接进入既有圈选流程。该增量不改变状态所有者、外部协议或持久化模型。
+
+## 2026-09-21 圈选语音提交定稿
+
+圈选确认卡已经展示本轮截图与发送边界，用户点击卡片麦克风即授权最终非空转写按当前selection请求直接提交，不再二次点击发送。Desktop只固定语音事件目标并组合既有VI采集与PreviewSession提交；部分转写不外发，最终事件只能消费一次。取消、关闭、重新圈选或超时必须取消采集，不能把同一转写另行作为普通voice输入。
+
+有截图时继续使用Accepted AD-CX-02临时附件协议；无截图时继续使用selection来源的无附件输入。该组合不新增协议、持久化或Agent身份，不改变Application对PreviewSession和VI语音会话的所有权。当前仅授权已有原生证据覆盖的macOS子范围，Windows与多显示器门禁保持。

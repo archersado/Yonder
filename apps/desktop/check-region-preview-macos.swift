@@ -115,8 +115,47 @@ func reopenWithoutOldPreview() -> Bool {
     escape()
     return clean && wait(3, { window("Yonda · 圈选提问") == nil }) && wait(3, cleanupHidden)
 }
+func provideTestSpeech() throws {
+    if ProcessInfo.processInfo.environment["YONDA_VOICE_MANUAL"] == "1" {
+        let ready = try JSONSerialization.data(withJSONObject: ["ready": true, "action": "speak"], options: [.sortedKeys])
+        print(String(data: ready, encoding: .utf8)!); fflush(stdout)
+    } else {
+        let speech = Process(); speech.executableURL = URL(fileURLWithPath: "/usr/bin/say"); speech.arguments = ["测试语音提交"]
+        try speech.run(); speech.waitUntilExit()
+    }
+}
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
+if let mode = ProcessInfo.processInfo.environment["YONDA_VOICE_SUBMIT_MODE"] {
+    guard ["image", "text", "cancel", "direct"].contains(mode) else { fail(85, "voice-submit-mode-invalid") }
+    if mode == "direct" {
+        guard wait(3, { findButton(ax, "语音输入") != nil }), pressButton("语音输入"), wait(8, { find(ax, "正在聆听（最长 20 秒）") != nil }) else { fail(91, "direct-voice-listening-missing") }
+        try provideTestSpeech()
+        let transcriptTimeout = ProcessInfo.processInfo.environment["YONDA_VOICE_MANUAL"] == "1" ? 25.0 : 8.0
+        guard wait(transcriptTimeout, { find(ax, "转写文字").flatMap { attr($0, "AXValue") as? String }.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } == true }) else { fail(92, "direct-voice-transcript-missing") }
+        guard pressButton("停止") else { fail(93, "direct-voice-stop-missing") }
+        guard wait(12, { find(ax, "已交给智能体") != nil }) else { fail(94, "direct-voice-accepted-missing") }
+        guard pressButton("取消并关闭") else { fail(95, "direct-voice-close-missing") }
+        let data = try JSONSerialization.data(withJSONObject: ["passed": true, "mode": mode, "transcript_nonempty": true, "delivered": true], options: [.prettyPrinted, .sortedKeys])
+        print(String(data: data, encoding: .utf8)!); exit(0)
+    }
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(86, "voice-submit-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    let start = CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180)
+    drag(mode == "image" ? [start, CGPoint(x: start.x + 180, y: start.y + 100)] : [start, start])
+    guard wait(8, { findButton(ax, "语音提问") != nil }), pressButton("语音提问"), wait(8, { find(ax, "正在聆听（最长 20 秒）") != nil }) else { fail(87, "voice-submit-listening-missing") }
+    if mode == "cancel" {
+        guard pressButton("取消"), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(88, "voice-submit-cancel-failed") }
+        let data = try JSONSerialization.data(withJSONObject: ["passed": true, "mode": mode, "cancelled": true], options: [.prettyPrinted, .sortedKeys])
+        print(String(data: data, encoding: .utf8)!); exit(0)
+    }
+    try provideTestSpeech()
+    let transcriptTimeout = ProcessInfo.processInfo.environment["YONDA_VOICE_MANUAL"] == "1" ? 25.0 : 8.0
+    guard wait(transcriptTimeout, { (findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField")).flatMap { attr($0, "AXValue") as? String }.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } == true }), pressButton("停止语音") else { fail(89, "voice-submit-transcript-missing") }
+    guard wait(12, { find(ax, "已发送给 Agent") != nil }), wait(5, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "submitted" else { fail(90, "voice-submit-delivery-failed") }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "mode": mode, "transcript_nonempty": true, "auto_submitted": true, "window_closed": true], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
 if let outcome = ProcessInfo.processInfo.environment["YONDA_TEXT_SUBMIT_OUTCOME"] {
     guard ["accepted", "rejected", "unknown"].contains(outcome) else { fail(70, "text-submit-outcome-invalid") }
     guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(71, "text-submit-open-failed") }

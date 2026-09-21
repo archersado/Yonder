@@ -71,8 +71,9 @@ fn region_preview_hide_for_capture(window: WebviewWindow) -> Result<(), String> 
 }
 
 #[tauri::command]
-fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>, reason: Option<String>, event_at_ms: Option<u64>) -> Result<(), String> {
+fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>, voice: State<'_, voice_input::VoiceRuntime>, reason: Option<String>, event_at_ms: Option<u64>) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+    voice.cancel(voice_input::VoiceTarget::Region);
     let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
     if session.snapshot().0 == yonder_application::region_preview::Phase::Idle && !window.is_visible().unwrap_or(false) { return Ok(()); }
     session.clear();
@@ -85,8 +86,9 @@ fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>,
 }
 
 #[tauri::command]
-async fn region_preview_reselect(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>) -> Result<(), String> {
+async fn region_preview_reselect(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>, voice: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+    voice.cancel(voice_input::VoiceTarget::Region);
     preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
     pause_for_region(Arc::clone(&state.0)).await?;
     show_region_preview(window.app_handle(), &preview)
@@ -288,29 +290,41 @@ fn show_voice_input(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn voice_input_open(window: WebviewWindow) -> Result<(), String> {
+fn voice_input_open(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
     if window.label() != "pet" { return Err("不允许的窗口".into()); }
     show_voice_input(window.app_handle())?;
-    voice_input::start()
+    state.start(voice_input::VoiceTarget::Direct)
 }
 
 #[tauri::command]
-fn voice_input_start(window: WebviewWindow) -> Result<(), String> {
+fn voice_input_start(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
     if window.label() != "voice-input" { return Err("不允许的窗口".into()); }
-    voice_input::start()
+    state.start(voice_input::VoiceTarget::Direct)
 }
 
 #[tauri::command]
-fn voice_input_stop(window: WebviewWindow) -> Result<(), String> {
+fn voice_input_stop(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
     if window.label() != "voice-input" { return Err("不允许的窗口".into()); }
-    voice_input::stop(); Ok(())
+    state.stop(voice_input::VoiceTarget::Direct)
 }
 
 #[tauri::command]
-fn voice_input_close(window: WebviewWindow) -> Result<(), String> {
+fn voice_input_close(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
     if window.label() != "voice-input" { return Err("不允许的窗口".into()); }
-    voice_input::cancel();
+    state.cancel(voice_input::VoiceTarget::Direct);
     window.hide().map_err(|_| "语音卡关闭失败".into())
+}
+
+#[tauri::command]
+fn region_voice_start(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
+    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+    state.start(voice_input::VoiceTarget::Region)
+}
+
+#[tauri::command]
+fn region_voice_stop(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
+    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+    state.stop(voice_input::VoiceTarget::Region)
 }
 
 #[tauri::command]
@@ -391,7 +405,7 @@ async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -457,8 +471,8 @@ fn main() {
             if window.label() == "task-space" || window.label() == "voice-input" || window.label() == "region-preview" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    if window.label() == "voice-input" { voice_input::cancel(); }
-                    if window.label() == "region-preview" { window.app_handle().state::<PreviewState>().0.lock().ok().map(|mut session| session.clear()); if let Some(preview) = window.app_handle().get_webview_window("region-preview") { let _ = preview.set_title(REGION_PREVIEW_CLEAN_TITLE).and_then(|_| preview.eval("window.dispatchEvent(new Event('yonda-region-clear'))")); } }
+                    if window.label() == "voice-input" { window.app_handle().state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Direct); }
+                    if window.label() == "region-preview" { window.app_handle().state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Region); window.app_handle().state::<PreviewState>().0.lock().ok().map(|mut session| session.clear()); if let Some(preview) = window.app_handle().get_webview_window("region-preview") { let _ = preview.set_title(REGION_PREVIEW_CLEAN_TITLE).and_then(|_| preview.eval("window.dispatchEvent(new Event('yonda-region-clear'))")); } }
                     let _ = window.hide();
                 }
             }

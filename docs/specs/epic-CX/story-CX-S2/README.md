@@ -3,7 +3,7 @@
 Story: CX-S2  
 Epic: CX  
 Status: verifying
-OpenSpec: cx-s2-pause-before-select
+OpenSpec: cx-s2-voice-submit
 
 ## 设计文档
 
@@ -19,7 +19,7 @@ OpenSpec: cx-s2-pause-before-select
 
 已创建 [cx-s2-region-capture-spike](../../../../openspec/changes/cx-s2-region-capture-spike/proposal.md)。不得直接复制参考插件的全屏常驻覆盖层、全局输入监听或云端会话实现。Windows依用户决定暂缓，不视为通过。
 
-[macOS Preview Change](../../../../openspec/changes/archive/2026-09-20-cx-s2-macos-preview/proposal.md)已归档。对 Agent 提交、语音组合、跨显示器和 Windows 保留后续门禁。
+[macOS Preview Change](../../../../openspec/changes/archive/2026-09-20-cx-s2-macos-preview/proposal.md)已归档。跨显示器和 Windows 保留后续门禁。
 
 [macOS Preview 验证目标](../../../../openspec/changes/archive/2026-09-20-cx-s2-macos-preview/verification-macos.md)已由非实现者复核PASS并归档。该结论只覆盖macOS单显示器的选择、临时截图、确认卡与清场；完整CX-S2继续保持`verifying`，Agent提交、多显示器、Windows等范围仍需后续Change。
 
@@ -30,5 +30,7 @@ OpenSpec: cx-s2-pause-before-select
 当前归档路径：openspec/changes/archive/2026-09-21-cx-s2-pause-before-select/
 
 [圈选前暂停Change](../../../../openspec/changes/archive/2026-09-21-cx-s2-pause-before-select/proposal.md)已完成：CUA持有前台桌面租约时先提交可信`pause`并确认步骤边界停止，再显示圈选层；小龙、托盘、unknown拒绝与无租约回归的macOS证据及独立Verification Goal均PASS并归档，不触发定位或Recording。
+
+当前增量为`openspec/changes/cx-s2-voice-submit/`：在既有确认卡内显式开始macOS语音，部分转写只显示，最终非空转写复用当前selection提交与附件清理并自动发送；关闭、取消、重新圈选和超时必须停止收音。
 
 2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、显示器变化、物理键盘/鼠标和Windows仍未验证。
