@@ -3,7 +3,7 @@
 Story: CX-S2  
 Epic: CX  
 Status: verifying
-OpenSpec: cx-s2-voice-submit
+OpenSpec: cx-s2-source-application
 
 ## 设计文档
 
@@ -32,5 +32,7 @@ OpenSpec: cx-s2-voice-submit
 当前归档路径：openspec/changes/archive/2026-09-21-cx-s2-voice-submit/
 
 [圈选语音提交Change](../../../../openspec/changes/archive/2026-09-21-cx-s2-voice-submit/proposal.md)已完成：在既有确认卡内显式开始macOS语音，部分转写只显示，最终非空转写复用当前selection提交与附件清理并自动发送；带图、无图、取消和普通direct语音均经独立原生复核PASS，且没有双投递。关闭、取消、重新圈选和超时都会停止本轮收音。
+
+当前增量为`openspec/changes/cx-s2-source-application/`：在用户显式启动时读取一次前台应用显示名称，只在本轮PreviewSession和确认卡内显示；重新圈选保留原来源，结束即清零，不进入Agent正文、日志或数据库。
 
 2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、显示器变化、物理键盘/鼠标和Windows仍未验证。

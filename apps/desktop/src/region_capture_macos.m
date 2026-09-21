@@ -1,4 +1,5 @@
 #import <ApplicationServices/ApplicationServices.h>
+#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #import <ImageIO/ImageIO.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
@@ -37,3 +38,10 @@ char *yonda_region_capture(int x, int y, int width, int height) {
 }
 
 void yonda_region_free(void *pointer) { free(pointer); }
+
+char *yonda_region_source_application(void) {
+    NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
+    if ([application.bundleIdentifier isEqualToString:NSBundle.mainBundle.bundleIdentifier]) return NULL;
+    NSString *name = application.localizedName;
+    return name.length ? strdup(name.UTF8String) : NULL;
+}

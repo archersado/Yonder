@@ -23,6 +23,11 @@ func find(_ element: AXUIElement, _ text: String, _ depth: Int = 0) -> AXUIEleme
     guard depth < 16 else { return nil }
     return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { find($0, text, depth + 1) }.first
 }
+func findPrefix(_ element: AXUIElement, _ prefix: String, _ depth: Int = 0) -> AXUIElement? {
+    if ["AXTitle", "AXDescription", "AXValue"].compactMap({ attr(element, $0) as? String }).contains(where: { $0.hasPrefix(prefix) }) { return element }
+    guard depth < 16 else { return nil }
+    return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { findPrefix($0, prefix, depth + 1) }.first
+}
 func findButton(_ element: AXUIElement, _ text: String, _ depth: Int = 0) -> AXUIElement? {
     if attr(element, "AXRole") as? String == "AXButton", (attr(element, "AXTitle") as? String == text || attr(element, "AXDescription") as? String == text) { return element }
     guard depth < 16 else { return nil }
@@ -126,6 +131,19 @@ func provideTestSpeech() throws {
 }
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
+if ProcessInfo.processInfo.environment["YONDA_EXPECT_SOURCE_APP"] == "1" {
+    guard let sourceApp = NSWorkspace.shared.frontmostApplication, sourceApp.bundleIdentifier != bundleID else { fail(96, "source-fixture-unavailable") }
+    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(97, "source-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    let point = CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180); drag([point, point])
+    guard wait(5, { findPrefix(ax, "来源：") != nil }), let initial = findPrefix(ax, "来源：").flatMap({ attr($0, "AXValue") as? String ?? attr($0, "AXTitle") as? String }), initial != "来源：当前桌面", pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(98, "source-label-missing") }
+    guard let secondOverlay = window("Yonda · 圈选提问"), let secondRect = rect(secondOverlay) else { fail(99, "source-reselect-missing") }
+    Thread.sleep(forTimeInterval: 0.45)
+    let secondPoint = CGPoint(x: secondRect.minX + 180, y: secondRect.minY + 180); drag([secondPoint, secondPoint])
+    guard wait(5, { findPrefix(ax, "来源：") != nil }), let repeated = findPrefix(ax, "来源：").flatMap({ attr($0, "AXValue") as? String ?? attr($0, "AXTitle") as? String }), repeated == initial, pressButton("取消"), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden) else { fail(100, "source-reselect-or-cleanup-failed") }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "source_nonfallback": true, "source_preserved_after_reselect": true, "cleared": true], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
 if let mode = ProcessInfo.processInfo.environment["YONDA_VOICE_SUBMIT_MODE"] {
     guard ["image", "text", "cancel", "direct"].contains(mode) else { fail(85, "voice-submit-mode-invalid") }
     if mode == "direct" {

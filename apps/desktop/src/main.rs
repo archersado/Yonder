@@ -35,21 +35,45 @@ mod preview_title_tests {
 struct RegionRect { x: f64, y: f64, width: f64, height: f64, viewport_width: f64, viewport_height: f64 }
 
 #[cfg(target_os = "macos")]
-unsafe extern "C" { fn yonda_region_capture(x: i32, y: i32, width: i32, height: i32) -> *mut c_char; }
+unsafe extern "C" {
+    fn yonda_region_capture(x: i32, y: i32, width: i32, height: i32) -> *mut c_char;
+    fn yonda_region_source_application() -> *mut c_char;
+}
 
 fn preview_error(error: &str) -> String { error.into() }
 
-fn show_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
-    preview_state.0.lock().map_err(|_| preview_error("preview-unavailable"))?.begin()
-        .map_err(|_| preview_error("preview-busy"))?;
+#[cfg(target_os = "macos")]
+fn current_source_application() -> Option<String> {
+    unsafe {
+        let raw = yonda_region_source_application();
+        if raw.is_null() { return None; }
+        let value = CStr::from_ptr(raw).to_string_lossy().into_owned();
+        yonda_region_free(raw.cast());
+        Some(value)
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn current_source_application() -> Option<String> { None }
+
+fn display_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
     let pet = app.get_webview_window("pet").ok_or("小龙不可用")?;
     let preview = app.get_webview_window("region-preview").ok_or("圈选窗口不可用")?;
+    let source = preview_state.0.lock().map_err(|_| preview_error("preview-unavailable"))?
+        .source_application().unwrap_or("当前桌面").to_owned();
+    let source = serde_json::to_string(&source).map_err(|_| preview_error("preview-unavailable"))?;
     let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
         .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
     let area = monitor.work_area();
     preview.set_title(REGION_PREVIEW_TITLE).and_then(|_| preview.set_position(area.position)).and_then(|_| preview.set_size(area.size))
-        .and_then(|_| preview.eval("window.dispatchEvent(new Event('yonda-region-open'))")).and_then(|_| preview.show()).and_then(|_| preview.set_focus())
+        .and_then(|_| preview.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-open',{{detail:{{sourceApplication:{source}}}}}))"))).and_then(|_| preview.show()).and_then(|_| preview.set_focus())
         .map_err(|_| { preview_state.0.lock().ok().map(|mut session| session.clear()); preview_error("preview-unavailable") })
+}
+
+fn show_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
+    preview_state.0.lock().map_err(|_| preview_error("preview-unavailable"))?.begin(current_source_application())
+        .map_err(|_| preview_error("preview-busy"))?;
+    display_region_preview(app, preview_state)
 }
 
 async fn pause_for_region(state: Arc<Mutex<Option<TaskHost>>>) -> Result<(), String> {
@@ -89,9 +113,16 @@ fn region_preview_close(window: WebviewWindow, preview: State<'_, PreviewState>,
 async fn region_preview_reselect(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>, voice: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
     voice.cancel(voice_input::VoiceTarget::Region);
-    preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
     pause_for_region(Arc::clone(&state.0)).await?;
-    show_region_preview(window.app_handle(), &preview)
+    {
+        let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
+        if session.snapshot().0 == yonder_application::region_preview::Phase::Idle {
+            session.begin(current_source_application()).map_err(|_| "preview-busy")?;
+        } else {
+            session.reselect().map_err(|_| "preview-invalid-state")?;
+        }
+    }
+    display_region_preview(window.app_handle(), &preview)
 }
 
 #[cfg(target_os = "macos")]

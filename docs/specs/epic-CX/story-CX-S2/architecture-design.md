@@ -4,6 +4,8 @@
 
 Application拥有一次圈选请求的状态和临时附件生命周期；Windows/macOS平台Adapter只提供区域选择、区域截图和坐标换算。Desktop组合根展示临时覆盖层与确认条。截图Adapter不得直接调用语音、Gateway、任务存储或CUA Adapter。
 
+来源应用由Desktop在显式进入圈选前通过平台原生前台应用API读取一次显示名称，Application随本轮PreviewSession有界保留。重新圈选复用同一来源，关闭、取消、提交或超时随会话清零。来源只投影到确认卡，不拼接问题、不进入Agent协议、日志、SQLite、事件或Outbox；不可用时显示“当前桌面”。
+
 语音通过VI-S1 Application用例组合；可信Desktop入口在开始前把本轮目标固定为普通语音或当前圈选会话。普通语音沿既有语音通道提交；圈选语音的最终非空转写复用当前`region_preview_submit`与临时附件，不新增Gateway协议。Agent随后使用既有`task.create`创建任务，Yonder不得从UI伪造Agent身份。
 
 ## 状态与契约
