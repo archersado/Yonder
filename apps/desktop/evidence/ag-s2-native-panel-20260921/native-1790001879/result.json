@@ -1,0 +1,14 @@
+{
+  "cancel_available_before_execution" : true,
+  "leave_hides" : true,
+  "panel_hover_keeps_open" : true,
+  "passed" : true,
+  "pid" : 91354,
+  "real_agent_tasks" : true,
+  "same_visible_desktop" : true,
+  "takeover_disabled_before_execution" : true,
+  "task_id_detail_visible" : true,
+  "tasks_hover_opens" : true,
+  "two_named_tasks_visible" : true,
+  "window_id" : 126130
+}

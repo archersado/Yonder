@@ -8,6 +8,7 @@
 - [x] 私有stdio本地测试Agent联调
 - [x] 独立Verification Goal
 - [x] macOS生产UDS与首帧Agent身份下的真实MCP登记联调
+- [x] macOS原生桌宠面板端到端联调
 - [ ] Windows Named Pipe及原生桌宠端到端后续接线
 - [ ] 完整Story/PR通过后Archive
 
