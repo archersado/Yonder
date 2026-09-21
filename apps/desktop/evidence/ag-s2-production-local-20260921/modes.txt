@@ -1,0 +1,2 @@
+drwx------ /private/tmp/yonder-ag-s2-home-clean-cCpvdxeV/Library/Application Support/com.yonder.desktop
+srw------- /private/tmp/yonder-ag-s2-home-clean-cCpvdxeV/Library/Application Support/com.yonder.desktop/agent.sock
