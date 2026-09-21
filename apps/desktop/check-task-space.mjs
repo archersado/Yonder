@@ -154,6 +154,7 @@ export async function checkTaskSpace(page) {
   const detailText=await page.evaluate(() => document.getElementById('detail').textContent);
   assert.ok(detailText.includes('打开目标文档') && detailText.includes('open-document · 接受序号 2'));
   assert.ok(detailText.includes('Agent 声明步骤：打开目标文档') && detailText.includes('动作已观察：成功') && detailText.includes('执行结果未知：执行超时'));
+  assert.ok(detailText.includes('状态说明') && detailText.includes('执行结果未知：执行超时'));
   assert.ok(detailText.includes('ego:49 · Agent控制 · 1个托管页面 · 活动 · 更新序号 3'));
   await page.click('.browser-open');
   assert.deepEqual(await page.evaluate(() => window.fixtureBrowserOpenRequests),[{taskId:'test-task-20',expectedSequence:'5'}]);
