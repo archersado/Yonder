@@ -1,5 +1,5 @@
 use crate::{AttemptResultRecord, Error, ExecutionAttempt, Task, TaskStore, computer_use::{DispatchOutcome, UnknownReason, record_dispatch_outcome}};
-use crate::{AuthContext,Status,admission::{Admission,Resource,start_attempt}};
+use crate::{AuthContext,admission::{Admission,Resource,start_execution}};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BrowserTaskRef {
@@ -82,11 +82,7 @@ pub fn execute_agent_action(store:&mut impl TaskStore,admission:&Admission,port:
         _=>return Err(Error::InvalidInput),
     };
     let attempt=ExecutionAttempt{task_id:task_id.into(),step_id:step.step_id,attempt_id:format!("attempt_{}",expected+1),worker_instance_id:"ego_bridge".into(),host_session_id:host_session_id.into(),phase:crate::AttemptPhase::Prepared,accepted_sequence:0};
-    let accepted=if task.status==Status::Created{
-        let (_,accepted,permit)=start_attempt(store,admission,&attempt,expected,&[Resource::Browser]).map_err(|_|Error::StopRequired)?; drop(permit); accepted
-    }else if task.status==Status::Running && admission.holds(task_id).map_err(|_|Error::StorageUnavailable)?{
-        crate::prepare_next_attempt(store,&attempt,expected)?.1
-    }else{return Err(Error::StopRequired)};
+    let accepted=start_execution(store,admission,&task,&attempt,expected,&[Resource::Browser]).map_err(|_|Error::StopRequired)?.1;
     let outcome=dispatch_prepared(store,port,task_id,&accepted.attempt_id,&action)?;
     let (result_task,_)=record_outcome(store,task_id,&accepted.attempt_id,&outcome)?;
     let reference=store.get_browser_reference(task_id)?.ok_or(Error::StopRequired)?;

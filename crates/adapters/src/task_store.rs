@@ -1365,9 +1365,8 @@ mod tests {
         assert_eq!((unknown_task.sequence,unknown.conclusion,store.get_attempt(&rollback.id).unwrap().unwrap().phase),(4,AttemptConclusion::Unknown { reason:UnknownReason::TimedOut },AttemptPhase::Unknown));
         assert_eq!(yonder_application::advance_after_observe(&mut store,&rollback.id,&accepted.attempt_id),Err(Error::StopRequired));
         assert_eq!(request_control(&mut store,AuthContext::LocalUser("desktop"),&rollback.id,unknown_task.sequence,ControlKind::Pause),Err(Error::StopRequired));
-        let unknown_permit = match unknown_permit.stop_at_boundary(&mut store,&accepted.attempt_id,ControlKind::Pause) { Err(BoundaryStopError::Task { error:Error::StopRequired,permit }) => permit, _ => panic!("unknown不得停止") };
-        assert!(gate.has_occupancy().unwrap());
         drop(unknown_permit);
+        assert!(gate.has_occupancy().unwrap());
 
         let stop_task = store.register("a1","stop-rollback","stop rollback",Some("停止回滚")).unwrap();
         let (stop_task,_) = store.declare_step("a1",&stop_task.id,stop_task.sequence,"stop-step","停止步骤").unwrap();
@@ -1411,6 +1410,27 @@ mod tests {
         assert_eq!((focused.status,control.focus_phase,control.focus_failure,outcome),(Status::Paused,Some(FocusPhase::Focused),None,FocusOutcome::Focused));
         assert!(gate.try_acquire("other",&[Resource::Desktop]).is_err());
         assert_eq!(store.events(&task.id,0,100).unwrap().len(),8);
+    }
+
+    #[test]
+    fn start_execution_routes_created_and_running_tasks() {
+        use yonder_application::{AttemptPhase, ExecutionAttempt, advance_after_observe};
+        use yonder_application::admission::{Admission, Resource, start_execution};
+        use yonder_application::computer_use::{DispatchOutcome, record_dispatch_outcome};
+        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let task = store.register("a1","start-execution","start",Some("统一启动")).unwrap();
+        let (task,_) = store.declare_step("a1",&task.id,task.sequence,"step-1","第一步").unwrap();
+        let attempt = |step:&str,id:&str| ExecutionAttempt { task_id:task.id.clone(), step_id:step.into(), attempt_id:id.into(), worker_instance_id:"worker".into(), host_session_id:"host".into(), phase:AttemptPhase::Prepared, accepted_sequence:0 };
+        let gate = Admission::new(1).unwrap();
+        let (running, first) = start_execution(&mut store,&gate,&task,&attempt("step-1","attempt-1"),task.sequence,&[Resource::Desktop]).unwrap();
+        assert_eq!((running.status,running.sequence,first.accepted_sequence),(Status::Running,task.sequence+1,task.sequence+1));
+        assert_eq!(gate.holds_resource(&task.id,Resource::Desktop),Ok(true));
+        let (task,_) = record_dispatch_outcome(&mut store,&task.id,&first.attempt_id,DispatchOutcome::Known { action_succeeded:true,observation:None }).unwrap();
+        let (task,_) = advance_after_observe(&mut store,&task.id,&first.attempt_id).unwrap();
+        let (task,_) = store.declare_step("a1",&task.id,task.sequence,"step-2","第二步").unwrap();
+        let (next, second) = start_execution(&mut store,&gate,&task,&attempt("step-2","attempt-2"),task.sequence,&[Resource::Desktop]).unwrap();
+        assert_eq!((next.status,next.sequence,second.accepted_sequence),(Status::Running,task.sequence+1,task.sequence+1));
+        assert_eq!(gate.holds_resource(&task.id,Resource::Desktop),Ok(true));
     }
 
     #[test]

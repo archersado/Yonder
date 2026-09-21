@@ -96,6 +96,19 @@ pub fn start_attempt<'a>(store: &mut impl crate::TaskStore, admission: &'a Admis
     }
 }
 
+/// CUA/BUA/Document/Command 的唯一启动边界；资源由各能力声明。
+pub fn start_execution(store: &mut impl crate::TaskStore, admission: &Admission, task: &crate::Task, attempt: &crate::ExecutionAttempt, expected_sequence: u64, resources: &[Resource]) -> Result<(crate::Task, crate::ExecutionAttempt), StartError> {
+    match task.status {
+        crate::Status::Created => start_attempt(store, admission, attempt, expected_sequence, resources).map(|(task, attempt, _)| (task, attempt)),
+        crate::Status::Running => match admission.holds(&attempt.task_id) {
+            Ok(true) => crate::prepare_next_attempt(store, attempt, expected_sequence).map_err(StartError::Task),
+            Ok(false) => Err(StartError::Task(crate::Error::StopRequired)),
+            Err(_) => Err(StartError::Task(crate::Error::StorageUnavailable)),
+        },
+        _ => Err(StartError::Task(crate::Error::StopRequired)),
+    }
+}
+
 impl Admission {
     /// 组合根取得单实例所有权并完成恢复后，才允许创建并使用唯一实例。
     pub fn new(capacity: usize) -> Result<Self, Denied> {

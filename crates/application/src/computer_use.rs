@@ -1,4 +1,4 @@
-use crate::{AttemptResultRecord, AuthContext, Error, ExecutionAttempt, Status, Task, TaskStore, admission::{Admission, Resource, start_attempt}};
+use crate::{AttemptResultRecord, AuthContext, Error, ExecutionAttempt, Status, Task, TaskStore, admission::{Admission, Resource, start_execution}};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkTarget { pub pid: u32, pub window_id: u32 }
@@ -43,11 +43,7 @@ pub fn execute_agent_action(
     if task.sequence!=expected{return Err(Error::Conflict);}
     let target=targets.frontmost().map_err(|_|Error::StopRequired)?;
     let attempt=ExecutionAttempt{task_id:task_id.into(),step_id:step.step_id,attempt_id:format!("attempt_{}",expected+1),worker_instance_id:"cua_worker".into(),host_session_id:host_session_id.into(),phase:crate::AttemptPhase::Prepared,accepted_sequence:0};
-    let accepted=if task.status==Status::Created{
-        let (_,accepted,permit)=start_attempt(store,admission,&attempt,expected,&[Resource::Desktop]).map_err(|_|Error::StopRequired)?;drop(permit);accepted
-    }else if task.status==Status::Running&&admission.holds(task_id).map_err(|_|Error::StorageUnavailable)?{
-        crate::prepare_next_attempt(store,&attempt,expected)?.1
-    }else{return Err(Error::StopRequired)};
+    let accepted=start_execution(store,admission,&task,&attempt,expected,&[Resource::Desktop]).map_err(|_|Error::StopRequired)?.1;
     let action=ComputerAction{tool_name:tool_name.into(),arguments_json:arguments_json.into()};
     let outcome=dispatch_prepared(store,port,task_id,&accepted.attempt_id,&target,&action)?;
     let observation=match &outcome{DispatchOutcome::Known{observation,..}=>observation.clone(),DispatchOutcome::Unknown(_)=>None};
