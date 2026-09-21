@@ -5,4 +5,4 @@
 - [x] 接入macOS前台应用读取与确认卡显示
 - [x] 验证显示、降级、重新圈选和结束清场
 - [x] 完成独立Verification Goal
-- [ ] Archive；Windows保留
+- [x] Archive；Windows保留
