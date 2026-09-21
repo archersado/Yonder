@@ -121,9 +121,11 @@ async function select(task, button) {
   const current = ++selection, currentRound = round;
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
   placeholder('正在读取详情…');
-  const [detailResult, timelineResult, browserResult] = await Promise.allSettled([
+  const recentAfter = (BigInt(task.sequence) > 20n ? BigInt(task.sequence) - 20n : 0n).toString();
+  const [detailResult, timelineResult, recentResult, browserResult] = await Promise.allSettled([
     query('task.step.get', { task_id: task.task_id }),
     query('task.events', { task_id: task.task_id, after_sequence: '0', limit: 20 }),
+    query('task.events', { task_id: task.task_id, after_sequence: recentAfter, limit: 20 }),
     query('task.browser.get', { task_id: task.task_id })
   ]);
   if (current !== selection || currentRound !== round) return;
@@ -134,7 +136,7 @@ async function select(task, button) {
     detail.replaceChildren();
     const h2 = document.createElement('h2'); h2.textContent = result.task.name || "未命名历史任务"; detail.append(h2);
     const dl = document.createElement('dl');
-    const events = timelineResult.status === 'fulfilled' && timelineResult.value.kind === 'events' ? timelineResult.value.events : [];
+    const events = recentResult.status === 'fulfilled' && recentResult.value.kind === 'events' ? recentResult.value.events : [];
     const waitReason = [...events].reverse().find(event => typeof event.wait_reason === 'string' && event.wait_reason)?.wait_reason ?? '未提供';
     const statusReason = [...events].reverse().map(event => event.wait_reason
       ? `等待用户：${event.wait_reason}`
