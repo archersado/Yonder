@@ -7,7 +7,9 @@
 - [x] 实际文件/冲突/回滚/身份版本合约测试
 - [x] 私有stdio本地测试Agent联调
 - [x] 独立Verification Goal
-- [ ] 生产身份/UDS/Named Pipe及原生桌宠端到端后续接线
+- [x] macOS生产UDS与首帧Agent身份下的真实MCP登记联调
+- [x] macOS原生桌宠面板端到端联调
+- [ ] Windows Named Pipe及原生桌宠端到端后续接线
 - [ ] 完整Story/PR通过后Archive
 
 ## Agent命名增量（2026-09-14）

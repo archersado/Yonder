@@ -16,3 +16,7 @@ OpenSpec: ag-s2-local-task-registration
 本地登记核心与私有stdio测试Agent联调通过，独立验证见[Verification Goal](../../../../openspec/changes/ag-s2-local-task-registration/verification-local-agent.md)。两个任务由Agent协议调用真实落库；未接到当前桌面进程。当前Change承接前次权限防线，前次Change只保留子范围历史。完整Story仍implementing，不Archive。
 
 2026-09-14 Agent名称子范围已实施并通过31项核心回归和macOS原生stdio Agent菜单验证，见openspec/changes/ag-s2-local-task-registration/verification-agent-names.md。旧数据备份迁移保留，新测试任务取消后保留；完整Story状态不变，Windows暂缓。
+
+2026-09-21 macOS生产UDS与MCP登记联调通过，见[Verification Goal](../../../../openspec/changes/ag-s2-local-task-registration/verification-production-local.md)。首帧Agent身份、幂等、归属隔离、创建事件同事务和取消保留已验证；Windows Named Pipe与原生桌宠端到端仍未通过，完整Story保持implementing。
+
+2026-09-21 macOS原生桌宠面板端到端通过，见[Verification Goal](../../../../openspec/changes/ag-s2-local-task-registration/verification-native-panel-macos.md)。生产UDS登记的两个Agent任务在原生悬停面板可见，详情、按钮可用性和失焦隐藏均已验证；Windows仍暂缓，完整Story保持implementing。
