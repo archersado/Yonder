@@ -196,3 +196,5 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-20 CX-S2圈选附件产品提交经非实现者复核PASS并归档：macOS正式bundle覆盖accepted/rejected/unknown/unsupported，同会话分块、哈希、引用和清理通过，任务/事件/Outbox不变且正文截图不落盘。Windows、多显示器与云端WSS仍保留后续门禁。
 
 2026-09-20 CX-S2无截图文字提交经非实现者复核PASS并归档：直接点击、不足最小选区及临时未授权bundle均进入“仅提问”；只声明`user_input`的会话每次仅收到1条无附件`agent.input`，unknown无自动重试。语音组合与CUA占用时先暂停仍待后续Change。
+
+2026-09-22 CX-S2应用切换清场Change经当前`dev`正式预览bundle连续两次独立复核PASS并归档：选择中、确认卡中切换均清场，截图主动隐藏不误清场；Windows与多显示器仍保留后续门禁。

@@ -35,6 +35,6 @@ OpenSpec: cx-s2-app-switch-cleanup
 
 [确认卡来源应用Change](../../../../openspec/changes/archive/2026-09-21-cx-s2-source-application/proposal.md)已归档：在用户显式启动时读取一次前台应用显示名称，只在本轮PreviewSession和确认卡内显示；重新圈选保留原来源，结束即清零，不进入Agent正文、日志或数据库。macOS真实前台应用路径与数据边界经独立Verification Goal复核PASS。
 
-当前增量为`openspec/changes/cx-s2-app-switch-cleanup/`：macOS可见圈选层或确认卡失焦时统一清场；截图流程主动隐藏窗口时不得误清场。Windows保留后续门禁。
+[应用切换清场Change](../../../../openspec/changes/archive/2026-09-22-cx-s2-app-switch-cleanup/proposal.md)已归档：macOS可见圈选层或确认卡切换应用时统一清场；截图流程主动隐藏窗口时不会误清场，当前`dev`正式预览bundle连续两次独立复核PASS。Windows保留后续门禁。
 
 2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、显示器变化、物理键盘/鼠标和Windows仍未验证。
