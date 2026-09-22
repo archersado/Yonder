@@ -9,4 +9,4 @@
 - [x] 验证 expected_hash、临时写入和原子提交
 - [x] 对照性能、内存、体积与许可证
 - [x] 产出 AD-E0-04
-- [x] 完成 Verification Goal
+- [ ] 完成 Verification Goal（2026-09-20 独立复核发现 WPS 原始证据缺失）
