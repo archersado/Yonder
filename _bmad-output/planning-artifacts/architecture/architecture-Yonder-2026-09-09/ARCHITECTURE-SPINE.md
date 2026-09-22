@@ -65,6 +65,8 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 
 AD-EX-01 允许 Application 在四类既有执行 Adapter 之上持有有界决策循环：外部 Agent 经 Gateway 给出初始计划，Jev 基于最新 Observe 的可信候选选择操作/目标，既有权限/租约/确认/Driver 派发后强制 Observe；片段内可连续执行，偏离或缺参由归属 Agent 经 Gateway 提交 replan。内部连续步骤须有独立可信来源并保留归属 Agent，不伪造 Agent Gateway 会话；最终任务完成/失败仍由归属 Agent 提交。Jev 不生成自由命令、文档正文或新权限，不拥有任务状态。接入形式与质量仍受 AD-EX-02 双平台 Spike 门禁约束。
 
+Accepted [AD-EX-03](AD-EX-03-JEV-CONFIG-INTERFACE.md) 单独允许实现最小 Jev 配置界面：Application 拥有非敏感配置模型并通过本机命令校验/保存，UI 不直接访问 Adapter、配置文件或任务状态；该配置不改变 AD-EX-02 的执行门禁，也不表示模型可用。
+
 2026-09-14字段级联合设计见[AD-TM-08](AD-TM-08-EXECUTION-IDENTITY-AND-STOP.md)（Proposed）：执行身份、派发/冻结排序、停止确认、WorkRef失效与事务候选契约。尚未授权协议/迁移或产品接管；与Accepted AD-CU-02/03边界一致，未决门禁保留。
 
 ### CUA 与 BUA

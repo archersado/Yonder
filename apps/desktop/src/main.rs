@@ -326,10 +326,30 @@ async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,
     window.hide().map_err(|_|"任务菜单收起失败".to_owned())
 }
 
+#[tauri::command]
+async fn jev_config_get(window: WebviewWindow, state: State<'_, TaskState>) -> Result<yonder_application::jev_config::JevConfig, String> {
+    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        host.lock().map_err(|_| "任务存储不可用")?.as_mut().ok_or("任务存储未就绪，请退出后重试")?
+            .jev_config().map_err(|_| "Jev 配置读取失败".to_owned())
+    }).await.map_err(|_| "Jev 配置读取中断".to_owned())?
+}
+
+#[tauri::command]
+async fn jev_config_save(window: WebviewWindow, state: State<'_, TaskState>, config: yonder_application::jev_config::JevConfig) -> Result<yonder_application::jev_config::JevConfig, String> {
+    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        host.lock().map_err(|_| "任务存储不可用")?.as_mut().ok_or("任务存储未就绪，请退出后重试")?
+            .save_jev_config(config).map_err(|_| "Jev 配置无效或保存失败".to_owned())
+    }).await.map_err(|_| "Jev 配置保存中断".to_owned())?
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, jev_config_get, jev_config_save, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

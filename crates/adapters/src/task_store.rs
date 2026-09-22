@@ -1,6 +1,6 @@
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
-use yonder_application::{Action, AttemptConclusion, AttemptPhase, AttemptResultRecord, ControlKind, ControlPhase, ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status, StepBoundaryRecord, StepDeclaration, StopRecord, Task, TaskEventRecord, TaskStore, Transition, browser_use::{BrowserReferenceRecord,valid_ref}, computer_use::UnknownReason, work_focus::FocusFailure};
+use yonder_application::{Action, AttemptConclusion, AttemptPhase, AttemptResultRecord, ControlKind, ControlPhase, ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status, StepBoundaryRecord, StepDeclaration, StopRecord, Task, TaskEventRecord, TaskStore, Transition, browser_use::{BrowserReferenceRecord,valid_ref}, computer_use::UnknownReason, jev_config::JevConfig, work_focus::FocusFailure};
 
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
@@ -58,8 +58,8 @@ impl SqliteTaskStore {
     fn initialize(mut db: Connection, migrate_plaintext: bool) -> Result<Self, Error> {
         // 在任何初始化写入前拒绝不可读格式及未知版本，包括已有加密库。
         let schema: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(storage)?;
-        if ![0,2,3,4,5,6,7,8,9,10,11,12,13,14].contains(&schema) { return Err(Error::StorageUnavailable); }
-        if schema != 0 && schema != 14 {
+        if ![0,2,3,4,5,6,7,8,9,10,11,12,13,14,15].contains(&schema) { return Err(Error::StorageUnavailable); }
+        if schema != 0 && schema != 15 {
             if !migrate_plaintext { return Err(Error::StorageUnavailable); }
             if let Some(path) = db.path().filter(|path| !path.is_empty()) {
                 let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| Error::StorageUnavailable)?.as_nanos();
@@ -76,7 +76,7 @@ impl SqliteTaskStore {
             let objects: i64 = tx.query_row("SELECT count(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'", [], |r| r.get(0)).map_err(storage)?;
             if objects != 0 { return Err(Error::StorageUnavailable); }
             tx.execute_batch(include_str!("task_schema.sql")).map_err(storage)?;
-        } else if ![2,3,4,5,6,7,8,9,10,11,12,13,14].contains(&schema) { return Err(Error::StorageUnavailable); }
+        } else if ![2,3,4,5,6,7,8,9,10,11,12,13,14,15].contains(&schema) { return Err(Error::StorageUnavailable); }
         if schema == 0 || schema == 2 { tx.execute_batch(include_str!("task_registration_schema.sql")).map_err(storage)?; }
         if schema == 4 {
             // AD-TM-06：仅兼容未使用实验列，绝不清理或伪造恢复记录。
@@ -94,8 +94,22 @@ impl SqliteTaskStore {
         if schema < 12 { tx.execute_batch(include_str!("task_browser_reference_schema.sql")).map_err(storage)?; }
         if schema < 13 { tx.execute_batch(include_str!("task_focus_schema.sql")).map_err(storage)?; }
         if schema < 14 { tx.execute_batch(include_str!("task_wait_schema.sql")).map_err(storage)?; }
+        if schema < 15 { tx.execute_batch(include_str!("jev_config_schema.sql")).map_err(storage)?; }
         tx.commit().map_err(storage)?;
         Ok(Self(db))
+    }
+
+    pub fn get_jev_config(&self) -> Result<Option<JevConfig>, Error> {
+        let value: Option<String> = self.0.query_row("SELECT config_json FROM jev_config WHERE id=1", [], |row| row.get(0)).optional().map_err(storage)?;
+        value.map(|json| serde_json::from_str(&json)).transpose().map_err(|_| Error::StorageUnavailable)
+    }
+
+    pub fn save_jev_config(&mut self, config: &JevConfig) -> Result<JevConfig, Error> {
+        let json = serde_json::to_string(config).map_err(|_| Error::StorageUnavailable)?;
+        let tx = self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
+        tx.execute("INSERT INTO jev_config(id, config_json) VALUES (1, ?1) ON CONFLICT(id) DO UPDATE SET config_json=excluded.config_json", [&json]).map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(config.clone())
     }
 
     fn update_focus(&mut self,task_id:&str,control_id:&str,result:Option<Option<FocusFailure>>)->Result<(Task,ControlRequestRecord),Error>{
@@ -652,7 +666,7 @@ mod tests {
         let cancelled = yonder_application::cancel_pending(&mut store, AuthContext::LocalUser("desktop"), &task.id, 1).unwrap();
         drop(store);
         let db = Connection::open(&path).unwrap();
-        let experimental = "DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
+        let experimental = "DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
         db.execute_batch(experimental).unwrap();
         drop(db);
         let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
@@ -661,7 +675,7 @@ mod tests {
         assert_eq!(store.0.query_row("SELECT count(*) FROM outbox WHERE task_id=?1", [&task.id], |r| r.get::<_,i64>(0)).unwrap(),2);
         assert_eq!(store.0.query_row("SELECT description FROM task_creations WHERE task_id=?1", [&task.id], |r| r.get::<_,String>(0)).unwrap(),"保留任务说明");
         assert_eq!(yonder_application::register(&mut store, AuthContext::Agent("a1"), "one", "保留任务说明", None),Ok(cancelled));
-        assert_eq!(store.0.query_row("PRAGMA user_version", [], |r| r.get::<_,i64>(0)).unwrap(),14);
+        assert_eq!(store.0.query_row("PRAGMA user_version", [], |r| r.get::<_,i64>(0)).unwrap(),15);
         drop(store);
         for rejected in ["UPDATE tasks SET deleted=1;", "CREATE TRIGGER retain_kind AFTER INSERT ON events BEGIN SELECT NEW.kind; END;"] {
             let db = Connection::open(&path).unwrap();
@@ -737,7 +751,7 @@ mod tests {
         drop(db);
         let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
         assert_eq!(store.get("legacy").unwrap().sequence, 1);
-        assert_eq!(store.0.query_row("PRAGMA user_version", [], |r| r.get::<_,i64>(0)).unwrap(), 14);
+        assert_eq!(store.0.query_row("PRAGMA user_version", [], |r| r.get::<_,i64>(0)).unwrap(), 15);
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
         }
@@ -1387,7 +1401,7 @@ mod tests {
         let (cancelled,_) = match stop_permit.stop_at_boundary(&mut store,&stop_attempt.attempt_id,ControlKind::Cancel) { Ok(value) => value, _ => panic!("重试停止应提交") };
         assert_eq!(cancelled.status,Status::Cancelled);
         assert!(!stop_gate.has_occupancy().unwrap());
-        assert_eq!(store.0.query_row("PRAGMA user_version",[],|r| r.get::<_,i64>(0)).unwrap(),14);
+        assert_eq!(store.0.query_row("PRAGMA user_version",[],|r| r.get::<_,i64>(0)).unwrap(),15);
     }
 
     #[test]
@@ -1570,6 +1584,24 @@ mod tests {
         let events=format!(r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"{}","limit":1}}}}"#,task.id,boundary.sequence);
         assert!(matches!(current.handle(&mut store,events.as_bytes(),1000),Response::Success{result:QueryResult::Events{events,..},..} if events[0].wait_reason.as_deref()==Some("请确认发送内容")));
         assert!(matches!(old.handle(&mut store,events.as_bytes(),1000),Response::Success{result:QueryResult::Events{events,..},..} if events[0].wait_reason.is_none()));
+    }
+
+    #[test]
+    fn jev_config_roundtrips_and_uses_one_row() {
+        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        assert_eq!(store.get_jev_config().unwrap(), None);
+        let config = yonder_application::jev_config::JevConfig {
+            enabled: true,
+            endpoint: "http://127.0.0.1:8080/jev".into(),
+            capabilities: vec![yonder_application::jev_config::JevCapability::Command],
+            ..yonder_application::jev_config::JevConfig::default()
+        };
+        assert_eq!(store.save_jev_config(&config).unwrap(), config);
+        assert_eq!(store.get_jev_config().unwrap(), Some(config));
+        let rows: i64 = store.0.query_row("SELECT count(*) FROM jev_config", [], |row| row.get(0)).unwrap();
+        assert_eq!(rows, 1);
+        let version: i64 = store.0.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, 15);
     }
 
     #[test]
