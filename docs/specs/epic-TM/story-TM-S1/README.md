@@ -33,7 +33,7 @@ OpenSpec: oct-s1-task-status
 - [x] AC11：确定全量忙碌/未知汇总及错误语义，不依赖 UI 分页
 - [x] 先更新涉及的 ADR，再同步三份设计和跨模块接口
 - [x] 设计审阅通过后明确新 Proposal 范围；旧 Change 仅保留历史承接，不扩展跨模块代码
-- [ ] 建立实现后的独立验证目标，不把文档检查视为产品验收
+- [x] 建立实现后的独立验证目标，不把文档检查视为产品验收
 
 AC10/AC11 设计已定案。2026-09-22 [`tm-s1-task-presentation-metadata`](../../../../openspec/changes/archive/2026-09-22-tm-s1-task-presentation-metadata/proposal.md) 已完成协议 1.19、SQLite schema 15、分作者用例与 Gateway 查询接线，全量 Rust 测试、生成物检查和架构门禁通过；macOS 原生展示与[独立 Verification Goal](../../../../openspec/changes/archive/2026-09-22-tm-s1-task-presentation-metadata/verification-goal.md)已通过，Change 已归档，Windows 按用户要求暂缓。历史保留和产物版本仍归 AD-TM-01 的 Proposed 部分。真实认证归 AG-S1、资源派发归 TM-S2、可见总览归 DS-S2；密钥与环绕菜单仍暂停。
 原生验证证据：`apps/desktop/evidence/tm-s1-presentation-20260922/result.json` 与 `tm-s1-native.png`。

@@ -200,3 +200,9 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-20 CX-S2无截图文字提交经非实现者复核PASS并归档：直接点击、不足最小选区及临时未授权bundle均进入“仅提问”；只声明`user_input`的会话每次仅收到1条无附件`agent.input`，unknown无自动重试。语音组合与CUA占用时先暂停仍待后续Change。
 
 2026-09-22 CX-S2应用切换清场Change经当前`dev`正式预览bundle连续两次独立复核PASS并归档：选择中、确认卡中切换均清场，截图主动隐藏不误清场；Windows与多显示器仍保留后续门禁。
+
+2026-09-22 EX-S2最小Jev配置窗口已合入`dev`并保持独立设置入口；配置校验、SQLite迁移和macOS验证通过，执行接线继续受AD-EX-02双平台门禁约束。
+
+2026-09-22 当前`dev`完成全部活跃OpenSpec delta结构治理：62项Change通过`openspec validate --all`，仅剩非阻塞措辞/占位警告；Windows分支仍按用户决定暂缓。
+
+2026-09-22 DS-S2人工接管/Recording设计已按AD-RC-01回写为“受控会话输入”：不再宣称物理用户来源，DS只展示Application已提交事实。Recording继续默认关闭，产品协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。
