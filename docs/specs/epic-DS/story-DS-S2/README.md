@@ -39,6 +39,10 @@ OpenSpec: ds-s2-task-overview
 
 2026-09-14用户变更：菜单改由清醒小龙悬停触发，点击仅动作反馈，拖动不打开，双眼点击只唤醒。本机独立verification-hover-macos.md已PASS，Windows暂缓、完整Story仍实施中。
 
+2026-09-23用户变更：清醒小龙右键可手动唤起任务menu；无未结束任务、休眠或拖动时不打开。悬停与Enter/Space保留。
+
+右键入口已通过 macOS 原生真实任务验证，见 `openspec/changes/ds-s2-task-overview/verification-right-click-menu-macos.md`；Windows继续暂缓。
+
 2026-09-14：有任务才悬停、任务状态表现与同桌面面板交互已接线；独立验证见ds-s2-task-overview/verification-task-state-hover-macos.md。空库及原生面板操作PASS，真实运行任务全链路/Windows/完整姿态仍待验证，不Done。
 
 当前卡片操作增量openspec/changes/ds-s2-task-card-actions/；之前ds-s2-task-overview保留功能/验证历史。接管、删除状态由各自Application能力门禁决定，不假装功能已接通。

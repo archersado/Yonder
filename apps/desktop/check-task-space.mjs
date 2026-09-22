@@ -21,6 +21,8 @@ export async function checkPetInteraction(page) {
   await page.evaluate(() => {window.fixtureHovered=true;});
   await page.waitForTimeout(900);
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
+  await page.click('#pet', {button: 'right'});
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
   await page.waitForFunction(() => document.getElementById('pet').classList.contains('frames-ready'));
   const idleSamples=[];
   for(let i=0;i<6;i++) {
@@ -90,14 +92,17 @@ export async function checkPetInteraction(page) {
   await page.press('#pet','Enter');
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),2);
   assert.equal(await page.evaluate(() => window.nativeArguments.filter(call=>call.command==='task_menu_show').at(-1).args.focus),true);
+  await page.click('#pet', {button: 'right'});
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),3);
+  assert.equal(await page.evaluate(() => window.nativeArguments.filter(call=>call.command==='task_menu_show').at(-1).args.focus),true);
   await page.dragAndDrop('#pet','body');
-  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),2);
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),3);
   assert.ok(await page.evaluate(() => window.nativeCalls.includes('plugin:window|start_dragging')));
   await page.evaluate(() => window.emitPresentation(true,'unknown'));
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='unknown');
   await page.waitForFunction(() => document.querySelector('.state-frame').src.endsWith('idle-00.png'));
   await page.cdp('Emulation.setEmulatedMedia',{features:[]});
-  return {emptyHoverHidden:true,tasksArriveWhileHovering:true,executingAnimation:true,continuousLocalPaws:true,stableExecutingBody:true,menuHoverKeepsOpen:true,leaveHides:true,waitingAndPaused:true,continuousPausedWing:true,terminalSuccessAndFailure:true,reducedMotionStaticExecuting:true,clickDoesNotOpen:true,keyboardAndDrag:true,unknownOnFailure:true,fixtureOnly:true};
+  return {emptyHoverHidden:true,emptyRightClickHidden:true,tasksArriveWhileHovering:true,executingAnimation:true,continuousLocalPaws:true,stableExecutingBody:true,menuHoverKeepsOpen:true,leaveHides:true,waitingAndPaused:true,continuousPausedWing:true,terminalSuccessAndFailure:true,reducedMotionStaticExecuting:true,clickDoesNotOpen:true,rightClickOpens:true,keyboardAndDrag:true,unknownOnFailure:true,fixtureOnly:true};
 }
 export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('未提供') || document.querySelectorAll('.task').length > 0);
