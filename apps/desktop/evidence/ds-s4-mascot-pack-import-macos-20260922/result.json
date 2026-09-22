@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-22",
+  "scope": "DS-S4 macOS 原生拒绝证据",
+  "bundle_identifier": "com.yonder.desktop",
+  "tray_import_menu": "triggered",
+  "native_open_panel": "used",
+  "invalid_pack_rejected": true,
+  "invalid_pack_ui_feedback": "资源包不符合规范",
+  "invalid_pack_active_tree_sha256_file": "current-pack-tree.sha256",
+  "evidence": {
+    "ui_feedback": "invalid-feedback.png",
+    "ui_feedback_ocr": "invalid-feedback-ocr.txt"
+  },
+  "passed": true
+}
