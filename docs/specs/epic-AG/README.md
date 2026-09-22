@@ -13,6 +13,7 @@ Epic: AG
 - [AG-S3 Agent步骤声明接入](story-AG-S3/README.md)
 - [AG-S4 Yonder Agent Skill](story-AG-S4/README.md)
 - [AG-S5 Agent用户输入通道](story-AG-S5/README.md)
+- [AG-S6 本地 Agent 注册与撤权](story-AG-S6/README.md)
 
 ## 验收与依赖
 
