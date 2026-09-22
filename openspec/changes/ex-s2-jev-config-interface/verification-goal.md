@@ -17,7 +17,9 @@ cargo test --offline -p yonder-application -p yonder-adapters -p yonder-desktop
 
 结果：通过。
 
-- Application：17 项通过，覆盖默认配置与非法配置。
+- Application：18 项通过，覆盖默认配置、非法配置与端点查询串拒绝。
+- Application：新增端点用户名/密码与远端 HTTPS 校验回归，防止远端明文端点或 URL 内嵌凭据进入配置。
+- Application：新增端点查询串拒绝单测，防止配置携带 token 或其他敏感查询参数。
 - Adapter：27 项通过，覆盖 schema 15、单行配置持久化与既有迁移回归。
 - Desktop：6 项通过，覆盖宿主与窗口基础。
 
@@ -50,3 +52,12 @@ swift apps/desktop/check-jev-config-macos.swift <新的空结果目录>
 ```
 
 结果：PASS。
+
+## 2026-09-23 独立性回归
+
+补充运行 `node apps/desktop/check-task-space.mjs`：
+
+- 断言 Task Space 不加载 `jev-settings` 样式或脚本。
+- 断言 Task Space 不包含 Jev 设置表单、能力开关或关闭控件。
+- 断言 Task Space 全流程没有调用任何 `jev_*` 命令。
+- 当前回归通过，进一步锁定“配置独立、不嵌任务面板”的边界。

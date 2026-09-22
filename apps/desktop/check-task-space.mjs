@@ -101,6 +101,8 @@ export async function checkPetInteraction(page) {
 }
 export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('未提供') || document.querySelectorAll('.task').length > 0);
+  assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
+  assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
     window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[];
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', status:'running', sequence:'4'}));
@@ -206,5 +208,6 @@ export async function checkTaskSpace(page) {
   await page.waitForTimeout(120);
   assert.equal(await page.evaluate(() => document.querySelectorAll('.task').length), 20);
   assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
+  assert.equal(await page.evaluate(() => window.nativeCalls.some(call => call.startsWith('jev_'))), false);
   return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

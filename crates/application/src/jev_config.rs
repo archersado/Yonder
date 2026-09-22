@@ -45,7 +45,19 @@ impl Default for JevConfig {
 impl JevConfig {
     pub fn validate(&self) -> Result<(), JevConfigError> {
         let (scheme, rest) = self.endpoint.split_once("://").ok_or(JevConfigError::InvalidEndpoint)?;
-        if !matches!(scheme, "http" | "https") || rest.is_empty() || rest.contains('?') {
+        let authority = rest.split('/').next().unwrap_or_default();
+        let contains_credentials = authority.contains('@');
+        let contains_fragment = rest.contains('#');
+        let contains_whitespace = self.endpoint.chars().any(char::is_whitespace);
+        let remote_requires_https = self.service_mode == JevServiceMode::Remote && scheme != "https";
+        if !matches!(scheme, "http" | "https")
+            || authority.is_empty()
+            || contains_credentials
+            || contains_fragment
+            || contains_whitespace
+            || rest.contains('?')
+            || remote_requires_https
+        {
             return Err(JevConfigError::InvalidEndpoint);
         }
         if !(1..=100).contains(&self.step_limit) { return Err(JevConfigError::InvalidStepLimit); }
@@ -87,5 +99,37 @@ mod tests {
         config.token_limit = 10_000;
         config.capabilities = Vec::new();
         assert_eq!(config.validate(), Err(JevConfigError::InvalidCapability));
+    }
+
+    #[test]
+    fn rejects_endpoint_query_strings() {
+        let config = JevConfig {
+            endpoint: "http://localhost/jev?token=secret".into(),
+            ..JevConfig::default()
+        };
+        assert_eq!(config.validate(), Err(JevConfigError::InvalidEndpoint));
+    }
+
+    #[test]
+    fn rejects_endpoint_credentials_and_remote_http() {
+        let local_with_credentials = JevConfig {
+            endpoint: "http://user:pass@localhost".into(),
+            ..JevConfig::default()
+        };
+        assert_eq!(local_with_credentials.validate(), Err(JevConfigError::InvalidEndpoint));
+
+        let remote_http = JevConfig {
+            service_mode: JevServiceMode::Remote,
+            endpoint: "http://localhost".into(),
+            ..JevConfig::default()
+        };
+        assert_eq!(remote_http.validate(), Err(JevConfigError::InvalidEndpoint));
+
+        let remote_https = JevConfig {
+            service_mode: JevServiceMode::Remote,
+            endpoint: "https://localhost".into(),
+            ..JevConfig::default()
+        };
+        assert_eq!(remote_https.validate(), Ok(()));
     }
 }
