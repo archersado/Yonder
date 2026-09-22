@@ -19,6 +19,8 @@ Accepted AD-TM-13 定义共享启动边界。CM-S1 的双平台进程树 Spike�
 
 2026-09-21：AD-TM-13 已定案 Application 统一启动边界；`start_execution` 已迁移 CUA/BUA 的 created 与 running 分支，并用 SQLite 回归覆盖两个分支。Application/Adapter 全量测试 39 项 PASS，[独立 Verification Goal](../../../../openspec/changes/tm-s7-unified-execution-start/verification-goal.md) 已建立。Document/Command 仍不开放，完整 Story 不 Archive。
 
+2026-09-23：启动事务已与 AG-S1/EX-S2 计划片段候选对齐，见[架构设计](architecture-design.md)。该对齐不改变现有 `start_execution` 契约，也不授权新增协议字段。
+
 ## OpenSpec 与验证
 
 [统一启动 Change](../../../../openspec/changes/tm-s7-unified-execution-start/proposal.md)。该 Change 只建立 Application 级共享契约、现有 CUA/BUA 回归与 Document/Command 接线门禁；不提前实现尚未获准的 Command 或文件写入能力。
