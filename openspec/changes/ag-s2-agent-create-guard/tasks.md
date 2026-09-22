@@ -6,5 +6,5 @@
 - [x] 实际SQLite负例与Agent正常回归
 - [x] 独立Verification Goal
 - [x] 完整创建协议/幂等后续设计（AD-AG-02与名称增量）
-- [ ] 生产认证/撤权后续设计
+- [ ] 生产认证/撤权后续设计（Proposed AD-AG-08）
 - [ ] PR/完整验收后Archive

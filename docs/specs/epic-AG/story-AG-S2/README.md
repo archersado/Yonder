@@ -20,3 +20,5 @@ OpenSpec: ag-s2-local-task-registration
 2026-09-21 macOS生产UDS与MCP登记联调通过，见[Verification Goal](../../../../openspec/changes/ag-s2-local-task-registration/verification-production-local.md)。首帧Agent身份、幂等、归属隔离、创建事件同事务和取消保留已验证；Windows Named Pipe与原生桌宠端到端仍未通过，完整Story保持implementing。
 
 2026-09-21 macOS原生桌宠面板端到端通过，见[Verification Goal](../../../../openspec/changes/ag-s2-local-task-registration/verification-native-panel-macos.md)。生产UDS登记的两个Agent任务在原生悬停面板可见，详情、按钮可用性和失焦隐藏均已验证；Windows仍暂缓，完整Story保持implementing。
+
+2026-09-22 提出[Proposed AD-AG-08](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-08-LOCAL-AGENT-REGISTRATION.md)：本地 Agent 注册与撤权是 MVP 之后能力，不并入当前 AG-S2 实现。
