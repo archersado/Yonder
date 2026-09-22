@@ -3,7 +3,6 @@
 (() => {
 const byId = id => document.getElementById(id);
 const notice = byId('notice'), tasks = byId('tasks'), detail = byId('detail');
-const jevForm = byId('jev-form'), jevStatus = byId('jev-status');
 const next = byId('next'), refresh = byId('refresh');
 const labels = { created: '已创建', running: '执行中', 'waiting-for-user': '等待用户', paused: '已暂停', interrupted: '已中断', completed: '已完成', failed: '失败', cancelled: '已取消' };
 const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable': '依赖不可用', 'worker-failed': '执行器失败', 'timed-out': '执行超时', 'invalid-response': '响应无效', 'identity-mismatch': '执行身份不匹配', 'observe-failed': '观察失败', 'user-input': '用户已接管输入' };
@@ -19,47 +18,6 @@ async function query(method, params) {
   const response = JSON.parse(await invoke('task_query', { request }));
   if (response.error) throw new Error(response.error.message);
   return response.result;
-}
-async function loadJevConfig() {
-  jevStatus.textContent = '正在读取 Jev 配置…';
-  try {
-    const config = await window.__TAURI_INTERNALS__.invoke('jev_config_get');
-    byId('jev-enabled').checked = Boolean(config.enabled);
-    byId('jev-service-mode').value = config.service_mode;
-    byId('jev-endpoint').value = config.endpoint;
-    byId('jev-step-limit').value = config.step_limit;
-    byId('jev-time-limit').value = config.time_limit_ms;
-    byId('jev-token-limit').value = config.token_limit;
-    for (const input of document.querySelectorAll('.jev-capability')) input.checked = config.capabilities.includes(input.value);
-    jevStatus.textContent = config.enabled ? '已启用；保存成功不代表模型可用' : '未启用';
-  } catch (error) {
-    jevStatus.textContent = `Jev 配置读取失败：${error?.message ?? error ?? '请重试'}`;
-  }
-}
-async function saveJevConfig(event) {
-  event.preventDefault();
-  const button = byId('jev-save');
-  button.disabled = true;
-  jevStatus.textContent = '正在保存 Jev 配置…';
-  const capabilities = [...document.querySelectorAll('.jev-capability')]
-    .filter(input => input.checked).map(input => input.value);
-  const config = {
-    enabled: byId('jev-enabled').checked,
-    service_mode: byId('jev-service-mode').value,
-    endpoint: byId('jev-endpoint').value.trim(),
-    step_limit: Number(byId('jev-step-limit').value),
-    time_limit_ms: Number(byId('jev-time-limit').value),
-    token_limit: Number(byId('jev-token-limit').value),
-    capabilities
-  };
-  try {
-    const saved = await window.__TAURI_INTERNALS__.invoke('jev_config_save', { config });
-    jevStatus.textContent = saved.enabled ? '已启用；保存成功不代表模型可用' : '已保存，当前未启用';
-  } catch (error) {
-    jevStatus.textContent = `Jev 配置保存失败：${error?.message ?? error ?? '请检查字段'}`;
-  } finally {
-    button.disabled = false;
-  }
 }
 function message(text, error = false) { notice.textContent = text; notice.dataset.error = String(error); }
 function placeholder(text) {
@@ -253,7 +211,6 @@ for (const [id, finished] of [['ongoing', false], ['all', true]]) {
     byId('ongoing').setAttribute('aria-pressed', String(!finished)); byId('all').setAttribute('aria-pressed', String(finished)); load();
   });
 }
-jevForm.addEventListener('submit', saveJevConfig);
 refresh.addEventListener('click', () => load());
 next.addEventListener('click', () => { cursor = nextCursor; ++pageNumber; load(false); });
 async function close() {
@@ -263,7 +220,5 @@ async function close() {
 byId('close').addEventListener('click', close);
 document.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
 window.addEventListener('yonda-tasks-open', () => { byId('refresh').focus(); load(); });
-window.addEventListener('yonda-tasks-open', loadJevConfig);
-loadJevConfig();
 load();
 })();

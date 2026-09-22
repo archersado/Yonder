@@ -12,26 +12,6 @@
   <header><div><span class="eyebrow">YONDA</span><h1>任务总览 <span>Task Space</span></h1></div>
     <div class="actions"><button id="refresh">刷新</button><button id="close" aria-label="关闭任务总览">关闭</button></div></header>
   <nav aria-label="任务筛选"><button id="ongoing" aria-pressed="true">进行中</button><button id="all" aria-pressed="false">全部</button></nav>
-  <details id="jev-settings" aria-label="Jev 快脑设置">
-    <summary>Jev 快脑设置</summary>
-    <form id="jev-form">
-      <label><input id="jev-enabled" type="checkbox" /> 启用 Jev</label>
-      <label>服务形态 <select id="jev-service-mode"><option value="local">本地</option><option value="remote">远端</option></select></label>
-      <label>端点 <input id="jev-endpoint" type="url" required /></label>
-      <label>步数上限 <input id="jev-step-limit" type="number" min="1" max="100" step="1" required /></label>
-      <label>时间上限(ms) <input id="jev-time-limit" type="number" min="1000" max="600000" step="1" required /></label>
-      <label>Token 上限 <input id="jev-token-limit" type="number" min="1" max="100000" step="1" required /></label>
-      <fieldset><legend>允许执行层</legend>
-        <label><input class="jev-capability" type="checkbox" value="CUA" /> CUA</label>
-        <label><input class="jev-capability" type="checkbox" value="BUA" /> BUA</label>
-        <label><input class="jev-capability" type="checkbox" value="DOCUMENT" /> Document</label>
-        <label><input class="jev-capability" type="checkbox" value="COMMAND" /> Command</label>
-      </fieldset>
-      <p class="readonly">置信阈值 0.75、动作后强制 Observe、敏感操作须确认；这些安全闸不可降低。</p>
-      <button id="jev-save" type="submit">保存 Jev 配置</button>
-      <p id="jev-status" role="status" aria-live="polite"></p>
-    </form>
-  </details>
   <p id="notice" role="status" aria-live="polite">正在读取任务…</p>
   <main><section aria-label="任务列表"><ul id="tasks"></ul><div class="pagination"><span id="page-label"></span><button id="next" hidden>下一页</button></div></section>
     <section id="detail" aria-label="任务详情"><p class="placeholder">选择任务查看详情</p></section></main>

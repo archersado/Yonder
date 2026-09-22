@@ -13,7 +13,7 @@ companions: [DEVELOPMENT-AND-CHANGE-MODE.md]
 
 ## 产品边界
 
-2026-09-21 按 Accepted [AD-EX-01](AD-EX-01-BOUNDED-FAST-BRAIN.md) 修正系统边界：Yonder 可在 CUA/BUA/Document/Command Driver 之上运行有界 Jev 快脑决策循环；外部慢脑仍负责首次计划和需要时的 replan，所有慢脑请求继续进入既有 Agent Gateway。Jev 接入路线另由 Proposed [AD-EX-02](AD-EX-02-JEV-INTEGRATION-ROUTE.md) 验证；技术门禁未通过前不修改运行时代码或开放产品能力。
+2026-09-21 按 Accepted [AD-EX-01](AD-EX-01-BOUNDED-FAST-BRAIN.md) 修正系统边界：Yonder 可在 CUA/BUA/Document/Command Driver 之上运行有界 Jev 快脑决策循环；外部慢脑仍负责首次计划和需要时的 replan，所有慢脑请求继续进入既有 Agent Gateway。Jev 接入路线另由 Proposed [AD-EX-02](AD-EX-02-JEV-INTEGRATION-ROUTE.md) 验证；技术门禁未通过前不修改运行时代码或开放产品能力。2026-09-22 Proposed [AD-EX-04](AD-EX-04-BOUNDED-ACTION-RECIPE.md) 仅记录类型化动作配方优化候选，当前基线仍是 Jev 每步决策。
 
 Yonder 是 Windows/macOS 上轻量常驻的 Agent Tool，提供本地系统操作、用户操作感知和个人上下文采集。它可被桌面 Agent、Agent CLI 或外部云端 Agent 驱动；不是通用 Agent、首次计划/语义 replan 的慢脑规划器，也不是云端服务。仅 AD-EX-01 定义的有界 Jev 快脑模型循环可以内置。BUA 直接复用 ego-lite Browser Task Space，Yonder 不复制该模型。
 
@@ -64,6 +64,8 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 ### 有界执行快脑
 
 AD-EX-01 允许 Application 在四类既有执行 Adapter 之上持有有界决策循环：外部 Agent 经 Gateway 给出初始计划，Jev 基于最新 Observe 的可信候选选择操作/目标，既有权限/租约/确认/Driver 派发后强制 Observe；片段内可连续执行，偏离或缺参由归属 Agent 经 Gateway 提交 replan。内部连续步骤须有独立可信来源并保留归属 Agent，不伪造 Agent Gateway 会话；最终任务完成/失败仍由归属 Agent 提交。Jev 不生成自由命令、文档正文或新权限，不拥有任务状态。接入形式与质量仍受 AD-EX-02 双平台 Spike 门禁约束。
+
+Proposed [AD-EX-04](AD-EX-04-BOUNDED-ACTION-RECIPE.md) 只作为后续数据对照候选：慢脑可预提交类型化有序动作、目标谓词和 guard，Application 逐步解释并在 guard 失败时才调用 Jev 修复。该路线不是代码或通用 DSL，Driver 不解释配方，每个实际动作后仍强制 Observe；未按预设门槛证明优于每步 Jev 基线前不实施。
 
 Accepted [AD-EX-03](AD-EX-03-JEV-CONFIG-INTERFACE.md) 单独允许实现最小 Jev 配置界面：Application 拥有非敏感配置模型并通过本机命令校验/保存，UI 不直接访问 Adapter、配置文件或任务状态；该配置不改变 AD-EX-02 的执行门禁，也不表示模型可用。
 

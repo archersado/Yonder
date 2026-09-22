@@ -20,11 +20,11 @@
 
 ### Requirement: 本机配置界面
 
-Task Space MUST 提供仅通过本机命令读写 Jev 配置的界面，不得直接访问 Adapter、配置文件或任务状态。
+系统 MUST 提供独立的 Jev 配置窗口，仅通过本机命令读写 Jev 配置，不得直接访问 Adapter、配置文件或任务状态，且不得嵌入 Task Space。
 
 #### Scenario: 读取配置
 
-- WHEN 用户打开 Task Space 设置区
+- WHEN 用户从系统托盘菜单打开 Jev 设置窗口
 - THEN 界面显示当前保存配置
 - AND 显示置信阈值与敏感操作闸的只读安全说明
 
