@@ -372,6 +372,17 @@ fn show_voice_input(app: &tauri::AppHandle) -> Result<(), String> {
         .map_err(|_| "语音卡打开失败".into())
 }
 
+fn show_jev_settings(app: &tauri::AppHandle) -> Result<(), String> {
+    let settings = app
+        .get_webview_window("jev-settings")
+        .ok_or("Jev 设置窗口不可用")?;
+    settings
+        .show()
+        .and_then(|_| settings.set_focus())
+        .and_then(|_| settings.eval("window.dispatchEvent(new Event('yonda-jev-open'))"))
+        .map_err(|_| "Jev 设置窗口打开失败".into())
+}
+
 #[tauri::command]
 fn voice_input_open(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
     if window.label() != "pet" { return Err("不允许的窗口".into()); }
@@ -485,10 +496,63 @@ async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,
     window.hide().map_err(|_|"任务菜单收起失败".to_owned())
 }
 
+#[tauri::command]
+async fn jev_config_get(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+) -> Result<yonder_application::jev_config::JevConfig, String> {
+    if window.label() != "jev-settings" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        host.lock()
+            .map_err(|_| "任务存储不可用")?
+            .as_mut()
+            .ok_or("任务存储未就绪，请退出后重试")?
+            .jev_config()
+            .map_err(|_| "Jev 配置读取失败".to_owned())
+    })
+    .await
+    .map_err(|_| "Jev 配置读取中断".to_owned())?
+}
+
+#[tauri::command]
+async fn jev_config_save(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    config: yonder_application::jev_config::JevConfig,
+) -> Result<yonder_application::jev_config::JevConfig, String> {
+    if window.label() != "jev-settings" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        host.lock()
+            .map_err(|_| "任务存储不可用")?
+            .as_mut()
+            .ok_or("任务存储未就绪，请退出后重试")?
+            .save_jev_config(config)
+            .map_err(|_| "Jev 配置无效或保存失败".to_owned())
+    })
+    .await
+    .map_err(|_| "Jev 配置保存中断".to_owned())?
+}
+
+#[tauri::command]
+fn jev_settings_close(window: WebviewWindow) -> Result<(), String> {
+    if window.label() != "jev-settings" {
+        return Err("不允许的窗口".into());
+    }
+    window
+        .hide()
+        .map_err(|_| "Jev 设置窗口关闭失败".to_owned())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, jev_config_get, jev_config_save, jev_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -496,11 +560,12 @@ fn main() {
             app.get_webview_window("task-space").ok_or("任务菜单未创建")?.hide()?;
             app.get_webview_window("voice-input").ok_or("语音卡未创建")?.hide()?;
             app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?.hide()?;
+            app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?.hide()?;
             #[cfg(target_os = "macos")]
             {
                 use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior as Behavior};
                 // 小龙与任务菜单采用相同Space/全屏辅助行为。
-                for window in [pet.clone(), app.get_webview_window("task-space").ok_or("任务菜单未创建")?, app.get_webview_window("voice-input").ok_or("语音卡未创建")?, app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?] {
+                for window in [pet.clone(), app.get_webview_window("task-space").ok_or("任务菜单未创建")?, app.get_webview_window("voice-input").ok_or("语音卡未创建")?, app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?, app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?] {
                 let native = unsafe { &*window.ns_window()?.cast::<NSWindow>() };
                 let mut behavior = native.collectionBehavior();
                 if objc2::available!(macos = 13.0) {
@@ -536,8 +601,9 @@ fn main() {
             let show = MenuItem::with_id(app, "tasks", "任务总览", true, None::<&str>)?;
             let region = MenuItem::with_id(app, "region", "圈选提问（预览）", true, None::<&str>)?;
             let import = MenuItem::with_id(app, "pet-pack-import", "导入桌宠资源包", true, None::<&str>)?;
+            let jev = MenuItem::with_id(app, "jev", "Jev 快脑设置", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出任务面板", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &region, &import, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &region, &import, &jev, &quit])?;
             let mut rgba = vec![0u8; 16 * 16 * 4];
             for y in 3..13 { for x in 3..13 {
                 if y <= 4 || (7..=8).contains(&x) { rgba[(y * 16 + x) * 4 + 3] = 255; }
@@ -561,18 +627,19 @@ fn main() {
                         };
                         let _ = pet.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-pet-pack-status',{{detail:'{detail}'}}))"));
                     },
+                    "jev" => { let _ = show_jev_settings(app); },
                     "quit" => app.exit(0),
                     _ => {}
                 }).build(app)?;
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() == "task-space" || window.label() == "voice-input" || window.label() == "region-preview" {
+            if window.label() == "task-space" || window.label() == "voice-input" || window.label() == "region-preview" || window.label() == "jev-settings" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     if window.label() == "voice-input" { window.app_handle().state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Direct); }
                     if window.label() == "region-preview" { let _ = clear_region_preview(window.app_handle(), Some("close"), None); }
-                    else { let _ = window.hide(); }
+                    let _ = window.hide();
                 }
             }
         })

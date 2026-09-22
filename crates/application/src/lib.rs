@@ -7,6 +7,7 @@ pub mod browser_use;
 pub mod computer_use;
 pub mod document;
 pub mod gateway;
+pub mod jev_config;
 pub mod query;
 pub mod work_focus;
 

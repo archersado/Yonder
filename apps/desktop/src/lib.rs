@@ -22,6 +22,7 @@ use yonder_application::{
     admission::Admission,
     browser_use::BrowserUsePort,
     computer_use::{ComputerUsePort, WorkTarget, WorkTargetPort},
+    jev_config::JevConfig,
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
 };
 
@@ -38,6 +39,7 @@ pub enum HostError {
     LockUnavailable,
     StorageUnavailable,
     BrowserUnavailable,
+    InvalidConfig,
 }
 
 pub fn emit_pet_presentation(window: &WebviewWindow, has_tasks: bool, state: &str) {
@@ -426,6 +428,22 @@ impl TaskHost {
     /// 是观察而非隐藏许可；正式收起仍需预约协调。
     pub fn activity(&mut self) -> ActivityState {
         yonder_application::activity_state(&mut self.store, Some(&self.admission))
+    }
+
+    pub fn jev_config(&mut self) -> Result<JevConfig, HostError> {
+        self.store
+            .get_jev_config()
+            .map_err(|_| HostError::StorageUnavailable)
+            .map(|value| value.unwrap_or_default())
+    }
+
+    pub fn save_jev_config(&mut self, config: JevConfig) -> Result<JevConfig, HostError> {
+        config
+            .validate()
+            .map_err(|_| HostError::InvalidConfig)?;
+        self.store
+            .save_jev_config(&config)
+            .map_err(|_| HostError::StorageUnavailable)
     }
 }
 

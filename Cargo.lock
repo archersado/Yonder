@@ -5101,6 +5101,7 @@ dependencies = [
 name = "yonder-application"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "yonder-domain",
  "yonder-protocol",
 ]

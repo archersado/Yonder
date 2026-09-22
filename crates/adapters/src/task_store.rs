@@ -7,6 +7,7 @@ use yonder_application::{
     TaskPresentation, TaskSource, TaskStore, Transition,
     browser_use::{BrowserReferenceRecord, valid_ref},
     computer_use::UnknownReason,
+    jev_config::JevConfig,
     work_focus::FocusFailure,
 };
 
@@ -159,10 +160,10 @@ impl SqliteTaskStore {
         let schema: i64 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
-        if ![0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].contains(&schema) {
+        if ![0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].contains(&schema) {
             return Err(Error::StorageUnavailable);
         }
-        if schema != 0 && schema != 15 {
+        if schema != 0 && schema != 16 {
             if !migrate_plaintext {
                 return Err(Error::StorageUnavailable);
             }
@@ -201,7 +202,7 @@ impl SqliteTaskStore {
             }
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
-        } else if ![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].contains(&schema) {
+        } else if ![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].contains(&schema) {
             return Err(Error::StorageUnavailable);
         }
         if schema == 0 || schema == 2 {
@@ -260,8 +261,41 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_presentation_schema.sql"))
                 .map_err(storage)?;
         }
+        if schema < 16 {
+            tx.execute_batch(include_str!("jev_config_schema.sql"))
+                .map_err(storage)?;
+        }
         tx.commit().map_err(storage)?;
         Ok(Self(db))
+    }
+
+    pub fn get_jev_config(&self) -> Result<Option<JevConfig>, Error> {
+        let value: Option<String> = self
+            .0
+            .query_row("SELECT config_json FROM jev_config WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .optional()
+            .map_err(storage)?;
+        value
+            .map(|json| serde_json::from_str(&json))
+            .transpose()
+            .map_err(|_| Error::StorageUnavailable)
+    }
+
+    pub fn save_jev_config(&mut self, config: &JevConfig) -> Result<JevConfig, Error> {
+        let json = serde_json::to_string(config).map_err(|_| Error::StorageUnavailable)?;
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO jev_config(id, config_json) VALUES (1, ?1) ON CONFLICT(id) DO UPDATE SET config_json=excluded.config_json",
+            [&json],
+        )
+        .map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(config.clone())
     }
 
     fn update_focus(
@@ -2455,7 +2489,7 @@ mod tests {
         .unwrap();
         drop(store);
         let db = Connection::open(&path).unwrap();
-        let experimental = "DROP TABLE task_presentation_events; DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
+        let experimental = "DROP TABLE task_presentation_events; DROP TABLE jev_config; DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
         db.execute_batch(experimental).unwrap();
         drop(db);
         let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
@@ -2503,7 +2537,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            15
+            16
         );
         drop(store);
         for rejected in [
@@ -2528,6 +2562,31 @@ mod tests {
     }
 
     #[test]
+    fn jev_config_roundtrips_and_uses_one_row() {
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        assert_eq!(store.get_jev_config().unwrap(), None);
+        let config = yonder_application::jev_config::JevConfig {
+            enabled: true,
+            endpoint: "http://127.0.0.1:8080/jev".into(),
+            capabilities: vec![yonder_application::jev_config::JevCapability::Command],
+            ..yonder_application::jev_config::JevConfig::default()
+        };
+        assert_eq!(store.save_jev_config(&config).unwrap(), config);
+        assert_eq!(store.get_jev_config().unwrap(), Some(config));
+        let rows: i64 = store
+            .0
+            .query_row("SELECT count(*) FROM jev_config", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 1);
+        let version: i64 = store
+            .0
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 16);
+    }
+
+    #[test]
     fn task_presentation_metadata_is_persistent_versioned_and_version_gated() {
         use yonder_application::admission::{Admission, Resource, start_attempt};
         use yonder_application::computer_use::{DispatchOutcome, record_dispatch_outcome};
@@ -2539,7 +2598,7 @@ mod tests {
 
         let old_store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
-        old_store.0.execute_batch("DROP TABLE task_presentation_events; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; PRAGMA user_version=14;").unwrap();
+        old_store.0.execute_batch("DROP TABLE task_presentation_events; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; PRAGMA user_version=14;").unwrap();
         old_store.0.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence) VALUES ('legacy','a1','created',1)", []).unwrap();
         let db = old_store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
@@ -2851,7 +2910,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            15
+            16
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -4609,7 +4668,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            15
+            16
         );
     }
 

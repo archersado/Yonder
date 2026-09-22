@@ -1,0 +1,12 @@
+{
+  "after_counts" : "189,1437,1437\n",
+  "before_counts" : "189,1437,1437\n",
+  "invalid_rejected" : true,
+  "jev_config_rows" : 1,
+  "passed" : true,
+  "pid" : 17929,
+  "read_config" : true,
+  "readonly_safety_visible" : true,
+  "task_event_outbox_counts_unchanged" : true,
+  "valid_save" : true
+}

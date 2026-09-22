@@ -21,3 +21,4 @@ Epic: AG
 - AG-S2仅允许Agent经Gateway创建，字段、认证和幂等按其Story推进。
 - AG-S1当前增量实现安装包内`yonder` CLI、MCP stdio与macOS UDS生产接入，复用AG-S2/AG-S3能力。
 - AG-S4当前只完成规格；等待BUA、CUA、Document、Command正式能力全部通过后再生成OpenSpec和Skill包。
+- 快慢脑模式由 AG-S1 继续持有慢脑计划/replan 的唯一 Gateway 入口（Accepted AD-AG-07）；计划语义与 Jev 执行归 EX-S2。字段与事务联审前不增加第二传输或虚假的计划 API。

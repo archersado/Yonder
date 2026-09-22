@@ -40,3 +40,7 @@ OpenSpec: ag-s1-local-cli-mcp
 2026-09-20用户变更：本地UDS不再固定`codex-cli`身份。新增[连接身份绑定 Change](../../../../openspec/changes/ag-s1-session-agent-binding/proposal.md)：首个`gateway.hello`绑定连接，后续请求不得切换身份；CLI必须显式提供`YONDER_AGENT_ID`。
 
 2026-09-22macOS生产UDS独立Verification Goal通过：隔离HOME真实桌面进程验证首帧绑定、连接内身份切换拒绝、跨连接任务隔离、目录/端点权限和CLI显式身份门禁。结构化证据见[ag-s1-session-agent-binding Verification Goal](../../../../openspec/changes/ag-s1-session-agent-binding/verification-goal.md)。Windows Named Pipe与正式认证仍暂缓，完整Story不Done/Archive。
+
+## 新架构：慢脑计划 Gateway 入口
+
+2026-09-21 按 Accepted AD-EX-01 与用户明确的链路要求，首次计划和 Observe 后 replan 仍经 AG-S1 现有 Agent Gateway 入站；快脑交回依据沿任务事件/Outbox 到归属 Agent，不建立直连或第二通道。接入边界见 Accepted [AD-AG-07](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-07-SLOW-BRAIN-GATEWAY-INGRESS.md)，未决计划契约见 [EX-S2](../../epic-EX/story-EX-S2/README.md)。本增量处于 design-review：计划载荷、版本/CAS、能力协商和事务尚未与 EX/TM 定稿，不生成实施 OpenSpec 或修改协议代码；AG-S1 既有本地身份绑定实现与验证状态不因此重做。
