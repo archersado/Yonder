@@ -51,7 +51,7 @@ tasks 含 id、owner_agent_id、state、sequence；events 含 previous/state/seq
 
 AC01–09 对照 Domain/Application 和真实 SQLCipher 双连接、Outbox 故障注入与恢复测试。非法参数拒绝；Conflict 先重读再决策；StorageUnavailable 不返回成功。所有验证用临时合成库，不碰用户数据。Windows/macOS 库层与原生宿主证据分开记录。
 
-AC10/11 尚缺字段和汇总契约，必须先定案 ADR、更新主体、事件语义及验证样本；不能用空字段、假步骤或当前页面计数填补。失败不得隐式重试未知副作用。
+AC10 已按 AD-TM-01 子范围定案：`name/source/current_step/observation/next_intent` 分作者写入，缺失为 `null`，同事务更新当前值、事件与 Outbox；`task.get` 返回完整快照，`task.list` 只返回有界摘要。AC11 已按 AD-TM-02 定案：`running_state/activity_state` 全量读取任务表和唯一 Admission，任一已知忙为 Busy，读取失败为 Unknown。不能用空字段、假步骤或当前页面计数填补；失败不得隐式重试未知副作用。
 
 ## 架构影响
 

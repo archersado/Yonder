@@ -103,8 +103,11 @@ export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('未提供') || document.querySelectorAll('.task').length > 0);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
     window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[];
-    const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', status:'running', sequence:'4'}));
+    const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
+    tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
+    tasks[20].observation={step_id:'open-document',result:'matched',summary:'文档已打开'};
+    tasks[20].next_intent='编辑目标文档';
     window.__TAURI_INTERNALS__ = {invoke:async (command,input) => {
       if (command === 'user_takeover') {
         window.fixtureControlRequests.push(input);
@@ -153,6 +156,11 @@ export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.querySelector('#detail h2'));
   const detailText=await page.evaluate(() => document.getElementById('detail').textContent);
   assert.ok(detailText.includes('打开目标文档') && detailText.includes('open-document · 接受序号 2'));
+  const details=await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#detail dt')].map(item => [item.textContent,item.nextElementSibling.textContent])));
+  assert.equal(details['来源'],'本地 Agent');
+  assert.equal(details['当前步骤'],'打开目标文档');
+  assert.equal(details['观察摘要'],'已匹配 · 文档已打开');
+  assert.equal(details['下一步意图'],'编辑目标文档');
   assert.ok(detailText.includes('Agent 声明步骤：打开目标文档') && detailText.includes('动作已观察：成功') && detailText.includes('执行结果未知：执行超时'));
   assert.ok(detailText.includes('ego:49 · Agent控制 · 1个托管页面 · 活动 · 更新序号 3'));
   await page.click('.browser-open');
@@ -206,5 +214,5 @@ export async function checkTaskSpace(page) {
   await page.waitForTimeout(120);
   assert.equal(await page.evaluate(() => document.querySelectorAll('.task').length), 20);
   assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

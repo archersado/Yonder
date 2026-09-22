@@ -29,13 +29,14 @@ OpenSpec: oct-s1-task-status
 - [x] 定义 task/step/attempt/request/sequence 职责、作者/状态允许矩阵和重投递/迟到结果规则；仍待 payload 与去重寿命定稿
 - [x] 列出历史事件最小事实、观察轮次与受控引用，提出单事件/整页字节预算并完成文档边界走查；尚无实现测试
 - [x] 补齐保留/删除/去重寿命及产物版本清单方案；区分源文档期限与工程建议，待整体 ADR 和跨模块审阅
-- [ ] AC10：确定名称、来源、步骤、观察/意图的字段与限额，更新主体、脱敏与持久化规则
-- [ ] AC11：确定全量忙碌/未知汇总及错误语义，不依赖 UI 分页
-- [ ] 先更新涉及的 ADR，再同步三份设计和跨模块接口
-- [ ] 设计审阅通过后明确新 Proposal 范围；旧 Change 仅保留历史承接，不扩展跨模块代码
+- [x] AC10：确定名称、来源、步骤、观察/意图的字段与限额，更新主体、脱敏与持久化规则
+- [x] AC11：确定全量忙碌/未知汇总及错误语义，不依赖 UI 分页
+- [x] 先更新涉及的 ADR，再同步三份设计和跨模块接口
+- [x] 设计审阅通过后明确新 Proposal 范围；旧 Change 仅保留历史承接，不扩展跨模块代码
 - [ ] 建立实现后的独立验证目标，不把文档检查视为产品验收
 
-信息归属已补齐。下一步联审 TM-S1/TM-S5 的字段、可信写入者、历史保留和同事务事件，再确定 AC11 全量忙碌/未知接口。AD-TM-01 仅为 Proposed 建议，不能用“最小字段”缩减原需求。真实认证归 AG-S1、资源派发归 TM-S2、可见总览归 DS-S2；密钥与环绕菜单仍暂停。
+AC10/AC11 设计已定案。2026-09-22 [`tm-s1-task-presentation-metadata`](../../../../openspec/changes/archive/2026-09-22-tm-s1-task-presentation-metadata/proposal.md) 已完成协议 1.19、SQLite schema 15、分作者用例与 Gateway 查询接线，全量 Rust 测试、生成物检查和架构门禁通过；macOS 原生展示与[独立 Verification Goal](../../../../openspec/changes/archive/2026-09-22-tm-s1-task-presentation-metadata/verification-goal.md)已通过，Change 已归档，Windows 按用户要求暂缓。历史保留和产物版本仍归 AD-TM-01 的 Proposed 部分。真实认证归 AG-S1、资源派发归 TM-S2、可见总览归 DS-S2；密钥与环绕菜单仍暂停。
+原生验证证据：`apps/desktop/evidence/tm-s1-presentation-20260922/result.json` 与 `tm-s1-native.png`。
 
 ## OpenSpec 与验证
 

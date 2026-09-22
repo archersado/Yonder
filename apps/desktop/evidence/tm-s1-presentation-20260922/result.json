@@ -1,0 +1,8 @@
+{
+  "current_step" : true,
+  "next_intent" : true,
+  "observation" : true,
+  "passed" : true,
+  "pid" : 76145,
+  "source_local_agent" : true
+}
