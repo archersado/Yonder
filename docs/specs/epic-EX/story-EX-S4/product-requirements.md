@@ -17,6 +17,9 @@
 | EX4-03 | 架构 Command 边界 | 只执行显式 program+args+cwd+env；Shell、提权、安装、删除、支付、发送仍须现有确认，模型置信度不能代替确认。 |
 | EX4-04 | 架构状态/恢复 | 执行结果不明为 `unknown` 且不自动重试；每步 Observe 和任务事件/Outbox 同事务，取消/接管优先。 |
 | EX4-05 | 用户 token/质量目标 | 文档与命令固定样本对照慢脑调用/token、时延、成功率及误副作用；Windows/macOS 分别验证并经独立 Goal。 |
+| EX4-06 | AD-EX-04 Proposed 边界 | 在 AD-EX-04 转为 Accepted 前，本 Story 只实现当前“每步 Jev 决策”基线，不引入 Recipe、批处理执行或可执行 DSL。 |
+| EX4-07 | 候选生命周期 | Document/Command 候选只在当前计划片段内有效；每次派发后重新校验文件身份、锁、`expected_hash` 或命令参数，不缓存旧候选。 |
+| EX4-08 | 候选契约 | Document/Command 候选只暴露结构化引用与安全闸信息；Jev 只能选择 `candidate_id`，不能生成路径、参数、OOXML 或 Shell 内容。 |
 
 ## 待审建议
 
