@@ -5,6 +5,7 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 
 static id yonda_region_activation_observer = nil;
+static id yonda_region_display_observer = nil;
 
 static void yonda_region_on_main(void (^block)(void)) {
     if (NSThread.isMainThread) block();
@@ -28,6 +29,23 @@ void yonda_region_stop_application_switch_watch(void) {
         if (!yonda_region_activation_observer) return;
         [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:yonda_region_activation_observer];
         yonda_region_activation_observer = nil;
+    }
+}
+
+void yonda_region_watch_display_change(void (*callback)(void)) {
+    yonda_region_on_main(^{
+        if (yonda_region_display_observer) return;
+        yonda_region_display_observer = [[NSNotificationCenter defaultCenter]
+            addObserverForName:NSApplicationDidChangeScreenParametersNotification object:nil queue:nil
+            usingBlock:^(NSNotification *notification) { (void)notification; callback(); }];
+    });
+}
+
+void yonda_region_stop_display_change_watch(void) {
+    @synchronized([NSNotificationCenter defaultCenter]) {
+        if (!yonda_region_display_observer) return;
+        [[NSNotificationCenter defaultCenter] removeObserver:yonda_region_display_observer];
+        yonda_region_display_observer = nil;
     }
 }
 
