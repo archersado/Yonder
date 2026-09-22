@@ -2,7 +2,7 @@
 
 Story: EN-S1
 Epic: EN
-Status: implementing
+Status: done
 OpenSpec: module-epic-story-fence
 
 ## 设计文档
@@ -18,9 +18,10 @@ OpenSpec: module-epic-story-fence
 2026-09-20 独立验证确认 15 项自测、架构检查及真实仓库关联接受/拒绝用例通过，当前规划为 13 个 Epic、34 个 Story。归档模拟发现门禁无法解析 `openspec/changes/archive/` 中的 Change，验证结论为失败并返回实施阶段；详见 Change 的 verification-goal.md。不得据此宣称其他 Story 设计或实现完成。
 
 2026-09-22 已修复归档 Proposal 的唯一解析，并新增归档后仍可通过规划门禁的回归；16 项自测与全量架构检查通过，等待独立复核。
+2026-09-22 复核已通过，归档路径缺陷闭环，本 Story 完成。
 
 ## OpenSpec 与验证
 
-openspec/changes/module-epic-story-fence/
+openspec/changes/archive/2026-09-22-module-epic-story-fence/
 
-[Change](../../../../openspec/changes/module-epic-story-fence/proposal.md)；独立验证在该 Change 内维护，记录存在不代表通过。
+[Change](../../../../openspec/changes/archive/2026-09-22-module-epic-story-fence/proposal.md)；独立验证在该 Change 内维护，记录存在不代表通过。
