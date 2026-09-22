@@ -13,7 +13,7 @@ OpenSpec: ag-s1-local-cli-mcp
 
 ## 当前状态与前置条件
 
-认证与宿主未接线，密钥暂停；现有核心成果在旧 OCT-S1 Change，后续另建本 Story Proposal。
+macOS生产UDS与`yonder mcp`已按当前OS用户私有端点接线；Windows Named Pipe、正式安装签名、细粒度Agent注册/撤权与云端凭据仍暂缓。密钥相关能力继续暂停。
 
 与 TM 的边界：AG 向可信用例提供发起者和授权引用，并在后续调用重新校验有效授权；TM-S1 的授权历史或归属快照不能替代当前权限。任务最新详情归 TM-S1、历史/产物归 TM-S5，派生协议须共同审阅，不能让任意请求自报可信作者。
 
