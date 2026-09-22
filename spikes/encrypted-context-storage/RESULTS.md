@@ -26,3 +26,7 @@
 ## 结论
 
 Windows 范围通过。采用 Rust 进程内 SQLCipher+FTS5 `trigram`、AES-256-GCM 文件附件和 Windows Credential Manager；不引入数据库 Sidecar、Node Worker、向量库或跨设备密钥同步。macOS Keychain 按当前范围延期。
+
+## macOS 组合验证（2026-09-22）
+
+同一 Harness 在 macOS 本机 Release 运行通过：SQLCipher `4.14.0 community`、密文文件头、错误密钥拒绝、FTS5 中英文检索、状态/事件/Outbox 事务回滚，以及 AES-256-GCM 往返和篡改拒绝全部通过。该结果仅覆盖技术验证，不改变 MVP 未加密存储范围。
