@@ -1,10 +1,14 @@
 // 从 Rust 自动生成，请勿手改。
 export type Version = "2.0";
 export type Capability = "task.read" | "task.create" | "task.cancel" | "task.complete" | "task.fail" | "task.control" | "task.wait-for-user" | "task.step.declare" | "task.step.advance" | "browser.execute" | "computer.execute";
-export type OfferedCapability = "user_input";
+export type OfferedCapability = "user_input" | "user_input_attachment";
 export type AgentInputSource = "voice" | "selection";
-export type AgentInputParams = { input_id: string, session_id: string, source: AgentInputSource, content: string, created_at: number, deadline: number, };
-export type AgentRequest = { "method": "agent.input", jsonrpc: Version, id: string, params: AgentInputParams, };
+export type AgentAttachmentMime = "image/png" | "image/jpeg" | "image/webp";
+export type AgentAttachmentBeginParams = { attachment_id: string, session_id: string, mime: AgentAttachmentMime, byte_length: number, sha256: string, deadline: number, };
+export type AgentAttachmentChunkParams = { attachment_id: string, session_id: string, sequence: number, data_base64: string, };
+export type AgentAttachmentFinishParams = { attachment_id: string, session_id: string, };
+export type AgentInputParams = { input_id: string, session_id: string, source: AgentInputSource, content: string, attachment_id?: string, created_at: number, deadline: number, };
+export type AgentRequest = { "method": "agent.attachment.begin", jsonrpc: Version, params: AgentAttachmentBeginParams, } | { "method": "agent.attachment.chunk", jsonrpc: Version, params: AgentAttachmentChunkParams, } | { "method": "agent.attachment.finish", jsonrpc: Version, id: string, params: AgentAttachmentFinishParams, } | { "method": "agent.input", jsonrpc: Version, id: string, params: AgentInputParams, };
 export type AgentInputResult = { accepted: boolean, };
 export type AgentResponse = { jsonrpc: Version, id: string, result: AgentInputResult, } | { jsonrpc: Version, id: string | null, error: RpcError, };
 export type ProtocolVersion = { major: number, minor: number, };

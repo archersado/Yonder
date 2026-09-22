@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
+pub const MAX_AGENT_ATTACHMENT_BYTES: u32 = 4 * 1024 * 1024;
+pub const MAX_AGENT_ATTACHMENT_CHUNK_BASE64_BYTES: usize = 64_256;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub enum Version { #[serde(rename = "2.0")] V2 }
@@ -24,7 +26,10 @@ pub enum Platform { Windows, Macos }
 pub enum Availability { Available, PermissionRequired, DependencyMissing, TemporarilyUnavailable }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-pub enum OfferedCapability { #[serde(rename = "user_input")] UserInput }
+pub enum OfferedCapability {
+    #[serde(rename = "user_input")] UserInput,
+    #[serde(rename = "user_input_attachment")] UserInputAttachment,
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -56,6 +61,73 @@ pub struct HelloParams {
 #[serde(rename_all = "snake_case")]
 pub enum AgentInputSource { Voice, Selection }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub enum AgentAttachmentMime {
+    #[serde(rename = "image/png")] ImagePng,
+    #[serde(rename = "image/jpeg")] ImageJpeg,
+    #[serde(rename = "image/webp")] ImageWebp,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct AgentAttachmentBeginParams {
+    pub attachment_id: String,
+    pub session_id: String,
+    pub mime: AgentAttachmentMime,
+    pub byte_length: u32,
+    pub sha256: String,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+}
+
+impl AgentAttachmentBeginParams {
+    pub fn validate(&self, now_ms: u64) -> Result<(), RpcError> {
+        if !valid_id(&self.attachment_id) || !valid_id(&self.session_id)
+            || !(1..=MAX_AGENT_ATTACHMENT_BYTES).contains(&self.byte_length)
+            || self.sha256.len() != 64 || !self.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || self.deadline <= now_ms || self.deadline > 9_007_199_254_740_991 {
+            return Err(RpcError::new(-32602, "非法Agent附件声明"));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct AgentAttachmentChunkParams {
+    pub attachment_id: String,
+    pub session_id: String,
+    pub sequence: u16,
+    pub data_base64: String,
+}
+
+impl AgentAttachmentChunkParams {
+    pub fn validate(&self) -> Result<(), RpcError> {
+        let bytes = self.data_base64.as_bytes();
+        if !valid_id(&self.attachment_id) || !valid_id(&self.session_id) || bytes.is_empty()
+            || bytes.len() > MAX_AGENT_ATTACHMENT_CHUNK_BASE64_BYTES || bytes.len() % 4 != 0
+            || !bytes.iter().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
+            || bytes.iter().position(|byte| *byte == b'=').is_some_and(|start| start < bytes.len().saturating_sub(2) || !bytes[start..].iter().all(|byte| *byte == b'=')) {
+            return Err(RpcError::new(-32602, "非法Agent附件分块"));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct AgentAttachmentFinishParams { pub attachment_id: String, pub session_id: String }
+
+impl AgentAttachmentFinishParams {
+    pub fn validate(&self) -> Result<(), RpcError> {
+        if !valid_id(&self.attachment_id) || !valid_id(&self.session_id) {
+            return Err(RpcError::new(-32602, "非法Agent附件完成请求"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct AgentInputParams {
@@ -63,6 +135,9 @@ pub struct AgentInputParams {
     pub session_id: String,
     pub source: AgentInputSource,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub attachment_id: Option<String>,
     #[ts(type = "number")]
     #[schemars(range(min = 0, max = 9007199254740991_u64))]
     pub created_at: u64,
@@ -74,7 +149,8 @@ pub struct AgentInputParams {
 impl AgentInputParams {
     pub fn validate(&self, now_ms: u64) -> Result<(), RpcError> {
         if !valid_id(&self.input_id) || !valid_id(&self.session_id) || self.content.trim().is_empty()
-            || self.content.as_bytes().len() > 16 * 1024 || self.created_at > self.deadline
+            || self.content.as_bytes().len() > 16 * 1024
+            || self.attachment_id.as_deref().is_some_and(|value| !valid_id(value)) || self.created_at > self.deadline
             || self.deadline > 9_007_199_254_740_991 || self.deadline <= now_ms
             || self.deadline.saturating_sub(self.created_at) > 60_000 {
             return Err(RpcError::new(-32602, "非法Agent输入"));
@@ -86,6 +162,12 @@ impl AgentInputParams {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "method", deny_unknown_fields)]
 pub enum AgentRequest {
+    #[serde(rename = "agent.attachment.begin")]
+    AttachmentBegin { jsonrpc: Version, params: AgentAttachmentBeginParams },
+    #[serde(rename = "agent.attachment.chunk")]
+    AttachmentChunk { jsonrpc: Version, params: AgentAttachmentChunkParams },
+    #[serde(rename = "agent.attachment.finish")]
+    AttachmentFinish { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: AgentAttachmentFinishParams },
     #[serde(rename = "agent.input")]
     Input { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: AgentInputParams },
 }
@@ -492,8 +574,9 @@ impl Request {
             },
             Self::Hello { params, .. } => {
                 let offers_input = params.offered_capabilities.as_deref().is_some_and(|value| value.contains(&OfferedCapability::UserInput));
+                let offers_attachment = params.offered_capabilities.as_deref().is_some_and(|value| value.contains(&OfferedCapability::UserInputAttachment));
                 if params.session_id.is_some() != offers_input || params.session_id.as_deref().is_some_and(|id| !valid_id(id))
-                    || offers_input && params.protocol_version.minor < 14 {
+                    || offers_input && params.protocol_version.minor < 14 || offers_attachment && (!offers_input || params.protocol_version.minor < 19) {
                     return Err(RpcError::new(-32602, "非法Agent会话声明"));
                 }
                 (&params.agent_id, None, params.deadline)
@@ -540,9 +623,12 @@ pub fn decode_agent_request(bytes:&[u8])->Result<AgentRequest,serde_json::Error>
 pub fn encode_agent_response(response:&AgentResponse)->Result<Vec<u8>,serde_json::Error>{serde_json::to_vec(response)}
 pub fn decode_agent_response(bytes:&[u8])->Result<AgentResponse,serde_json::Error>{serde_json::from_slice(bytes)}
 
-pub fn input_registration(bytes:&[u8])->Option<(String,String)>{
+pub fn input_registration(bytes:&[u8])->Option<(String,String,bool)>{
     match decode(bytes).ok()? {
-        Request::Hello{params,..} if params.protocol_version.minor>=14&&params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&OfferedCapability::UserInput))=>Some((params.agent_id,params.session_id?)),
+        Request::Hello{params,..} if params.protocol_version.minor>=14&&params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&OfferedCapability::UserInput))=>{
+            let attachments=params.protocol_version.minor>=19&&params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&OfferedCapability::UserInputAttachment));
+            Some((params.agent_id,params.session_id?,attachments))
+        },
         _=>None,
     }
 }
@@ -565,7 +651,7 @@ pub fn sdk_arguments_json(value:&serde_json::Value)->Result<String,RpcError>{ser
 
 pub fn generated_artifacts() -> Vec<(&'static str, String)> {
     let config = ts_rs::Config::new();
-    let types = [Version::decl(&config), Capability::decl(&config), OfferedCapability::decl(&config), AgentInputSource::decl(&config), AgentInputParams::decl(&config), AgentRequest::decl(&config), AgentInputResult::decl(&config), AgentResponse::decl(&config), ProtocolVersion::decl(&config), Platform::decl(&config), Availability::decl(&config), CapabilityInfo::decl(&config), HelloParams::decl(&config), CreateParams::decl(&config), CancelParams::decl(&config), WaitForUserParams::decl(&config), CompleteParams::decl(&config), ControlKind::decl(&config), ControlParams::decl(&config), StepDeclareParams::decl(&config), StepAdvanceParams::decl(&config), BrowserOperation::decl(&config), BrowserExecuteParams::decl(&config), ComputerExecuteParams::decl(&config), ComputerStepParams::decl(&config), GetParams::decl(&config), EventsParams::decl(&config), ListParams::decl(&config), Request::decl(&config), TaskStatus::decl(&config), TaskSnapshot::decl(&config), StepDeclaration::decl(&config), AttemptResultPhase::decl(&config), AttemptUnknownReason::decl(&config), AttemptResult::decl(&config), ControlPhase::decl(&config), FocusPhase::decl(&config), FocusFailure::decl(&config), ControlRecord::decl(&config), BrowserReference::decl(&config), ComputerObservation::decl(&config), TaskEvent::decl(&config), QueryResult::decl(&config), RpcError::decl(&config), Response::decl(&config)];
+    let types = [Version::decl(&config), Capability::decl(&config), OfferedCapability::decl(&config), AgentInputSource::decl(&config), AgentAttachmentMime::decl(&config), AgentAttachmentBeginParams::decl(&config), AgentAttachmentChunkParams::decl(&config), AgentAttachmentFinishParams::decl(&config), AgentInputParams::decl(&config), AgentRequest::decl(&config), AgentInputResult::decl(&config), AgentResponse::decl(&config), ProtocolVersion::decl(&config), Platform::decl(&config), Availability::decl(&config), CapabilityInfo::decl(&config), HelloParams::decl(&config), CreateParams::decl(&config), CancelParams::decl(&config), WaitForUserParams::decl(&config), CompleteParams::decl(&config), ControlKind::decl(&config), ControlParams::decl(&config), StepDeclareParams::decl(&config), StepAdvanceParams::decl(&config), BrowserOperation::decl(&config), BrowserExecuteParams::decl(&config), ComputerExecuteParams::decl(&config), ComputerStepParams::decl(&config), GetParams::decl(&config), EventsParams::decl(&config), ListParams::decl(&config), Request::decl(&config), TaskStatus::decl(&config), TaskSnapshot::decl(&config), StepDeclaration::decl(&config), AttemptResultPhase::decl(&config), AttemptUnknownReason::decl(&config), AttemptResult::decl(&config), ControlPhase::decl(&config), FocusPhase::decl(&config), FocusFailure::decl(&config), ControlRecord::decl(&config), BrowserReference::decl(&config), ComputerObservation::decl(&config), TaskEvent::decl(&config), QueryResult::decl(&config), RpcError::decl(&config), Response::decl(&config)];
     vec![
         ("request.schema.json", format!("{}\n", serde_json::to_string_pretty(&schemars::schema_for!(Request)).unwrap())),
         ("response.schema.json", format!("{}\n", serde_json::to_string_pretty(&schemars::generate::SchemaSettings::draft2020_12().for_serialize().into_generator().into_root_schema_for::<Response>()).unwrap())),
@@ -647,6 +733,29 @@ mod tests {
         }
         let mut missing = value; missing["params"].as_object_mut().unwrap().remove("protocol_version");
         assert!(decode(&serde_json::to_vec(&missing).unwrap()).is_err());
+    }
+
+    #[test]
+    fn agent_attachment_contract_is_bounded_and_negotiated() {
+        let hello = serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":19},"session_id":"s1","offered_capabilities":["user_input","user_input_attachment"]}});
+        let hello = serde_json::to_vec(&hello).unwrap();
+        assert!(decode(&hello).unwrap().validate(1000).is_ok());
+        assert_eq!(input_registration(&hello), Some(("a1".into(), "s1".into(), true)));
+
+        let begin = AgentAttachmentBeginParams { attachment_id: "image_1".into(), session_id: "s1".into(), mime: AgentAttachmentMime::ImagePng, byte_length: MAX_AGENT_ATTACHMENT_BYTES, sha256: "0".repeat(64), deadline: 2000 };
+        assert!(begin.validate(1000).is_ok());
+        let chunk = AgentAttachmentChunkParams { attachment_id: "image_1".into(), session_id: "s1".into(), sequence: 0, data_base64: "A".repeat(64_172) };
+        assert!(chunk.validate().is_ok());
+        assert!(encode_agent_request(&AgentRequest::AttachmentChunk { jsonrpc: Version::V2, params: chunk }).unwrap().len() <= MAX_REQUEST_BYTES);
+
+        let mut invalid = begin.clone(); invalid.byte_length += 1;
+        assert!(invalid.validate(1000).is_err());
+        let invalid_chunk = AgentAttachmentChunkParams { attachment_id: "image_1".into(), session_id: "s1".into(), sequence: 0, data_base64: "====".into() };
+        assert!(invalid_chunk.validate().is_err());
+
+        let mut old = serde_json::from_slice::<serde_json::Value>(&hello).unwrap();
+        old["params"]["protocol_version"]["minor"] = 18.into();
+        assert!(decode(&serde_json::to_vec(&old).unwrap()).unwrap().validate(1000).is_err());
     }
 
     #[test]

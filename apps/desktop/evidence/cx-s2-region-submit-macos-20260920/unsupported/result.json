@@ -1,0 +1,14 @@
+{
+  "outcome": "unsupported",
+  "frames": 0,
+  "chunks": 0,
+  "largest_frame_bytes": 0,
+  "attachment_bytes": 0,
+  "hash_matches": false,
+  "input_references_attachment": false,
+  "input_content_nonempty": false,
+  "attachment_content_recorded": false,
+  "passed": true,
+  "no_attachment_frames": true,
+  "native_passed": true
+}

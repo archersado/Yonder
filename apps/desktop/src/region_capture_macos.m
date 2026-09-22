@@ -1,7 +1,35 @@
 #import <ApplicationServices/ApplicationServices.h>
+#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #import <ImageIO/ImageIO.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
+
+static id yonda_region_activation_observer = nil;
+
+static void yonda_region_on_main(void (^block)(void)) {
+    if (NSThread.isMainThread) block();
+    else dispatch_sync(dispatch_get_main_queue(), block);
+}
+
+void yonda_region_watch_application_switch(void (*callback)(void)) {
+    yonda_region_on_main(^{
+        if (yonda_region_activation_observer) return;
+        yonda_region_activation_observer = [NSWorkspace.sharedWorkspace.notificationCenter
+            addObserverForName:NSWorkspaceDidActivateApplicationNotification object:nil queue:nil
+            usingBlock:^(NSNotification *notification) {
+                NSRunningApplication *application = notification.userInfo[NSWorkspaceApplicationKey];
+                if (![application.bundleIdentifier isEqualToString:NSBundle.mainBundle.bundleIdentifier]) callback();
+            }];
+    });
+}
+
+void yonda_region_stop_application_switch_watch(void) {
+    @synchronized(NSWorkspace.sharedWorkspace) {
+        if (!yonda_region_activation_observer) return;
+        [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:yonda_region_activation_observer];
+        yonda_region_activation_observer = nil;
+    }
+}
 
 char *yonda_region_capture(int x, int y, int width, int height) {
     if (width < 1 || height < 1 || !CGPreflightScreenCaptureAccess()) return NULL;
@@ -37,3 +65,10 @@ char *yonda_region_capture(int x, int y, int width, int height) {
 }
 
 void yonda_region_free(void *pointer) { free(pointer); }
+
+char *yonda_region_source_application(void) {
+    NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
+    if ([application.bundleIdentifier isEqualToString:NSBundle.mainBundle.bundleIdentifier]) return NULL;
+    NSString *name = application.localizedName;
+    return name.length ? strdup(name.UTF8String) : NULL;
+}

@@ -103,6 +103,8 @@ Recording 仅手动开始，每设备最多一个。原始时间线不可变，�
 
 2026-09-18显式区域捕获候选见Proposed [AD-CX-01](AD-CX-01-EXPLICIT-REGION-CAPTURE.md)：只在用户启动“圈选提问”后建立短生命选择层与临时截图，未启动时不监听全局输入或截图。截图与问题不入日志、任务事件、Outbox或普通索引；双平台Spike和ADR接受前不形成产品能力。
 
+2026-09-20圈选提交附件见Accepted [AD-CX-02](AD-CX-02-SESSION-INPUT-ATTACHMENT.md)：在同一已认证`AgentSession`内以有界分块暂存附件，`agent.input`只引用会话内附件标识；不发送本机路径、不扩大单帧、不持久化截图。隔离Spike与独立复核已通过，产品协议与确认卡发送仍须独立Change验证。
+
 SQLite 存元数据并使用 FTS5；大内容存加密附件。Agent 只能经 Context Port 查询，默认返回摘要与引用。SQLite 使用 SQLCipher，附件文件级加密，主密钥只存 Keychain/Credential Manager。MVP 无本地向量库、Embedding、知识图谱和跨设备密钥同步。
 
 上下文默认保留 90 天，Recording 原始素材 30 天，任务附件 7 天；轨迹与固定内容长期保留。删除同步清理索引、附件和未发送 Outbox。
