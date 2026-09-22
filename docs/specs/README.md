@@ -59,7 +59,7 @@ TM-S6 承接 TM-S1 AC11 的全量数据库查询子范围，按 AD-TM-02 独立�
 
 AG-S2首批ag-s2-agent-create-guard已落实Application仅Agent创建门禁，19项核心回归通过；真实task.create协议、幂等、认证传输继续设计，不将内部创建能力宣称为外部接入完成。
 
-AG-S2当前实施ag-s2-local-task-registration，Accepted AD-AG-02定稿协议1.1及schema2→3幂等事务；私有stdio本地测试Agent实际创建两任务，25项分层回归及正式桌面构建通过。首批核心PASS，生产认证/正式宿主IPC和原生桌宠联动尚未验证，Windows继续暂缓；不Archive完整Story。
+AG-S2已进入verifying：macOS生产UDS、MCP登记、身份隔离、原生桌宠面板与AG-S6撤权闭环均已完成；Windows按用户决定暂缓，完整Story不Archive。
 
 AG-S1增量ag-s1-desktop-private-stdio已按AD-AG-03完成macOS Debug私有Agent接入正式小龙，真实登记两任务，原生悬停/面板刷新/移出收起通过；仅研发入口，不替代生产本地认证。下一步继续AG-S1生产连接身份设计及AG-S2正式注册闭环，再实施对应执行/取消能力。
 
