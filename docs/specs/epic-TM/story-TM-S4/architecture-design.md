@@ -8,7 +8,7 @@
 
 按 AD-TM-01 联合矩阵：显式归还后先处理旧尝试的停止/未知，再经授权 Observe 与外部 Agent 决策进入 Resume；不能把断连后的新 request_id 当作重新执行许可。实际新执行使用新 attempt_id，旧 ID 永不绑定另一动作。unknown 的后续证据只补充原尝试历史，不自动完成任务。
 
-SQLCipher 保持任务当前事实源；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
+MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，SQLCipher 延期至 ST-S2；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
 
 ## 失败与验证
 

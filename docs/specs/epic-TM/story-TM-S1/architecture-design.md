@@ -4,13 +4,13 @@
 
 ## 边界与依赖
 
-Application→Domain/Protocol，SQLCipher 当前状态/事件/Outbox 同事务；承接旧 OCT-S1 核心记录。
+Application→Domain/Protocol，SQLite 当前状态/事件/Outbox 同事务；承接旧 OCT-S1 核心记录。
 
-依据 AD-OCT-01/02/04：Domain 纯计算迁移，Application 定义用例和 TaskStore，Adapter 完成 SQLCipher 持久化。AG 校验请求与绑定身份，DS 只展示结果。代码对应 crates/domain/src/lib.rs、crates/application/src/lib.rs、crates/application/src/query.rs、crates/adapters/src/task_store.rs、crates/protocol/src/lib.rs。
+依据 AD-OCT-01/02/04：Domain 纯计算迁移，Application 定义用例和 TaskStore，Adapter 完成 SQLite 持久化；MVP 按 Accepted AD-ST-01 使用未加密入口，SQLCipher 兼容测试保留。AG 校验请求与绑定身份，DS 只展示结果。代码对应 crates/domain/src/lib.rs、crates/application/src/lib.rs、crates/application/src/query.rs、crates/adapters/src/task_store.rs、crates/protocol/src/lib.rs。
 
 ## 状态与契约
 
-SQLCipher 保持任务当前事实源；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
+MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，SQLCipher 延期至 ST-S2；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
 
 ### 状态迁移
 
@@ -49,7 +49,7 @@ tasks 含 id、owner_agent_id、state、sequence；events 含 previous/state/seq
 
 ## 失败与验证
 
-AC01–09 对照 Domain/Application 和真实 SQLCipher 双连接、Outbox 故障注入与恢复测试。非法参数拒绝；Conflict 先重读再决策；StorageUnavailable 不返回成功。所有验证用临时合成库，不碰用户数据。Windows/macOS 库层与原生宿主证据分开记录。
+AC01–09 对照 Domain/Application 和真实 SQLite 双连接、Outbox 故障注入与恢复测试；既有 SQLCipher 兼容合约保留。非法参数拒绝；Conflict 先重读再决策；StorageUnavailable 不返回成功。所有验证用临时合成库，不碰用户数据。Windows/macOS 库层与原生宿主证据分开记录。
 
 AC10 已按 AD-TM-01 子范围定案：`name/source/current_step/observation/next_intent` 分作者写入，缺失为 `null`，同事务更新当前值、事件与 Outbox；`task.get` 返回完整快照，`task.list` 只返回有界摘要。AC11 已按 AD-TM-02 定案：`running_state/activity_state` 全量读取任务表和唯一 Admission，任一已知忙为 Busy，读取失败为 Unknown。不能用空字段、假步骤或当前页面计数填补；失败不得隐式重试未知副作用。
 

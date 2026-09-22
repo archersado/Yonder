@@ -6,7 +6,7 @@ GUI子范围按AD-DS-01增量审阅进入Apply：apps/desktop复用已有Tauri2�
 
 宿主核心子范围按AD-DS-01补充准入：apps/desktop库只依赖adapters/application。可信应用目录、进程持有标准文件锁、打开未加密SQLite、恢复至0、创建唯一Admission依次完成后才返回宿主。打开失败不交付可查询实例；本机查询身份固定desktop，不接受外部Agent/前端自报身份。宿主不开放任何传输，后续GUI绑定仍须窗口来源校验。类型及编码由Application转用既有protocol，禁止第二模型。
 
-2026-09-14阶段修订：依Accepted AD-DS-01，研发接线不再以完整DS-S1完成为循环前提，改按本机基础证据与可信源/恢复条件逐项审阅。当前真实SQLCipher连接及本机身份尚未接通，产品Apply仍受该条件约束。禁止把正式总览追加到E0 Spike；后续桌面组合根遵守目标Workspace。
+2026-09-14阶段修订：依Accepted AD-DS-01，研发接线不再以完整DS-S1完成为循环前提，改按本机基础证据与可信源/恢复条件逐项审阅。该阶段原以真实SQLCipher连接及本机身份为Apply前置；随后按Accepted AD-ST-01改为未加密SQLite，密钥不再是接线依赖。禁止把正式总览追加到E0 Spike；后续桌面组合根遵守目标Workspace。
 
 读取 TM 快照与 AG 派生协议，不持有核心状态；依赖 DS-S1、TM-S1、AG-S1。
 
@@ -24,7 +24,7 @@ GUI子范围按AD-DS-01增量审阅进入Apply：apps/desktop复用已有Tauri2�
 
 首个可实施子范围建议为真实只读列表与详情；前置为TM-S1/AG-S1可用查询授权及桌面阶段准入决策。DS-S1性能放宽仅解除性能阻断，尚未解决的正式宿主接线循环须先更新架构决策，不能用假数据绕过。TM-S3/S4/S5未就绪的控制/历史能力明确反馈未提供，完整原始需求保留。
 
-SQLCipher 保持任务当前事实源；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
+MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，SQLCipher 延期至 ST-S2；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
 
 ## 失败与验证
 
