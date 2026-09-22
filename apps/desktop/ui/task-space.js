@@ -227,6 +227,7 @@ async function close() {
 }
 byId('close').addEventListener('click', close);
 document.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
+window.addEventListener('blur', close);
 window.addEventListener('yonda-tasks-open', () => { byId('refresh').focus(); load(); });
 load();
 })();

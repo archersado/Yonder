@@ -42,17 +42,11 @@
   let reopenTimer;
   let responseTimer;
   let idleTimer;
-  let hoverTimer;
-  let nativeHovered = false;
   let hasTasks = null;
   let taskState = 'unknown';
   let agentConnected = false;
   let voiceActive = false;
   const displayedState = () => voiceActive ? 'voice_listening' : taskState;
-  let menuOpen = false;
-  let menuAutomatic = true;
-  let menuEntered = false;
-  let menuExitTimer;
   let motionTimer;
   let motionStarted = Date.now();
   let modeStarted = Date.now();
@@ -368,19 +362,7 @@
     pointer = null;
     pet.classList.remove('held');
   }
-  function hover() {
-    clearTimeout(hoverTimer);
-    if (mode === 'awake' && hasTasks === true && !voiceTrigger.matches(':hover')) hoverTimer = setTimeout(() => {
-      if (mode === 'awake' && hasTasks === true && !pointer && !voiceTrigger.matches(':hover')) showTaskMenu();
-    }, 200);
-  }
-  if (!window.__TAURI_INTERNALS__) {
-    pet.addEventListener('pointerenter', hover);
-    pet.addEventListener('pointerleave', () => clearTimeout(hoverTimer));
-  }
   pet.addEventListener('pointerdown', event => {
-    clearTimeout(hoverTimer);
-    nativeHovered = true;
     if (event.button !== 0 || !event.isPrimary) return;
     if (mode === 'docked') { event.preventDefault(); wake(); return; }
     if (mode !== 'awake') return;
@@ -391,6 +373,13 @@
     clearTimeout(reopenTimer);
     clearTimeout(responseTimer);
     pet.classList.remove('blinking', 'responding');
+  });
+  pet.addEventListener('contextmenu', event => {
+    event.preventDefault();
+    if (mode === 'docked') { wake(); return; }
+    if (mode !== 'awake') return;
+    interact(); respond();
+    showTaskMenu();
   });
   pet.addEventListener('pointermove', event => {
     interact();
@@ -420,7 +409,7 @@
     if (mode === 'docked') wake();
     else if (mode === 'awake') {
       interact(); respond();
-      if (openMenu && hasTasks === true) showTaskMenu(true);
+      if (openMenu && hasTasks === true) showTaskMenu();
     }
   }
   pet.addEventListener('click', event => {
@@ -445,25 +434,17 @@
     // Space 切换或 WKWebView 隐藏不算与小龙互动，不重置闲置计时。
   });
   reduced.addEventListener('change', sync);
-  async function showTaskMenu(focus = false) {
-    try { menuAutomatic = !focus; menuOpen = await native('task_menu_show', { focus }) === true; menuEntered = false; }
+  async function showTaskMenu() {
+    try { await native('task_menu_show'); }
     catch { console.warn('任务菜单暂不可用'); }
   }
-  function hideTaskMenu() {
-    clearTimeout(menuExitTimer); menuExitTimer = null;
-    menuOpen = false; menuEntered = false;
-    native('task_menu_hide').catch(() => console.warn('菜单收起失败'));
-  }
-  window.addEventListener('yonda-menu-open', event => { menuOpen = true; menuAutomatic = event.detail !== 'manual'; menuEntered = false; });
   function applyPresentation(nextHasTasks, nextState, keepTerminal = false) {
     if (!keepTerminal) { clearTimeout(terminalTimer); terminalTimer = null; }
-    if (nextHasTasks && hasTasks !== true) nativeHovered = false;
     hasTasks = nextHasTasks;
     if (taskState !== nextState) {
       taskState = nextState; stateStarted = Date.now(); if (!voiceActive) pet.dataset.state = nextState; sync();
       if (mode === 'docked') wake();
     }
-    if (!hasTasks && menuOpen && menuAutomatic) hideTaskMenu();
   }
   async function loadInitialPresentation() {
     try {
@@ -472,7 +453,6 @@
     } catch {
       hasTasks = null;
       if (taskState !== 'unknown') { taskState = 'unknown'; stateStarted = Date.now(); pet.dataset.state = 'unknown'; sync(); if (mode === 'docked') wake(); }
-      clearTimeout(hoverTimer);
     }
   }
   async function loadAgentConnection() {
@@ -506,7 +486,7 @@
   voiceTrigger.addEventListener('pointerdown', event => event.stopPropagation());
   voiceTrigger.addEventListener('pointerup', event => event.stopPropagation());
   voiceTrigger.addEventListener('click', async event => {
-    event.stopPropagation(); clearTimeout(hoverTimer); interact();
+    event.stopPropagation(); interact();
     try { await native('voice_input_open'); }
     catch { console.warn('语音输入暂不可用'); }
   });
@@ -519,22 +499,6 @@
       if (voiceActive && mode === 'docked') wake();
     }
   });
-  async function checkHover() {
-    try {
-      const [inside, inMenu] = await native('pet_hover_region');
-      if (inside || inMenu) { clearTimeout(menuExitTimer); menuExitTimer = null; }
-      if (inMenu) menuEntered = true;
-      if (visible && mode === 'awake' && inside && !nativeHovered && !pointer) hover();
-      if (!inside) clearTimeout(hoverTimer);
-      if (menuOpen && !inside && !inMenu && (menuAutomatic || menuEntered)) {
-        if (menuEntered) hideTaskMenu();
-        else if (!menuExitTimer) menuExitTimer = setTimeout(() => { menuExitTimer = null; hideTaskMenu(); }, 350);
-      }
-      nativeHovered = inside;
-    } catch { clearTimeout(hoverTimer); }
-    setTimeout(checkHover, 250);
-  }
-  if (window.__TAURI_INTERNALS__) checkHover();
   loadAgentConnection();
   refreshVisibility();
   const loadBuiltIn = () => loadFrames(animations);

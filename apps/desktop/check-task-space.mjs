@@ -4,22 +4,20 @@ export async function checkPetInteraction(page) {
   // 固定大于小龙的测试画布，body拖放终点不能与小龙中心重合。
   await page.cdp('Emulation.setDeviceMetricsOverride',{width:640,height:480,deviceScaleFactor:1,mobile:false});
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', {source:`
-    window.nativeCalls=[];window.nativeArguments=[];window.fixtureHovered=false;window.fixtureMenuHovered=false;
+    window.nativeCalls=[];window.nativeArguments=[];
     window.fixtureHasTasks=false;window.fixtureState='idle';window.fixtureFailure=false;
     window.emitPresentation=(hasTasks,state,extra={})=>window.dispatchEvent(new CustomEvent('yonda-presentation',{detail:{hasTasks,state,...extra}}));
     window.__TAURI_INTERNALS__={invoke:async (command,args)=>{
       window.nativeCalls.push(command);
       window.nativeArguments.push({command,args});
       if(command==='pet_is_visible')return true;
-      if(command==='pet_hover_region')return [window.fixtureHovered,window.fixtureMenuHovered];
       if(command==='pet_task_state') {if(window.fixtureFailure)throw Error('test');return [window.fixtureHasTasks,window.fixtureState];}
       if(command==='task_menu_show')return window.fixtureHasTasks;
       if(command==='pet_dock')return 'bottom';
     }};`});
   await page.reload();
   await page.waitForFunction(() => document.getElementById('pet').dataset.state === 'idle');
-  await page.evaluate(() => {window.fixtureHovered=true;});
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(300);
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
   await page.waitForFunction(() => document.getElementById('pet').classList.contains('frames-ready'));
   const idleSamples=[];
@@ -37,7 +35,7 @@ export async function checkPetInteraction(page) {
   // 剪切边界必须与零位移轴重合，避免尾巴分层接缝随摆动张开。
   assert.ok(idleSamples.every(s=>s.tailClip==='inset(55% 73.75% 0px 0px)' && Math.abs(s.originX-s.cutX)<2));
   await page.evaluate(() => {window.fixtureHasTasks=true;window.fixtureState='executing';window.emitPresentation(true,'executing');});
-  await page.waitForFunction(() => document.getElementById('pet').dataset.state==='executing' && window.nativeCalls.includes('task_menu_show'));
+  await page.waitForFunction(() => document.getElementById('pet').dataset.state==='executing');
   await page.waitForFunction(() => document.getElementById('pet').classList.contains('frames-ready'));
   const before=await page.evaluate(() => document.getElementById('pet').style.getPropertyValue('--state-paw-right')+document.getElementById('pet').style.getPropertyValue('--state-paw-left'));
   await page.waitForTimeout(400);
@@ -51,12 +49,9 @@ export async function checkPetInteraction(page) {
   assert.ok(blendSamples.every(s=>Math.abs(s.current+s.next-1)<.00001 && s.mode==='normal'));
   assert.ok(new Set(blendSamples.map(s=>s.paw)).size>=4);
   await page.click('#pet');
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
+  await page.click('#pet', {button: 'right'});
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),1);
-  await page.evaluate(() => {window.fixtureHovered=false;window.fixtureMenuHovered=true;});
-  await page.waitForTimeout(600);
-  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_hide').length),0);
-  await page.evaluate(() => {window.fixtureMenuHovered=false;});
-  await page.waitForFunction(() => window.nativeCalls.includes('task_menu_hide'));
   await page.evaluate(() => {window.fixtureState='waiting_for_user';window.emitPresentation(true,'waiting_for_user');});
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='waiting_for_user');
   await page.waitForFunction(() => document.querySelector('.state-frame').src.includes('/lifecycle-v10/waiting_for_user-'));
@@ -89,7 +84,6 @@ export async function checkPetInteraction(page) {
   assert.ok(await page.evaluate(() => document.querySelector('.state-frame').src.endsWith('executing-body.png')));
   await page.press('#pet','Enter');
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),2);
-  assert.equal(await page.evaluate(() => window.nativeArguments.filter(call=>call.command==='task_menu_show').at(-1).args.focus),true);
   await page.dragAndDrop('#pet','body');
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),2);
   assert.ok(await page.evaluate(() => window.nativeCalls.includes('plugin:window|start_dragging')));
@@ -97,7 +91,7 @@ export async function checkPetInteraction(page) {
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='unknown');
   await page.waitForFunction(() => document.querySelector('.state-frame').src.endsWith('idle-00.png'));
   await page.cdp('Emulation.setEmulatedMedia',{features:[]});
-  return {emptyHoverHidden:true,tasksArriveWhileHovering:true,executingAnimation:true,continuousLocalPaws:true,stableExecutingBody:true,menuHoverKeepsOpen:true,leaveHides:true,waitingAndPaused:true,continuousPausedWing:true,terminalSuccessAndFailure:true,reducedMotionStaticExecuting:true,clickDoesNotOpen:true,keyboardAndDrag:true,unknownOnFailure:true,fixtureOnly:true};
+  return {hoverDoesNotOpen:true,executingAnimation:true,continuousLocalPaws:true,stableExecutingBody:true,rightClickOpens:true,waitingAndPaused:true,continuousPausedWing:true,terminalSuccessAndFailure:true,reducedMotionStaticExecuting:true,clickDoesNotOpen:true,keyboardAndDrag:true,unknownOnFailure:true,fixtureOnly:true};
 }
 export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('未提供') || document.querySelectorAll('.task').length > 0);
