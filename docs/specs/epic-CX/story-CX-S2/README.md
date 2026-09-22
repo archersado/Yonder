@@ -3,7 +3,7 @@
 Story: CX-S2  
 Epic: CX  
 Status: verifying
-OpenSpec: cx-s2-app-switch-cleanup
+OpenSpec: cx-s2-display-change-cleanup
 
 ## 设计文档
 
@@ -37,4 +37,6 @@ OpenSpec: cx-s2-app-switch-cleanup
 
 [应用切换清场Change](../../../../openspec/changes/archive/2026-09-22-cx-s2-app-switch-cleanup/proposal.md)已归档：macOS可见圈选层或确认卡切换应用时统一清场；截图流程主动隐藏窗口时不会误清场，当前`dev`正式预览bundle连续两次独立复核PASS。Windows保留后续门禁。
 
-2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、显示器变化、物理键盘/鼠标和Windows仍未验证。
+2026-09-22：[显示器参数变化清场Change](../../../../openspec/changes/cx-s2-display-change-cleanup/proposal.md)已实现并在macOS主显示器模式变化样本中PASS；原生关闭路径先完成清场时与屏幕通知共享同一不变量。物理显示器断开、副屏/负坐标、运行中撤权与Windows仍保留门禁。
+
+2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、物理显示器断开、物理键盘/鼠标和Windows仍未验证。
