@@ -127,6 +127,7 @@ pub struct GatewaySession<'a> {
     can_running_filter: bool,
     can_wait_for_user: bool,
     can_presentation: bool,
+    can_audit: bool,
     browser_available: bool,
     can_computer: bool,
     can_computer_step: bool,
@@ -618,6 +619,7 @@ impl<'a> GatewaySession<'a> {
             can_running_filter: false,
             can_wait_for_user: false,
             can_presentation: false,
+            can_audit: false,
             browser_available: false,
             can_computer: false,
             can_computer_step: false,
@@ -787,6 +789,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_steps,
                 self.can_attempt_results,
                 self.can_wait_for_user,
+                self.can_audit,
             );
             // 旧客户端严格拒绝未知字段，只投影响应，不改存储的名称。
             if !self.can_name {
@@ -858,6 +861,27 @@ impl<'a> GatewaySession<'a> {
                     }
                 }
             }
+            if !self.can_audit {
+                if let Response::Success { result, .. } = &mut response {
+                    match result {
+                        QueryResult::Snapshot { task } => {
+                            task.artifact_manifest = None;
+                            task.user_confirmation = None;
+                        }
+                        QueryResult::Step { task, .. } => {
+                            task.artifact_manifest = None;
+                            task.user_confirmation = None;
+                        }
+                        QueryResult::Events { events, .. } => {
+                            for event in events {
+                                event.artifact_manifest = None;
+                                event.user_confirmation = None;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
             if !self.can_focus {
                 if let Response::Success {
                     result: QueryResult::Control { control, .. },
@@ -910,6 +934,9 @@ impl<'a> GatewaySession<'a> {
                 self.can_presentation = self.negotiated
                     && params.protocol_version.minor >= 19
                     && store.supports_presentation();
+                self.can_audit = self.negotiated
+                    && params.protocol_version.minor >= 20
+                    && store.supports_audit();
                 self.can_computer = self.can_advance
                     && params.protocol_version.minor >= 11
                     && self.computer_available
@@ -924,7 +951,9 @@ impl<'a> GatewaySession<'a> {
                     name: Capability::TaskRead,
                     version: ProtocolVersion {
                         major: 1,
-                        minor: if self.can_presentation {
+                        minor: if self.can_audit {
+                            20
+                        } else if self.can_presentation {
                             19
                         } else if self.can_fail {
                             18
@@ -961,7 +990,9 @@ impl<'a> GatewaySession<'a> {
                 }];
                 let version = ProtocolVersion {
                     major: 1,
-                    minor: if self.can_presentation {
+                    minor: if self.can_audit {
+                        20
+                    } else if self.can_presentation {
                         19
                     } else if self.can_fail {
                         18
