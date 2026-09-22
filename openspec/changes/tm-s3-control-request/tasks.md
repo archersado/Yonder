@@ -8,3 +8,6 @@
 - [x] 版本/身份/幂等/回滚与UI验证
 - [x] 独立Verification Goal
 - [ ] 定位、Recording及Windows验证
+  - [x] macOS当前Space接管定位与WindowServer可见性核验（tm-s3-takeover-work-focus / work-focus-visibility）
+  - [ ] Recording与交回Observe
+  - [ ] 跨Space/多显示器与Windows验证
