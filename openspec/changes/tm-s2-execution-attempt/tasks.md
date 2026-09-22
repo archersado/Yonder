@@ -7,4 +7,6 @@
 - [x] Admission最小接线与分层测试
 - [x] 独立Verification Goal
 - [ ] 真实Driver派发/Observe与Windows验证
+  - [x] macOS prepared attempt经产品CU Port派发、固定SDK Worker后台AX输入并强制后置Observe（见CU-S2独立验证）
+  - [ ] Windows对等验证
 - [ ] 完整Story/PR通过后Archive
