@@ -428,6 +428,11 @@
     // 系统辅助功能触发无指针的语义点击；普通鼠标已由pointer处理。
     if (event.detail === 0) activate();
   });
+  pet.addEventListener('contextmenu', event => {
+    event.preventDefault();
+    clearTimeout(hoverTimer);
+    if (mode === 'awake' && hasTasks === true) showTaskMenu(true);
+  });
   pet.addEventListener('keydown', event => {
     if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) {
       event.preventDefault();
