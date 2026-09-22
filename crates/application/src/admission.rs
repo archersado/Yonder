@@ -151,6 +151,10 @@ impl Admission {
         Ok(self.state.lock().map_err(|_| Denied::Unavailable)?.occupied.iter().any(|entry| entry.resources.contains(&resource)))
     }
 
+    pub fn task_holding(&self, resource: Resource) -> Result<Option<String>, Denied> {
+        Ok(self.state.lock().map_err(|_| Denied::Unavailable)?.occupied.iter().find(|entry| entry.resources.contains(&resource)).map(|entry| entry.task_id.clone()))
+    }
+
     pub fn holds(&self,task_id:&str)->Result<bool,Denied>{Ok(self.state.lock().map_err(|_|Denied::Unavailable)?.occupied.iter().any(|entry|entry.task_id==task_id))}
     pub fn holds_resource(&self,task_id:&str,resource:Resource)->Result<bool,Denied>{Ok(self.state.lock().map_err(|_|Denied::Unavailable)?.occupied.iter().any(|entry|entry.task_id==task_id&&entry.resources.contains(&resource)))}
 
@@ -225,8 +229,10 @@ mod tests {
         gate.try_acquire("background", &[]).unwrap().release_after_stop().unwrap();
         gate.set_desktop_taken_over(false).unwrap();
         let desktop = gate.try_acquire("desktop", &[Resource::Desktop]).unwrap();
+        assert_eq!(gate.task_holding(Resource::Desktop), Ok(Some("desktop".into())));
         assert_eq!(gate.try_acquire("desktop-2", &[Resource::Desktop]).err(), Some(Denied::ResourceBusy(Resource::Desktop)));
         desktop.release_after_stop().unwrap();
+        assert_eq!(gate.task_holding(Resource::Desktop), Ok(None));
         first.release_after_stop().unwrap();
         drop(gate.try_acquire("unknown", &[file.clone()]).unwrap());
         assert_eq!(gate.try_acquire("retry", &[file.clone()]).err(), Some(Denied::ResourceBusy(file)));

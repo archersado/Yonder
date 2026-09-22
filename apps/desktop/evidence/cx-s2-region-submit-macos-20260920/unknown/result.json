@@ -1,0 +1,14 @@
+{
+  "outcome": "unknown",
+  "frames": 4,
+  "chunks": 1,
+  "largest_frame_bytes": 4546,
+  "attachment_bytes": 3292,
+  "hash_matches": true,
+  "input_references_attachment": true,
+  "input_content_nonempty": true,
+  "attachment_content_recorded": false,
+  "passed": true,
+  "worker_finished": true,
+  "native_passed": true
+}

@@ -5,6 +5,73 @@
     {
       "type": "object",
       "properties": {
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "agent.attachment.begin"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentAttachmentBeginParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "agent.attachment.chunk"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentAttachmentChunkParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "agent.attachment.finish"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentAttachmentFinishParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
         "id": {
           "type": "string"
         },
@@ -29,9 +96,103 @@
     }
   ],
   "$defs": {
+    "AgentAttachmentBeginParams": {
+      "type": "object",
+      "properties": {
+        "attachment_id": {
+          "type": "string"
+        },
+        "byte_length": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "mime": {
+          "$ref": "#/$defs/AgentAttachmentMime"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attachment_id",
+        "session_id",
+        "mime",
+        "byte_length",
+        "sha256",
+        "deadline"
+      ]
+    },
+    "AgentAttachmentChunkParams": {
+      "type": "object",
+      "properties": {
+        "attachment_id": {
+          "type": "string"
+        },
+        "data_base64": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attachment_id",
+        "session_id",
+        "sequence",
+        "data_base64"
+      ]
+    },
+    "AgentAttachmentFinishParams": {
+      "type": "object",
+      "properties": {
+        "attachment_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attachment_id",
+        "session_id"
+      ]
+    },
+    "AgentAttachmentMime": {
+      "type": "string",
+      "enum": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ]
+    },
     "AgentInputParams": {
       "type": "object",
       "properties": {
+        "attachment_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "content": {
           "type": "string"
         },

@@ -141,7 +141,7 @@
     if (mode === 'awake') idleTimer = setTimeout(hide, IDLE_MS);
   }
   regionTrigger.addEventListener('pointerdown', event => event.stopPropagation());
-  regionTrigger.addEventListener('click', event => { event.stopPropagation(); interact(); native('region_preview_open').catch(error => { regionStatus.textContent=error.message==='desktop-control-active'?'Agent 正在控制桌面，暂不能圈选。':'圈选暂不可用，请稍后重试。'; }); });
+  regionTrigger.addEventListener('click', event => { event.stopPropagation(); interact(); regionStatus.textContent='正在暂停当前任务…'; native('region_preview_open').then(() => { regionStatus.textContent=''; }).catch(error => { regionStatus.textContent=String(error?.message??error).includes('desktop-stop-unconfirmed')?'当前任务结果待核实，暂不能圈选。':'圈选暂不可用，请稍后重试。'; }); });
   async function hide() {
     if (mode !== 'awake') return;
     if (pointer || voiceActive || taskState === 'executing' || taskState === 'unknown') { interact(); return; }

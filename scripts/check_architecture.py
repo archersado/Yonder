@@ -105,6 +105,16 @@ def field(text, name):
     return values[0].strip()
 
 
+def planning_change_prefix(root, change):
+    active = f"openspec/changes/{change}"
+    if (root / active / "proposal.md").is_file():
+        return active
+    archived = sorted((root / "openspec/changes/archive").glob(f"????-??-??-{change}"))
+    if len(archived) != 1:
+        raise ValueError(f"OpenSpec Change 不存在或归档不唯一：{change}")
+    return str(archived[0].relative_to(root))
+
+
 def check_planning(root):
     repository_file(root, "docs/specs/README.md")
     stories = {}
@@ -141,16 +151,9 @@ def check_planning(root):
             else:
                 if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", change):
                     raise ValueError(f"非法 OpenSpec：{sid}")
-                proposal_path = root / f"openspec/changes/{change}/proposal.md"
-                if not proposal_path.is_file():
-                    archived = list((root / "openspec/changes/archive").glob(f"*-{change}/proposal.md"))
-                    if len(archived) != 1:
-                        raise ValueError(f"活动或归档 OpenSpec Proposal 不唯一：{change}")
-                    proposal_path = archived[0]
-                proposal = proposal_path.read_text(encoding="utf-8")
-                active = f"openspec/changes/{change}/"
-                archived = re.search(rf"openspec/changes/archive/[^`\\s]*-{change}/", text)
-                if not re.search(rf"(?<![A-Za-z0-9_-]){sid}(?![A-Za-z0-9_-])", proposal) or not (active in text or archived):
+                prefix = planning_change_prefix(root, change)
+                proposal = repository_file(root, f"{prefix}/proposal.md").read_text(encoding="utf-8")
+                if not re.search(rf"(?<![A-Za-z0-9_-]){sid}(?![A-Za-z0-9_-])", proposal) or f"{prefix}/" not in text:
                     raise ValueError(f"Story/Proposal 缺少双向关联：{sid}")
             stories[sid] = (path, info)
     return stories

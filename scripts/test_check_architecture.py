@@ -77,6 +77,18 @@ class AssociationTests(unittest.TestCase):
     def test_linked_pending_verification_is_valid(self):
         self.check(self.body)
 
+    def test_archived_change_is_valid_for_planning(self):
+        source = self.root / "openspec/changes/oct-s1-task-status"
+        archived = self.root / "openspec/changes/archive/2026-09-20-oct-s1-task-status"
+        archived.parent.mkdir()
+        source.rename(archived)
+        story = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
+        story.write_text(story.read_text().replace(
+            "openspec/changes/oct-s1-task-status/",
+            "openspec/changes/archive/2026-09-20-oct-s1-task-status/",
+        ), encoding="utf-8")
+        check_planning(self.root)
+
     def test_windows_line_endings(self):
         self.check(self.body.replace("\n", "\r\n"))
 

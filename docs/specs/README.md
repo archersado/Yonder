@@ -188,3 +188,11 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-18 CX-S2进入macOS Preview实施：用户要求先测试“圈选提问”，Accepted AD-CX-01授权当前显示器的显式选择、临时内存截图、确认卡与取消清场；不发送、不持久化、不支持常驻指针、多显示器或Windows。
 
 2026-09-21 TM-S7统一启动子范围PASS：[Accepted AD-TM-13](../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-13-UNIFIED-EXECUTION-START.md)定案共享`start_execution`；CUA/BUA已迁移，39项Application/Adapter测试通过。Document/Command仍受FI/CM门禁，完整Story不Archive。
+
+2026-09-20 CX-S2 macOS单显示器Preview经非实现者独立复核七行矩阵全部PASS，OpenSpec `2026-09-20-cx-s2-macos-preview`已归档。完整CX-S2保持verifying；Agent提交、多显示器、运行中撤权和Windows仍由后续Change承接。
+
+2026-09-20 CX-S2 Agent会话临时附件Spike经非实现者六行矩阵复核PASS，AD-CX-02更新为Accepted：同一AgentSession内保持64 KiB帧和4 MiB附件上限，跨会话隔离及所有结束路径清零；不传本机路径、不持久化截图。产品协议与确认卡发送仍须独立Change。
+
+2026-09-20 CX-S2圈选附件产品提交经非实现者复核PASS并归档：macOS正式bundle覆盖accepted/rejected/unknown/unsupported，同会话分块、哈希、引用和清理通过，任务/事件/Outbox不变且正文截图不落盘。Windows、多显示器与云端WSS仍保留后续门禁。
+
+2026-09-20 CX-S2无截图文字提交经非实现者复核PASS并归档：直接点击、不足最小选区及临时未授权bundle均进入“仅提问”；只声明`user_input`的会话每次仅收到1条无附件`agent.input`，unknown无自动重试。语音组合与CUA占用时先暂停仍待后续Change。
