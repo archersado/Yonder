@@ -17,4 +17,4 @@ swift spikes/recording-capture/secure-input-fixture.swift
 
 2026-09-18 探针改按用户控制租约计数：`--controlled`只验证租约内的无正文受控会话输入，`--outside`必须保持零输入；它们不证明物理用户来源。隐私排除、已知注入、停止与队列样本仍是产品实施前门禁；不得接产品任务库。
 
-2026-09-22 `--known-injection`在租约内注入一条带Yonder标记的零位移滚动事件；探针只增加`known_injected_rejected`，不采集事件或正文。
+2026-09-22 `--known-injection`在租约内注入一条带Yonder标记的零位移滚动事件；探针只增加`known_injected_rejected`，不采集事件或正文。`--exclude-pid`同样注入零位移标记事件，只用于验证当前前台应用按PID被排除，不改变前台且不保存应用身份。

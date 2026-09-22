@@ -27,4 +27,4 @@ OpenSpec: rc-s1-recording-capture-spike
 
 2026-09-20：受控会话、租约外拒绝、系统安全输入与停止边界的 macOS 无正文子范围已验证。用户排除应用样本未完成：临时探针无法在不抢占前台的情况下稳定读取排除目标身份；按用户决定暂缓，RC-S1 保持 `design-review`，不得接入产品录制或回放。
 
-2026-09-22：已知Yonder/Replay标记的零位移滚动注入在租约内被拒绝，未采集事件或正文；见[macOS注入拒绝验证](../../../../openspec/changes/rc-s1-recording-capture-spike/verification-known-injection-macos.md)。用户排除应用与Windows证据仍保留门禁。
+2026-09-22：已知Yonder/Replay标记的零位移滚动注入在租约内被拒绝，未采集事件或正文；见[macOS注入拒绝验证](../../../../openspec/changes/rc-s1-recording-capture-spike/verification-known-injection-macos.md)。当前前台应用按PID排除的零位移标记样本同样通过，未改变前台、未保存应用身份；见[macOS排除应用验证](../../../../openspec/changes/rc-s1-recording-capture-spike/verification-excluded-app-macos.md)。Windows证据仍保留门禁。

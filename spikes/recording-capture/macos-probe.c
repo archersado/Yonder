@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
   int injection_posted = 0;
   while (CFAbsoluteTimeGetCurrent() < deadline) {
     if (stop_check_mode && recorder.recording && CFAbsoluteTimeGetCurrent() >= started + seconds / 2) { recorder.recording = 0; stopped_count = recorder.count; }
-    if (known_injection_mode && !injection_posted && CFAbsoluteTimeGetCurrent() >= started + 0.1) {
+    if ((known_injection_mode || excluded_mode) && !injection_posted && CFAbsoluteTimeGetCurrent() >= started + 0.1) {
       CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStatePrivate);
       CGEventRef event = CGEventCreateScrollWheelEvent(source, kCGScrollEventUnitPixel, 2, 0, 0);
       if (source && event) {
