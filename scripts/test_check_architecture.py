@@ -154,6 +154,23 @@ class AssociationTests(unittest.TestCase):
                 self.check(self.body)
             path.write_text(original, encoding="utf-8")
 
+    def test_archived_proposal_keeps_planning_valid(self):
+        active = self.root / "openspec/changes/oct-s1-task-status/proposal.md"
+        story = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
+        original_story = story.read_text()
+        archived = self.root / "openspec/changes/archive/2026-09-22-oct-s1-task-status/proposal.md"
+        archived.parent.mkdir(parents=True)
+        archived.write_text(active.read_text(), encoding="utf-8")
+        active.unlink()
+        try:
+            story.write_text(original_story.replace("openspec/changes/oct-s1-task-status/", "openspec/changes/archive/2026-09-22-oct-s1-task-status/"), encoding="utf-8")
+            check_planning(self.root)
+        finally:
+            story.write_text(original_story, encoding="utf-8")
+            active.write_text(archived.read_text(), encoding="utf-8")
+            archived.unlink()
+            archived.parent.rmdir()
+
 
 if __name__ == "__main__":
     unittest.main()
