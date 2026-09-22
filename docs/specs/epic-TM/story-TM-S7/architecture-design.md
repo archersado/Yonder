@@ -12,6 +12,8 @@ Task、sequence、events、Outbox 与准入仍由 TM/Application 拥有。所有
 2. 对 `running`，只允许在已 Observe 且已推进的边界准备下一 attempt；不得重新 Start 或取得第二套状态。
 3. 事务成功后由能力 Adapter 派发；每次派发后必须 Observe 并以同一任务事实写入 observed/unknown。停止、完成与失败复用 TM-S2/TM-S3 既有确认流程。
 
+若 EX-S2 引入计划片段，`start_execution` 只接受由 AG-S1 Gateway 已验证的 `plan_id`/`plan_version`，并在同一启动事务中持久化计划事实；字段与事务落点未定稿前不修改现有用例。
+
 资源由能力声明：Desktop（CUA）、Browser（BUA）、DocumentWrite（同文件互斥，依赖 FI-S1）、CommandProcess（受监管进程树）。资源细节不由本 Story 复制；新增资源种类、协议或持久化前先更新 AD-TM-13。
 
 ## 边界与依赖
