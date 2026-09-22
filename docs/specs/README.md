@@ -25,7 +25,7 @@
 
 ## 当前研发顺序
 
-2026-09-21 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 调整：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。先完成双平台 Spike 与 Proposed AD-EX-02 技术选型，再审阅快慢脑交接和四类执行层接线。Windows 仍按用户既有决定暂缓，故目前不生成产品实施 Proposal，也不改变运行时代码。
+2026-09-21 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 调整：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。先完成双平台 Spike 与 Proposed AD-EX-02 技术选型，再审阅快慢脑交接、最小 Jev 配置界面和四类执行层接线。Windows 仍按用户既有决定暂缓，故目前不生成产品实施 Proposal，也不改变运行时代码。
 
 ST-S3已按AD-ST-01实施显式未加密任务存储，10项Adapter回归通过，本机核心验证PASS；DS-S2可复用该入口，可信桌面身份/恢复与正式UI仍待接线。加密与迁移保留MVP之后ST-S2待办。
 
