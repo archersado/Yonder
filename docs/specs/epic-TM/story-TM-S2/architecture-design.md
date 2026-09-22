@@ -10,7 +10,7 @@ schema8 在现有 task_attempts 增加 `observed/unknown` 结果阶段、result_
 
 与 TM-S1/S5 的联合设计要求：宿主为每次明确的新执行生成并持久化 attempt_id，绑定已登记 step_id 与执行器后才派发；客户端重投递不创建新 attempt。单任务当前设计仅一个未确认停止的动作尝试，跨任务仍按资源并行。资源准入成功不是永久执行授权，派发前仍检查控制状态、当前权限和 deadline。可信结果归原 attempt，不能借迟到结果覆盖新步骤；观察子操作字段和持久化契约仍待 ADR 定稿。
 
-SQLCipher 保持任务当前事实源；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
+MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，SQLCipher 延期至 ST-S2；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
 
 ## 失败与验证
 

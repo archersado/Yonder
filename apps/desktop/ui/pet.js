@@ -23,10 +23,12 @@
   const stateTailImage = stateTail.querySelector('img');
   const statePaws = document.querySelectorAll('.state-paw');
   const stateEyelids = document.querySelector('.state-eyelids');
-  const animations = JSON.parse(document.querySelector('#state-animations').textContent);
+  const packStatus = document.querySelector('#pack-status');
+  let animations = JSON.parse(document.querySelector('#state-animations').textContent);
   const frameImages = {};
   const blinkImages = {};
   const bodyImages = {};
+  let assetUrls = [];
   const voiceFrame = new Image(); voiceFrame.src = 'runtime/lifecycle-v11/voice-listening.png';
   const voiceBlink = new Image(); voiceBlink.src = 'runtime/lifecycle-v11/voice-listening-blink.png';
   let framesReady = false;
@@ -41,17 +43,11 @@
   let reopenTimer;
   let responseTimer;
   let idleTimer;
-  let hoverTimer;
-  let nativeHovered = false;
   let hasTasks = null;
   let taskState = 'unknown';
   let agentConnected = false;
   let voiceActive = false;
   const displayedState = () => voiceActive ? 'voice_listening' : taskState;
-  let menuOpen = false;
-  let menuAutomatic = true;
-  let menuEntered = false;
-  let menuExitTimer;
   let motionTimer;
   let motionStarted = Date.now();
   let modeStarted = Date.now();
@@ -64,6 +60,52 @@
   const canBlink = () => ready && ['awake', 'docked'].includes(mode) && visible && !reduced.matches;
   const native = (command, args) => window.__TAURI_INTERNALS__?.invoke(command, args) ?? Promise.resolve();
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  function setPackStatus(text, error = false) {
+    packStatus.textContent = text;
+    packStatus.dataset.error = String(error);
+  }
+  async function loadFrames(nextAnimations, sourceByFile = {}) {
+    const nextFrameImages = {};
+    const nextBlinkImages = {};
+    const nextBodyImages = {};
+    const nextPropImages = {};
+    const nextGestureImages = {};
+    await Promise.all(Object.entries(nextAnimations).map(async ([state, animation]) => {
+      nextFrameImages[state] = await Promise.all(animation.files.map(async file => {
+        const image = new Image(); image.src = sourceByFile[file] ?? file; await image.decode(); return image;
+      }));
+      const blinkFiles = animation.blink_files ?? animation.files;
+      nextBlinkImages[state] = await Promise.all(blinkFiles.map(async (file, index) => {
+        const image = new Image(); image.src = sourceByFile[file] ?? (blinkFiles === animation.files ? nextFrameImages[state][index].src : file); await image.decode(); return image;
+      }));
+      if (animation.prop_file) { const image = new Image(); image.src = animation.prop_file; await image.decode(); nextPropImages[state] = image; }
+      if (animation.gesture_file) { const image = new Image(); image.src = animation.gesture_file; await image.decode(); nextGestureImages[state] = image; }
+      if (animation.body_file) { const image = new Image(); image.src = animation.body_file; await image.decode(); nextBodyImages[state] = image; }
+    }));
+    for (const map of [frameImages, blinkImages, bodyImages, propImages, gestureImages]) for (const key of Object.keys(map)) delete map[key];
+    Object.assign(frameImages, nextFrameImages);
+    Object.assign(blinkImages, nextBlinkImages);
+    Object.assign(bodyImages, nextBodyImages);
+    Object.assign(propImages, nextPropImages);
+    Object.assign(gestureImages, nextGestureImages);
+    animations = nextAnimations;
+    framesReady = true;
+    const state = displayedState() === 'voice_listening' ? 'listening' : displayedState();
+    stateFrame.src = frameImages[animations[state] ? state : 'idle'][0].src;
+    pet.classList.add('frames-ready');
+    sync();
+  }
+  async function loadActivePack() {
+    const pack = await native('pet_pack_assets');
+    const nextAnimations = pack.manifest?.states;
+    if (!nextAnimations) throw new Error('资源包不符合规范');
+    const sourceByFile = Object.fromEntries(pack.assets.map(([path, bytes]) => [path.replace(/^assets\//, ''), URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: path.endsWith('.webp') ? 'image/webp' : 'image/png' }))]));
+    const oldUrls = assetUrls;
+    assetUrls = Object.values(sourceByFile);
+    await loadFrames(nextAnimations, sourceByFile);
+    for (const url of oldUrls) URL.revokeObjectURL(url);
+    setPackStatus('自定义桌宠资源包已加载');
+  }
   function updateAccessibility() {
     const connection = agentConnected ? 'Agent已连接' : 'Agent未连接';
     document.title = voiceActive ? `Yonda · 正在聆听 · ${connection}` : `Yonda · ${connection}`;
@@ -93,7 +135,7 @@
     if (mode === 'awake') idleTimer = setTimeout(hide, IDLE_MS);
   }
   regionTrigger.addEventListener('pointerdown', event => event.stopPropagation());
-  regionTrigger.addEventListener('click', event => { event.stopPropagation(); interact(); native('region_preview_open').catch(error => { regionStatus.textContent=error.message==='desktop-control-active'?'Agent 正在控制桌面，暂不能圈选。':'圈选暂不可用，请稍后重试。'; }); });
+  regionTrigger.addEventListener('click', event => { event.stopPropagation(); interact(); regionStatus.textContent='正在暂停当前任务…'; native('region_preview_open').then(() => { regionStatus.textContent=''; }).catch(error => { regionStatus.textContent=String(error?.message??error).includes('desktop-stop-unconfirmed')?'当前任务结果待核实，暂不能圈选。':'圈选暂不可用，请稍后重试。'; }); });
   async function hide() {
     if (mode !== 'awake') return;
     if (pointer || voiceActive || taskState === 'executing' || taskState === 'unknown') { interact(); return; }
@@ -321,19 +363,7 @@
     pointer = null;
     pet.classList.remove('held');
   }
-  function hover() {
-    clearTimeout(hoverTimer);
-    if (mode === 'awake' && hasTasks === true && !voiceTrigger.matches(':hover')) hoverTimer = setTimeout(() => {
-      if (mode === 'awake' && hasTasks === true && !pointer && !voiceTrigger.matches(':hover')) showTaskMenu();
-    }, 200);
-  }
-  if (!window.__TAURI_INTERNALS__) {
-    pet.addEventListener('pointerenter', hover);
-    pet.addEventListener('pointerleave', () => clearTimeout(hoverTimer));
-  }
   pet.addEventListener('pointerdown', event => {
-    clearTimeout(hoverTimer);
-    nativeHovered = true;
     if (event.button !== 0 || !event.isPrimary) return;
     if (mode === 'docked') { event.preventDefault(); wake(); return; }
     if (mode !== 'awake') return;
@@ -344,6 +374,13 @@
     clearTimeout(reopenTimer);
     clearTimeout(responseTimer);
     pet.classList.remove('blinking', 'responding');
+  });
+  pet.addEventListener('contextmenu', event => {
+    event.preventDefault();
+    if (mode === 'docked') { wake(); return; }
+    if (mode !== 'awake') return;
+    interact(); respond();
+    showTaskMenu();
   });
   pet.addEventListener('pointermove', event => {
     interact();
@@ -373,7 +410,7 @@
     if (mode === 'docked') wake();
     else if (mode === 'awake') {
       interact(); respond();
-      if (openMenu && hasTasks === true) showTaskMenu(true);
+      if (openMenu && hasTasks === true) showTaskMenu();
     }
   }
   pet.addEventListener('click', event => {
@@ -398,25 +435,17 @@
     // Space 切换或 WKWebView 隐藏不算与小龙互动，不重置闲置计时。
   });
   reduced.addEventListener('change', sync);
-  async function showTaskMenu(focus = false) {
-    try { menuAutomatic = !focus; menuOpen = await native('task_menu_show', { focus }) === true; menuEntered = false; }
+  async function showTaskMenu() {
+    try { await native('task_menu_show'); }
     catch { console.warn('任务菜单暂不可用'); }
   }
-  function hideTaskMenu() {
-    clearTimeout(menuExitTimer); menuExitTimer = null;
-    menuOpen = false; menuEntered = false;
-    native('task_menu_hide').catch(() => console.warn('菜单收起失败'));
-  }
-  window.addEventListener('yonda-menu-open', event => { menuOpen = true; menuAutomatic = event.detail !== 'manual'; menuEntered = false; });
   function applyPresentation(nextHasTasks, nextState, keepTerminal = false) {
     if (!keepTerminal) { clearTimeout(terminalTimer); terminalTimer = null; }
-    if (nextHasTasks && hasTasks !== true) nativeHovered = false;
     hasTasks = nextHasTasks;
     if (taskState !== nextState) {
       taskState = nextState; stateStarted = Date.now(); if (!voiceActive) pet.dataset.state = nextState; sync();
       if (mode === 'docked') wake();
     }
-    if (!hasTasks && menuOpen && menuAutomatic) hideTaskMenu();
   }
   async function loadInitialPresentation() {
     try {
@@ -425,7 +454,6 @@
     } catch {
       hasTasks = null;
       if (taskState !== 'unknown') { taskState = 'unknown'; stateStarted = Date.now(); pet.dataset.state = 'unknown'; sync(); if (mode === 'docked') wake(); }
-      clearTimeout(hoverTimer);
     }
   }
   async function loadAgentConnection() {
@@ -459,7 +487,7 @@
   voiceTrigger.addEventListener('pointerdown', event => event.stopPropagation());
   voiceTrigger.addEventListener('pointerup', event => event.stopPropagation());
   voiceTrigger.addEventListener('click', async event => {
-    event.stopPropagation(); clearTimeout(hoverTimer); interact();
+    event.stopPropagation(); interact();
     try { await native('voice_input_open'); }
     catch { console.warn('语音输入暂不可用'); }
   });
@@ -472,41 +500,22 @@
       if (voiceActive && mode === 'docked') wake();
     }
   });
-  async function checkHover() {
-    try {
-      const [inside, inMenu] = await native('pet_hover_region');
-      if (inside || inMenu) { clearTimeout(menuExitTimer); menuExitTimer = null; }
-      if (inMenu) menuEntered = true;
-      if (visible && mode === 'awake' && inside && !nativeHovered && !pointer) hover();
-      if (!inside) clearTimeout(hoverTimer);
-      if (menuOpen && !inside && !inMenu && (menuAutomatic || menuEntered)) {
-        if (menuEntered) hideTaskMenu();
-        else if (!menuExitTimer) menuExitTimer = setTimeout(() => { menuExitTimer = null; hideTaskMenu(); }, 350);
-      }
-      nativeHovered = inside;
-    } catch { clearTimeout(hoverTimer); }
-    setTimeout(checkHover, 250);
-  }
-  if (window.__TAURI_INTERNALS__) checkHover();
   loadAgentConnection();
   refreshVisibility();
-  Promise.all([voiceFrame.decode(), voiceBlink.decode(), ...Object.entries(animations).map(async ([state, animation]) => {
-    frameImages[state] = await Promise.all(animation.files.map(async file => {
-      const image = new Image(); image.src = file; await image.decode(); return image;
-    }));
-    blinkImages[state] = await Promise.all(animation.blink_files.map(async file => {
-      const image = new Image(); image.src = file; await image.decode(); return image;
-    }));
-    if (animation.prop_file) { const image = new Image(); image.src = animation.prop_file; await image.decode(); propImages[state] = image; }
-    if (animation.gesture_file) { const image = new Image(); image.src = animation.gesture_file; await image.decode(); gestureImages[state] = image; }
-    if (animation.body_file) { const image = new Image(); image.src = animation.body_file; await image.decode(); bodyImages[state] = image; }
-  })]).then(() => {
-    // 透明素材全部解码后启用；连续局部动作不依赖整图加法混合。
-    framesReady = true;
-    const state = displayedState() === 'voice_listening' ? 'listening' : displayedState(); stateFrame.src = frameImages[animations[state] ? state : 'idle'][0].src;
-    if (framesReady) pet.classList.add('frames-ready'); sync();
-    if (window.__TAURI_INTERNALS__) loadInitialPresentation();
-  }).catch(error => { pet.dataset.assetError = String(error?.message ?? error); console.warn('状态素材加载失败，保留原透明小龙'); });
+  const loadBuiltIn = () => loadFrames(animations);
+  const start = window.__TAURI_INTERNALS__
+    ? loadActivePack().catch(() => loadBuiltIn())
+    : loadBuiltIn();
+  start.then(() => { if (window.__TAURI_INTERNALS__) loadInitialPresentation(); })
+    .catch(error => { pet.dataset.assetError = String(error?.message ?? error); setPackStatus('状态素材加载失败', true); console.warn('状态素材加载失败，保留原透明小龙'); });
+  window.addEventListener('yonda-pet-pack-status', event => {
+    const detail = event.detail;
+    if (detail === 'validating') setPackStatus('正在检查资源包');
+    else if (detail === 'success') loadActivePack().catch(() => setPackStatus('资源包不符合规范', true));
+    else if (detail === 'unsafe') setPackStatus('资源包无法安全导入', true);
+    else if (detail === 'unavailable') setPackStatus('资源包不可用', true);
+    else if (detail === 'invalid') setPackStatus('资源包不符合规范', true);
+  });
   Promise.all([eyelids.decode(), document.querySelector('.peek-eyelids').decode()]).then(() => { ready = true; setMode('awake'); interact(); }).catch(() => {
     console.warn('闭眼素材加载失败，保留静态小龙');
   });

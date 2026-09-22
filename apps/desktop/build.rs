@@ -7,7 +7,7 @@ fn main() {
         println!("cargo:rerun-if-changed=src/region_capture_macos.m");
         cc::Build::new().file("src/voice_macos.m").flag("-fblocks").compile("yonda_voice");
         cc::Build::new().file("src/region_capture_macos.m").flag("-fblocks").compile("yonda_region_capture");
-        for framework in ["AVFoundation", "Foundation", "Speech", "ApplicationServices", "ImageIO", "ScreenCaptureKit"] {
+        for framework in ["AVFoundation", "Foundation", "Speech", "AppKit", "ApplicationServices", "ImageIO", "ScreenCaptureKit"] {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
     }

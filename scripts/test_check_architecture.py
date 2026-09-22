@@ -77,6 +77,18 @@ class AssociationTests(unittest.TestCase):
     def test_linked_pending_verification_is_valid(self):
         self.check(self.body)
 
+    def test_archived_change_is_valid_for_planning(self):
+        source = self.root / "openspec/changes/oct-s1-task-status"
+        archived = self.root / "openspec/changes/archive/2026-09-20-oct-s1-task-status"
+        archived.parent.mkdir()
+        source.rename(archived)
+        story = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
+        story.write_text(story.read_text().replace(
+            "openspec/changes/oct-s1-task-status/",
+            "openspec/changes/archive/2026-09-20-oct-s1-task-status/",
+        ), encoding="utf-8")
+        check_planning(self.root)
+
     def test_windows_line_endings(self):
         self.check(self.body.replace("\n", "\r\n"))
 
@@ -153,6 +165,23 @@ class AssociationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.check(self.body)
             path.write_text(original, encoding="utf-8")
+
+    def test_archived_proposal_keeps_planning_valid(self):
+        active = self.root / "openspec/changes/oct-s1-task-status/proposal.md"
+        story = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
+        original_story = story.read_text()
+        archived = self.root / "openspec/changes/archive/2026-09-22-oct-s1-task-status/proposal.md"
+        archived.parent.mkdir(parents=True)
+        archived.write_text(active.read_text(), encoding="utf-8")
+        active.unlink()
+        try:
+            story.write_text(original_story.replace("openspec/changes/oct-s1-task-status/", "openspec/changes/archive/2026-09-22-oct-s1-task-status/"), encoding="utf-8")
+            check_planning(self.root)
+        finally:
+            story.write_text(original_story, encoding="utf-8")
+            active.write_text(archived.read_text(), encoding="utf-8")
+            archived.unlink()
+            archived.parent.rmdir()
 
 
 if __name__ == "__main__":

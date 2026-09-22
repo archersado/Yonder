@@ -4,22 +4,22 @@ export async function checkPetInteraction(page) {
   // 固定大于小龙的测试画布，body拖放终点不能与小龙中心重合。
   await page.cdp('Emulation.setDeviceMetricsOverride',{width:640,height:480,deviceScaleFactor:1,mobile:false});
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', {source:`
-    window.nativeCalls=[];window.nativeArguments=[];window.fixtureHovered=false;window.fixtureMenuHovered=false;
+    window.nativeCalls=[];window.nativeArguments=[];
     window.fixtureHasTasks=false;window.fixtureState='idle';window.fixtureFailure=false;
     window.emitPresentation=(hasTasks,state,extra={})=>window.dispatchEvent(new CustomEvent('yonda-presentation',{detail:{hasTasks,state,...extra}}));
     window.__TAURI_INTERNALS__={invoke:async (command,args)=>{
       window.nativeCalls.push(command);
       window.nativeArguments.push({command,args});
       if(command==='pet_is_visible')return true;
-      if(command==='pet_hover_region')return [window.fixtureHovered,window.fixtureMenuHovered];
       if(command==='pet_task_state') {if(window.fixtureFailure)throw Error('test');return [window.fixtureHasTasks,window.fixtureState];}
       if(command==='task_menu_show')return window.fixtureHasTasks;
       if(command==='pet_dock')return 'bottom';
     }};`});
   await page.reload();
   await page.waitForFunction(() => document.getElementById('pet').dataset.state === 'idle');
-  await page.evaluate(() => {window.fixtureHovered=true;});
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
+  await page.click('#pet', {button: 'right'});
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
   await page.waitForFunction(() => document.getElementById('pet').classList.contains('frames-ready'));
   const idleSamples=[];
@@ -37,7 +37,7 @@ export async function checkPetInteraction(page) {
   // 剪切边界必须与零位移轴重合，避免尾巴分层接缝随摆动张开。
   assert.ok(idleSamples.every(s=>s.tailClip==='inset(55% 73.75% 0px 0px)' && Math.abs(s.originX-s.cutX)<2));
   await page.evaluate(() => {window.fixtureHasTasks=true;window.fixtureState='executing';window.emitPresentation(true,'executing');});
-  await page.waitForFunction(() => document.getElementById('pet').dataset.state==='executing' && window.nativeCalls.includes('task_menu_show'));
+  await page.waitForFunction(() => document.getElementById('pet').dataset.state==='executing');
   await page.waitForFunction(() => document.getElementById('pet').classList.contains('frames-ready'));
   const before=await page.evaluate(() => document.getElementById('pet').style.getPropertyValue('--state-paw-right')+document.getElementById('pet').style.getPropertyValue('--state-paw-left'));
   await page.waitForTimeout(400);
@@ -51,12 +51,9 @@ export async function checkPetInteraction(page) {
   assert.ok(blendSamples.every(s=>Math.abs(s.current+s.next-1)<.00001 && s.mode==='normal'));
   assert.ok(new Set(blendSamples.map(s=>s.paw)).size>=4);
   await page.click('#pet');
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
+  await page.click('#pet', {button: 'right'});
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),1);
-  await page.evaluate(() => {window.fixtureHovered=false;window.fixtureMenuHovered=true;});
-  await page.waitForTimeout(600);
-  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_hide').length),0);
-  await page.evaluate(() => {window.fixtureMenuHovered=false;});
-  await page.waitForFunction(() => window.nativeCalls.includes('task_menu_hide'));
   await page.evaluate(() => {window.fixtureState='waiting_for_user';window.emitPresentation(true,'waiting_for_user');});
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='waiting_for_user');
   await page.waitForFunction(() => document.querySelector('.state-frame').src.includes('/lifecycle-v10/waiting_for_user-'));
@@ -89,15 +86,14 @@ export async function checkPetInteraction(page) {
   assert.ok(await page.evaluate(() => document.querySelector('.state-frame').src.endsWith('executing-body.png')));
   await page.press('#pet','Enter');
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),2);
-  assert.equal(await page.evaluate(() => window.nativeArguments.filter(call=>call.command==='task_menu_show').at(-1).args.focus),true);
   await page.dragAndDrop('#pet','body');
-  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),2);
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),3);
   assert.ok(await page.evaluate(() => window.nativeCalls.includes('plugin:window|start_dragging')));
   await page.evaluate(() => window.emitPresentation(true,'unknown'));
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='unknown');
   await page.waitForFunction(() => document.querySelector('.state-frame').src.endsWith('idle-00.png'));
   await page.cdp('Emulation.setEmulatedMedia',{features:[]});
-  return {emptyHoverHidden:true,tasksArriveWhileHovering:true,executingAnimation:true,continuousLocalPaws:true,stableExecutingBody:true,menuHoverKeepsOpen:true,leaveHides:true,waitingAndPaused:true,continuousPausedWing:true,terminalSuccessAndFailure:true,reducedMotionStaticExecuting:true,clickDoesNotOpen:true,keyboardAndDrag:true,unknownOnFailure:true,fixtureOnly:true};
+  return {hoverDoesNotOpen:true,executingAnimation:true,continuousLocalPaws:true,stableExecutingBody:true,rightClickOpens:true,waitingAndPaused:true,continuousPausedWing:true,terminalSuccessAndFailure:true,reducedMotionStaticExecuting:true,clickDoesNotOpen:true,keyboardAndDrag:true,unknownOnFailure:true,fixtureOnly:true};
 }
 export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('未提供') || document.querySelectorAll('.task').length > 0);
@@ -105,8 +101,11 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
     window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[];
-    const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', status:'running', sequence:'4'}));
+    const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
+    tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
+    tasks[20].observation={step_id:'open-document',result:'matched',summary:'文档已打开'};
+    tasks[20].next_intent='编辑目标文档';
     window.__TAURI_INTERNALS__ = {invoke:async (command,input) => {
       if (command === 'user_takeover') {
         window.fixtureControlRequests.push(input);
@@ -155,7 +154,13 @@ export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.querySelector('#detail h2'));
   const detailText=await page.evaluate(() => document.getElementById('detail').textContent);
   assert.ok(detailText.includes('打开目标文档') && detailText.includes('open-document · 接受序号 2'));
+  const details=await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#detail dt')].map(item => [item.textContent,item.nextElementSibling.textContent])));
+  assert.equal(details['来源'],'本地 Agent');
+  assert.equal(details['当前步骤'],'打开目标文档');
+  assert.equal(details['观察摘要'],'已匹配 · 文档已打开');
+  assert.equal(details['下一步意图'],'编辑目标文档');
   assert.ok(detailText.includes('Agent 声明步骤：打开目标文档') && detailText.includes('动作已观察：成功') && detailText.includes('执行结果未知：执行超时'));
+  assert.ok(detailText.includes('状态说明') && detailText.includes('执行结果未知：执行超时'));
   assert.ok(detailText.includes('ego:49 · Agent控制 · 1个托管页面 · 活动 · 更新序号 3'));
   await page.click('.browser-open');
   assert.deepEqual(await page.evaluate(() => window.fixtureBrowserOpenRequests),[{taskId:'test-task-20',expectedSequence:'5'}]);
@@ -209,5 +214,5 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelectorAll('.task').length), 20);
   assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
   assert.equal(await page.evaluate(() => window.nativeCalls.some(call => call.startsWith('jev_'))), false);
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

@@ -6,7 +6,7 @@
 
 ### Requirement: 禁止人工创建旁路
 
-Application创建只接受可信Agent身份，不允许LocalUser，即使ID合法。
+Application创建 MUST 只接受可信Agent身份，不允许LocalUser，即使ID合法。
 
 #### Scenario: 本机用户创建
 - WHEN LocalUser调用create

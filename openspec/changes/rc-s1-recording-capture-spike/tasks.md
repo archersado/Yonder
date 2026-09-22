@@ -10,10 +10,10 @@
 - [x] 用户控制租约内/外无正文分类探针与自检
 - [x] macOS 真实受控会话输入与队列缺口样本
 - [x] macOS 真实租约外输入拒绝样本
-- [ ] 已知 Agent/Replay 注入拒绝样本
+- [x] 已知 Agent/Replay 注入拒绝样本
 - [x] 带 Yonder 注入标记的分类自检
 - [x] macOS 系统安全输入状态样本
 - [x] macOS 停止后静默样本
-- [ ] 排除应用样本（未完成：需嵌入 Yonder 主进程后，在不抢占前台的条件下验证）
+- [x] 排除应用样本（不改变前台，以当前前台应用PID验证）
 - [x] macOS来源独立 Verification Goal 与ADR失败结论
 - [ ] Windows同样本证据（按用户决定暂缓）

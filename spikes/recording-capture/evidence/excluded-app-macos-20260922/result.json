@@ -1,0 +1,13 @@
+{
+  "available": true,
+  "controlled_session_inputs": 0,
+  "external_unknown": 0,
+  "known_injected_rejected": 0,
+  "excluded_app": 1,
+  "excluded_secure_input": 0,
+  "lease_active": true,
+  "gaps": 0,
+  "payload_recorded": false,
+  "frontmost_focus_changed": false,
+  "scope": "当前前台应用按PID排除的零位移标记滚动事件"
+}

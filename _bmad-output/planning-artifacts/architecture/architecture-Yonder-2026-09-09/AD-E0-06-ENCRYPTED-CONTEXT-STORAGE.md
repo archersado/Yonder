@@ -38,3 +38,5 @@
 恢复延期的 Keychain Spike，时间盒为本次研发增量。直接使用系统 Security.framework 的 SecItem API 与系统随机源，生成独立 UUID 服务名，仅写入/读取/删除本次临时条目；不枚举凭据，不将密钥传入命令参数或日志。统一样本为 32 字节，要求写入、重复写入拒绝、精确读取、精确删除和删除后 errSecItemNotFound 全部通过；任一失败不接受路线。保持 Windows 已接受范围，单个探针通过不代表 macOS 完整加密栈或产品身份认证通过。
 
 实测补充：本机探针退出 0，写入、重复项拒绝、32 字节往返、删除后不可读全部通过。证据见 `openspec/changes/e0-validate-encrypted-context-storage/verification-keychain-macos.md`；签名、锁定、跨进程以及完整存储栈尚待验证，Accepted 仍限定 Windows。
+
+2026-09-22范围评审：macOS 组合 Harness 已通过 SQLCipher `4.14.0 community`、密文文件头、错误密钥拒绝、FTS5 中英文检索、状态/事件/Outbox 事务回滚及 AES-256-GCM 往返与篡改拒绝。该结果补充 macOS 技术验证证据，但不改变 AD-ST-01 已接受的 MVP 未加密产品范围；Credential Store、产品 Adapter、身份认证和迁移仍待后续产品变更。

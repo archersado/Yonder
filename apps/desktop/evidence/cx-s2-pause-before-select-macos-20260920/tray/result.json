@@ -1,0 +1,15 @@
+{
+  "entry": "tray",
+  "native_passed": true,
+  "task_status": "paused",
+  "control_is_pause_stopped": true,
+  "attempts": 1,
+  "events": 6,
+  "outbox": 6,
+  "sequence": 6,
+  "atomic_history": true,
+  "selection_overlay_opened": true,
+  "recording_schema_present": false,
+  "focus_started": false,
+  "passed": true
+}

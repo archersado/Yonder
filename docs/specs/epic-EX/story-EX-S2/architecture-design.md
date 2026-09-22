@@ -6,7 +6,7 @@ AG-S1 的慢脑接入边界已由 Accepted [AD-AG-07](../../../../_bmad-output/p
 
 本子范围的配置界面已由 Accepted [AD-EX-03](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-03-JEV-CONFIG-INTERFACE.md) 定案；它只交付非敏感配置的读取、校验和保存，不授权 Jev 执行。
 
-当前实施基线保持 AD-EX-01 的“每步 Jev 决策”。Proposed AD-EX-04 的有界动作配方不进入本 Story 的运行时代码、协议或数据库设计；只有该 ADR 被 Accepted 且计划片段契约修订后，才允许另行创建对照 OpenSpec。
+当前实施基线保持 AD-EX-01 的“每步 Jev 决策”。[AD-EX-04](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-04-BOUNDED-ACTION-RECIPE.md) 保持 Proposed，仅作为后续对照观察路线；在 Accepted 前不进入 EX-S2 实施、协议、迁移或运行时代码，且须计划片段契约修订后才能另行创建对照 OpenSpec。
 
 ## 跨 Story 联审前置
 

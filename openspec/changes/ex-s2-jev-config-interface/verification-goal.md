@@ -1,8 +1,8 @@
 # EX-S2 最小 Jev 配置界面 Verification Goal
 
-Story：EX-S2  
-Change：ex-s2-jev-config-interface  
-日期：2026-09-22  
+Story：EX-S2
+Change：ex-s2-jev-config-interface
+日期：2026-09-22
 状态：PASS
 
 ## 验证目标

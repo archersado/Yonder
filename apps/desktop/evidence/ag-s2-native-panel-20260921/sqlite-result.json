@@ -1,0 +1,44 @@
+{
+  "tasks": [
+    {
+      "id": "task_97cdeef532a2b28f17d5812ccea21c09",
+      "owner_agent_id": "local-test-agent",
+      "state": "cancelled",
+      "sequence": 2,
+      "name": "整理桌面测试"
+    },
+    {
+      "id": "task_e9a0a3adb7ef6c4d7932797efbf809e1",
+      "owner_agent_id": "local-test-agent",
+      "state": "cancelled",
+      "sequence": 2,
+      "name": "检查文档测试"
+    }
+  ],
+  "events": [
+    {
+      "task_id": "task_97cdeef532a2b28f17d5812ccea21c09",
+      "sequence": 1,
+      "previous": "created",
+      "state": "created"
+    },
+    {
+      "task_id": "task_97cdeef532a2b28f17d5812ccea21c09",
+      "sequence": 2,
+      "previous": "created",
+      "state": "cancelled"
+    },
+    {
+      "task_id": "task_e9a0a3adb7ef6c4d7932797efbf809e1",
+      "sequence": 1,
+      "previous": "created",
+      "state": "created"
+    },
+    {
+      "task_id": "task_e9a0a3adb7ef6c4d7932797efbf809e1",
+      "sequence": 2,
+      "previous": "created",
+      "state": "cancelled"
+    }
+  ]
+}
