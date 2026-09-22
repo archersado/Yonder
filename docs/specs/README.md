@@ -27,6 +27,8 @@
 
 2026-09-21 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 调整：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。先完成双平台 Spike 与 Proposed AD-EX-02 技术选型，再审阅快慢脑交接、最小 Jev 配置界面和四类执行层接线。Windows 仍按用户既有决定暂缓，故目前不生成产品实施 Proposal，也不改变运行时代码。
 
+2026-09-23 新增 [Proposed AD-AG-09 计划片段 Gateway 契约](_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md)：定义有界声明式计划片段、Observe 异常升级和快慢脑安全边界，作为当前逐步决策架构的候选优化方向；该 ADR 未授权实施，也未替代既有逐步决策模式。
+
 ST-S3已按AD-ST-01实施显式未加密任务存储，10项Adapter回归通过，本机核心验证PASS；DS-S2可复用该入口，可信桌面身份/恢复与正式UI仍待接线。加密与迁移保留MVP之后ST-S2待办。
 
 2026-09-14用户变更：MVP暂不加密，按Accepted AD-ST-01采用未加密SQLite；加密、系统凭据与明文迁移归ST-S2，MVP之后实施。DS-S2真实数据接线不再依赖密钥，仍须满足可信身份、恢复与既有任务事实源要求。

@@ -15,6 +15,8 @@ OpenSpec: tm-s7-unified-execution-start
 
 本 Story 统一 CUA、BUA、Document 与 Command 首次副作用前的任务启动语义。CUA/BUA 已有 `start_attempt` 路径；Document 和 Command 尚未接入 Gateway 或任务执行用例，不能把已登记的 `created` 任务显示为执行中。
 
+2026-09-23：已建立跨 Story 的 [Proposed AD-AG-09 计划片段 Gateway 契约](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md)，作为统一启动语义下的可选效率形态；该决定不创建第二启动路径，也未授权实施。
+
 Accepted AD-TM-13 定义共享启动边界。CM-S1 的双平台进程树 Spike、DO-S2 的 FI-S1 文件身份/锁门禁，以及各能力的独立 Proposal 通过前，不实施对应执行入口。
 
 2026-09-21：AD-TM-13 已定案 Application 统一启动边界；`start_execution` 已迁移 CUA/BUA 的 created 与 running 分支，并用 SQLite 回归覆盖两个分支。Application/Adapter 全量测试 39 项 PASS，[独立 Verification Goal](../../../../openspec/changes/tm-s7-unified-execution-start/verification-goal.md) 已建立。Document/Command 仍不开放，完整 Story 不 Archive。

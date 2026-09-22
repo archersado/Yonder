@@ -15,6 +15,8 @@ OpenSpec: ag-s1-local-cli-mcp
 
 macOS生产UDS与`yonder mcp`已按当前OS用户私有端点接线；Windows Named Pipe、正式安装签名、细粒度Agent注册/撤权与云端凭据仍暂缓。密钥相关能力继续暂停。
 
+2026-09-23：已建立跨 Story 的 [Proposed AD-AG-09 计划片段 Gateway 契约](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md)，用于评估是否引入“计划片段 + Driver 本地执行 + Observe 异常升级”模式；该决定未改变当前 Gateway 边界，也未授权实施。
+
 与 TM 的边界：AG 向可信用例提供发起者和授权引用，并在后续调用重新校验有效授权；TM-S1 的授权历史或归属快照不能替代当前权限。任务最新详情归 TM-S1、历史/产物归 TM-S5，派生协议须共同审阅，不能让任意请求自报可信作者。
 
 ## OpenSpec 与验证
