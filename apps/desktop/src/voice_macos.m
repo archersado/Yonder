@@ -13,18 +13,43 @@ static long generation;
 static BOOL active;
 static BOOL recognizing;
 static NSString *lastTranscript;
+static id configurationObserver;
 
 static void emit(int kind, NSString *text) {
     if (callback) callback(kind, (text ?: @"").UTF8String);
 }
 
 static void releaseCapture(BOOL cancelTask) {
+    if (configurationObserver) {
+        [[NSNotificationCenter defaultCenter] removeObserver:configurationObserver];
+        configurationObserver = nil;
+    }
     if (engine.isRunning) [engine stop];
     @try { [engine.inputNode removeTapOnBus:0]; } @catch (__unused NSException *exception) {}
     if (cancelTask) [task cancel];
     if (timeoutSource) { dispatch_source_cancel(timeoutSource); timeoutSource = nil; }
     request = nil; task = nil; active = NO;
     [lastTranscript release]; lastTranscript = nil;
+}
+
+static NSString *speechErrorMessage(NSError *error) {
+    if ([error.domain isEqualToString:@"kLSRErrorDomain"]) {
+        switch (error.code) {
+            case 102: return @"语音识别组件缺失";
+            case 201: return @"语音识别服务已关闭";
+            case 300: return @"语音识别器初始化失败";
+        }
+    } else if ([error.domain isEqualToString:@"kAFAssistantErrorDomain"]) {
+        switch (error.code) {
+            case 1100: return @"语音识别任务冲突";
+            case 1101:
+            case 1107: return @"语音服务中断，请重试";
+            case 1110: return @"没有识别到语音，请重试";
+            case 1700: return @"语音识别权限已撤销";
+            case 203: return @"语音识别失败，请重试";
+        }
+    }
+    return @"语音输入失败，请重试";
 }
 
 static void beginCapture(long token) {
@@ -47,6 +72,14 @@ static void beginCapture(long token) {
     active = YES;
     recognizing = YES;
     emit(1, @"");
+    configurationObserver = [[NSNotificationCenter defaultCenter] addObserverForName:AVAudioEngineConfigurationChangeNotification
+        object:engine
+        queue:[NSOperationQueue mainQueue]
+        usingBlock:^(__unused NSNotification *notification) {
+            if (token != generation || !active) return;
+            releaseCapture(YES);
+            emit(4, @"音频设备变化，请重试");
+        }];
     task = [recognizer recognitionTaskWithRequest:request resultHandler:^(SFSpeechRecognitionResult *result, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (token != generation) return;
@@ -54,7 +87,7 @@ static void beginCapture(long token) {
             if (text.length) { [lastTranscript release]; lastTranscript = [text copy]; }
             if (result) emit(result.final ? 3 : 2, result.final && !text.length ? (lastTranscript ?: @"") : text);
             if (result.final) { recognizing = NO; releaseCapture(NO); }
-            else if (error && recognizing) { recognizing = NO; releaseCapture(YES); emit(4, @"没有识别到语音，请重试"); }
+            else if (error && recognizing) { recognizing = NO; releaseCapture(YES); emit(4, speechErrorMessage(error)); }
         });
     }];
     timeoutSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
