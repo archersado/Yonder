@@ -1,10 +1,14 @@
 # EX-S4 产品需求
 
-## 问题、范围与来源
+## 问题与目标
 
 原始需求：产品简报「目标用户与工作场景」的文档与文件任务、「首批权限」的 command:execute、可见且可控；架构主干「Command、File 与 Document」要求结构化命令、OOXML 保真、默认另存、文件锁和原子写入。后续用户变更（2026-09-21）要求快脑覆盖 Office 与 Command 层。架构约束：Office 通过既有 Document Port/OOXML Adapter 或另行显式 CUA 步骤，不在本 Story 新建 Office Driver；FI/DO/CM 独立门禁先通过。
 
-## 验收映射
+## 范围与非目标
+
+范围是参数完整的 Document/Command 候选选择；非目标是生成文档正文、补填路径或命令参数。
+
+## 验收条件
 
 | ID | 对应来源 | 验收 |
 |---|---|---|

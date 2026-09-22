@@ -1,5 +1,6 @@
 # EX 执行快脑与快慢脑交接
 
+Epic: EX
 状态：draft（系统边界 [AD-EX-01](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-01-BOUNDED-FAST-BRAIN.md) Accepted；技术路线 [AD-EX-02](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-02-JEV-INTEGRATION-ROUTE.md) Proposed）  
 Epic 分支：`epic/ex`  
 来源：产品简报「产品定义」「MVP 主干链路」「两条执行路径」、补充材料「执行原则」「CUA 与 BUA 的 Task Space」、架构主干「产品边界」「任务、状态与恢复」「执行能力」；2026-09-21 用户新增快慢脑分工。
@@ -23,7 +24,7 @@ Epic 分支：`epic/ex`
 | Story | 交付 | 前置与门禁 |
 |---|---|---|
 | [EX-S1](story-EX-S1/README.md) | Jev 有界动作决策 Spike 与双平台对照 | 限时 2026-10-05；先冻结样本/淘汰门槛，输出 AD-EX-02 证据；Windows 暂缓期间不得接受技术路线 ADR。 |
-| [EX-S2](story-EX-S2/README.md) | 快慢脑计划片段、决策循环及交回契约 | EX-S1 与 AD-EX-02 Accepted；复用 TM-S7 统一执行入口，未就绪时阻塞。 |
+| [EX-S2](story-EX-S2/README.md) | 快慢脑计划片段、决策循环、交回契约及最小 Jev 配置界面 | EX-S1 与 AD-EX-02 Accepted；复用 TM-S7 统一执行入口，未就绪时阻塞。 |
 | [EX-S3](story-EX-S3/README.md) | CUA 与 BUA 的动态候选动作接线 | EX-S2；CU/BU 既有 Observe、目标新鲜度、租约与 Task Space 门禁。 |
 | [EX-S4](story-EX-S4/README.md) | Document 与 Command 的有界执行接线和端到端对照 | EX-S2；DO/FI/CM 各自产品门禁；结构化写入参数由慢脑提供。 |
 

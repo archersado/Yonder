@@ -1,10 +1,14 @@
 # EX-S3 产品需求
 
-## 问题、范围与来源
+## 问题与目标
 
 原始需求：产品简报「两条执行路径」及补充材料「CUA 与 BUA 的 Task Space」「执行原则」要求 AX 优先、浏览器复用 ego-lite、观察—操作—验证、CUA 单前台租约。后续用户变更（2026-09-21）把 Jev 决策放在 CUA/BUA Driver 之上。架构约束：架构主干「执行能力」及既有 CU/BU ADR；Yonder 不复制 ego-lite Task Space。参考 [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) 的动态编号目标/新鲜度复核为待验证设计建议，不能直接搬其浏览器 Runtime。
 
-## 验收映射
+## 范围与非目标
+
+范围是最新 Observe 产生的 CUA/BUA 候选选择；非目标是复制 ego-lite Task Space、生成自由文本或绕过 Driver 新鲜度复核。
+
+## 验收条件
 
 | ID | 对应来源 | 验收 |
 |---|---|---|
