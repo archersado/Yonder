@@ -1,11 +1,11 @@
 # CX-S2 macOS Preview 验证目标
 
-状态：实施自测通过，等待独立验证
+状态：PASS（2026-09-20，macOS 单显示器 Preview）
 范围：仅 macOS 当前显示器的圈选提问 Preview。
 
 ## 复核结论
 
-Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、协议或持久化。Application 现在持有临时会话与截图生命周期，关闭和重新圈选会清零截图；确认卡明确换算为 440×560 点。2026-09-20 实施自测已验证框选、笔画、确认卡和取消清场，见下方证据。Esc、超时、权限拒绝、CUA租约拒绝和数据清理矩阵仍须由独立验证者复跑，当前不得 Archive。
+Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、协议或持久化。Application 持有临时会话与截图生命周期，关闭和重新圈选会清零截图；确认卡明确换算为 440×560 点。2026-09-20 已取得框选、笔画、确认卡、双阶段物理Esc、取消、双阶段超时、权限拒绝、CUA租约拒绝和数据边界的结构化证据。前四次独立复核发现的字段、物理Esc完成时点及逐路径重开缺口已由实现提交`291c5e7`和验证夹具提交`b4eecd1`补齐；第五次非实现者复核七行矩阵全部PASS，允许归档本 Preview Change。
 
 ## 需求摘要与 Preview 验收映射
 
@@ -46,6 +46,14 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 ## 已有检查
 
 - 2026-09-20：正式 macOS Preview 真实运行，框选、笔画、确认卡 440×560 点、取消清场、选择层/确认卡 Esc 清场，以及选择层 30.264 秒超时清场均通过；用户随后手工复核确认卡超时通过。见 `apps/desktop/evidence/cx-s2-region-preview-macos-20260920/result.json`。证据不含截图正文。
+- 2026-09-20：临时 bundle `com.yonder.desktop.cx2.permissioncheck` 未获屏幕录制权限时，用户小范围圈选后确认界面显示稳定错误 `permission-required` 对应文案“需要允许屏幕录制后才能预览截图”，不再误报通用截图错误。该项只通过权限反馈子判据；权限行的数据清理和文件边界仍待独立验证者复跑。
+- 2026-09-20：通过正式 UDS Gateway 和 CUA SDK 建立真实 Desktop 租约；小龙入口与菜单栏入口均显示 `desktop-control-active` 对应文案，未打开选择层。验证任务哈希见结构化证据；全程仅有建立租约所需的 1 个 CUA attempt，两个 Preview 请求未新增动作，任务随后完成至 sequence 6，并清理 Observe 截图。此前两次建立租约被真实用户输入中断，系统按设计转为 `interrupted/user-input`，未用于通过结论。
+- 2026-09-20：正式实例再次完整复跑成功路径，框选、画圈、取消、两阶段Esc及30.287秒选择层超时全部通过；小龙和菜单栏正常入口均可打开并取消。前后任务129、事件1131、Outbox1131、Attempt225均不变，应用数据目录文件清单SHA-256均为`ccb5c9bba830d4b1a9317fd6cdf122f73e0b9ce97d1a5967a99ee6c9bf1916b3`，截图文件前后均为0。
+- 2026-09-20：补充结构化取证：成功预览PNG为360×200、19,505字节；选择层/确认卡Esc分别在0.354/0.319秒清场且指针恢复，重开无旧预览；确认卡自身超时30.167秒。真实CUA租约期间，小龙与菜单栏入口均返回`desktop-control-active`，无选择层，焦点与指针不变；任务在两次Preview请求前后均保持`running/sequence 5`，之后正常完成至sequence 6。
+- 2026-09-20：用户在真实选择层和确认卡分别按下物理Esc，4.634/3.137秒内清场，指针位置不变；真实点击工具条取消在14.671秒内清场。所有三条路径均由隐藏窗口的权威清理标记确认Application为`idle`且截图/选区/笔画字节为0。
+- 2026-09-20：临时bundle `com.yonder.desktop.cx2.permissioncheck4`拒绝路径返回`permission-required`且无缩略图，任务134、事件1161、Outbox1161、Attempt230、索引表0及文件清单哈希在该路径前后不变；完整Preview复跑前后同样不变，截图文件与base64日志均为0。正式bundle随后成功生成确认卡，证明其既有屏幕录制权限未被临时bundle测试修改。
+- 2026-09-20：最终构件以事件时间戳复跑：选择层/确认卡物理Esc从按键到隐藏分别为5/1毫秒，指针不变且逐条重开无旧预览；工具条取消延迟1毫秒，确认卡取消窗口0.441秒消失且关闭延迟1毫秒；选择层/确认卡超时为30.203/30.001秒、关闭延迟均为1毫秒，四条取消/超时路径均逐条重开无旧预览。复跑同时发现并修复确认卡在拖拽松手后的点击穿透。
+- 2026-09-20：按第四次独立复核要求，将完成时间戳移至`window.hide()`成功之后再次复跑；选择层/确认卡物理Esc从真实按键到窗口完成隐藏分别为3/2毫秒，指针位移均为0点，Application为`idle`且截图/选区/笔画字节为0，逐条重开无旧预览。
 - `cargo check -p yonder-desktop` 通过。
 - `python3 scripts/check_architecture.py` 与 `git diff --check` 通过。
 - `cargo test -p yonder-application admission::tests --lib` 通过。
@@ -54,8 +62,8 @@ Story 与 OpenSpec 已限定 macOS 单显示器 Preview，且未新增依赖、�
 
 ## 风险、阻塞与延期
 
-- 阻塞：Application会话所有权、结束时截图字节清零和无正文诊断尚未实现；修复前不可调度独立验证。
+- 结论：非实现者复核PASS，允许归档`cx-s2-macos-preview`；该结论只覆盖macOS单显示器Preview，不代表完整CX-S2或Windows完成。
 - 风险：macOS TCC按bundle身份授权；拒绝测试若复用正式身份会污染用户权限。必须使用临时身份，禁止自动执行`tccutil reset`。
-- 风险：入口错误当前对用户可能静默。研发须让小龙和菜单栏都显示同一稳定错误分类，证据不得只依赖stderr。
+- 已收口：权限拒绝会在确认卡显示稳定错误分类，不依赖stderr；两入口一致性仍由独立验证复跑。
 - 延期：Agent发送、文字/语音降级、暂停CUA、多显示器/负坐标、显示器变化、运行中撤权、进程崩溃恢复、快捷键和Windows；这些不影响本Preview验证，也不得标记CX-S2完整Story完成。
 - 无需用户决策：以上均由已接受Preview边界决定。只有需要重置正式Yonda屏幕权限时才必须先取得用户明确同意；当前方案不需要该操作。
