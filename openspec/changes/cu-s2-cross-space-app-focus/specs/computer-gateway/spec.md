@@ -4,6 +4,8 @@
 
 ### Requirement: 应用启动与前置保持SDK动作原义
 
+系统 MUST 保持SDK的`launch_app`与`bring_to_front`动作原义；跨Space前置能力由SDK和显式后续动作决定，Yonder不得改写目标或隐式扩展动作。
+
 #### Scenario: 显式前置最近启动的应用
 
 - **WHEN** 同一任务先成功调用`launch_app`，再显式调用`bring_to_front`
