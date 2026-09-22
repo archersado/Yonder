@@ -17,6 +17,8 @@ OpenSpec: e0-validate-desktop-foundation
 
 [完整验收审计](../../../../openspec/changes/e0-validate-desktop-foundation/verification-audit-20260913.md)汇总全部场景、现有证据、暂停项及正式接线的循环门禁；不按历史更新条目逐个推断总体验收状态。
 
+2026-09-22：已复核现有证据并产出[Proposed AD-E0-01](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-E0-01-DESKTOP-FOUNDATION.md)。macOS已通过子范围仅作为阶段事实；四边完整原生休眠、跨用户Socket拒绝、完整状态更新延迟、全部生命周期与Windows当前版本证据仍缺，Story不Done/Archive。
+
 补齐桌面基础栈与跨桌面证据；正式任务忙碌事件尚未接线。
 
 2026-09-15：待命、执行中、等待用户、暂停四个已有真实来源状态的正式素材接线与 macOS 播放子目标完成；等待用户 v10 抬爪、呼吸、眨眼及录制预览的 `REC`/相机闪光验证通过。收到请求、等待外部响应、成功、失败、手动录制仍须等待所属模块提供真实事件来源，不以预览模拟接入产品。

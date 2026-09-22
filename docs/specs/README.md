@@ -205,4 +205,6 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-22 当前`dev`完成全部活跃OpenSpec delta结构治理：62项Change通过`openspec validate --all`，仅剩非阻塞措辞/占位警告；Windows分支仍按用户决定暂缓。
 
+2026-09-22 E0/DS-S1证据完成分层复核并产出[Proposed AD-E0-01](../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-E0-01-DESKTOP-FOUNDATION.md)：macOS子范围按证据保留阶段事实，四边完整休眠、跨用户拒绝、完整延迟、生命周期与Windows当前版本证据仍缺；ADR未Accepted，Story不Done/Archive。
+
 2026-09-22 DS-S2人工接管/Recording设计已按AD-RC-01回写为“受控会话输入”：不再宣称物理用户来源，DS只展示Application已提交事实。Recording继续默认关闭，产品协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。
