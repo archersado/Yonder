@@ -1,0 +1,30 @@
+{
+  "date": "2026-09-22",
+  "platform": "macOS",
+  "application": "WPS Office 12.1.28496",
+  "verified_commit": "557bdb2",
+  "repair_or_damage_dialog": false,
+  "files": {
+    "docx": {
+      "path": "spikes/ooxml-adapter-comparison/output/rust/real-sample.docx",
+      "sha256": "6d79f3b6fcc8569d6e52aeeae7f43289cf2e3fc2360c8b175559abbc7c2ecd07",
+      "window_title": "real-sample.docx",
+      "screenshot": "docx.png",
+      "opened": true
+    },
+    "xlsx": {
+      "path": "spikes/ooxml-adapter-comparison/output/rust/real-sample.xlsx",
+      "sha256": "2f5696f3f4737265008dcf858af4ecf88008cc5a64b4c8d4405efdc022da51b5",
+      "window_title": "real-sample.xlsx",
+      "screenshot": "xlsx.png",
+      "opened": true
+    },
+    "pptx": {
+      "path": "spikes/ooxml-adapter-comparison/output/rust/real-sample.pptx",
+      "sha256": "e2e463a800ff196003e40c6de121a36618ac8ed21cdf2392fd7b55c196a8e9e5",
+      "window_title": "real-sample.pptx",
+      "screenshot": "pptx.png",
+      "opened": true
+    }
+  }
+}

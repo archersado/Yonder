@@ -27,6 +27,8 @@
 
 2026-09-21 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 调整：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。先完成双平台 Spike 与 Proposed AD-EX-02 技术选型，再审阅快慢脑交接、最小 Jev 配置界面和四类执行层接线。Windows 仍按用户既有决定暂缓，故目前不生成产品实施 Proposal，也不改变运行时代码。
 
+2026-09-23 新增 [Proposed AD-AG-09 计划片段 Gateway 契约](_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md)：定义有界声明式计划片段、Observe 异常升级和快慢脑安全边界，作为当前逐步决策架构的候选优化方向；该 ADR 未授权实施，也未替代既有逐步决策模式。
+
 ST-S3已按AD-ST-01实施显式未加密任务存储，10项Adapter回归通过，本机核心验证PASS；DS-S2可复用该入口，可信桌面身份/恢复与正式UI仍待接线。加密与迁移保留MVP之后ST-S2待办。
 
 2026-09-14用户变更：MVP暂不加密，按Accepted AD-ST-01采用未加密SQLite；加密、系统凭据与明文迁移归ST-S2，MVP之后实施。DS-S2真实数据接线不再依赖密钥，仍须满足可信身份、恢复与既有任务事实源要求。
@@ -57,7 +59,7 @@ TM-S6 承接 TM-S1 AC11 的全量数据库查询子范围，按 AD-TM-02 独立�
 
 AG-S2首批ag-s2-agent-create-guard已落实Application仅Agent创建门禁，19项核心回归通过；真实task.create协议、幂等、认证传输继续设计，不将内部创建能力宣称为外部接入完成。
 
-AG-S2当前实施ag-s2-local-task-registration，Accepted AD-AG-02定稿协议1.1及schema2→3幂等事务；私有stdio本地测试Agent实际创建两任务，25项分层回归及正式桌面构建通过。首批核心PASS，生产认证/正式宿主IPC和原生桌宠联动尚未验证，Windows继续暂缓；不Archive完整Story。
+AG-S2已进入verifying：macOS生产UDS、MCP登记、身份隔离、原生桌宠面板与AG-S6撤权闭环均已完成；Windows按用户决定暂缓，完整Story不Archive。
 
 AG-S1增量ag-s1-desktop-private-stdio已按AD-AG-03完成macOS Debug私有Agent接入正式小龙，真实登记两任务，原生悬停/面板刷新/移出收起通过；仅研发入口，不替代生产本地认证。下一步继续AG-S1生产连接身份设计及AG-S2正式注册闭环，再实施对应执行/取消能力。
 
@@ -181,6 +183,30 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-18 新增[DS-S4 桌宠动画资源包导入](epic-DS/story-DS-S4/README.md)：承接产品简报的资源包导入要求，限定为声明式 PNG/WebP ZIP 的本机校验、暂存与原子切换，不触碰任务、Agent 或录制状态；OpenSpec 已建立，下一步定稿限额后实施。
 
+2026-09-21 DS-S4导入子范围进入验证：v1 manifest限额、九状态ZIP校验、托盘选择、暂存与带回滚切换、桌宠运行时重载和状态反馈已实现；离线子范围PASS。macOS原生选择/拒绝/重启证据与Windows证据未取得，完整Story不Archive。
+
+2026-09-22 DS-S4补齐macOS原生拒绝证据：真实托盘触发打开面板并选择无效包，UI反馈“资源包不符合规范”，当前资源包哈希保持不变；Windows与Hatch Pet生成委托继续后置，完整Story不Archive。
+
 2026-09-18 DS-S4 扩展为自定义形象生成契约：Yonder 定义九个状态及运行时校验，用户上传参考图后由 Hatch Pet 式 Agent/Skill 生成状态动画并输出 Yonder manifest 包；生成外发须明确确认。用户决定当前只保留设计，等待 AG-S4/FI-S1 后单独排期，不创建实现 Proposal 或代码。
 
 2026-09-18 CX-S2进入macOS Preview实施：用户要求先测试“圈选提问”，Accepted AD-CX-01授权当前显示器的显式选择、临时内存截图、确认卡与取消清场；不发送、不持久化、不支持常驻指针、多显示器或Windows。
+
+2026-09-21 TM-S7统一启动子范围PASS：[Accepted AD-TM-13](../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-13-UNIFIED-EXECUTION-START.md)定案共享`start_execution`；CUA/BUA已迁移，39项Application/Adapter测试通过。Document/Command仍受FI/CM门禁，完整Story不Archive。
+
+2026-09-20 CX-S2 macOS单显示器Preview经非实现者独立复核七行矩阵全部PASS，OpenSpec `2026-09-20-cx-s2-macos-preview`已归档。完整CX-S2保持verifying；Agent提交、多显示器、运行中撤权和Windows仍由后续Change承接。
+
+2026-09-20 CX-S2 Agent会话临时附件Spike经非实现者六行矩阵复核PASS，AD-CX-02更新为Accepted：同一AgentSession内保持64 KiB帧和4 MiB附件上限，跨会话隔离及所有结束路径清零；不传本机路径、不持久化截图。产品协议与确认卡发送仍须独立Change。
+
+2026-09-20 CX-S2圈选附件产品提交经非实现者复核PASS并归档：macOS正式bundle覆盖accepted/rejected/unknown/unsupported，同会话分块、哈希、引用和清理通过，任务/事件/Outbox不变且正文截图不落盘。Windows、多显示器与云端WSS仍保留后续门禁。
+
+2026-09-20 CX-S2无截图文字提交经非实现者复核PASS并归档：直接点击、不足最小选区及临时未授权bundle均进入“仅提问”；只声明`user_input`的会话每次仅收到1条无附件`agent.input`，unknown无自动重试。语音组合与CUA占用时先暂停仍待后续Change。
+
+2026-09-22 CX-S2应用切换清场Change经当前`dev`正式预览bundle连续两次独立复核PASS并归档：选择中、确认卡中切换均清场，截图主动隐藏不误清场；Windows与多显示器仍保留后续门禁。
+
+2026-09-22 EX-S2最小Jev配置窗口已合入`dev`并保持独立设置入口；配置校验、SQLite迁移和macOS验证通过，执行接线继续受AD-EX-02双平台门禁约束。
+
+2026-09-22 当前`dev`完成活跃OpenSpec零警告治理：62项Change通过`openspec validate --all`，补齐RFC关键字、历史CUA场景与归档Purpose；Windows分支仍按用户决定暂缓。
+
+2026-09-22 E0/DS-S1证据完成分层复核并产出[Proposed AD-E0-01](../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-E0-01-DESKTOP-FOUNDATION.md)：macOS子范围按证据保留阶段事实，四边完整休眠、跨用户拒绝、完整延迟、生命周期与Windows当前版本证据仍缺；ADR未Accepted，Story不Done/Archive。
+
+2026-09-22 DS-S2人工接管/Recording设计已按AD-RC-01回写为“受控会话输入”：不再宣称物理用户来源，DS只展示Application已提交事实。Recording继续默认关闭，产品协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。

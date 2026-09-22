@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "cancelled_count": 2,
+  "cancelled_ids": [
+    "task_97cdeef532a2b28f17d5812ccea21c09",
+    "task_e9a0a3adb7ef6c4d7932797efbf809e1"
+  ]
+}

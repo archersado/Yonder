@@ -1,0 +1,10 @@
+{
+  "available": true,
+  "controlled_session_inputs": 0,
+  "external_unknown": 0,
+  "known_injected_rejected": 1,
+  "lease_active": true,
+  "gaps": 0,
+  "payload_recorded": false,
+  "scope": "已知Yonder/Replay标记的零位移滚动注入事件"
+}

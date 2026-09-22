@@ -47,3 +47,5 @@ ts-rs 12.0.1 对枚举的 serde `deny_unknown_fields` 会输出忽略警告；Ru
 2026-09-18：Accepted AD-TM-10新增协议1.17 `task.wait_for_user`。归属Agent只可在已Observe并推进的步骤边界提交有界等待原因；状态、原因事件与Outbox同事务，随后释放任务占用。1.17事件读取返回`wait_reason`，旧会话不返回；恢复仍需独立显式流程。
 
 2026-09-18：Accepted AD-TM-11新增协议1.18 `task.fail`。归属Agent只可把最新已Observe失败并推进到stopped边界的CUA任务提交为failed；`task.complete`与`task.fail`分别只接受成功/失败结论，unknown不终结。
+
+2026-09-22：Accepted AD-TM-01新增协议1.19任务展示元数据。`task.get`与`task.step.get`返回完整快照中的可信来源、当前步骤、观察结果和下一步意图；`task.list`仍返回摘要。来源由登记入口绑定，观察与意图作为状态事件、展示事件和Outbox序号同事务提交；1.18及更低版本会话剥离新增字段，旧库迁移后的历史任务来源标记为`legacy`。

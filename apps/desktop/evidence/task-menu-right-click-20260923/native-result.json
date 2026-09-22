@@ -1,0 +1,13 @@
+{
+  "active_after_blur" : false,
+  "blur_hides" : true,
+  "focused_window_after_blur" : "Yonda",
+  "focused_window_title" : "Yonda · Task Space",
+  "hover_does_not_open" : true,
+  "inactive_before_click" : true,
+  "menu_focused" : true,
+  "passed" : true,
+  "pid" : 84418,
+  "right_click_opens_menu" : true,
+  "window_id" : 136681
+}

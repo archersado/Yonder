@@ -18,7 +18,7 @@ Tauri、透明桌宠窗口与跨平台 Local Socket 是后续所有能力的底�
 
 - Story：E0-S1
 - 架构影响：conforming
-- 相关决策：待产出 AD-E0-01
+- 相关决策：[AD-E0-01](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-E0-01-DESKTOP-FOUNDATION.md)（Proposed，待评审）
 - 涉及模块：仅 Spike 代码和验证脚本
 - 协议影响：仅验证性 `hello/echo`，不得视为正式协议
 - 迁移影响：无

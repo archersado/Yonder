@@ -9,6 +9,7 @@
 - [ ] 将Codex薄桥接从内部队列改为当前会话start/steer输入，并验证中断后下一条输入可继续
   - [x] 记录Codex 0.154活动turn投递失败证据；`codex queue`成功不等于steer或accepted
   - [x] 移除`codex queue`误报桥接；不支持时失败关闭且不注册`user_input`
+  - [x] 2026-09-23复验共享App Server控制通道；当前CLI会话`notLoaded`、`canAcceptDirectInput=null`，`turn/start`返回`thread not found`
 - [ ] 等待AG-S1交付端点、认证、TLS与重连完整的产品WSS `AgentSession`，再复用其接入`agent.input`
 - [x] 接入VI-S1最终转写自动投递
 - [x] 设计桌宠Agent连接态的事件、视觉与可访问反馈

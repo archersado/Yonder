@@ -1,0 +1,15 @@
+{
+  "mode": "cancel",
+  "frames": 0,
+  "input_frames": 0,
+  "selection_frames": 0,
+  "voice_frames": 0,
+  "attachment_frames": 0,
+  "attachment_valid": false,
+  "content_nonempty": false,
+  "extra_frames": 0,
+  "passed": true,
+  "native_passed": true,
+  "native_reason": "none",
+  "worker_finished": true
+}

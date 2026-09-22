@@ -25,9 +25,6 @@ async function load() {
 }
 async function save(event) {
   event.preventDefault();
-  const button = byId('jev-save');
-  button.disabled = true;
-  status.textContent = '正在保存 Jev 配置…';
   const config = {
     enabled: byId('jev-enabled').checked,
     service_mode: byId('jev-service-mode').value,
@@ -37,6 +34,14 @@ async function save(event) {
     token_limit: Number(byId('jev-token-limit').value),
     capabilities: [...document.querySelectorAll('.jev-capability')].filter(input => input.checked).map(input => input.value)
   };
+  const validationError = validateConfig(config);
+  if (validationError) {
+    status.textContent = `Jev 配置无效：${validationError}`;
+    return;
+  }
+  const button = byId('jev-save');
+  button.disabled = true;
+  status.textContent = '正在保存 Jev 配置…';
   try {
     const saved = await invoke('jev_config_save', { config });
     status.textContent = saved.enabled ? '已启用；保存成功不代表模型可用' : '已保存，当前未启用';
@@ -44,6 +49,16 @@ async function save(event) {
     status.textContent = `Jev 配置保存失败：${error?.message ?? error ?? '请检查字段'}`;
   } finally {
     button.disabled = false;
+  }
+}
+function validateConfig(config) {
+  try {
+    const url = new URL(config.endpoint);
+    if (config.service_mode === 'remote' && url.protocol !== 'https:') return '远端必须使用 HTTPS';
+    if (url.search || url.hash || url.username || url.password) return '端点不能包含查询串、fragment 或用户名/密码';
+    return null;
+  } catch {
+    return '端点必须是合法 URL';
   }
 }
 async function close() {

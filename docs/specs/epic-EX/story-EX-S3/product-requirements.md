@@ -17,6 +17,8 @@
 | EX3-03 | 既有 Task Space/租约 | CUA 单前台租约和用户输入暂停有效；BUA 保留 ego-lite Task Space 归属与 external_task_ref，不在 Yonder 造第二浏览器空间。 |
 | EX3-04 | 用户质量目标 | 同任务与慢脑逐步决策基线对照成功率、误动作、token、时延，`DONE` 独立验证。 |
 | EX3-05 | 双平台围栏 | 分别提交 macOS/Windows Driver 与 UI/权限相关结构化或视觉证据；Windows BUA 不可用时明确 capability_unavailable，不伪报覆盖。 |
+| EX3-06 | AD-EX-04 Proposed 边界 | 在 AD-EX-04 转为 Accepted 前，本 Story 只实现当前“每步 Jev 决策”基线，不引入 Recipe、批处理执行或可执行 DSL。 |
+| EX3-07 | 候选生命周期 | CUA/BUA 候选只在当前 Observe 内有效；派发后必须重新观察，不跨 Observe 复用目标编号、选择器或旧元素引用。 |
 
 ## 待审建议
 

@@ -126,11 +126,19 @@ mod tests {
     fn nearest_edge_and_scaled_coordinates() {
         let origin = PhysicalPosition::new(-1920, 24);
         let bounds = PhysicalSize::new(1920, 1056);
-        for (x, y, expected) in [(-1910, 400, "left"), (-210, 400, "right"), (-1000, 30, "top"), (-1000, 870, "bottom")] {
-            let (edge, target, size) = dock_layout(PhysicalPosition::new(x, y), PhysicalSize::new(200, 200), origin, bounds, 1.0);
-            assert_eq!(edge, expected);
+        for (position, expected_edge, expected_target, expected_size) in [
+            (PhysicalPosition::new(-1910, 400), "left", PhysicalPosition::new(-1920, 444), LogicalSize::new(56.0, 112.0)),
+            (PhysicalPosition::new(-210, 400), "right", PhysicalPosition::new(-56, 444), LogicalSize::new(56.0, 112.0)),
+            (PhysicalPosition::new(-1000, 30), "top", PhysicalPosition::new(-956, 24), LogicalSize::new(112.0, 56.0)),
+            (PhysicalPosition::new(-1000, 870), "bottom", PhysicalPosition::new(-956, 1024), LogicalSize::new(112.0, 56.0)),
+        ] {
+            let (edge, target, size) = dock_layout(position, PhysicalSize::new(200, 200), origin, bounds, 1.0);
+            assert_eq!(edge, expected_edge);
+            assert_eq!(target, expected_target);
+            assert_eq!(size, expected_size);
             let physical = size.to_physical(1.0);
             assert_eq!(target, fit(target, physical, origin, bounds));
+            assert_eq!(fit(position, PhysicalSize::new(200, 200), origin, bounds), position);
         }
         let (edge, target, size) = dock_layout(PhysicalPosition::new(0, 500), PhysicalSize::new(400, 400), PhysicalPosition::new(0, 48), PhysicalSize::new(3420, 2000), 2.0);
         assert_eq!(edge, "left");

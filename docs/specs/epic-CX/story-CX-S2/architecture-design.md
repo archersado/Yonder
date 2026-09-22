@@ -4,15 +4,25 @@
 
 Application拥有一次圈选请求的状态和临时附件生命周期；Windows/macOS平台Adapter只提供区域选择、区域截图和坐标换算。Desktop组合根展示临时覆盖层与确认条。截图Adapter不得直接调用语音、Gateway、任务存储或CUA Adapter。
 
-语音通过VI-S1 Application用例组合；提交给Agent需要新增可信双向Gateway契约。Agent随后使用既有`task.create`创建任务，Yonder不得从UI伪造Agent身份。
+来源应用由Desktop在显式进入圈选前通过平台原生前台应用API读取一次显示名称，Application随本轮PreviewSession有界保留。重新圈选复用同一来源，关闭、取消、提交或超时随会话清零。来源只投影到确认卡，不拼接问题、不进入Agent协议、日志、SQLite、事件或Outbox；不可用时显示“当前桌面”。
+
+语音通过VI-S1 Application用例组合；可信Desktop入口在开始前把本轮目标固定为普通语音或当前圈选会话。普通语音沿既有语音通道提交；圈选语音的最终非空转写复用当前`region_preview_submit`与临时附件，不新增Gateway协议。Agent随后使用既有`task.create`创建任务，Yonder不得从UI伪造Agent身份。
 
 ## 状态与契约
 
 完整 Story 状态为`idle → selecting → reviewing → submitting → submitted|cancelled|failed`。Application 是会话状态和临时附件生命周期的唯一所有者；Desktop 只转发显式入口与交互事件，平台 Adapter 只返回截图结果或稳定错误。`selecting` 接受框选或笔画；笔画只在选择层内临时绘制，并以外接矩形调用既有区域截图能力，不持久化轨迹。同一设备最多一个圈选会话。
 
-Accepted AD-CX-01 只授权 macOS Preview 使用`idle → selecting → capturing → reviewing → cancelled|failed`子集。Preview 没有`submitting`或`submitted`，不创建受控临时文件；截图字节、笔画和选区只在有界内存中存在。关闭、Esc、取消、30秒超时、重新圈选、捕获失败和进程退出都必须让 Application 释放会话及截图字节，Desktop 随后隐藏选择层或确认卡。
+Accepted AD-CX-01 首先授权 macOS Preview 使用`idle → selecting → capturing → reviewing → cancelled|failed`子集；已归档的附件提交Change随后补齐`submitting → submitted|failed`。不创建受控临时文件；截图字节、笔画和选区只在有界内存中存在。关闭、Esc、取消、30秒超时、重新圈选、捕获失败和进程退出都必须让 Application 释放会话及截图字节，Desktop 随后隐藏选择层或确认卡。
 
-Preview 进入`selecting`前只读检查CUA前台租约；租约已占用时返回`desktop-control-active`并保持`idle`，不显示覆盖层，也不调用CUA Driver。该拒绝只验证 CX2-07 的“不争夺指针”部分；完整 Story 的“先暂停任务”仍须在后续 Change 接入既有用户输入停止语义后验证。
+未形成有效区域或截图权限不可用时，Application进入无附件`reviewing`，确认卡允许非空文字通过现有`agent.input`提交；`source=selection`表示来自圈选提问入口，不承诺存在附件。该路径不要求`user_input_attachment`能力，不得生成空附件、伪造截图成功或因附件能力缺失拒绝文字。
+
+确认卡内点击麦克风即明确授权一次语音提交。部分转写只用于本机显示；最终非空转写写入当前问题框并立即调用既有圈选提交用例，附件存在时按AD-CX-02同会话发送，不存在时走无附件selection输入。关闭、取消、重新圈选或超时必须取消本轮收音；语音不得绕过当前PreviewSession、改变目标Agent或单独发送第二条普通voice输入。
+
+Preview 进入`selecting`前检查CUA前台租约；无租约直接进入。租约已占用时，可信宿主依据AD-CX-01与AD-TM-08取得唯一租约任务并提交`pause`，只在步骤边界停止事实提交且租约释放后进入`selecting`。unknown、身份冲突或持久化失败保持`idle`并显示稳定错误；不使用takeover、不定位、不Recording，也不轮询数据库。
+
+### Agent 临时附件候选
+
+现有`agent.input`仅承载有界文字，不能内嵌截图或发送本机路径。Accepted AD-CX-02规定在同一已认证`AgentSession`上先传输单个不超过4 MiB的会话级附件，再由`agent.input`引用其`attachment_id`。本地与云端共用Rust协议、64 KiB帧上限、哈希校验、deadline和清理语义；任务库、事件、Outbox和日志不保存截图、正文或哈希。隔离Spike、产品接线及独立复核均已通过并归档。
 
 ## 双平台原生路线
 
@@ -26,4 +36,4 @@ macOS ScreenCaptureKit/CoreGraphics候选与Windows Graphics Capture候选必须
 
 ## 架构影响
 
-该Story新增显式屏幕区域上下文和用户向Agent发起请求的边界。AD-CX-01 已接受 macOS 单显示器 Preview；它不改变协议、持久化、依赖方向或状态所有者。Agent提交、语音组合、跨显示器和Windows仍须完成各自门禁后另建 Change，不能由本 Preview 推定通过。
+该Story新增显式屏幕区域上下文和用户向Agent发起请求的边界。AD-CX-01 已接受 macOS 单显示器 Preview，AD-CX-02及产品Change已接受临时附件提交；均不改变持久化、依赖方向或状态所有者。无附件文字与圈选语音提交复用既有`agent.input`协议，属于conforming增量。跨显示器和Windows仍须完成各自门禁后另建 Change。

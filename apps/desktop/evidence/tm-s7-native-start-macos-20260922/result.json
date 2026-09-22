@@ -1,0 +1,16 @@
+{
+  "platform": "macOS",
+  "runtime": "ego-lite",
+  "protocol": {
+    "major": 1,
+    "minor": 17
+  },
+  "task_id": "task_676a857f1b0279751168838ef57c8425",
+  "created_status": "created",
+  "after_first_dispatch_status": "running",
+  "external_task_ref": "ego:103",
+  "final_status": "completed",
+  "running_events": 7,
+  "total_events": 10,
+  "passed": true
+}

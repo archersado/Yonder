@@ -1,0 +1,12 @@
+{
+  "outcome": "unknown",
+  "frames": 1,
+  "attachment_frames": 0,
+  "source_is_selection": true,
+  "attachment_absent": true,
+  "content_nonempty": true,
+  "content_recorded": false,
+  "passed": true,
+  "worker_finished": true,
+  "native_passed": true
+}

@@ -1,8 +1,19 @@
 use interprocess::local_socket::{GenericFilePath, ToFsName, tokio::{Stream, prelude::*}};
 use serde_json::{Value, json};
-use std::{env, io::{self, BufRead, Write}, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+use std::{env, io::{self, BufRead, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use yonder_protocol::{BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, EventsParams, GetParams, HelloParams, ListParams, ProtocolVersion, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
+
+const MCP_IDLE_TIMEOUT: Duration = Duration::from_secs(600);
+
+fn receive_line(receiver: &mpsc::Receiver<io::Result<Option<String>>>, timeout: Duration) -> io::Result<Option<String>> {
+    match receiver.recv_timeout(timeout) {
+        Ok(Ok(line)) => Ok(line),
+        Ok(Err(error)) => Err(error),
+        Err(mpsc::RecvTimeoutError::Timeout) => Err(io::Error::other("MCP idle timeout")),
+        Err(mpsc::RecvTimeoutError::Disconnected) => Ok(None),
+    }
+}
 
 fn agent_id() -> io::Result<String> {
     let id = env::var("YONDER_AGENT_ID").map_err(|_| io::Error::other("请设置有效的YONDER_AGENT_ID"))?;
@@ -124,11 +135,22 @@ async fn agent_bridge() -> io::Result<()> {
 }
 
 async fn mcp(agent_id: String) {
-    let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
+    let (line_sender, line_receiver) = mpsc::channel::<io::Result<Option<String>>>();
+    thread::spawn(move || {
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            if line_sender.send(line.map(|line| Some(line))).is_err() { break; }
+        }
+        let _ = line_sender.send(Ok(None));
+    });
     let mut counter = 0;
-    for line in stdin.lock().lines() {
-        let Ok(line) = line else { break };
+    loop {
+        let line = match receive_line(&line_receiver, MCP_IDLE_TIMEOUT) {
+            Ok(Some(line)) => line,
+            Ok(None) => break,
+            Err(error) => { eprintln!("{error}"); break; }
+        };
         if line.len() > MAX_REQUEST_BYTES { break; }
         let Ok(message) = serde_json::from_str::<Value>(&line) else { continue };
         if let Some(response) = handle(message, &mut counter, &agent_id).await {
@@ -149,6 +171,19 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mcp_idle_timeout_is_ten_minutes() {
+        assert_eq!(MCP_IDLE_TIMEOUT, Duration::from_secs(600));
+    }
+
+    #[test]
+    fn mcp_line_receiver_reports_timeout_and_disconnect() {
+        let (sender, receiver) = mpsc::channel::<io::Result<Option<String>>>();
+        assert_eq!(receive_line(&receiver, Duration::ZERO).unwrap_err().to_string(), "MCP idle timeout");
+        drop(sender);
+        assert_eq!(receive_line(&receiver, Duration::ZERO).unwrap(), None);
+    }
+
     #[test]
     fn mcp_tools_build_typed_gateway_requests() {
         let create_request = request("task_create", &json!({"idempotency_key":"same","name":"整理文档","description":"整理指定文档"}), "r1".into(), 2000, "agent-a").unwrap();
