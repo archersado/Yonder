@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: 无数据清理入口
-卡片取消只改变合法状态，全部保留任务和历史；不得发task.delete或清理说明/事件/Outbox/幂等。
+卡片取消 MUST 只改变合法状态，全部保留任务和历史；不得发task.delete或清理说明/事件/Outbox/幂等。
 
 #### Scenario: 取消后保留任务事实
 
@@ -11,7 +11,7 @@
 - **THEN** 仅提交取消状态，任务、说明、事件、Outbox和幂等记录全部保留
 
 ### Requirement: 安全兼容
-实验格式4仅无删除标记且全transition事件时同事务回3，全部记录和序号不变；带标记/坏格式拒绝不修改。不新建清理格式4。
+实验格式4仅无删除标记且全transition事件时 MUST 同事务回3，全部记录和序号不变；带标记/坏格式 MUST 拒绝不修改。MUST NOT 新建清理格式4。
 
 #### Scenario: 实验格式安全回退
 

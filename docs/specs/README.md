@@ -203,7 +203,7 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-22 EX-S2最小Jev配置窗口已合入`dev`并保持独立设置入口；配置校验、SQLite迁移和macOS验证通过，执行接线继续受AD-EX-02双平台门禁约束。
 
-2026-09-22 当前`dev`完成全部活跃OpenSpec delta结构治理：62项Change通过`openspec validate --all`，仅剩非阻塞措辞/占位警告；Windows分支仍按用户决定暂缓。
+2026-09-22 当前`dev`完成活跃OpenSpec零警告治理：62项Change通过`openspec validate --all`，补齐RFC关键字、历史CUA场景与归档Purpose；Windows分支仍按用户决定暂缓。
 
 2026-09-22 E0/DS-S1证据完成分层复核并产出[Proposed AD-E0-01](../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-E0-01-DESKTOP-FOUNDATION.md)：macOS子范围按证据保留阶段事实，四边完整休眠、跨用户拒绝、完整延迟、生命周期与Windows当前版本证据仍缺；ADR未Accepted，Story不Done/Archive。
 

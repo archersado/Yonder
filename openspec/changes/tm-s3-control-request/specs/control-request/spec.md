@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: pending不是停止
-task.control成功只能表示控制已登记并正在停止；不得显示已接管、已定位或已记录。
+task.control成功 MUST 只表示控制已登记并正在停止；不得显示已接管、已定位或已记录。
 
 #### Scenario: pending返回不终止任务
 
@@ -11,7 +11,7 @@ task.control成功只能表示控制已登记并正在停止；不得显示已�
 - **THEN** 调用成功返回pending，任务仍保持running且不产生停止事实
 
 ### Requirement: 原子与幂等
-pending控制、任务sequence、事件和Outbox必须同事务；相同控制重投幂等，不同控制冲突。
+pending控制、任务sequence、事件和Outbox MUST 同事务；相同控制重投 MUST 幂等，不同控制 MUST 冲突。
 
 #### Scenario: 相同控制重投
 
@@ -19,7 +19,7 @@ pending控制、任务sequence、事件和Outbox必须同事务；相同控制�
 - **THEN** 不新增控制、事件或Outbox记录，调用返回既有请求状态
 
 ### Requirement: 授权与冻结
-LocalUser可控制已有running任务，Agent仅所属；pending后不得派发新动作，只有匹配控制的边界停止事务才能完成并释放Permit。
+LocalUser MUST 可控制已有running任务，Agent MUST 仅所属；pending后 MUST NOT 派发新动作，只有匹配控制的边界停止事务才能完成并释放Permit。
 
 #### Scenario: pending后拒绝新动作
 

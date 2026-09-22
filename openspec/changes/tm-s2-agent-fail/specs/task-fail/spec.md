@@ -4,7 +4,7 @@
 
 ### Requirement: 只终结已观察的确定失败
 
-系统必须只允许归属 Agent 把最新已停止且动作确定失败的 Desktop 任务提交为 failed。
+系统 MUST 只允许归属 Agent 把最新已停止且动作确定失败的 Desktop 任务提交为 failed。
 
 #### Scenario: 确定失败
 

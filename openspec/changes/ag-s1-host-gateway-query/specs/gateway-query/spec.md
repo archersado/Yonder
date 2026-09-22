@@ -6,7 +6,7 @@
 
 ### Requirement: 正式宿主保持连接门禁
 
-可信会话查询必须经GatewaySession处理并从TaskHost唯一SQLite读取；不能借用LocalUser权限。
+可信会话查询 MUST 经GatewaySession处理并从TaskHost唯一SQLite读取；不能借用LocalUser权限。
 
 #### Scenario: 未握手
 - WHEN 新会话请求task.list

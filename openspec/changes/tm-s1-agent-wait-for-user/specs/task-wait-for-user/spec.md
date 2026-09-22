@@ -4,7 +4,7 @@
 
 ### Requirement: 安全边界等待
 
-系统必须只允许归属 Agent 在运行任务的已 Observe、已推进步骤边界提交等待用户状态。
+系统 MUST 只允许归属 Agent 在运行任务的已 Observe、已推进步骤边界提交等待用户状态。
 
 #### Scenario: 成功提交
 
@@ -20,7 +20,7 @@
 
 ### Requirement: 协议兼容
 
-1.17 会话必须能写入并读取 `wait_reason`；旧会话必须拒绝写入且读取事件时不含该字段。
+1.17 会话 MUST 能写入并读取 `wait_reason`；旧会话 MUST 拒绝写入且读取事件时不含该字段。
 
 #### Scenario: 1.17 读写
 

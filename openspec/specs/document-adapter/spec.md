@@ -1,7 +1,7 @@
 # document-adapter Specification
 
 ## Purpose
-TBD - created by archiving change e0-compare-ooxml-adapters. Update Purpose after archive.
+定义 Document Port 的语义边界与安全提交约束，使调用方通过文档、表格、幻灯片和文本语义修改 OOXML，而不暴露 XML、绕过 `expected_hash` 或原子另存校验。
 
 ## Requirements
 

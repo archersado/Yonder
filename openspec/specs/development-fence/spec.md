@@ -1,7 +1,7 @@
 # development-fence Specification
 
 ## Purpose
-TBD - created by archiving change module-epic-story-fence. Update Purpose after archive.
+定义模块化 Epic/Story、OpenSpec 与独立 Verification 的规划及交付围栏，防止无设计实施、跨模块混更或以历史迁移冒充完成。
 
 ## Requirements
 

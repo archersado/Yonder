@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: observed边界
-系统必须只为当前完整身份的observed attempt确认停止；prepared、unknown、旧attempt/Worker/host均不得产生停止事实。
+系统 MUST 只为当前完整身份的observed attempt确认停止；prepared、unknown、旧attempt/Worker/host均 MUST NOT 产生停止事实。
 
 #### Scenario: 非observed请求不停止
 
@@ -11,7 +11,7 @@
 - **THEN** 不生成停止事实，任务保持占用
 
 ### Requirement: 原子停止
-暂停/接管必须原子提交running→paused，取消必须原子提交running→cancelled并保留数据；任务状态、停止记录、事件和Outbox必须同事务。
+暂停/接管 MUST 原子提交running→paused，取消 MUST 原子提交running→cancelled并保留数据；任务状态、停止记录、事件和Outbox MUST 同事务。
 
 #### Scenario: 事务失败保留运行状态
 
@@ -19,7 +19,7 @@
 - **THEN** running状态、停止记录、事件和Outbox均不产生部分提交
 
 ### Requirement: 先提交后释放
-执行Permit只能在停止事务提交成功后释放；任何失败必须交还原Permit并保持占用。
+执行Permit MUST 只在停止事务提交成功后释放；任何失败 MUST 交还原Permit并保持占用。
 
 #### Scenario: 事务回滚后恢复Permit
 
@@ -27,7 +27,7 @@
 - **THEN** Permit交还原持有者，任务继续显示占用
 
 ### Requirement: 子范围边界
-停止成功不表示工作已定位、Recording已开始或任务已恢复；这些行为必须由后续独立事实驱动。
+停止成功 MUST NOT 表示工作已定位、Recording已开始或任务已恢复；这些行为 MUST 由后续独立事实驱动。
 
 #### Scenario: 停止后未定位状态
 
