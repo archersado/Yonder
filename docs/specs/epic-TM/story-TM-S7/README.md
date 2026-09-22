@@ -21,6 +21,8 @@ Accepted AD-TM-13 定义共享启动边界。CM-S1 的双平台进程树 Spike�
 
 2026-09-22：macOS Browser Gateway补证通过。隔离HOME真实桌面进程中，created任务在首条`browser.execute`前进入`running`，真实ego-lite引用建立并在同一引用上completed。Document/Command与Windows仍保留门禁，完整Story不Archive。
 
+2026-09-23：启动事务已与 AG-S1/EX-S2 计划片段候选对齐，见[架构设计](architecture-design.md)。该对齐不改变现有 `start_execution` 契约，也不授权新增协议字段。
+
 ## OpenSpec 与验证
 
 [统一启动 Change](../../../../openspec/changes/tm-s7-unified-execution-start/proposal.md)。该 Change 只建立 Application 级共享契约、现有 CUA/BUA 回归与 Document/Command 接线门禁；不提前实现尚未获准的 Command 或文件写入能力。
