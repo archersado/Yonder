@@ -2,7 +2,7 @@
 
 唯一规划入口。流程：Epic → Story 产品需求/架构设计/视觉交互设计 → OpenSpec Proposal → 实现 → 独立验证 → Archive。月份不是 Epic。
 
-拆解输入为既有产品简报、补充材料与架构材料，见 [需求来源与覆盖差距](REQUIREMENTS-TRACEABILITY.md)。本目录是派生规划，不能替代原需求；当前 33 个 Story 尚未覆盖完整产品，禁止按代码现状缩减主干目标。
+拆解输入为既有产品简报、补充材料与架构材料，见 [需求来源与覆盖差距](REQUIREMENTS-TRACEABILITY.md)。本目录是派生规划，不能替代原需求；现有 Story 尚未覆盖完整产品，禁止按代码现状缩减主干目标。
 
 依据 [AD-DEV-01](../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-DEV-01-MODULE-EPICS.md)，旧记录保留追溯，新增目录不代表设计已通过。
 
@@ -10,7 +10,8 @@
 |---|---|---|
 | [DS](epic-DS/README.md) | 桌面宿主与桌宠 | 透明常驻窗口、桌宠生命周期、任务总览展示；不拥有任务状态。 |
 | [AG](epic-AG/README.md) | Agent Gateway 与接入协议 | 本地 IPC、CLI/MCP、云端客户端接入和 Rust 派生协议；不实现云端服务。 |
-| [TM](epic-TM/README.md) | 任务生命周期与资源调度 | 任务事实源用例、状态机、事件、准入和执行生命周期；不内置规划器。 |
+| [TM](epic-TM/README.md) | 任务生命周期与资源调度 | 任务事实源用例、状态机、事件、准入和执行生命周期；不负责慢脑首次规划或 replan。 |
+| [EX](epic-EX/README.md) | 有界执行快脑 | Jev 候选动作决策、快慢脑交接与跨执行层编排；系统边界已接受，技术路线待验证。 |
 | [CU](epic-CU/README.md) | Computer Use Driver | 模型无关桌面动作、Observe、停止及用户输入接管。 |
 | [BU](epic-BU/README.md) | Browser Use 集成 | 复用 ego-lite Task Space 和状态映射，不复制浏览器执行模型。 |
 | [CM](epic-CM/README.md) | 命令执行 | 结构化命令、进程树停止、超时和输出限额。 |
@@ -23,6 +24,8 @@
 | [EN](epic-EN/README.md) | 工程规范与交付 | 研发围栏、规划关联、CI、验证及发布证据。 |
 
 ## 当前研发顺序
+
+2026-09-21 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 调整：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。先完成双平台 Spike 与 Proposed AD-EX-02 技术选型，再审阅快慢脑交接和四类执行层接线。Windows 仍按用户既有决定暂缓，故目前不生成产品实施 Proposal，也不改变运行时代码。
 
 ST-S3已按AD-ST-01实施显式未加密任务存储，10项Adapter回归通过，本机核心验证PASS；DS-S2可复用该入口，可信桌面身份/恢复与正式UI仍待接线。加密与迁移保留MVP之后ST-S2待办。
 
