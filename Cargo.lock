@@ -5101,6 +5101,7 @@ dependencies = [
 name = "yonder-application"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "yonder-domain",
  "yonder-protocol",
 ]
@@ -5119,6 +5120,7 @@ dependencies = [
 name = "yonder-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "cc",
  "interprocess",
  "objc2",
@@ -5126,6 +5128,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tokio",

@@ -1,0 +1,9 @@
+{
+  "available": true,
+  "controlled_session_inputs": 64,
+  "external_unknown": 0,
+  "gaps": 1,
+  "hid_access": 2,
+  "payload_recorded": false,
+  "scope": "显式用户控制租约内的真实桌面输入；容量耗尽后显式产生 gap"
+}

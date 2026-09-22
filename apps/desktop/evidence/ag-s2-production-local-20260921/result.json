@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "protocol_version": "2025-06-18",
+  "owner_agent_id": "ag-s2-owner",
+  "task_id": "task_44f42a515cd5f01b74f797aa2df9cf39",
+  "same_content_same_task_id": true,
+  "conflict_code": -32009,
+  "events_after_repeat": 1,
+  "other_agent_get_code": -32004,
+  "cancelled_status": "cancelled",
+  "other_agent_cancel_code": -32004
+}

@@ -1,0 +1,7 @@
+{
+  "controlled_session_inputs": 15,
+  "post_stop_inputs": 0,
+  "gaps": 0,
+  "payload_recorded": false,
+  "scope": "显式停止后继续观察真实桌面输入"
+}

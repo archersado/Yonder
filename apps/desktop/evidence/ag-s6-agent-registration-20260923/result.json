@@ -1,0 +1,17 @@
+{
+  "story": "AG-S6",
+  "platform": "macOS",
+  "sqlite_user_version": 17,
+  "registration_ui": true,
+  "disabled_agent_rejected": true,
+  "revoked_agent_rejected": true,
+  "active_udis_session_closed": true,
+  "existing_task_visible": true,
+  "existing_task_cancelled": true,
+  "state_persisted_after_restart": true,
+  "agent_management_screenshot": "agent-management.png",
+  "task_space_screenshot": "task-space.png",
+  "disconnect_log": "disconnect-session.log",
+  "windows": "deferred",
+  "passed": true
+}

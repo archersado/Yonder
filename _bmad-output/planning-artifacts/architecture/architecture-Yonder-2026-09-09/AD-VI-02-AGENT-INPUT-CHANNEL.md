@@ -33,3 +33,5 @@ macOS UDS与云端WSS协议样本通过；Windows Named Pipe统一样本于GitHu
 2026-09-18撤回“Codex当前会话样本通过”：Codex CLI 0.154的`codex queue`只写入持久队列，活动turn没有收到steer；探针仅在前一turn结束后作为下一turn到达。产品CLI已删除该误报桥接。架构选择继续Accepted，但Codex连接器子范围返回实施阶段，只有受支持的当前会话`turn/start|turn/steer`入口才能重新验证。
 
 云端WSS产品接线必须先由AG-S1定稿端点配置、连接认证、TLS校验、断线与重连边界，并建立唯一已认证`AgentSession`。AG-S5只能复用该会话发送`agent.input`；Spike中的临时自签证书和关闭校验不得进入产品。MVP暂缓存储加密不授权匿名WSS或明文持久化云端凭据。
+
+2026-09-20附件补充：Accepted AD-CX-02允许在同一已认证`AgentSession`内先传输有界会话附件，再由`agent.input`引用。附件不使用本机路径、不建立第二连接、不进入日志、任务库或Outbox；accepted、拒绝、unknown、超时、断连和协议错误均清理。产品协议字段与接线须由CX-S2独立Change实现和验证。

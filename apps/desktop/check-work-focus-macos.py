@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """隔离原生窗口验证正式Rust WorkRef Adapter；不读取或修改任务库。"""
-import json, pathlib, subprocess, threading, time
+import json, pathlib, subprocess, sys, threading, time
 
 root=pathlib.Path(__file__).resolve().parents[2]
 fixture=pathlib.Path("/private/tmp/yonda-work-focus-fixture")
 adapter=root/"target/debug/examples/work_focus_check"
-output=root/"apps/desktop/evidence/work-focus-adapter-20260916"
+output=pathlib.Path(sys.argv[1]) if len(sys.argv)==2 else root/"apps/desktop/evidence/work-focus-adapter-20260916"
 output.mkdir(parents=True,exist_ok=True)
 
 target=subprocess.Popen([str(fixture),"--focus-fixture"],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1)
@@ -41,7 +41,7 @@ try:
     released=adapter_command(process,"release");assert released["released"]
     after_release=adapter_command(process,"focus");assert after_release["outcome"]=="ReferenceUnavailable"
     process.stdin.write("quit\n");process.stdin.flush();process.wait(timeout=5)
-    result={"work_ref_id":ready["work_ref_id"],"process_start_bound":len(ready["start"])==2,"normal_focus":True,"minimized_restore":True,"geometry_preserved":True,"ambiguous_refused":True,"decoy_untouched":True,"closed_refused":True,"closed_reason":closed["outcome"],"released_refused":True,"sidecar_app_started":False,"recording_started":False,"passed":True}
+    result={"work_ref_id":ready["work_ref_id"],"process_start_bound":len(ready["start"])==2,"normal_focus":True,"visible_on_active_space":bool(state.get("target_on_active_space")),"minimized_restore":True,"geometry_preserved":True,"ambiguous_refused":True,"decoy_untouched":True,"closed_refused":True,"closed_reason":closed["outcome"],"released_refused":True,"sidecar_app_started":False,"recording_started":False,"passed":True}
     (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
     print(json.dumps(result,ensure_ascii=False))
 finally:

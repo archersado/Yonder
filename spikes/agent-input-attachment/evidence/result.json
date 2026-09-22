@@ -1,0 +1,38 @@
+{
+  "passed": true,
+  "limits": {
+    "frame_bytes": 65536,
+    "attachment_bytes": 4194304,
+    "chunk_bytes": 48128
+  },
+  "success_samples": {
+    "one_byte_chunks": 1,
+    "cross_chunk_bytes": 112000,
+    "cross_chunk_count": 3,
+    "boundary_bytes": 4194304,
+    "boundary_chunk_count": 88
+  },
+  "rejections": {
+    "oversize": true,
+    "out_of_order": true,
+    "hash_mismatch": true,
+    "cross_session": true,
+    "cross_session_preserved_owner_attachment": true,
+    "second_begin": true,
+    "duplicate_begin": true,
+    "oversize_after_begin": true
+  },
+  "cleanup": {
+    "timeout": true,
+    "disconnect": true,
+    "owner_disconnect_after_cross_session": true,
+    "second_begin": true,
+    "duplicate_begin": true,
+    "oversize_after_begin": true,
+    "input_rejected": true,
+    "input_unknown": true,
+    "final_buffered_bytes": 0
+  },
+  "largest_frame_bytes": 64258,
+  "contains_attachment_content": false
+}

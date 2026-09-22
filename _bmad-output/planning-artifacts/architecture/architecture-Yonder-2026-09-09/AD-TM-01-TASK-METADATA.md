@@ -1,6 +1,24 @@
 # AD-TM-01 任务当前信息与历史事实联合契约
 
-状态：Proposed（已完成当前信息/历史职责与事务边界设计复核；字段级协议、保留和迁移尚未定案，未实现）。关联 TM-S1 / TM-S5、AG-S1、DS-S2。Architecture Impact：architecture-change；不改当前数据库和协议产物。
+状态：Partially Accepted（2026-09-22：AC10 任务展示元数据与 AC11 全量忙碌语义已定案；完整历史保留、去重、迁移与产物版本仍为 Proposed，未实现）。关联 TM-S1 / TM-S5、AG-S1、DS-S2。Architecture Impact：architecture-change；不改当前数据库和协议产物。
+
+## 2026-09-22 AC10/AC11 子范围定案
+
+本节只关闭 TM-S1 AC10/AC11 的展示契约，不解除完整 Story 门禁，也不授权跳过 OpenSpec 直接实施。
+
+### AC10 任务展示元数据
+
+`name` 沿用 Accepted AD-TM-07 的字段与限额，不再引入第二套 `title` 协议名。`source` 由可信组合根按接入方式写入，取值为 `local-agent`、`cloud-agent`、`legacy`；请求不能自报，`local-user` 不再作为创建来源。`current_step` 复用既有 `StepDeclaration { step_id, label, accepted_sequence }`，不新增第二步骤模型。
+
+`observation` 为可空对象，字段为 `step_id`、`result`、`summary`。`result` 只取 `matched / not-matched / unknown`；`summary` 为 1..2048 UTF-8 字节，仅由可信执行器在 Observe 后提交。`next_intent` 为可空 1..1024 UTF-8 字节，仅由任务所属 Agent 或可信本机控制用例显式提交。两者都不代表执行成功，不自动生成下一步计划。
+
+写入按作者分开：创建用例绑定 `name/source`；`task.step.declare` 更新 `current_step`；执行器提交 `observation`；显式声明用例提交 `next_intent`。每次接受的事实同事务更新当前展示值、递增任务 `sequence`、追加有类型事件和 Outbox；不提供任意 metadata patch。终态只允许补充审计事实，不回退当前步骤或改写终态。
+
+`task.get` 返回完整展示快照；`task.list` 只返回有界列表摘要，不因详情字段造成整页超预算。缺失字段显式为 `null`，不用空字符串、占位步骤或伪观察填补。文本仅做长度、空白和控制字符校验，不承诺自动脱敏；日志和 Outbox 不记录正文，UI 按纯文本渲染。
+
+### AC11 全量忙碌与未知
+
+AC11 由 Accepted AD-TM-02 承接：`running_state` 跨所有归属读取当前表，返回 `Running / NoRunningTask / Unknown`，读取失败一律 `Unknown`。`activity_state` 在可信宿主内再合并唯一 Admission 的瞬时占用，任一已知来源忙则 `Busy`，双空才 `NoKnownWork`，其余 `Unknown`。该结果不是隐藏许可，不缓存、不依赖 UI 分页，也不把“当前页无任务”解释为空闲。
 
 ## 需求来源与建议边界
 
@@ -205,7 +223,7 @@ reference_id 沿用 1..128 ASCII ID 规则。真正路径/外部定位符由可�
 
 产物集合完成前为准备中，完成后作为一个不可变版本发布；新产物形成新清单版本，不修改已经被用户确认的旧版本。条目由清单内部不可复用的顺序键分页，游标同时绑定清单版本和最后返回位置，不与任务事件 sequence 混用。沿用 1..100 条/256 KiB 整响应双上限，无法解析某条产物时保留其失效项，不能漏项或改绑定到另一个文件。清单保留元信息随任务历史，实际附件按各自保留/保护规则处理。
 
-上述是设计方案，没有实际删除、数据迁移或密钥操作。总配额、删除同步与版本/迁移门禁仍需完成，AD 保持 Proposed。
+上述是设计方案，没有实际删除、数据迁移或密钥操作。除本文件 AC10/AC11 子范围定案外，总配额、删除同步与版本/迁移门禁仍需完成，其余内容保持 Proposed。
 
 ## 版本兼容与实施前置
 
@@ -213,6 +231,6 @@ reference_id 沿用 1..128 ASCII ID 规则。真正路径/外部定位符由可�
 
 已有 v2 不自动升级；迁移必须单独有备份、回滚与显式部署安排。历史任务 title/current_step/observation/next_intent 为空、source=legacy，历史状态事件可映射 state-changed，不伪造作者或步骤。本轮不实施迁移，不创建生产密钥。
 
-进入实现前须明确变更归属与迁移安排，并验证两个作者并发、迟到观察、旧序号、终态竞争、空值、UTF-8 边界、原子回滚、无正文事件和派生协议漂移。AC11 全量忙碌仍另行设计，本 AD 不解除 Story 整体门禁。
+进入实现前须明确变更归属与迁移安排，并验证两个作者并发、迟到观察、旧序号、终态竞争、空值、UTF-8 边界、原子回滚、无正文事件和派生协议漂移。本 AD 不解除 Story 整体门禁。
 
 2026-09-14权限补充：按Accepted AD-AG-01，仅Agent经Gateway创建；上文“本机用户用例”不再包含人工创建，仅保留确认/控制已有任务与历史审阅。字段级技术方案仍Proposed。

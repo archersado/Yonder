@@ -5,6 +5,8 @@ const byId = id => document.getElementById(id);
 const notice = byId('notice'), tasks = byId('tasks'), detail = byId('detail');
 const next = byId('next'), refresh = byId('refresh');
 const labels = { created: '已创建', running: '执行中', 'waiting-for-user': '等待用户', paused: '已暂停', interrupted: '已中断', completed: '已完成', failed: '失败', cancelled: '已取消' };
+const sourceLabels = { 'local-agent': '本地 Agent', 'cloud-agent': '云端 Agent' };
+const observationLabels = { matched: '已匹配', 'not-matched': '未匹配', unknown: '未知' };
 const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable': '依赖不可用', 'worker-failed': '执行器失败', 'timed-out': '执行超时', 'invalid-response': '响应无效', 'identity-mismatch': '执行身份不匹配', 'observe-failed': '观察失败', 'user-input': '用户已接管输入' };
 let includeFinished = false, cursor = null, nextCursor = null, pageNumber = 1;
 let round = 0, selection = 0;
@@ -121,9 +123,11 @@ async function select(task, button) {
   const current = ++selection, currentRound = round;
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
   placeholder('正在读取详情…');
-  const [detailResult, timelineResult, browserResult] = await Promise.allSettled([
+  const recentAfter = (BigInt(task.sequence) > 20n ? BigInt(task.sequence) - 20n : 0n).toString();
+  const [detailResult, timelineResult, recentResult, browserResult] = await Promise.allSettled([
     query('task.step.get', { task_id: task.task_id }),
     query('task.events', { task_id: task.task_id, after_sequence: '0', limit: 20 }),
+    query('task.events', { task_id: task.task_id, after_sequence: recentAfter, limit: 20 }),
     query('task.browser.get', { task_id: task.task_id })
   ]);
   if (current !== selection || currentRound !== round) return;
@@ -134,6 +138,16 @@ async function select(task, button) {
     detail.replaceChildren();
     const h2 = document.createElement('h2'); h2.textContent = result.task.name || "未命名历史任务"; detail.append(h2);
     const dl = document.createElement('dl');
+    const events = recentResult.status === 'fulfilled' && recentResult.value.kind === 'events' ? recentResult.value.events : [];
+    const waitReason = [...events].reverse().find(event => typeof event.wait_reason === 'string' && event.wait_reason)?.wait_reason ?? '未提供';
+    const statusReason = [...events].reverse().map(event => event.wait_reason
+      ? `等待用户：${event.wait_reason}`
+      : event.attempt_result?.phase === 'unknown' ? `执行结果未知：${unknownLabels[event.attempt_result.unknown_reason] ?? '原因未提供'}` : null
+    ).find(Boolean) ?? '未提供';
+    const step = result.task.current_step ?? result.step;
+    const observation = result.task.observation
+      ? `${observationLabels[result.task.observation.result] ?? result.task.observation.result} · ${result.task.observation.summary}`
+      : '未观察';
     let browser = '未关联', browserReference = null;
     if (browserResult.status === 'rejected') browser = '关联状态读取失败';
     else if (browserResult.value.kind !== 'browser-state') browser = '关联状态读取失败';
@@ -141,7 +155,7 @@ async function select(task, button) {
       const reference = browserReference = browserResult.value.reference, ownership = {agent:'Agent控制',agentDelegatedToUser:'用户控制',user:'用户控制'}[reference.ownership] ?? reference.ownership;
       browser = `${reference.external_task_ref} · ${ownership} · ${reference.managed_pages}个托管页面 · ${reference.finished ? '已结束' : '活动'} · 更新序号 ${reference.updated_sequence}`;
     }
-    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['序号', result.task.sequence], ['Agent 当前步骤', result.step?.label ?? 'Agent 尚未声明步骤'], ['步骤标识', result.step ? `${result.step.step_id} · 接受序号 ${result.step.accepted_sequence}` : '未提供'], ['等待原因', '未提供'], ['浏览器 Task Space', browser]]) {
+    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', waitReason], ['浏览器 Task Space', browser]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; dl.append(dt, dd);
       if (name === '浏览器 Task Space' && browserReference?.ownership === 'agent' && !browserReference.finished) {
         const open = document.createElement('button'); open.className = 'browser-open'; open.textContent = '打开 ego-lite';
@@ -219,6 +233,7 @@ async function close() {
 }
 byId('close').addEventListener('click', close);
 document.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
+window.addEventListener('blur', close);
 window.addEventListener('yonda-tasks-open', () => { byId('refresh').focus(); load(); });
 load();
 })();

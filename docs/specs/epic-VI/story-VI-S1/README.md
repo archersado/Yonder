@@ -2,7 +2,7 @@
 
 Story: VI-S1  
 Epic: VI  
-Status: design-review  
+Status: implementing
 OpenSpec: vi-s1-voice-input-spike
 
 ## 设计文档
@@ -18,6 +18,12 @@ OpenSpec: vi-s1-voice-input-spike
 macOS无录音能力清单已通过：`zh-CN`识别器可用并支持本机识别，首次探针未请求权限。首次授权拒绝/撤权、设备切换与Windows样本仍未完成。
 
 2026-09-18 macOS已授权会话子范围PASS：正式Yonda桌宠内显式开始、真实麦克风中文转写、无确认自动投递、完成后立即重新取得麦克风、手动停止、Agent断开错误及Esc取消均通过；PCM和转写正文未进入证据。见[独立验证](../../../../openspec/changes/vi-s1-voice-input-spike/verification-macos-explicit.md)。应用级权限重置后adhoc预览包仍沿用授权，采集中重置也未产生撤权事件；本机只有一个输入设备。首次权限拒绝、真实运行中撤权、设备切换与Windows样本仍待验证，AD-VI-01保持Proposed。
+
+2026-09-23：macOS语音采集已补齐音频设备变化处理；`AVAudioEngineConfigurationChangeNotification` 触发时停止采集、释放资源并提示失败，不再把设备切换误报为继续聆听。该子范围已通过定向桌面包构建，但仍缺真实设备切换、运行中撤权和Windows证据，不改变完整Story状态。
+
+2026-09-23：macOS语音错误提示已按Speech框架错误域和错误码分类，能区分权限撤销、服务中断、组件缺失、服务关闭与无语音；该项仍需真实运行中撤权证据，不能视为完整验收通过。
+
+2026-09-23：OpenSpec Delta已补齐Requirement语句与Scenario块，`openspec validate vi-s1-voice-input-spike`当前通过；这不改变真实硬件与Windows证据缺口。
 
 ## OpenSpec 与验证
 

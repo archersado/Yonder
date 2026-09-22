@@ -41,3 +41,5 @@ Accepted AD-TM-04审阅通过，首批仅created取消；openspec/changes/tm-s3-
 2026-09-17开始接管定位增量：按Accepted AD-TM-08定位子范围实施协议1.13、SQLite13、宿主WorkRef保留及停止后精确前置；Recording、交回和Windows继续后置。
 
 2026-09-17接管定位增量PASS：真实UDS Agent经trycua SDK执行步骤，Yonda任务卡片接管后提交`paused/stopped/focused`并精确前置原生任务窗口，Recording未启动；见[独立 Verification Goal](../../../../openspec/changes/tm-s3-takeover-work-focus/verification-goal.md)。完整Story仍保留跨Space/多显示器、Windows及RC-S1 Recording前置。
+
+2026-09-20接管定位可见性增量PASS：macOS Adapter 在 AX 焦点确认后复核原窗口处于 WindowServer 当前可见列表，避免跨 Space 不可见窗口被误报为已定位；见[独立 Verification Goal](../../../../openspec/changes/tm-s3-work-focus-visibility/verification-goal.md)。真实跨 Space/多显示器仍需单独原生样本，Windows与 Recording 继续保留。

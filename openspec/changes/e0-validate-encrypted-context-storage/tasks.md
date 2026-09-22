@@ -16,5 +16,5 @@
 
 - [x] 原生 Keychain 临时密钥往返、重复写入拒绝与删除后不可读
 - [x] 独立 Verification Goal 与结构化日志（verification-keychain-macos.md）
-- [ ] macOS 完整 SQLCipher/FTS5/附件加密组合验证与 ADR 范围评审
+- [x] macOS 完整 SQLCipher/FTS5/附件加密组合验证与 ADR 范围评审
 - [ ] 产品凭据 Adapter、内存清零及宿主身份认证接线（单独产品变更）

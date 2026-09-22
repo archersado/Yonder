@@ -1,0 +1,12 @@
+{
+  "name": "yonder-jev-ultrafast-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node probe.mjs --self-test",
+    "probe": "node probe.mjs --run"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "0.6.0"
+  }
+}

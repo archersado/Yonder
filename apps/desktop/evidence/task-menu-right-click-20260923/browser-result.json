@@ -1,0 +1,15 @@
+{
+  "hoverDoesNotOpen": true,
+  "executingAnimation": true,
+  "continuousLocalPaws": true,
+  "stableExecutingBody": true,
+  "rightClickOpens": true,
+  "waitingAndPaused": true,
+  "continuousPausedWing": true,
+  "terminalSuccessAndFailure": true,
+  "reducedMotionStaticExecuting": true,
+  "clickDoesNotOpen": true,
+  "keyboardAndDrag": true,
+  "unknownOnFailure": true,
+  "fixtureOnly": true
+}

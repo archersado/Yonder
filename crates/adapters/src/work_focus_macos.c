@@ -35,6 +35,17 @@ static int window_info(pid_t pid, uint32_t window_id, CFStringRef *title, CGRect
   CFRelease(list); return found;
 }
 
+/* AX 可报告前台但目标仍在另一个 Space；仅接受 WindowServer 当前可见的原窗口。 */
+static int window_is_on_screen(pid_t pid, uint32_t window_id) {
+  CFArrayRef list=CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly|kCGWindowListExcludeDesktopElements,kCGNullWindowID);if(!list)return 0;
+  int found=0;
+  for(CFIndex i=0;i<CFArrayGetCount(list);i++) {
+    CFDictionaryRef item=CFArrayGetValueAtIndex(list,i);int64_t owner=0,identifier=0,layer=1;
+    if(number(item,kCGWindowOwnerPID,&owner)&&number(item,kCGWindowNumber,&identifier)&&number(item,kCGWindowLayer,&layer)&&owner==pid&&identifier==window_id&&layer==0){found=1;break;}
+  }
+  CFRelease(list);return found;
+}
+
 static CFTypeRef attribute(AXUIElementRef element, CFStringRef name) {
   CFTypeRef value=NULL; return AXUIElementCopyAttributeValue(element,name,&value)==kAXErrorSuccess?value:NULL;
 }
@@ -99,7 +110,7 @@ int yonda_work_ref_focus(void *raw) {
     focused=front&&CFBooleanGetValue(front)&&current&&CFEqual(current,ref->target)&&mini&&!CFBooleanGetValue(mini);
     if(front)CFRelease(front);if(mini)CFRelease(mini);if(current)CFRelease(current);if(focused)break;usleep(50000);
   } while(CFAbsoluteTimeGetCurrent()<end);
-  if(!focused)return 6;CGRect after;if(!window_info(ref->pid,ref->window_id,NULL,&after))return 3;return same(before,after)?0:7;
+  if(!focused||!window_is_on_screen(ref->pid,ref->window_id))return 6;CGRect after;if(!window_info(ref->pid,ref->window_id,NULL,&after))return 3;return same(before,after)?0:7;
 }
 
 void yonda_work_ref_release(void *raw) {YondaWorkRef *ref=raw;if(!ref)return;CFRelease(ref->app);CFRelease(ref->target);CFRelease(ref->title);free(ref);}

@@ -96,6 +96,19 @@ pub fn start_attempt<'a>(store: &mut impl crate::TaskStore, admission: &'a Admis
     }
 }
 
+/// CUA/BUA/Document/Command 的唯一启动边界；资源由各能力声明。
+pub fn start_execution(store: &mut impl crate::TaskStore, admission: &Admission, task: &crate::Task, attempt: &crate::ExecutionAttempt, expected_sequence: u64, resources: &[Resource]) -> Result<(crate::Task, crate::ExecutionAttempt), StartError> {
+    match task.status {
+        crate::Status::Created => start_attempt(store, admission, attempt, expected_sequence, resources).map(|(task, attempt, _)| (task, attempt)),
+        crate::Status::Running => match admission.holds(&attempt.task_id) {
+            Ok(true) => crate::prepare_next_attempt(store, attempt, expected_sequence).map_err(StartError::Task),
+            Ok(false) => Err(StartError::Task(crate::Error::StopRequired)),
+            Err(_) => Err(StartError::Task(crate::Error::StorageUnavailable)),
+        },
+        _ => Err(StartError::Task(crate::Error::StopRequired)),
+    }
+}
+
 impl Admission {
     /// 组合根取得单实例所有权并完成恢复后，才允许创建并使用唯一实例。
     pub fn new(capacity: usize) -> Result<Self, Denied> {
@@ -136,6 +149,10 @@ impl Admission {
 
     pub fn has_resource(&self, resource: Resource) -> Result<bool, Denied> {
         Ok(self.state.lock().map_err(|_| Denied::Unavailable)?.occupied.iter().any(|entry| entry.resources.contains(&resource)))
+    }
+
+    pub fn task_holding(&self, resource: Resource) -> Result<Option<String>, Denied> {
+        Ok(self.state.lock().map_err(|_| Denied::Unavailable)?.occupied.iter().find(|entry| entry.resources.contains(&resource)).map(|entry| entry.task_id.clone()))
     }
 
     pub fn holds(&self,task_id:&str)->Result<bool,Denied>{Ok(self.state.lock().map_err(|_|Denied::Unavailable)?.occupied.iter().any(|entry|entry.task_id==task_id))}
@@ -212,8 +229,10 @@ mod tests {
         gate.try_acquire("background", &[]).unwrap().release_after_stop().unwrap();
         gate.set_desktop_taken_over(false).unwrap();
         let desktop = gate.try_acquire("desktop", &[Resource::Desktop]).unwrap();
+        assert_eq!(gate.task_holding(Resource::Desktop), Ok(Some("desktop".into())));
         assert_eq!(gate.try_acquire("desktop-2", &[Resource::Desktop]).err(), Some(Denied::ResourceBusy(Resource::Desktop)));
         desktop.release_after_stop().unwrap();
+        assert_eq!(gate.task_holding(Resource::Desktop), Ok(None));
         first.release_after_stop().unwrap();
         drop(gate.try_acquire("unknown", &[file.clone()]).unwrap());
         assert_eq!(gate.try_acquire("retry", &[file.clone()]).err(), Some(Denied::ResourceBusy(file)));
