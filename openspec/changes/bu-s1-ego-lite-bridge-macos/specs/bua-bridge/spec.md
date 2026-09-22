@@ -14,3 +14,8 @@ Yonder MUST 通过 ego-lite 正式 Task Space API 执行 create/reuse、observe�
 ### Requirement: 失败不伪报成功
 
 Bridge MUST 在依赖缺失、超时、进程失败或响应不可信时返回明确 unknown，MUST NOT 自动重试副作用或回退 CUA。
+
+#### Scenario: ego-lite不可用时返回unknown
+
+- **WHEN** ego-lite进程失败、依赖缺失或桥接响应不可信
+- **THEN** Bridge返回明确unknown，不自动重试副作用，也不回退到CUA
