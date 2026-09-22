@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Yonda · Jev 快脑设置</title>
+  <link rel="stylesheet" href="jev-settings.css" />
+  <script src="jev-settings.js" defer></script>
+</head>
+<body>
+  <main class="settings">
+    <header>
+      <div><span class="eyebrow">YONDA</span><h1>Jev 快脑设置</h1></div>
+      <button id="close" aria-label="关闭 Jev 设置">关闭</button>
+    </header>
+    <form id="jev-form">
+      <label><input id="jev-enabled" type="checkbox" /> 启用 Jev</label>
+      <label>服务形态 <select id="jev-service-mode"><option value="local">本地</option><option value="remote">远端</option></select></label>
+      <label>端点 <input id="jev-endpoint" type="url" required /></label>
+      <label>步数上限 <input id="jev-step-limit" type="number" min="1" max="100" step="1" required /></label>
+      <label>时间上限(ms) <input id="jev-time-limit" type="number" min="1000" max="600000" step="1" required /></label>
+      <label>Token 上限 <input id="jev-token-limit" type="number" min="1" max="100000" step="1" required /></label>
+      <fieldset><legend>允许执行层</legend>
+        <label><input class="jev-capability" type="checkbox" value="CUA" /> CUA</label>
+        <label><input class="jev-capability" type="checkbox" value="BUA" /> BUA</label>
+        <label><input class="jev-capability" type="checkbox" value="DOCUMENT" /> Document</label>
+        <label><input class="jev-capability" type="checkbox" value="COMMAND" /> Command</label>
+      </fieldset>
+      <p class="readonly">置信阈值 0.75、动作后强制 Observe、敏感操作须确认；这些安全闸不可降低。</p>
+      <button id="jev-save" type="submit">保存 Jev 配置</button>
+      <p id="jev-status" role="status" aria-live="polite">正在读取 Jev 配置…</p>
+    </form>
+  </main>
+</body>
+</html>

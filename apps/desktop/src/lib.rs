@@ -6,7 +6,7 @@ pub mod local_agent_socket;
 use std::{collections::HashMap, fs::{File, OpenOptions}, path::Path, time::{Duration, Instant}};
 use tauri::WebviewWindow;
 use yonder_adapters::task_store::SqliteTaskStore;
-use yonder_application::{AuthContext, ActivityState, ControlKind, TaskStore, admission::Admission, browser_use::BrowserUsePort, computer_use::{ComputerUsePort,WorkTarget,WorkTargetPort}, work_focus::{FocusFailure,WorkFocusPort,WorkRef,capture_after_observe,focus_takeover}};
+use yonder_application::{AuthContext, ActivityState, ControlKind, TaskStore, admission::Admission, browser_use::BrowserUsePort, computer_use::{ComputerUsePort,WorkTarget,WorkTargetPort}, jev_config::JevConfig, work_focus::{FocusFailure,WorkFocusPort,WorkRef,capture_after_observe,focus_takeover}};
 #[cfg(target_os = "macos")]
 use yonder_adapters::{cua::{CuaWorker,MacosFrontmostTarget},ego_lite::EgoLiteBridge,work_focus::MacWorkFocus};
 
@@ -14,7 +14,7 @@ struct FixedTarget(WorkTarget);
 impl WorkTargetPort for FixedTarget { fn frontmost(&self)->Result<WorkTarget,yonder_application::computer_use::UnknownReason>{Ok(self.0.clone())} }
 
 #[derive(Debug, PartialEq)]
-pub enum HostError { InvalidDirectory, LockUnavailable, StorageUnavailable, BrowserUnavailable }
+pub enum HostError { InvalidDirectory, LockUnavailable, StorageUnavailable, BrowserUnavailable, InvalidConfig }
 
 pub fn emit_pet_presentation(window: &WebviewWindow, has_tasks: bool, state: &str) {
     let state = match state {
@@ -199,6 +199,16 @@ impl TaskHost {
     /// 是观察而非隐藏许可；正式收起仍需预约协调。
     pub fn activity(&mut self) -> ActivityState {
         yonder_application::activity_state(&mut self.store, Some(&self.admission))
+    }
+
+    pub fn jev_config(&mut self) -> Result<JevConfig, HostError> {
+        self.store.get_jev_config().map_err(|_| HostError::StorageUnavailable)
+            .map(|value| value.unwrap_or_default())
+    }
+
+    pub fn save_jev_config(&mut self, config: JevConfig) -> Result<JevConfig, HostError> {
+        config.validate().map_err(|_| HostError::InvalidConfig)?;
+        self.store.save_jev_config(&config).map_err(|_| HostError::StorageUnavailable)
     }
 }
 
