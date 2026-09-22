@@ -57,3 +57,11 @@ Desktop组合根只持有一个Cloud Connector Adapter。Adapter主动建立WSS�
 EX-S2/TM-S2/TM-S7 联审计划片段的最小 Rust 类型、幂等与 CAS、SQLite 当前计划事实、事件/Outbox 原子提交及快脑内部步骤来源。失败返回版本/归属/能力/过期/冲突的分类结果，不保存完整计划正文或模型 Payload 到日志。快脑交回使用现有事件序号和 Outbox；`task.events(after_sequence)` 的权限和旧版本投影继续生效。对外新增协议能力须在 AD-AG-07 定案、Story 三份设计与 OpenSpec 完成后实施；旧 Agent 逐步调用不被强制迁移。
 
 验证先用同一 Application/Gateway 合约覆盖本地与云端认证会话的等价请求、跨 Agent 拒绝、版本/CAS、重复请求、断线后按序读取交回依据；随后分别取 Windows Named Pipe/macOS UDS 与云端 Connector 可用时的原生证据。Windows 当前暂缓，产品云端 Connector 仍受 AG-S1 原有配对/凭据门禁。
+
+## 计划入口联审候选（2026-09-23）
+
+Gateway 侧计划请求继续复用已存在的可信会话与协议基础字段：`request_id`、可信 `agent_id`、`task_id`、`deadline`、能力声明和 `expected_sequence`。EX-S2 若引入计划片段，只新增无法由这些字段推导的计划语义，例如计划版本、预算与片段内容；字段最终仍以 Rust 协议类型为唯一来源。
+
+校验顺序固定为：会话已握手 → 会话身份与请求身份一致 → 任务归属匹配 → 能力已声明且未过期 → `expected_sequence`/计划版本 CAS 匹配 → 请求体大小和预算合法。拒绝时返回可区分的结构化错误，不把计划正文写入日志；重复 `request_id` 在未启动前返回原结果，启动后返回进行中或明确冲突。
+
+本节只作为 AG-S1/EX-S2/TM-S2/TM-S7 联审候选，不生成实施 OpenSpec，也不授权新增 Gateway 方法或协议字段。
