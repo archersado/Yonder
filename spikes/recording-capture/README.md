@@ -8,6 +8,7 @@ clang -x objective-c -std=c11 -Wall -Wextra -Werror -framework AppKit -framework
 /private/tmp/yonda-recording-macos-probe 5
 /private/tmp/yonda-recording-macos-probe --controlled 5
 /private/tmp/yonda-recording-macos-probe --outside 5
+/private/tmp/yonda-recording-macos-probe --known-injection 1
 /private/tmp/yonda-recording-macos-probe --hid-listen 10 20
 swift spikes/recording-capture/secure-input-fixture.swift
 ```
@@ -15,3 +16,5 @@ swift spikes/recording-capture/secure-input-fixture.swift
 2026-09-17真实CUA注入对照表明`source_pid/source_tag`会落入用户候选，纯CGEvent来源字段路线已淘汰。IOHID关联可拒绝程序注入，但三轮真实物理正样本在20/100ms窗口内均无法稳定证明用户来源，也已淘汰。
 
 2026-09-18 探针改按用户控制租约计数：`--controlled`只验证租约内的无正文受控会话输入，`--outside`必须保持零输入；它们不证明物理用户来源。隐私排除、已知注入、停止与队列样本仍是产品实施前门禁；不得接产品任务库。
+
+2026-09-22 `--known-injection`在租约内注入一条带Yonder标记的零位移滚动事件；探针只增加`known_injected_rejected`，不采集事件或正文。

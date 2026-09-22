@@ -81,12 +81,13 @@ int main(int argc, char **argv) {
   int excluded_mode = argc == 4 && strcmp(argv[1], "--exclude-pid") == 0;
   int stop_check_mode = argc == 3 && strcmp(argv[1], "--stop-check") == 0;
   int controlled_mode = argc == 3 && (strcmp(argv[1], "--controlled") == 0 || strcmp(argv[1], "--outside") == 0);
-  if (argc != 2 && !hid_mode && !controlled_mode && !stop_check_mode && !excluded_mode) { fputs("usage: macos-probe --self-check | seconds | --controlled seconds | --outside seconds | --stop-check seconds | --exclude-pid PID seconds | --hid-listen seconds window_ms\n", stderr); return 2; }
-  char *end = NULL; double seconds = strtod((controlled_mode || stop_check_mode || excluded_mode) ? argv[2 + excluded_mode] : argv[1], &end);
+  int known_injection_mode = argc == 3 && strcmp(argv[1], "--known-injection") == 0;
+  if (argc != 2 && !hid_mode && !controlled_mode && !stop_check_mode && !excluded_mode && !known_injection_mode) { fputs("usage: macos-probe --self-check | seconds | --controlled seconds | --outside seconds | --stop-check seconds | --known-injection seconds | --exclude-pid PID seconds | --hid-listen seconds window_ms\n", stderr); return 2; }
+  char *end = NULL; double seconds = strtod((controlled_mode || stop_check_mode || excluded_mode || known_injection_mode) ? argv[2 + excluded_mode] : argv[1], &end);
   double window_ms = 0;
   if (hid_mode) { seconds = strtod(argv[2], &end); if (!end || *end) return 2; window_ms = strtod(argv[3], &end); }
   if (!end || *end || seconds <= 0 || seconds > 30) return 2;
-  Recorder recorder = {.recording = 1, .lease_active = !controlled_mode || strcmp(argv[1], "--controlled") == 0};
+  Recorder recorder = {.recording = 1, .lease_active = known_injection_mode || !controlled_mode || strcmp(argv[1], "--controlled") == 0};
   if (excluded_mode) { recorder.excluded_pid = (int)strtol(argv[2], &end, 10); if (!end || *end || recorder.excluded_pid <= 0) return 2; }
   CGEventMask mask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged) |
     CGEventMaskBit(kCGEventLeftMouseDown) | CGEventMaskBit(kCGEventRightMouseDown) | CGEventMaskBit(kCGEventScrollWheel);
@@ -107,8 +108,20 @@ int main(int argc, char **argv) {
   }
   CFAbsoluteTime started = CFAbsoluteTimeGetCurrent(), deadline = started + seconds;
   size_t stopped_count = 0;
+  int injection_posted = 0;
   while (CFAbsoluteTimeGetCurrent() < deadline) {
     if (stop_check_mode && recorder.recording && CFAbsoluteTimeGetCurrent() >= started + seconds / 2) { recorder.recording = 0; stopped_count = recorder.count; }
+    if (known_injection_mode && !injection_posted && CFAbsoluteTimeGetCurrent() >= started + 0.1) {
+      CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStatePrivate);
+      CGEventRef event = CGEventCreateScrollWheelEvent(source, kCGScrollEventUnitPixel, 2, 0, 0);
+      if (source && event) {
+        CGEventSetIntegerValueField(event, kCGEventSourceUserData, YONDER_INJECTED_TAG);
+        CGEventPost(kCGHIDEventTap, event);
+      }
+      if (event) CFRelease(event);
+      if (source) CFRelease(source);
+      injection_posted = 1;
+    }
     CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, false);
   }
   recorder.recording = 0;
