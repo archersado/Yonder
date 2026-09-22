@@ -5,6 +5,9 @@
 ## ADDED Requirements
 
 ### Requirement: 已握手Agent登记任务
+
+系统 MUST 只允许已握手且身份匹配的Agent登记任务，并在同一事务提交任务事实。
+
 #### Scenario: 本地登记
 - GIVEN 预绑定可信Agent会话协商1.1
 - WHEN 请求task.create
