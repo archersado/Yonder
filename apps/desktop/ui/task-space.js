@@ -121,9 +121,11 @@ async function select(task, button) {
   const current = ++selection, currentRound = round;
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
   placeholder('正在读取详情…');
-  const [detailResult, timelineResult, browserResult] = await Promise.allSettled([
+  const recentAfter = (BigInt(task.sequence) > 20n ? BigInt(task.sequence) - 20n : 0n).toString();
+  const [detailResult, timelineResult, recentResult, browserResult] = await Promise.allSettled([
     query('task.step.get', { task_id: task.task_id }),
     query('task.events', { task_id: task.task_id, after_sequence: '0', limit: 20 }),
+    query('task.events', { task_id: task.task_id, after_sequence: recentAfter, limit: 20 }),
     query('task.browser.get', { task_id: task.task_id })
   ]);
   if (current !== selection || currentRound !== round) return;
@@ -134,6 +136,12 @@ async function select(task, button) {
     detail.replaceChildren();
     const h2 = document.createElement('h2'); h2.textContent = result.task.name || "未命名历史任务"; detail.append(h2);
     const dl = document.createElement('dl');
+    const events = recentResult.status === 'fulfilled' && recentResult.value.kind === 'events' ? recentResult.value.events : [];
+    const waitReason = [...events].reverse().find(event => typeof event.wait_reason === 'string' && event.wait_reason)?.wait_reason ?? '未提供';
+    const statusReason = [...events].reverse().map(event => event.wait_reason
+      ? `等待用户：${event.wait_reason}`
+      : event.attempt_result?.phase === 'unknown' ? `执行结果未知：${unknownLabels[event.attempt_result.unknown_reason] ?? '原因未提供'}` : null
+    ).find(Boolean) ?? '未提供';
     let browser = '未关联', browserReference = null;
     if (browserResult.status === 'rejected') browser = '关联状态读取失败';
     else if (browserResult.value.kind !== 'browser-state') browser = '关联状态读取失败';
@@ -141,7 +149,7 @@ async function select(task, button) {
       const reference = browserReference = browserResult.value.reference, ownership = {agent:'Agent控制',agentDelegatedToUser:'用户控制',user:'用户控制'}[reference.ownership] ?? reference.ownership;
       browser = `${reference.external_task_ref} · ${ownership} · ${reference.managed_pages}个托管页面 · ${reference.finished ? '已结束' : '活动'} · 更新序号 ${reference.updated_sequence}`;
     }
-    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['序号', result.task.sequence], ['Agent 当前步骤', result.step?.label ?? 'Agent 尚未声明步骤'], ['步骤标识', result.step ? `${result.step.step_id} · 接受序号 ${result.step.accepted_sequence}` : '未提供'], ['等待原因', '未提供'], ['浏览器 Task Space', browser]]) {
+    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['Agent 当前步骤', result.step?.label ?? 'Agent 尚未声明步骤'], ['步骤标识', result.step ? `${result.step.step_id} · 接受序号 ${result.step.accepted_sequence}` : '未提供'], ['等待原因', waitReason], ['浏览器 Task Space', browser]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; dl.append(dt, dd);
       if (name === '浏览器 Task Space' && browserReference?.ownership === 'agent' && !browserReference.finished) {
         const open = document.createElement('button'); open.className = 'browser-open'; open.textContent = '打开 ego-lite';

@@ -13,7 +13,7 @@ OpenSpec: ds-s2-task-overview
 
 ## 当前状态与前置条件
 
-2026-09-18：首批任务总览的 macOS 实施与独立验证已 PASS，覆盖可信本机宿主、真实两任务、轻量菜单、分页/详情/错误保留及并发刷新。详见 [汇总 Verification Goal](../../../../openspec/changes/ds-s2-task-overview/verification-goal.md)。卡片操作由增量 Change `ds-s2-task-card-actions` 承接。Windows 依用户决定暂缓；外部 ego-lite 关联、完整控制与跨平台证据未完成，Story 保持 implementing。
+2026-09-18：首批任务总览的 macOS 实施与独立验证已 PASS，覆盖可信本机宿主、真实两任务、轻量菜单、分页/详情/错误保留及并发刷新。详见 [汇总 Verification Goal](../../../../openspec/changes/ds-s2-task-overview/verification-goal.md)。卡片操作由增量 Change `ds-s2-task-card-actions` 承接。浏览器任务的外部 ego-lite 引用读取与用户交接已由 [BU-S2 独立验证](../../../../openspec/changes/bu-s2-browser-reference-read/verification-goal.md)完成。Windows 依用户决定暂缓；执行中接管/停止确认与跨平台证据未完成，Story 保持 implementing。
 
 2026-09-14按AD-DS-01/AD-ST-01工程审阅通过宿主核心独立子范围：标准文件锁、真实SQLite、显式恢复和可信本机只读查询。仅此子范围进入Apply；先前入口门禁仍适用于GUI，完整Story未就绪，不顺带实现环绕菜单或执行器。
 
