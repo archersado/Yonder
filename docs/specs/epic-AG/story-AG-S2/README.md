@@ -2,7 +2,7 @@
 
 Story: AG-S2
 Epic: AG
-Status: implementing
+Status: verifying
 OpenSpec: ag-s2-local-task-registration
 
 设计：[产品需求](product-requirements.md)、[架构设计](architecture-design.md)、[视觉交互设计](visual-interaction-design.md)。依据Accepted AD-AG-01仅Agent创建；首批登记协议和幂等事务已按Accepted AD-AG-02定稿并实施。生产认证、正式宿主IPC和执行派发仍保留设计门禁。
