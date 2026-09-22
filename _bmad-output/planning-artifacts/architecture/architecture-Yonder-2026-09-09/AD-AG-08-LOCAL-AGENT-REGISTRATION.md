@@ -1,7 +1,7 @@
 # AD-AG-08 本地 Agent 注册与撤权
 
-状态：Proposed
-日期：2026-09-22
+状态：Accepted
+日期：2026-09-23
 关联：AG-S2、AD-AG-01、AD-AG-05
 
 ## 待决问题
@@ -20,4 +20,4 @@ AD-AG-05 已把当前 OS 用户私有 UDS 定为 MVP 本机认证边界；`agent
 
 ## 架构影响
 
-Architecture Impact：architecture-change。该决策不修改现有协议、SQLite schema 或运行时代码；后续实施必须先通过独立 Story、OpenSpec 和验证 Goal，不能并入 AG-S2 当前范围。
+Architecture Impact：architecture-change。本决策不改变 Gateway wire 协议、传输认证边界或依赖方向；实施新增独立 `AgentRegistry` Port 与 SQLite `agent_registry` 表，撤权由同一桌面宿主锁串行化并立即断开活动输入会话。实施必须通过独立 Story、OpenSpec 和验证 Goal，不能并入 AG-S2 当前范围。

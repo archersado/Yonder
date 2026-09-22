@@ -32,6 +32,11 @@
       "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
       "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
       "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
+    }, {
+      "label": "agent-settings", "url": "agent-settings.html", "title": "Yonda · Agent 管理", "width": 360, "height": 420,
+      "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
+      "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
+      "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
     }],
     "security": {
       "capabilities": [{

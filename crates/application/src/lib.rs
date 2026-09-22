@@ -1,6 +1,7 @@
 //! 任务用例与事务存储 Port；不依赖具体 Adapter。
 pub use yonder_domain::{Action, Status, Transition, TransitionError};
 pub mod admission;
+pub mod agent_registry;
 pub mod agent_input;
 pub mod region_preview;
 pub mod browser_use;

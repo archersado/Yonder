@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Yonda · Agent 管理</title>
+  <link rel="stylesheet" href="agent-settings.css" />
+</head>
+<body>
+  <main class="settings">
+    <header>
+      <div>
+        <p class="eyebrow">LOCAL ACCESS</p>
+        <h1>Agent 管理</h1>
+      </div>
+      <button id="close" type="button" aria-label="关闭 Agent 管理">关闭</button>
+    </header>
+    <form id="register-form">
+      <label for="agent-id">Agent ID</label>
+      <input id="agent-id" name="agent-id" required maxlength="128" autocomplete="off" />
+      <button id="register" type="submit">登记 Agent</button>
+    </form>
+    <section aria-labelledby="agents-title">
+      <h2 id="agents-title">已登记 Agent</h2>
+      <ul id="agent-list" aria-live="polite"></ul>
+    </section>
+    <p id="agent-status" role="status" aria-live="polite">正在读取 Agent…</p>
+  </main>
+  <script src="agent-settings.js"></script>
+</body>
+</html>

@@ -6,7 +6,7 @@ use yonder_application::agent_input::{AgentInputAttachment, AgentInputParams, Ag
 pub(crate) struct Delivery { pub input: AgentInputParams, pub attachment: Option<AgentInputAttachment>, pub reply: mpsc::Sender<DeliveryOutcome> }
 
 #[derive(Clone)]
-struct SessionSink { agent_id: String, session_id: String, supports_attachment: bool, tx: tokio_mpsc::UnboundedSender<Delivery> }
+struct SessionSink { agent_id: String, session_id: String, supports_attachment: bool, tx: tokio_mpsc::UnboundedSender<Delivery>, close: tokio_mpsc::UnboundedSender<()> }
 
 impl AgentInputSink for SessionSink {
     fn deliver(&self, input: AgentInputParams, attachment: Option<AgentInputAttachment>) -> DeliveryOutcome {
@@ -25,11 +25,11 @@ pub struct AgentInputHub { inner: Arc<Mutex<HubState>>, next_input: Arc<AtomicU6
 struct HubState { sessions: HashMap<String, (u64, SessionSink)>, active: Option<String> }
 
 impl AgentInputHub {
-    pub(crate) fn register(&self, agent_id: String, session_id: String, supports_attachment: bool, tx: tokio_mpsc::UnboundedSender<Delivery>) -> (u64, bool) {
+    pub(crate) fn register(&self, agent_id: String, session_id: String, supports_attachment: bool, tx: tokio_mpsc::UnboundedSender<Delivery>, close: tokio_mpsc::UnboundedSender<()>) -> (u64, bool) {
         let token = self.next_session.fetch_add(1, Ordering::Relaxed) + 1;
         let connected = if let Ok(mut state) = self.inner.lock() {
             let replacing = state.sessions.contains_key(&session_id);
-            state.sessions.insert(session_id.clone(), (token, SessionSink { agent_id, session_id: session_id.clone(), supports_attachment, tx }));
+            state.sessions.insert(session_id.clone(), (token, SessionSink { agent_id, session_id: session_id.clone(), supports_attachment, tx, close }));
             if state.sessions.len() == 1 || replacing && state.active.as_deref() == Some(&session_id) { state.active = Some(session_id); }
             else if !replacing { state.active = None; }
             true
@@ -45,6 +45,29 @@ impl AgentInputHub {
             }
             !state.sessions.is_empty()
         } else { false }
+    }
+
+    pub fn disconnect_agent(&self, agent_id: &str) -> bool {
+        let mut state = match self.inner.lock() {
+            Ok(state) => state,
+            Err(_) => return false,
+        };
+        let removed: Vec<String> = state
+            .sessions
+            .iter()
+            .filter(|(_, (_, sink))| sink.agent_id == agent_id)
+            .map(|(session_id, _)| session_id.clone())
+            .collect();
+        for session_id in &removed {
+            if let Some((_, sink)) = state.sessions.remove(session_id.as_str()) {
+                let _ = sink.close.send(());
+            }
+        }
+        if removed.is_empty() {
+            return !state.sessions.is_empty();
+        }
+        state.active = state.sessions.keys().next().cloned().filter(|_| state.sessions.len() == 1);
+        !state.sessions.is_empty()
     }
 
     pub fn connected(&self) -> bool { self.inner.lock().is_ok_and(|state| !state.sessions.is_empty()) }
@@ -101,9 +124,11 @@ mod tests {
         let hub=AgentInputHub::default();
         let (first,mut first_rx)=tokio_mpsc::unbounded_channel();
         let (second,mut second_rx)=tokio_mpsc::unbounded_channel();
-        let (first_token, connected)=hub.register("agent-a".into(),"session-a".into(),false,first);
+        let (first_close, _)=tokio_mpsc::unbounded_channel();
+        let (second_close, _)=tokio_mpsc::unbounded_channel();
+        let (first_token, connected)=hub.register("agent-a".into(),"session-a".into(),false,first,first_close);
         assert!(connected && hub.connected());
-        let (second_token, _)=hub.register("agent-b".into(),"session-b".into(),true,second);
+        let (second_token, _)=hub.register("agent-b".into(),"session-b".into(),true,second,second_close);
         let worker=std::thread::spawn(move||{
             assert!(first_rx.try_recv().is_err());
             let delivery=second_rx.blocking_recv().unwrap();
@@ -129,7 +154,8 @@ mod tests {
     fn selection_text_does_not_require_attachment_support() {
         let hub=AgentInputHub::default();
         let (tx,mut rx)=tokio_mpsc::unbounded_channel();
-        hub.register("agent-a".into(),"session-a".into(),false,tx);
+        let (close_tx,_)=tokio_mpsc::unbounded_channel();
+        hub.register("agent-a".into(),"session-a".into(),false,tx,close_tx);
         let worker=std::thread::spawn(move||{
             let delivery=rx.blocking_recv().unwrap();
             assert_eq!(delivery.input.source,AgentInputSource::Selection);
@@ -138,5 +164,18 @@ mod tests {
         });
         assert_eq!(hub.deliver_selection_text("仅文字"),Ok(DeliveryOutcome::Accepted));
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn disconnect_agent_removes_its_sessions() {
+        let hub = AgentInputHub::default();
+        let (tx, mut rx) = tokio_mpsc::unbounded_channel();
+        let (close_tx, mut close_rx) = tokio_mpsc::unbounded_channel();
+        hub.register("agent-a".into(), "session-a".into(), false, tx, close_tx);
+        assert!(hub.connected());
+        assert!(!hub.disconnect_agent("agent-a"));
+        assert!(!hub.connected());
+        assert!(rx.try_recv().is_err());
+        assert!(close_rx.try_recv().is_ok());
     }
 }
