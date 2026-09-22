@@ -306,34 +306,6 @@ fn pet_is_visible(window: WebviewWindow) -> Result<bool, String> {
     Ok(window.is_visible().map_err(|_| "可见性不可用")? && !window.is_minimized().map_err(|_| "可见性不可用")?)
 }
 
-fn cursor_inside(window: &WebviewWindow) -> Result<bool, String> {
-    #[cfg(target_os = "macos")]
-    {
-        use objc2_app_kit::NSWindow;
-        let native = unsafe { &*window.ns_window().map_err(|_| "小龙不可用")?.cast::<NSWindow>() };
-        // 使用同一原生窗口的逻辑坐标，避免全局坐标混用Retina像素和点。
-        let cursor = native.mouseLocationOutsideOfEventStream();
-        let size = native.frame().size;
-        return Ok(cursor.x >= 0.0 && cursor.y >= 0.0 && cursor.x < size.width && cursor.y < size.height);
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-    let cursor = window.cursor_position().map_err(|_| "鼠标位置不可用")?;
-    let position = window.outer_position().map_err(|_| "位置不可用")?;
-    let size = window.outer_size().map_err(|_| "尺寸不可用")?;
-    Ok(cursor.x >= f64::from(position.x) && cursor.y >= f64::from(position.y)
-        && cursor.x < f64::from(position.x) + f64::from(size.width)
-        && cursor.y < f64::from(position.y) + f64::from(size.height))
-    }
-}
-
-#[tauri::command]
-fn pet_hover_region(window: WebviewWindow) -> Result<(bool, bool), String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
-    let menu = window.app_handle().get_webview_window("task-space").ok_or("菜单不可用")?;
-    Ok((cursor_inside(&window)?, menu.is_visible().map_err(|_| "菜单不可用")? && cursor_inside(&menu)?))
-}
-
 #[tauri::command]
 async fn pet_task_state(window: WebviewWindow, state: State<'_, TaskState>) -> Result<(bool, &'static str), String> {
     if window.label() != "pet" { return Err("不允许的窗口".into()); }
@@ -350,7 +322,7 @@ fn pet_agent_connected(window: WebviewWindow, hub: State<'_, yonder_desktop::age
     Ok(hub.connected())
 }
 
-fn show_menu(app: &tauri::AppHandle, focus: bool) -> Result<(), String> {
+fn show_menu(app: &tauri::AppHandle) -> Result<(), String> {
     let pet = app.get_webview_window("pet").ok_or("小龙不可用")?;
     let menu = app.get_webview_window("task-space").ok_or("任务菜单不可用")?;
     let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
@@ -367,11 +339,8 @@ fn show_menu(app: &tauri::AppHandle, focus: bool) -> Result<(), String> {
     let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(size.width) as i32);
     let max_y = area.position.y.saturating_add(area.size.height.saturating_sub(size.height) as i32);
     let target = tauri::PhysicalPosition::new(position.x.clamp(area.position.x, max_x), y.clamp(area.position.y, max_y));
-    menu.set_position(target).and_then(|_| menu.show()).and_then(|_| if focus { menu.set_focus() } else { Ok(()) })
+    menu.set_position(target).and_then(|_| menu.show()).and_then(|_| menu.set_focus())
         .and_then(|_| menu.eval("window.dispatchEvent(new Event('yonda-tasks-open'))"))
-        .and_then(|_| pet.eval(if focus {
-            "window.dispatchEvent(new CustomEvent('yonda-menu-open', {detail:'manual'}))"
-        } else { "window.dispatchEvent(new CustomEvent('yonda-menu-open', {detail:'hover'}))" }))
         .map_err(|_| "任务菜单打开失败".into())
 }
 
@@ -453,10 +422,10 @@ fn voice_input_phase(window: WebviewWindow, state: State<'_, voice_input::VoiceR
 }
 
 #[tauri::command]
-async fn task_menu_show(window: WebviewWindow, state: State<'_, TaskState>, focus: bool) -> Result<bool, String> {
+async fn task_menu_show(window: WebviewWindow, state: State<'_, TaskState>) -> Result<bool, String> {
     let (has_tasks, _) = pet_task_state(window.clone(), state).await?;
     if !has_tasks { return Ok(false); }
-    show_menu(window.app_handle(), focus)?;
+    show_menu(window.app_handle())?;
     Ok(true)
 }
 
@@ -577,7 +546,7 @@ fn jev_settings_close(window: WebviewWindow) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, jev_config_get, jev_config_save, jev_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_hover_region, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, jev_config_get, jev_config_save, jev_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -637,7 +606,7 @@ fn main() {
                 .icon(tauri::image::Image::new_owned(rgba, 16, 16)).icon_as_template(true)
                 .tooltip("Yonda 任务总览").menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "tasks" => { let _ = show_menu(app, true); },
+                    "tasks" => { let _ = show_menu(app); },
                     "region" => { let app=app.clone(); tauri::async_runtime::spawn(async move { let state=Arc::clone(&app.state::<TaskState>().0); let result=pause_for_region(state).await; let preview=app.state::<PreviewState>(); if let Err(error)=result.and_then(|_|show_region_preview(&app,&preview)){show_region_feedback(&app,&preview,&error);} }); },
                     "pet-pack-import" => {
                         let Some(path) = rfd::FileDialog::new().add_filter("桌宠资源包", &["zip"]).pick_file() else { return };

@@ -13,6 +13,8 @@ OpenSpec: ds-s2-task-overview
 
 ## 当前状态与前置条件
 
+2026-09-23用户变更：任务菜单入口由悬停自动打开改为右键显式唤起；悬停仅保留状态表现。设计、实现、macOS原生证据与前端回归已完成，见[右键菜单独立验证](../../../../openspec/changes/ds-s2-task-overview/verification-right-click-macos.md)；Windows仍暂缓，完整Story保持implementing。
+
 2026-09-18：首批任务总览的 macOS 实施与独立验证已 PASS，覆盖可信本机宿主、真实两任务、轻量菜单、分页/详情/错误保留及并发刷新。详见 [汇总 Verification Goal](../../../../openspec/changes/ds-s2-task-overview/verification-goal.md)。卡片操作由增量 Change `ds-s2-task-card-actions` 承接。浏览器任务的外部 ego-lite 引用读取与用户交接已由 [BU-S2 独立验证](../../../../openspec/changes/bu-s2-browser-reference-read/verification-goal.md)完成。接管停止与定位已在 macOS 当前 Space 增量中通过 [TM-S3 独立验证](../../../../openspec/changes/tm-s3-takeover-work-focus/verification-goal.md)，且未启动 Recording；Windows、跨 Space/多显示器、Recording 与交回 Observe 仍保留门禁，Story 保持 verifying。
 
 2026-09-22：人工接管/Recording设计已按 AD-RC-01 的“受控会话输入”契约回写。Recording继续默认关闭，DS不得宣称物理用户来源或启用录制入口；产品Recording协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。
