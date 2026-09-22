@@ -1,5 +1,7 @@
 # EX 执行快脑与快慢脑交接
 
+Epic: EX
+
 状态：draft（系统边界 [AD-EX-01](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-01-BOUNDED-FAST-BRAIN.md) Accepted；技术路线 [AD-EX-02](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-02-JEV-INTEGRATION-ROUTE.md) Proposed）  
 Epic 分支：`epic/ex`  
 来源：产品简报「产品定义」「MVP 主干链路」「两条执行路径」、补充材料「执行原则」「CUA 与 BUA 的 Task Space」、架构主干「产品边界」「任务、状态与恢复」「执行能力」；2026-09-21 用户新增快慢脑分工。

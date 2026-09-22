@@ -38,7 +38,7 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 - 本地 Agent 经 MCP stdio 或 CLI，通过共享 Rust IPC Client 接入；IPC 使用 `interprocess 2.x`、Tokio、版本化 JSON-RPC，映射 Unix Domain Socket/Windows Named Pipe，不开放本地 TCP。
 - Yonder 主动建立单一 WSS 连接云端，不开放公网入口、端口映射或 P2P。断线按 `last_sequence` 补传 Outbox，且不影响本地能力。
 - 本地与云端请求统一为 `AgentRequest + AuthContext`。Rust 协议类型生成 JSON Schema 和 TypeScript；hello 协商版本与 capabilities。
-- 外部慢脑的初始计划与 replan 必须沿用本 Gateway 入站并绑定归属 Agent、任务和计划版本。快脑交回的 Observe/失败摘要经任务事件与 Outbox 由同一 Gateway 交付；Jev 不直连慢脑，也不建立第二条 Agent 会话。
+- 外部慢脑的初始计划与 replan 必须沿用本 Gateway 入站并绑定归属 Agent、任务和计划版本，接入边界见 Accepted [AD-AG-07](AD-AG-07-SLOW-BRAIN-GATEWAY-INGRESS.md)。快脑交回的 Observe/失败摘要经任务事件与 Outbox 由同一 Gateway 交付；Jev 不直连慢脑，也不建立第二条 Agent 会话。
 - IPC 限当前 OS 用户，设备凭据进入系统 Credential Store。MVP 不做细粒度授权；支付、发送、删除、安装、提权仍需确认。
 
 ## 任务、状态与恢复
