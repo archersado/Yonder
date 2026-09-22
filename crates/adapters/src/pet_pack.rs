@@ -292,6 +292,11 @@ mod tests {
     }
 
     #[test]
+    fn rejects_non_zip_source() {
+        assert_eq!(validate(b"not-a-zip"), Err(PetPackError::InvalidArchive));
+    }
+
+    #[test]
     fn imports_complete_png_and_webp_frames() {
         let root = std::env::temp_dir().join(format!("yonder-pet-{}-{}", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
         fs::create_dir_all(&root).unwrap();
