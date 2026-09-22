@@ -7,3 +7,5 @@
 当前状态：通过。唯一选择 Rust 进程内实现；Node Worker 淘汰。合成样本与 Microsoft Transitional 复杂样本均通过自动校验，Rust 三种输出均由 WPS 成功打开并经用户目视确认。
 
 2026-09-20 独立复核：自动化结论未漂移，但 WPS 打开结论缺少可审计的原始证据，本 Goal 当前未通过，不得 Archive。详见 `verification-audit-20260920.md`。
+
+2026-09-22 补证：已在 WPS Office 12.1.28496 中依次打开 Rust 的 DOCX/XLSX/PPTX 复杂输出，三个窗口标题均为对应文件名，未出现修复或损坏提示；截图与哈希见 `evidence-wps-20260922/result.json`。本 Goal 现已满足原始证据要求。
