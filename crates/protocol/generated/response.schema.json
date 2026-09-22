@@ -710,20 +710,88 @@
         "sequence"
       ]
     },
+    "TaskObservation": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "$ref": "#/$defs/TaskObservationResult"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "step_id",
+        "result",
+        "summary"
+      ]
+    },
+    "TaskObservationResult": {
+      "type": "string",
+      "enum": [
+        "matched",
+        "not-matched",
+        "unknown"
+      ]
+    },
     "TaskSnapshot": {
       "type": "object",
       "properties": {
+        "current_step": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepDeclaration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "name": {
           "type": [
             "string",
             "null"
           ]
         },
+        "next_intent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskObservation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "owner_agent_id": {
           "type": "string"
         },
         "sequence": {
           "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "status": {
           "$ref": "#/$defs/TaskStatus"
@@ -736,8 +804,20 @@
       "required": [
         "task_id",
         "owner_agent_id",
+        "source",
         "status",
-        "sequence"
+        "sequence",
+        "current_step",
+        "observation",
+        "next_intent"
+      ]
+    },
+    "TaskSource": {
+      "type": "string",
+      "enum": [
+        "local-agent",
+        "cloud-agent",
+        "legacy"
       ]
     },
     "TaskStatus": {
