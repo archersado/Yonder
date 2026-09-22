@@ -3,6 +3,7 @@
 - [x] DS-S4 三份设计与来源映射
 - [x] 建立 conforming OpenSpec Proposal
 - [x] 定稿 manifest 限额与 Rust 校验器
+- [x] 补齐字节导入入口的 64 MiB 上限与超限拒绝回归
 - [x] 本机选择、暂存、原子切换与回退
 - [x] 桌宠资源重载与无障碍反馈
 - [ ] 独立 Verification Goal 与 macOS 原生拒绝证据（真实托盘触发 + UI 反馈 + 保留旧包）

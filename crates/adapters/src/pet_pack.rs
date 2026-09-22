@@ -64,6 +64,9 @@ pub fn import_pet_pack(zip_path: &Path, packs_dir: &Path) -> Result<(), PetPackE
 }
 
 pub fn import_pet_pack_bytes(source: &[u8], packs_dir: &Path) -> Result<(), PetPackError> {
+    if source.len() > usize::try_from(MAX_SOURCE_BYTES).unwrap_or(usize::MAX) {
+        return Err(PetPackError::LimitExceeded);
+    }
     let pack = validate(source)?;
     let staging = staging_dir(packs_dir)?;
     if let Err(error) = write_pack(&pack, &staging) {
@@ -329,5 +332,15 @@ mod tests {
         let mut corrupt: Vec<(String, Vec<u8>)> = vec![("manifest.json".to_owned(), manifest().into_bytes())];
         corrupt.extend(STATES.iter().map(|state| (format!("assets/{state}-00.png"), b"broken".to_vec())));
         assert_eq!(validate(&zip(&corrupt)), Err(PetPackError::InvalidImage));
+    }
+
+
+    #[test]
+    fn rejects_oversized_byte_source() {
+        let source = vec![0; MAX_SOURCE_BYTES as usize + 1];
+        assert_eq!(
+            import_pet_pack_bytes(&source, Path::new("unused")),
+            Err(PetPackError::LimitExceeded)
+        );
     }
 }
