@@ -2,7 +2,7 @@
 
 Story: DS-S2
 Epic: DS
-Status: implementing
+Status: verifying
 OpenSpec: ds-s2-task-overview
 
 ## 设计文档
@@ -13,7 +13,7 @@ OpenSpec: ds-s2-task-overview
 
 ## 当前状态与前置条件
 
-2026-09-18：首批任务总览的 macOS 实施与独立验证已 PASS，覆盖可信本机宿主、真实两任务、轻量菜单、分页/详情/错误保留及并发刷新。详见 [汇总 Verification Goal](../../../../openspec/changes/ds-s2-task-overview/verification-goal.md)。卡片操作由增量 Change `ds-s2-task-card-actions` 承接。浏览器任务的外部 ego-lite 引用读取与用户交接已由 [BU-S2 独立验证](../../../../openspec/changes/bu-s2-browser-reference-read/verification-goal.md)完成。Windows 依用户决定暂缓；执行中接管/停止确认与跨平台证据未完成，Story 保持 implementing。
+2026-09-18：首批任务总览的 macOS 实施与独立验证已 PASS，覆盖可信本机宿主、真实两任务、轻量菜单、分页/详情/错误保留及并发刷新。详见 [汇总 Verification Goal](../../../../openspec/changes/ds-s2-task-overview/verification-goal.md)。卡片操作由增量 Change `ds-s2-task-card-actions` 承接。浏览器任务的外部 ego-lite 引用读取与用户交接已由 [BU-S2 独立验证](../../../../openspec/changes/bu-s2-browser-reference-read/verification-goal.md)完成。接管停止与定位已在 macOS 当前 Space 增量中通过 [TM-S3 独立验证](../../../../openspec/changes/tm-s3-takeover-work-focus/verification-goal.md)，且未启动 Recording；Windows、跨 Space/多显示器、Recording 与交回 Observe 仍保留门禁，Story 保持 verifying。
 
 2026-09-14按AD-DS-01/AD-ST-01工程审阅通过宿主核心独立子范围：标准文件锁、真实SQLite、显式恢复和可信本机只读查询。仅此子范围进入Apply；先前入口门禁仍适用于GUI，完整Story未就绪，不顺带实现环绕菜单或执行器。
 
@@ -41,7 +41,7 @@ OpenSpec: ds-s2-task-overview
 
 当前卡片操作增量openspec/changes/ds-s2-task-card-actions/；之前ds-s2-task-overview保留功能/验证历史。接管、删除状态由各自Application能力门禁决定，不假装功能已接通。
 
-卡片入口首批及数据保留原生验证PASS：[独立验证](../../../../openspec/changes/ds-s2-task-card-actions/verification-card-actions.md)。接管仍未接通停止/行为记录，按钮存在不等于接管完成；当前所有任务已取消，托盘全部查看历史。
+卡片入口首批及数据保留原生验证PASS：[独立验证](../../../../openspec/changes/ds-s2-task-card-actions/verification-card-actions.md)。后续接管停止与定位由 [TM-S3 独立验证](../../../../openspec/changes/tm-s3-takeover-work-focus/verification-goal.md) 关闭 macOS 当前 Space 增量；Recording 与 Windows 不在本结论内。
 
 2026-09-14 Agent名称子范围已实施并通过31项核心回归和macOS原生stdio Agent菜单验证，见openspec/changes/ag-s2-local-task-registration/verification-agent-names.md。旧数据备份迁移保留，新测试任务取消后保留；完整Story状态不变，Windows暂缓。
 

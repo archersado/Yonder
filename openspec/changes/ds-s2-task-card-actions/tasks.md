@@ -5,5 +5,7 @@
 - [x] 接管可用状态与原因
 - [x] 删除语义统一取消、撤销清理
 - [x] 独立Verification Goal与macOS原生证据
-- [ ] 接管停止/Recording实现与Windows证据
+- [x] 接管停止与定位实现及macOS原生验证
+- [ ] Recording与交回清除接管闸
+- [ ] Windows证据（按用户要求暂缓）
 - [ ] 完整Story/PR后Archive
