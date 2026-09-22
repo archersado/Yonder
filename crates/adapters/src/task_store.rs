@@ -5,6 +5,7 @@ use yonder_application::{
     ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status, StepBoundaryRecord,
     StepDeclaration, StopRecord, Task, TaskEventRecord, TaskObservation, TaskObservationResult,
     TaskPresentation, TaskSource, TaskStore, Transition,
+    agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
     browser_use::{BrowserReferenceRecord, valid_ref},
     computer_use::UnknownReason,
     jev_config::JevConfig,
@@ -160,10 +161,10 @@ impl SqliteTaskStore {
         let schema: i64 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
-        if ![0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].contains(&schema) {
+        if ![0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].contains(&schema) {
             return Err(Error::StorageUnavailable);
         }
-        if schema != 0 && schema != 16 {
+        if schema != 0 && schema != 16 && schema != 17 {
             if !migrate_plaintext {
                 return Err(Error::StorageUnavailable);
             }
@@ -202,7 +203,7 @@ impl SqliteTaskStore {
             }
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
-        } else if ![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].contains(&schema) {
+        } else if ![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].contains(&schema) {
             return Err(Error::StorageUnavailable);
         }
         if schema == 0 || schema == 2 {
@@ -265,8 +266,31 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("jev_config_schema.sql"))
                 .map_err(storage)?;
         }
+        if schema < 17 {
+            tx.execute_batch(include_str!("agent_registry_schema.sql"))
+                .map_err(storage)?;
+        }
         tx.commit().map_err(storage)?;
         Ok(Self(db))
+    }
+
+    fn agent_registration(
+        row: &rusqlite::Row<'_>,
+    ) -> Result<AgentRegistration, rusqlite::Error> {
+        let status: String = row.get(1)?;
+        let status = match status.as_str() {
+            "enabled" => AgentRegistrationStatus::Enabled,
+            "disabled" => AgentRegistrationStatus::Disabled,
+            "revoked" => AgentRegistrationStatus::Revoked,
+            _ => return Err(rusqlite::Error::QueryReturnedNoRows),
+        };
+        Ok(AgentRegistration {
+            agent_id: row.get(0)?,
+            status,
+            registered_at: row.get::<_, i64>(2)? as u64,
+            last_seen_at: row.get::<_, Option<i64>>(3)?.map(|value| value as u64),
+            updated_at: row.get::<_, i64>(4)? as u64,
+        })
     }
 
     pub fn get_jev_config(&self) -> Result<Option<JevConfig>, Error> {
@@ -297,6 +321,130 @@ impl SqliteTaskStore {
         tx.commit().map_err(storage)?;
         Ok(config.clone())
     }
+
+    fn get_agent_registration(
+        tx: &rusqlite::Transaction<'_>,
+        agent_id: &str,
+    ) -> Result<Option<AgentRegistration>, Error> {
+        tx.query_row(
+            "SELECT agent_id,status,registered_at,last_seen_at,updated_at FROM agent_registry WHERE agent_id=?1",
+            [agent_id],
+            |row| Self::agent_registration(row),
+        )
+        .optional()
+        .map_err(storage)
+    }
+
+    fn agent_status(value: AgentRegistrationStatus) -> &'static str {
+        match value {
+            AgentRegistrationStatus::Enabled => "enabled",
+            AgentRegistrationStatus::Disabled => "disabled",
+            AgentRegistrationStatus::Revoked => "revoked",
+        }
+    }
+}
+
+impl AgentRegistry for SqliteTaskStore {
+    fn register_agent(
+        &mut self,
+        agent_id: &str,
+        now_ms: u64,
+    ) -> Result<AgentRegistration, Error> {
+        if !yonder_application::valid_id(agent_id)
+            || now_ms >= i64::MAX as u64
+            || now_ms < 1_000_000_000_000
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO agent_registry(agent_id,status,registered_at,last_seen_at,updated_at) VALUES (?1,'enabled',?2,NULL,?2) ON CONFLICT(agent_id) DO UPDATE SET status='enabled',registered_at=excluded.registered_at,updated_at=excluded.updated_at",
+            params![agent_id, now_ms as i64],
+        )
+        .map_err(storage)?;
+        let value = Self::get_agent_registration(&tx, agent_id)?.ok_or(Error::StorageUnavailable)?;
+        tx.commit().map_err(storage)?;
+        Ok(value)
+    }
+
+    fn list_agents(&mut self) -> Result<Vec<AgentRegistration>, Error> {
+        let mut statement = self
+            .0
+            .prepare("SELECT agent_id,status,registered_at,last_seen_at,updated_at FROM agent_registry ORDER BY agent_id")
+            .map_err(storage)?;
+        let rows = statement
+            .query_map([], |row| Self::agent_registration(row))
+            .map_err(storage)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(storage)?;
+        Ok(rows)
+    }
+
+    fn set_agent_status(
+        &mut self,
+        agent_id: &str,
+        status: AgentRegistrationStatus,
+        now_ms: u64,
+    ) -> Result<AgentRegistration, Error> {
+        if !yonder_application::valid_id(agent_id)
+            || now_ms >= i64::MAX as u64
+            || now_ms < 1_000_000_000_000
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let changed = tx
+            .execute(
+                "UPDATE agent_registry SET status=?2,updated_at=?3 WHERE agent_id=?1",
+                params![agent_id, Self::agent_status(status), now_ms as i64],
+            )
+            .map_err(storage)?;
+        if changed == 0 {
+            return Err(Error::NotFound);
+        }
+        let value = Self::get_agent_registration(&tx, agent_id)?.ok_or(Error::NotFound)?;
+        tx.commit().map_err(storage)?;
+        Ok(value)
+    }
+
+    fn authorize_agent_write(&mut self, agent_id: &str, now_ms: u64) -> Result<(), Error> {
+        if !yonder_application::valid_id(agent_id) || now_ms >= i64::MAX as u64 {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let enabled = tx
+            .query_row(
+                "SELECT status FROM agent_registry WHERE agent_id=?1",
+                [agent_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage)?
+            .is_some_and(|status| status == "enabled");
+        if !enabled {
+            return Err(Error::PermissionDenied);
+        }
+        tx.execute(
+            "UPDATE agent_registry SET last_seen_at=?2 WHERE agent_id=?1",
+            params![agent_id, now_ms as i64],
+        )
+        .map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(())
+    }
+
+}
+
+impl SqliteTaskStore {
 
     fn update_focus(
         &mut self,
@@ -2537,7 +2685,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            16
+            17
         );
         drop(store);
         for rejected in [
@@ -2583,7 +2731,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 16);
+        assert_eq!(version, 17);
     }
 
     #[test]
@@ -2910,7 +3058,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            16
+            17
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -3012,6 +3160,97 @@ mod tests {
         assert_eq!(counts(&reopened), (3, 3, 3, 2));
         drop(reopened);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn agent_registry_gates_writes_and_preserves_existing_tasks() {
+        use yonder_application::{admission::Admission, gateway::{GatewaySession, Platform}};
+        use yonder_protocol::{QueryResult, Response};
+
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let gate = Admission::new(1).unwrap();
+        let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        let hello = br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":3}}}"#;
+        let (blocked_hello, _) = session
+            .handle_encoded_with_runtimes(
+                &mut store,
+                &gate,
+                None,
+                None,
+                None,
+                false,
+                "host",
+                hello,
+                1000,
+            )
+            .unwrap();
+        assert!(
+            matches!(yonder_protocol::decode_response(&blocked_hello).unwrap(), Response::Failure { error, .. } if error.code == -32003)
+        );
+
+        AgentRegistry::register_agent(&mut store, "a1", 1_000_000_000_000).unwrap();
+        let (_, _) = session
+            .handle_encoded_with_runtimes(
+                &mut store,
+                &gate,
+                None,
+                None,
+                None,
+                false,
+                "host",
+                hello,
+                1000,
+            )
+            .unwrap();
+        let create = br#"{"jsonrpc":"2.0","id":"create","method":"task.create","params":{"agent_id":"a1","capability":"task.create","deadline":2000,"idempotency_key":"one","description":"test","name":"kept"}}"#;
+        let (created, _) = session
+            .handle_encoded_with_runtimes(
+                &mut store,
+                &gate,
+                None,
+                None,
+                None,
+                false,
+                "host",
+                create,
+                1000,
+            )
+            .unwrap();
+        let task_id = match yonder_protocol::decode_response(&created).unwrap() {
+            Response::Success { result: QueryResult::Snapshot { task }, .. } => task.task_id,
+            value => panic!("任务创建应成功：{value:?}"),
+        };
+        AgentRegistry::set_agent_status(
+            &mut store,
+            "a1",
+            AgentRegistrationStatus::Revoked,
+            1_000_000_000_001,
+        )
+        .unwrap();
+        let create_again = br#"{"jsonrpc":"2.0","id":"create-again","method":"task.create","params":{"agent_id":"a1","capability":"task.create","deadline":2000,"idempotency_key":"two","description":"test","name":"new"}}"#;
+        let (blocked, _) = session
+            .handle_encoded_with_runtimes(
+                &mut store,
+                &gate,
+                None,
+                None,
+                None,
+                false,
+                "host",
+                create_again,
+                1000,
+            )
+            .unwrap();
+        assert!(
+            matches!(yonder_protocol::decode_response(&blocked).unwrap(), Response::Failure { error, .. } if error.code == -32003)
+        );
+        assert_eq!(store.get(&task_id).unwrap().owner_agent_id, "a1");
+        assert_eq!(store.list(None, None, false, 100).unwrap().len(), 1);
+        assert_eq!(
+            AgentRegistry::list_agents(&mut store).unwrap()[0].status,
+            AgentRegistrationStatus::Revoked
+        );
     }
 
     #[test]
@@ -4668,7 +4907,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            16
+            17
         );
     }
 
@@ -5169,6 +5408,7 @@ mod tests {
             ),
             Err(Error::StopRequired)
         );
+        AgentRegistry::register_agent(&mut store, "a1", 1_000_000_000_000).unwrap();
         let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
         let hello=br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":18}}}"#;
         let _ = session
@@ -5451,6 +5691,7 @@ mod tests {
         use yonder_protocol::{QueryResult, Response, TaskStatus};
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        AgentRegistry::register_agent(&mut store, "a1", 1_000_000_000_000).unwrap();
         let task = store
             .register(
                 "a1",

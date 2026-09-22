@@ -147,12 +147,14 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         if let Some((agent_id, session_id, supports_attachment)) = registration {
             if !hello_accepted(&response) { continue; }
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-            let (token, connected) = hub.register(agent_id, session_id.clone(), supports_attachment, tx);
+            let (close_tx, mut close_rx) = tokio::sync::mpsc::unbounded_channel();
+            let (token, connected) = hub.register(agent_id, session_id.clone(), supports_attachment, tx, close_tx);
             emit_pet_agent_connection(&pet, connected);
             let result = async {
                 loop {
                     let delivery = tokio::select! {
                         delivery = rx.recv() => match delivery { Some(delivery) => delivery, None => break },
+                        _ = close_rx.recv() => break,
                         disconnected = reader.fill_buf() => match disconnected {
                             Ok([]) => break,
                             Ok(_) => return Err(io::Error::new(io::ErrorKind::InvalidData, "意外Agent帧")),

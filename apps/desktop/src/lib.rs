@@ -19,6 +19,7 @@ use yonder_adapters::{
 };
 use yonder_application::{
     ActivityState, AuthContext, ControlKind, TaskStore,
+    agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
     admission::Admission,
     browser_use::BrowserUsePort,
     computer_use::{ComputerUsePort, WorkTarget, WorkTargetPort},
@@ -188,6 +189,29 @@ impl TaskHost {
     pub fn desktop_control_active(&self) -> Result<bool, HostError> {
         self.admission
             .has_resource(yonder_application::admission::Resource::Desktop)
+            .map_err(|_| HostError::StorageUnavailable)
+    }
+
+    pub fn register_agent(
+        &mut self,
+        agent_id: &str,
+        now_ms: u64,
+    ) -> Result<AgentRegistration, HostError> {
+        AgentRegistry::register_agent(&mut self.store, agent_id, now_ms)
+            .map_err(|_| HostError::StorageUnavailable)
+    }
+
+    pub fn list_agents(&mut self) -> Result<Vec<AgentRegistration>, HostError> {
+        AgentRegistry::list_agents(&mut self.store).map_err(|_| HostError::StorageUnavailable)
+    }
+
+    pub fn set_agent_status(
+        &mut self,
+        agent_id: &str,
+        status: AgentRegistrationStatus,
+        now_ms: u64,
+    ) -> Result<AgentRegistration, HostError> {
+        AgentRegistry::set_agent_status(&mut self.store, agent_id, status, now_ms)
             .map_err(|_| HostError::StorageUnavailable)
     }
 
@@ -591,6 +615,9 @@ mod tests {
         assert!(events.contains("step_declaration") && events.contains("检查时间线"));
         transition(&mut host.store, &timeline.id, 2, Action::Cancel).unwrap();
         use yonder_application::gateway::{GatewaySession, Platform};
+        for agent in ["agent-a", "agent-b"] {
+            AgentRegistry::register_agent(&mut host.store, agent, 1_000_000_000_000).unwrap();
+        }
         for (agent, own, other) in [
             ("agent-a", "task-a", "task-b"),
             ("agent-b", "task-b", "task-a"),
@@ -642,6 +669,12 @@ mod tests {
         assert_eq!(reopened.presentation().unwrap(), (false, "idle"));
         let mut session = GatewaySession::new(AuthContext::Agent("agent-c"), Platform::Macos);
         let create = br#"{"jsonrpc":"2.0","id":"c0","method":"task.create","params":{"agent_id":"agent-c","capability":"task.create","deadline":2000,"idempotency_key":"listen","description":"request","name":"request test"}}"#;
+        assert!(
+            String::from_utf8(reopened.query_session(&mut session, create, 1000).unwrap())
+                .unwrap()
+                .contains("-32003")
+        );
+        AgentRegistry::register_agent(&mut reopened.store, "agent-c", 1_000_000_000_000).unwrap();
         assert!(
             String::from_utf8(reopened.query_session(&mut session, create, 1000).unwrap())
                 .unwrap()

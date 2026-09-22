@@ -2,6 +2,7 @@
 use crate::{
     AuthContext, TaskStore,
     admission::Admission,
+    agent_registry::AgentRegistry,
     browser_use::{BrowserReferenceRecord, BrowserUsePort},
     computer_use::{ComputerUsePort, WorkTargetPort},
     query,
@@ -23,6 +24,24 @@ pub fn is_execution_request(bytes: &[u8]) -> bool {
         Ok(Request::BrowserExecute { .. }
             | Request::ComputerExecute { .. }
             | Request::ComputerStep { .. })
+    )
+}
+
+fn is_agent_write_request(request: &Request) -> bool {
+    matches!(
+        request,
+        Request::BrowserExecute { .. }
+            | Request::ComputerExecute { .. }
+            | Request::ComputerStep { .. }
+            | Request::Cancel { .. }
+            | Request::Create { .. }
+            | Request::Control { .. }
+            | Request::Complete { .. }
+            | Request::Fail { .. }
+            | Request::WaitForUser { .. }
+            | Request::StepDeclare { .. }
+            | Request::StepAdvance { .. }
+            | Request::Hello { .. }
     )
 }
 
@@ -367,9 +386,9 @@ impl<'a> GatewaySession<'a> {
         ))
     }
 
-    pub fn handle_encoded_with_runtimes(
+    pub fn handle_encoded_with_runtimes<T>(
         &mut self,
-        store: &mut impl TaskStore,
+        store: &mut T,
         admission: &Admission,
         port: Option<&dyn BrowserUsePort>,
         computer: Option<&dyn ComputerUsePort>,
@@ -378,7 +397,10 @@ impl<'a> GatewaySession<'a> {
         host_session_id: &str,
         bytes: &[u8],
         now_ms: u64,
-    ) -> Result<(Vec<u8>, bool), crate::Error> {
+    ) -> Result<(Vec<u8>, bool), crate::Error>
+    where
+        T: TaskStore + AgentRegistry,
+    {
         self.browser_available = port.is_some();
         self.computer_available = computer.is_some() && targets.is_some();
         self.computer_permission_required = computer_permission_required;
@@ -386,6 +408,23 @@ impl<'a> GatewaySession<'a> {
             Ok(request) => request,
             Err(_) => return self.handle_encoded_with_create_signal(store, bytes, now_ms),
         };
+        if is_agent_write_request(&request) {
+            let id = request.request_id().to_owned();
+            if store
+                .authorize_agent_write(self.auth.agent_id(), now_ms)
+                .is_err()
+            {
+                let response = Response::Failure {
+                    jsonrpc: Version::V2,
+                    id: Some(id),
+                    error: RpcError::new(-32003, "Agent已禁用、撤权或未登记"),
+                };
+                return Ok((
+                    yonder_protocol::encode(&response).map_err(|_| crate::Error::StorageUnavailable)?,
+                    false,
+                ));
+            }
+        }
         if !matches!(
             request,
             Request::StepAdvance { .. }
