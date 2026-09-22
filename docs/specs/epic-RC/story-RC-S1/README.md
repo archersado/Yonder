@@ -26,3 +26,5 @@ OpenSpec: rc-s1-recording-capture-spike
 2026-09-18：依据 AD-RC-01 修订为“受控会话输入”契约。显式接管租约内事件只可作为交回前 Observe 证据，不宣称物理用户来源、不自动回放；先完成租约、隐私与停止 Spike，产品时间线仍未授权。
 
 2026-09-20：受控会话、租约外拒绝、系统安全输入与停止边界的 macOS 无正文子范围已验证。用户排除应用样本未完成：临时探针无法在不抢占前台的情况下稳定读取排除目标身份；按用户决定暂缓，RC-S1 保持 `design-review`，不得接入产品录制或回放。
+
+2026-09-22：已知Yonder/Replay标记的零位移滚动注入在租约内被拒绝，未采集事件或正文；见[macOS注入拒绝验证](../../../../openspec/changes/rc-s1-recording-capture-spike/verification-known-injection-macos.md)。用户排除应用与Windows证据仍保留门禁。
