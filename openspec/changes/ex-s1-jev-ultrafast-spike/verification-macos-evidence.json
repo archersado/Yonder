@@ -1,0 +1,950 @@
+{
+  "sample_version": "ex-s1-v1",
+  "platform": "darwin",
+  "confidence_threshold": 0.75,
+  "decision_timeout_ms": 1500,
+  "request_interval_ms": 250,
+  "repeat_count": 3,
+  "sdk": "@typesafe-ai/sdk@0.6.0",
+  "cancellation": {
+    "stopped_new_action": true,
+    "stop_ms": 1.10070899999846,
+    "error_class": "APIUserAbortError"
+  },
+  "summary": {
+    "decisions": 24,
+    "baseline_requests": 24,
+    "jev_requests": 24,
+    "successful_jev_decisions": 24,
+    "jev_request_failures": 0,
+    "task_success_rate": 1,
+    "misactions": 0,
+    "baseline_tokens": 17895,
+    "jev_tokens": 8922,
+    "token_reduction_rate": 0.5014249790444258,
+    "jev_latency_p95_ms": 731.1791669999984,
+    "jev_latency_max_ms": 993.8439169999999,
+    "baseline_latency_p95_ms": 722.4464589999989,
+    "latency_ratio": 1.012087688840066,
+    "cancel_stop_ms": 1.10070899999846,
+    "overall_handback_rate": 0.5,
+    "success_path_handback_rate": 0,
+    "estimated_cost": null,
+    "cost_available": false
+  },
+  "failures": [],
+  "results": [
+    {
+      "repeat": 1,
+      "sample_id": "CUA-SUCCESS",
+      "layer": "CUA",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "cua.export",
+      "confidence": 0.13,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 841.547167,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 715,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "CUA-SUCCESS",
+      "layer": "CUA",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "cua.export",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 993.8439169999999,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "CUA-FAILURE",
+      "layer": "CUA",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 315.3527079999999,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 711,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "CUA-FAILURE",
+      "layer": "CUA",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 315.5849169999997,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "BUA-SUCCESS",
+      "layer": "BUA",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "bua.next",
+      "confidence": 0.35,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 312.62316699999974,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 711,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "BUA-SUCCESS",
+      "layer": "BUA",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "bua.next",
+      "confidence": 1,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 322.37783299999955,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "BUA-FAILURE",
+      "layer": "BUA",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.98,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 405.1325420000003,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 700,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "BUA-FAILURE",
+      "layer": "BUA",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 336.05883300000005,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "DOCUMENT-SUCCESS",
+      "layer": "DOCUMENT",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "doc.save",
+      "confidence": 0.15,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 368.9948749999994,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 725,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "DOCUMENT-SUCCESS",
+      "layer": "DOCUMENT",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "doc.save",
+      "confidence": 1,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 297.01820900000075,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "DOCUMENT-FAILURE",
+      "layer": "DOCUMENT",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.97,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 313.10983300000044,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 715,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "DOCUMENT-FAILURE",
+      "layer": "DOCUMENT",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.98,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 278.8375420000002,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "COMMAND-SUCCESS",
+      "layer": "COMMAND",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "cmd.status",
+      "confidence": 0.08,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 291.2270830000007,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 710,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "COMMAND-SUCCESS",
+      "layer": "COMMAND",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "cmd.status",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 317.846458,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "COMMAND-FAILURE",
+      "layer": "COMMAND",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.96,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 283.6828750000004,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 700,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 1,
+      "sample_id": "COMMAND-FAILURE",
+      "layer": "COMMAND",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.98,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 298.296875,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "CUA-SUCCESS",
+      "layer": "CUA",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "cua.export",
+      "confidence": 0.17,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 317.8029999999999,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 715,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "CUA-SUCCESS",
+      "layer": "CUA",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "cua.export",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 339.1252919999988,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "CUA-FAILURE",
+      "layer": "CUA",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.98,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 286.7854590000006,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 711,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "CUA-FAILURE",
+      "layer": "CUA",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 287.01991700000144,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "BUA-SUCCESS",
+      "layer": "BUA",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "bua.next",
+      "confidence": 0.27,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 329.92470800000046,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 711,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "BUA-SUCCESS",
+      "layer": "BUA",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "bua.next",
+      "confidence": 1,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 304.1690000000017,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "BUA-FAILURE",
+      "layer": "BUA",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 273.29720799999996,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 700,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "BUA-FAILURE",
+      "layer": "BUA",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 293.4446250000001,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "DOCUMENT-SUCCESS",
+      "layer": "DOCUMENT",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "doc.save",
+      "confidence": 0.09,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 286.0212080000001,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 725,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "DOCUMENT-SUCCESS",
+      "layer": "DOCUMENT",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "doc.save",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 332.6900000000005,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "DOCUMENT-FAILURE",
+      "layer": "DOCUMENT",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.96,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 720.9296249999989,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 715,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "DOCUMENT-FAILURE",
+      "layer": "DOCUMENT",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 298.5582499999982,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "COMMAND-SUCCESS",
+      "layer": "COMMAND",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "cmd.status",
+      "confidence": 0.16,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 326.98262500000055,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 710,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "COMMAND-SUCCESS",
+      "layer": "COMMAND",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "cmd.status",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 331.2935839999991,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "COMMAND-FAILURE",
+      "layer": "COMMAND",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.97,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 267.00174999999945,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 700,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 2,
+      "sample_id": "COMMAND-FAILURE",
+      "layer": "COMMAND",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.98,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 275.62725000000137,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "CUA-SUCCESS",
+      "layer": "CUA",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "cua.export",
+      "confidence": 0.12,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 304.03645900000265,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 715,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "CUA-SUCCESS",
+      "layer": "CUA",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "cua.export",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 246.5482919999995,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "CUA-FAILURE",
+      "layer": "CUA",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.98,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 293.28579100000206,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 711,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "CUA-FAILURE",
+      "layer": "CUA",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 278.5044170000001,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "BUA-SUCCESS",
+      "layer": "BUA",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "bua.next",
+      "confidence": 0.32,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 290.0152500000004,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 711,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "BUA-SUCCESS",
+      "layer": "BUA",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "bua.next",
+      "confidence": 1,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 281.80316700000185,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 36
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "BUA-FAILURE",
+      "layer": "BUA",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 295.809709000001,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 700,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "BUA-FAILURE",
+      "layer": "BUA",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 312.01587500000096,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 338,
+        "output_tokens": 35
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "DOCUMENT-SUCCESS",
+      "layer": "DOCUMENT",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "doc.save",
+      "confidence": 0.22,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 308.1527920000008,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 725,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "DOCUMENT-SUCCESS",
+      "layer": "DOCUMENT",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "doc.save",
+      "confidence": 1,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 255.39949999999953,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "DOCUMENT-FAILURE",
+      "layer": "DOCUMENT",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.98,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 264.26245800000106,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 715,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "DOCUMENT-FAILURE",
+      "layer": "DOCUMENT",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 286.3187500000022,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "COMMAND-SUCCESS",
+      "layer": "COMMAND",
+      "outcome": "success",
+      "mode": "baseline",
+      "selected": "cmd.status",
+      "confidence": 0.22,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 722.4464589999989,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 710,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "COMMAND-SUCCESS",
+      "layer": "COMMAND",
+      "outcome": "success",
+      "mode": "jev",
+      "selected": "cmd.status",
+      "confidence": 0.99,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "expected-action",
+      "latency_ms": 322.5997920000009,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "COMMAND-FAILURE",
+      "layer": "COMMAND",
+      "outcome": "failure",
+      "mode": "baseline",
+      "selected": "handback",
+      "confidence": 0.97,
+      "correct": true,
+      "misaction": false,
+      "handed_back": false,
+      "reason": "baseline",
+      "latency_ms": 470.49662499999977,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 700,
+        "output_tokens": 34
+      }
+    },
+    {
+      "repeat": 3,
+      "sample_id": "COMMAND-FAILURE",
+      "layer": "COMMAND",
+      "outcome": "failure",
+      "mode": "jev",
+      "selected": "handback",
+      "confidence": 0.97,
+      "correct": true,
+      "misaction": false,
+      "handed_back": true,
+      "reason": "handback",
+      "latency_ms": 731.1791669999984,
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 336,
+        "output_tokens": 34
+      }
+    }
+  ]
+}
