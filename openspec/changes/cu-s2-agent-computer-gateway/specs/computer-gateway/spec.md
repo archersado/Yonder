@@ -35,11 +35,19 @@
 
 ### Requirement: 单次往返执行CUA步骤
 
+系统 MUST 将合法步骤声明、动作派发、强制Observe和普通边界推进合并在一次`computer.step`往返内完成。
+
+#### Scenario: 单次声明执行并推进
+
 - **WHEN** Agent提交步骤标识、展示名称、SDK工具名与参数
 - **THEN** Yonder在一次`computer.step`调用内完成声明、动作、强制Observe与普通边界推进
 - **AND** MCP默认工具列表不要求Agent分别调用declare、execute和advance
 
 ### Requirement: Observe证据由Yonder提供
+
+系统 MUST 为已完成的SDK动作提供有界后置观察证据，且不持久化截图或完整Driver Payload。
+
+#### Scenario: 返回有界观察证据
 
 - **WHEN** trycua动作完成且后置桌面Observe有效
 - **THEN** 响应返回紧凑动作结论、元素数量及可用截图的MIME与本地只读路径
@@ -47,10 +55,18 @@
 
 ### Requirement: 用户输入优先
 
+系统 MUST 让真实用户输入优先于Agent CUA动作，并进入保守中断边界。
+
+#### Scenario: 用户输入中断任务
+
 - **WHEN** CUA动作期间出现新的真实用户键鼠输入
 - **THEN** 系统终止Worker、记录unknown并中断任务、释放桌面输入租约，且不自动重试或恢复
 
 ### Requirement: 显式完成
+
+系统 MUST 只在Agent显式请求完成且最后一个步骤已Observe推进后提交completed。
+
+#### Scenario: 最后步骤显式完成
 
 - **WHEN** Agent已推进最后一个Observed步骤并显式请求完成
 - **THEN** 系统原子提交completed后释放任务资源

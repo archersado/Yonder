@@ -19,4 +19,6 @@ AD-VI-02已Accepted。协议1.14、Application输入用例、macOS Local Socket�
 
 同日失败关闭修复完成：探针仅在前一turn结束后作为下一turn到达；CLI已移除`codex queue`调用，`yonder agent-bridge`在缺少可确认提交的当前会话通道时明确退出，不再让桌宠显示虚假连接或成功。
 
+2026-09-23 复验共享 App Server 控制通道：当前 CLI 会话仍为`notLoaded`，`turn/start`返回`thread not found`，不能作为当前会话输入通道；AG-S5继续等待受支持的直接输入接口。
+
 关联实施目录：[ag-s5-agent-input-channel](../../../../openspec/changes/ag-s5-agent-input-channel/proposal.md)，路径`openspec/changes/ag-s5-agent-input-channel/`。

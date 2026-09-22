@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-21",
+  "scope": "DS-S4 macOS 导入子范围",
+  "bundle_identifier": "com.yonder.desktop",
+  "tray_import_menu": "unverified",
+  "native_open_panel": "unverified",
+  "valid_pack_loaded": true,
+  "invalid_pack_rejected": false,
+  "invalid_pack_active_tree_sha256": "8e27c45aa0a4a028ab88b6d5261197de8a7b4da46e3ef2100ce28561c4c52956",
+  "evidence": {
+    "valid_loaded": "valid-loaded.png",
+    "invalid_rejected": "invalid-rejected.png 未通过复核，不能作为证据",
+    "current_pack_tree": "current-pack-tree.sha256"
+  },
+  "scope_limit": "不证明 Windows、原生文件选择、托盘触发、拒绝反馈或完整用户旅程",
+  "passed": false
+}

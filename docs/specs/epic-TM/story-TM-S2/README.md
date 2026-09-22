@@ -28,6 +28,8 @@ Failure Increment: [tm-s2-agent-fail](../../../../openspec/changes/tm-s2-agent-f
 
 执行尝试准备子范围及schema7迁移验证PASS，见[独立Verification Goal](../../../../openspec/changes/tm-s2-execution-attempt/verification-goal.md)。真实Driver派发、Observe、停止控制与Windows仍待后续，完整Story不Archive。
 
+2026-09-22跨Change复核：CU-S2已用真实prepared attempt经产品CU Port派发到受监管trycua Worker，并在macOS完成后置Observe；该证据关闭本Story的macOS真实派发/Observe子缺口。停止控制、完整生命周期、PR隔离审阅与Windows仍保留，完整Story不Archive。
+
 2026-09-16：按 Accepted AD-TM-08 继续实施 attempt 结果事务与协议 1.5 增量；只记录动作/Observe 分类，不保存正文或截图。结果落库后仍不释放执行占用，步骤边界停止归 TM-S3。
 
 尝试结果事务子范围PASS：observed/unknown与事件/Outbox原子提交，协议1.4兼容、1.5增量可见，真实macOS动作结果落库且占用保留；见[独立 Verification Goal](../../../../openspec/changes/tm-s2-attempt-result/verification-goal.md)。

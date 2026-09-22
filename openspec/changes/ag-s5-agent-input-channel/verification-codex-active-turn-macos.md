@@ -22,3 +22,14 @@
 ## 结论与门禁
 
 现有`agent-bridge`已停止把`codex queue`退出成功映射为`accepted`。在Codex为当前会话提供可复用的`turn/start|turn/steer`SDK、CLI或受支持App Server连接以前，不得用读取内部队列数据库、修改Codex机制或启动第二Agent绕过。本子目标返回实施阶段，AG-S5保持implementing。
+
+## 2026-09-23 补充证据
+
+再次直接连接共享 App Server 控制通道，验证当前 CLI 会话仍不可达：
+
+- `thread/loaded/list` 返回空数组。
+- `thread/list` 中当前线程为 `status.type = "notLoaded"`，`canAcceptDirectInput = null`。
+- `thread/resume` 返回 `thread ... already has an active writer`。
+- 对当前线程直接调用 `turn/start` 返回 `thread not found`。
+
+结论：共享 App Server 控制通道不是当前 CLI 会话的输入通道；继续用 `thread/list`/`turn/start` 推导当前会话可达，属于误报。本 Story 保持失败关闭，不把这版探测实现合入产品路径。

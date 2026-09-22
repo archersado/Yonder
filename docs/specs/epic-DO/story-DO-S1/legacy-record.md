@@ -16,4 +16,4 @@
 6. 记录冷启动、批量耗时、峰值内存、分发体积、依赖和许可证。
 7. 只输出 Rust、Node 或两者均淘汰，不保留长期双实现。
 
-OpenSpec：`openspec/changes/e0-compare-ooxml-adapters/`
+OpenSpec：`openspec/changes/archive/2026-09-22-e0-compare-ooxml-adapters/`

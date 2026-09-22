@@ -33,7 +33,7 @@ for path in sorted(set(re.findall(r'(?:runtime/|/Users/)[A-Za-z0-9_./-]+\.png', 
     file = Path(path) if path.startswith('/') else ui/path
     pet = pet.replace(path, 'data:image/png;base64,'+base64.b64encode(file.read_bytes()).decode())
 states = [[item['id'], item['label'], '当前播放版本' if item['id'] in actual else '循环动画样本 · 事件未接线'] for item in plan['items']]
-fixture = '''<script>window.__TAURI_INTERNALS__={invoke:async c=>{if(c==='pet_is_visible')return true;if(c==='pet_task_state')return [true,STATE];if(c==='pet_hover_region')return [false,false];if(c==='pet_dock')throw Error('预览保持展开');return false;}};</script>'''
+fixture = '''<script>window.__TAURI_INTERNALS__={invoke:async c=>{if(c==='pet_is_visible')return true;if(c==='pet_task_state')return [true,STATE];if(c==='pet_dock')throw Error('预览保持展开');return false;}};</script>'''
 frames = []
 embedded = re.search(r'(<script id="state-animations" type="application/json">)(.*?)(</script>)',pet)
 embedded_config = json.loads(embedded[2])
@@ -62,6 +62,6 @@ transition=pet.replace('<head>', '<head><script>window.previewState="recording";
 Path('/private/tmp/yonda-transition-check.html').write_text(transition)
 
 # 隐藏态状态变化夹具：缩短闲置时间，只验证既有 dock/wake 调用次数。
-dock_fixture = '''<script>window.previewState="idle";window.previewWakeCount=0;window.previewFail=false;window.__TAURI_INTERNALS__={invoke:async c=>{if(c==='pet_is_visible')return true;if(c==='pet_task_state'){if(window.previewFail)throw Error('状态不可用');return [true,window.previewState]}if(c==='pet_hover_region')return [false,false];if(c==='pet_dock')return 'right';if(c==='pet_wake'){window.previewWakeCount++;return true}return false;}};</script>'''
+dock_fixture = '''<script>window.previewState="idle";window.previewWakeCount=0;window.previewFail=false;window.__TAURI_INTERNALS__={invoke:async c=>{if(c==='pet_is_visible')return true;if(c==='pet_task_state'){if(window.previewFail)throw Error('状态不可用');return [true,window.previewState]}if(c==='pet_dock')return 'right';if(c==='pet_wake'){window.previewWakeCount++;return true}return false;}};</script>'''
 docked = pet.replace('const IDLE_MS = 180000;', 'const IDLE_MS = 80;').replace('<head>', '<head>'+dock_fixture)
 Path('/private/tmp/yonda-docked-state-change.html').write_text(docked)

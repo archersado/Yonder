@@ -1,0 +1,15 @@
+{
+  "platform": "macOS",
+  "socket_path": "HOME/Library/Application Support/com.yonder.desktop/agent.sock",
+  "directory_mode": "0700",
+  "socket_mode": "0600",
+  "first_hello_binding": true,
+  "same_connection_identity_switch_rejected": true,
+  "cross_connection_isolation": true,
+  "cli_missing_agent_id_rejected": true,
+  "cli_invalid_agent_id_rejected": true,
+  "cli_valid_agent_id_initialize": true,
+  "agent_a_task_id": "task_ceb320637fd9e136297889c31e17bd97",
+  "agent_b_task_id": "task_dd4e8393221f7c94e7558e1ba46a5a8a",
+  "passed": true
+}

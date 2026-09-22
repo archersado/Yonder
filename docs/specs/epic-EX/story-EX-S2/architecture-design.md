@@ -6,6 +6,8 @@ AG-S1 的慢脑接入边界已由 Accepted [AD-AG-07](../../../../_bmad-output/p
 
 本子范围的配置界面已由 Accepted [AD-EX-03](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-03-JEV-CONFIG-INTERFACE.md) 定案；它只交付非敏感配置的读取、校验和保存，不授权 Jev 执行。
 
+当前实施基线保持 AD-EX-01 的“每步 Jev 决策”。[AD-EX-04](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-04-BOUNDED-ACTION-RECIPE.md) 保持 Proposed，仅作为后续对照观察路线；在 Accepted 前不进入 EX-S2 实施、协议、迁移或运行时代码，且须计划片段契约修订后才能另行创建对照 OpenSpec。
+
 ## 跨 Story 联审前置
 
 本 Story 的设计不重排既有 Epic：AG-S1 的传输与身份、AG-S3 的归属 Agent 步骤声明、TM-S2/TM-S7 的任务事实、CU/BU 的模型无关 Driver 与 Bridge、DO/FI/CM 的文件锁与命令围栏都先保持现状。EX-S2 只定稿计划片段、版本/CAS、内部快脑步骤来源、事件/Outbox 交回和可区分错误矩阵；通过后才能给 AG/EX 增量创建实施 OpenSpec。AD-EX-02 未 Accepted、TM-S7 未定案或任一执行层门禁未通过时，EX-S2/S3/S4 不进入产品实施。
@@ -24,7 +26,7 @@ Jev 配置由 Application 拥有并通过既有桌面命令提交；独立 Jev �
 |---|---|---|
 | `enabled` | bool | 是否允许新片段使用 Jev。 |
 | `service_mode` | enum：`local` / `remote` | 服务形态，首版只开放 AD-EX-02 定稿的取值。 |
-| `endpoint` | URL | 服务端点；仅保存 origin + path，不保存查询串。 |
+| `endpoint` | URL | 服务端点；仅保存 origin + path，不保存查询串、fragment、用户名或密码；`remote` 必须使用 HTTPS。 |
 | `step_limit` | integer，`1..100` | 每片段最大步数。 |
 | `time_limit_ms` | integer，`1000..600000` | 每片段最大执行时长。 |
 | `token_limit` | integer，`1..100000` | 每片段最大模型 token 数。 |
