@@ -5,4 +5,6 @@ Epic: EX
 Status: design-review  
 OpenSpec: ex-s1-jev-ultrafast-spike
 
+Change：openspec/changes/ex-s1-jev-ultrafast-spike/
+
 设计：[产品需求](product-requirements.md) · [架构设计](architecture-design.md) · [视觉交互设计](visual-interaction-design.md)。输出为双平台证据及 [AD-EX-02](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-02-JEV-INTEGRATION-ROUTE.md) 技术结论，不开放产品 Gateway。
