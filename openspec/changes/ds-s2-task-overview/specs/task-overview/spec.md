@@ -1,57 +1,61 @@
-# ADDED Requirements
+## ADDED Requirements
 
-## Requirement: 可信本机宿主核心
+### Requirement: 可信本机宿主核心
 
-### Scenario: 启动与恢复
+DS SHALL只通过可信的本机桌面组合根访问任务存储。
+
+#### Scenario: 启动与恢复
 
 - WHEN可信组合根打开本机应用任务目录
 - THEN先持有OS单实例锁，打开真实SQLite、显式恢复running至0，再创建唯一准入实例
 - AND竞争进程不得打开同一宿主，失败不开放查询或执行
 
-### Scenario: 本机只读授权
+#### Scenario: 本机只读授权
 
 - WHEN本机界面调用宿主查询
 - THEN权限绑定组合根本机身份而非请求自报身份，沿用既有Rust协议
 - AND不把本机权限暴露为Agent入口，查询不修改任务状态
 
-## Requirement: 真实同源任务总览
+### Requirement: 真实同源任务总览
 
 DS SHALL展示可信Application任务查询，不拥有任务事实源。
 
-### Scenario: 查看全部进行中任务
+#### Scenario: 查看全部进行中任务
 
 - WHEN用户打开已接通的总览
 - THEN显示授权内真实任务ID、Agent与状态，并可通过游标访问全部页
 - AND不显示虚构进度或推断任务类型
 
-### Scenario: 进行中与全部切换
+#### Scenario: 进行中与全部切换
 
 - WHEN切换筛选或刷新
 - THEN按现有include_finished契约从第一页重新读取
 - AND“进行中”只展示`running`，暂停、取消及其他状态仅在“全部”展示
 - AND旧轮次响应不能覆盖新页面，不将全部标为仅历史
 
-### Scenario: 数据源不可用
+#### Scenario: 数据源不可用
 
 - WHEN能力未接通或查询失败
 - THEN分别显示能力未提供或读取失败
 - AND不显示为暂无任务，不据此许可隐藏桌宠
 
-### Scenario: 查看详情与缺失字段
+#### Scenario: 查看详情与缺失字段
 
 - WHEN选中真实任务
 - THEN显示已有四个快照字段，缺失名称、原因、步骤和外部引用明确未提供
 - AND不复制浏览器Task Space或自行改变状态
 
-## Requirement: 轻量可访问面板
+### Requirement: 轻量可访问面板
 
-### Scenario: 关闭与键盘操作
+DS SHALL提供可关闭、可键盘操作的轻量任务面板。
+
+#### Scenario: 关闭与键盘操作
 
 - WHEN用户使用Tab导航或Escape关闭
 - THEN焦点可见且操作可达，关闭后返回桌宠入口
 - AND不提供全屏应用形态，减少动态效果遵循真实系统偏好
 
-### Scenario: 同步执行期间显示忙碌
+#### Scenario: 同步执行期间显示忙碌
 
 - WHEN已解码的本地CUA或BUA执行请求开始占用宿主
 - THEN宿主主动发布事件，使桌宠无需等待动作返回或查询数据库即可显示并循环`executing`状态
@@ -75,14 +79,18 @@ DS SHALL展示可信Application任务查询，不拥有任务事实源。
 
 小龙任务表现复用assets/mascot/互动动画生命周期-v1.md：真实执行占用映射executing（认真挥爪，约1.4秒循环），等待用户映射waiting_for_user，暂停/中断映射paused，其余idle。执行优先，非执行时首个未结束任务作为代表（按任务ID）；成功/失败一次性动画仍需真实事件去重，当前快照不重播。executing使用同角色透明四帧素材，不把整张PNG变换伪装成局部挥爪。此补充覆盖此前新增文字忙碌标记的工程建议。
 
-## Requirement: Agent 当前步骤详情
+## ADDED Requirements
 
-### Scenario: 有声明
+### Requirement: Agent 当前步骤详情
+
+DS SHALL只读展示 Agent 已声明的当前步骤。
+
+#### Scenario: 有声明
 - **WHEN** 用户选择含 Agent 步骤声明的任务
 - **THEN** 详情通过同一响应显示步骤标签、step_id 与接受序号
 - **AND** 不把声明表达为动作已开始或完成
 
-### Scenario: 无声明或失败
+#### Scenario: 无声明或失败
 - **WHEN** 当前任务没有步骤声明
 - **THEN** 明确显示 Agent 尚未声明步骤
 - **WHEN** 步骤读取失败
