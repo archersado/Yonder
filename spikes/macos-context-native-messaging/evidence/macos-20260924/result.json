@@ -1,0 +1,45 @@
+{
+  "platform": "macos",
+  "os_version": "26.5.1",
+  "swift_version": "6.3.3",
+  "native_events": {
+    "passed": false,
+    "accessibility_trusted": true,
+    "first_observed_activation_events": 2,
+    "first_observed_observer_registrations": 3,
+    "first_observed_window_events": 2,
+    "repeat_activation_events": 0,
+    "repeat_observer_attempts": 1,
+    "repeat_observer_registrations": 1,
+    "repeat_window_events": 0,
+    "observer_released": true,
+    "workspace_notification_removed": true,
+    "reason": "event_delivery_not_reproducible"
+  },
+  "native_messaging_protocol": {
+    "passed": true,
+    "utf8_fragmented": true,
+    "consecutive_frames": true,
+    "stdout_protocol_only": true,
+    "oversized_rejected": true,
+    "invalid_json_rejected": true
+  },
+  "extension_privacy": {
+    "passed": true,
+    "history_permission_absent": true,
+    "incognito_guard_present": true,
+    "incognito_access_checked": true,
+    "allowed_origin_exact": true
+  },
+  "google_chrome": {
+    "version": "153.0.8010.53",
+    "native_messaging_connected": false,
+    "reason": "stable_load_extension_removed_and_manual_directory_selection_not_completed"
+  },
+  "microsoft_edge": {
+    "installed": false,
+    "native_messaging_connected": false
+  },
+  "contains_user_content": false,
+  "overall": "failed"
+}

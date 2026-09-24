@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Yonder上下文通道验证</title>
+  <style>
+    body { font: 14px system-ui; min-width: 260px; margin: 16px; }
+    button { margin-top: 12px; min-height: 36px; width: 100%; }
+    #status { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>上下文通道验证</h1>
+  <p>状态：<span id="status">正在读取</span></p>
+  <p>已确认消息：<span id="accepted">0</span></p>
+  <button id="toggle" type="button">开始验证</button>
+  <script src="control.js"></script>
+</body>
+</html>

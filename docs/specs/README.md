@@ -137,6 +137,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-24 AG-S5 Codex本地桥接通过：CLI 0.156.1共享App Server由remote TUI与Yonder通过同一WebSocket-over-UDS监听socket使用，桥接要求显式thread绑定且不使用`codex queue`。隔离合约及真实macOS remote TUI独立验证均证明活动turn走steer、人工中断后下一条输入创建新turn；剩余门禁为AG-S1云端WSS接线与暂缓的Windows产品验证。
 
+2026-09-24 CX-S1恢复macOS Spike：Native Host有界协议和扩展隐私静态门禁通过，但无正文`NSWorkspace/AXObserver`事件无法在统一脚本中重复；Google Chrome稳定版真实Native Messaging加载仍需要用户在系统目录选择器确认，Microsoft Edge未安装。独立Goal为FAIL并返回Apply，Story保持design-review，不接产品Context Port。
+
 2026-09-18 AD-VI-02证据修正：撤回Codex当前会话样本通过结论，模型无关`AgentSession`决策仍Accepted。云端产品WSS由AG-S1先定稿端点、认证、TLS和重连；AG-S5只复用已认证会话，不复制连接或使用Spike的不安全TLS配置。
 
 2026-09-18 AG-S1云端Connector设计补齐：单一出站WSS、认证绑定、系统TLS校验、有界重连及本地能力隔离已写入AC13～19。外部平台配对契约与持久设备凭据仍缺失，Credential Store接线按用户决定延期；当前不生成产品WSS Proposal，不开放匿名或明文凭据连接。

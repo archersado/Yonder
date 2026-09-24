@@ -1,0 +1,9 @@
+{
+  "name": "com.yonder.context_spike",
+  "description": "Yonder macOS context validation host",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://mofdddjaniddgalgegfdjegiegpneokc/"
+  ]
+}
