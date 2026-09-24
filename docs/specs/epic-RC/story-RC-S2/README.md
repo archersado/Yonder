@@ -2,7 +2,7 @@
 
 Story: RC-S2  
 Epic: RC  
-Status: draft  
+Status: design-review
 OpenSpec: -
 
 ## 设计文档
@@ -16,6 +16,8 @@ OpenSpec: -
 本Story提取`learn/avatar-orb-pet`操作学习中可复用的审阅与回放体验，执行架构仍遵循Yonder。依赖RC-S1可靠来源、不可变原始时间线和隐私排除；依赖CU的单桌面租约、逐步Observe与停止；依赖Agent创建并命名回放任务。
 
 RC-S1当前来源Spike失败，输入正文的未加密持久化也未决，因此本Story只完成规格，不生成OpenSpec或实现。
+
+2026-09-23 设计增量：三份设计已具备审阅条件；仍以 RC-S1 来源与隐私门禁为实施前置，不生成 Proposal。
 
 ## OpenSpec 与验证
 
