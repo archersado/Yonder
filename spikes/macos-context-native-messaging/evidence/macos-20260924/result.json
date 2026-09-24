@@ -33,8 +33,11 @@
   },
   "google_chrome": {
     "version": "153.0.8010.53",
-    "native_messaging_connected": false,
-    "reason": "stable_load_extension_removed_and_manual_directory_selection_not_completed"
+    "host_manifest_scope": "current_user",
+    "native_messaging_connected": true,
+    "accepted": 3,
+    "incognito_rejected": true,
+    "passed": true
   },
   "microsoft_edge": {
     "installed": false,

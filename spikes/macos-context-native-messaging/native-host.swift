@@ -1,7 +1,10 @@
 import Foundation
 
 private let maximumMessageBytes = 1024 * 1024
+private let evidenceURL = URL(fileURLWithPath: "/tmp/yonder-cx-s1-macos-host/browser-evidence.json")
 private var sequence = 0
+private var receivedTypes: [String] = []
+private var incognitoRejected: Bool?
 
 private func reject(_ code: String) -> Never {
     FileHandle.standardError.write(Data((code + "\n").utf8))
@@ -38,6 +41,22 @@ private func writeMessage(_ value: [String: Any]) {
     FileHandle.standardOutput.write(payload)
 }
 
+private func writeEvidence() {
+    var value: [String: Any] = [
+        "accepted": sequence,
+        "received_types": receivedTypes,
+    ]
+    if let incognitoRejected { value["incognito_rejected"] = incognitoRejected }
+    guard let payload = try? JSONSerialization.data(withJSONObject: value) else {
+        reject("evidence_invalid")
+    }
+    do {
+        try payload.write(to: evidenceURL, options: .atomic)
+    } catch {
+        reject("evidence_write_failed")
+    }
+}
+
 while let header = readExact(4, allowCleanEOF: true) {
     let length = messageLength(header)
     guard length > 0, length <= maximumMessageBytes else { reject("frame_too_large") }
@@ -47,5 +66,10 @@ while let header = readExact(4, allowCleanEOF: true) {
           ["recording.started", "recording.stopped", "tab.activated", "tab.updated", "protocol.utf8"].contains(type)
     else { reject("message_invalid") }
     sequence += 1
+    receivedTypes.append(type)
+    if type == "recording.started" {
+        incognitoRejected = object["incognito_rejected"] as? Bool
+    }
+    writeEvidence()
     writeMessage(["accepted": true, "sequence": sequence])
 }

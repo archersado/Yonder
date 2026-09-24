@@ -4,6 +4,7 @@ set -eu
 SCRIPT_DIRECTORY=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 HOST_DIRECTORY=/tmp/yonder-cx-s1-macos-host
 HOST_PATH="$HOST_DIRECTORY/native-host"
+EVIDENCE_PATH="$HOST_DIRECTORY/browser-evidence.json"
 MANIFEST_DIRECTORY="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 MANIFEST_PATH="$MANIFEST_DIRECTORY/com.yonder.context_spike.json"
 
@@ -15,6 +16,7 @@ case "${1:-}" in
     fi
     mkdir -p "$HOST_DIRECTORY" "$MANIFEST_DIRECTORY"
     chmod 700 "$HOST_DIRECTORY"
+    if test -f "$EVIDENCE_PATH"; then rm "$EVIDENCE_PATH"; fi
     xcrun swiftc "$SCRIPT_DIRECTORY/native-host.swift" -o "$HOST_PATH"
     chmod 700 "$HOST_PATH"
     sed "s|__HOST_PATH__|$HOST_PATH|g" "$SCRIPT_DIRECTORY/native-host-manifest.json" > "$MANIFEST_PATH"
@@ -24,6 +26,7 @@ case "${1:-}" in
   uninstall)
     if test -f "$MANIFEST_PATH"; then rm "$MANIFEST_PATH"; fi
     if test -f "$HOST_PATH"; then rm "$HOST_PATH"; fi
+    if test -f "$EVIDENCE_PATH"; then rm "$EVIDENCE_PATH"; fi
     if test -d "$HOST_DIRECTORY"; then rmdir "$HOST_DIRECTORY" 2>/dev/null || true; fi
     echo "uninstalled"
     ;;

@@ -22,7 +22,7 @@ port.onDisconnect.addListener(() => {
 
 chrome.extension.isAllowedIncognitoAccess().then((allowed) => {
   result.incognito_rejected = allowed === false;
-  port.postMessage({ type: "recording.started" });
+  port.postMessage({ type: "recording.started", incognito_rejected: result.incognito_rejected });
   port.postMessage({ type: "tab.activated", url_present: true, title_present: true });
   port.postMessage({ type: "recording.stopped" });
 });

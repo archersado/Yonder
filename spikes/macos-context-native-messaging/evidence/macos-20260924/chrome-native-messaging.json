@@ -1,0 +1,16 @@
+{
+  "browser": "Google Chrome",
+  "version": "153.0.8010.53",
+  "host_manifest_scope": "current_user",
+  "extension_origin_exact": true,
+  "native_messaging_connected": true,
+  "accepted": 3,
+  "received_types": [
+    "recording.started",
+    "tab.activated",
+    "recording.stopped"
+  ],
+  "incognito_rejected": true,
+  "contains_user_content": false,
+  "passed": true
+}

@@ -50,6 +50,8 @@
 ./register-chrome-host.sh uninstall
 ```
 
+固定扩展自检页`test.html`会发送开始、标签激活和停止三条无正文消息。Host只把消息类型、计数和隐私模式拒绝布尔值写入临时`browser-evidence.json`，不记录URL、标题或Payload；验证者确认后只提交脱敏结构化证据。
+
 真实Google Chrome的隔离自动样本使用临时用户数据目录，运行测试扩展页并在退出时撤销Host注册：
 
 ```bash
