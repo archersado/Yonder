@@ -2,8 +2,10 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -16,6 +18,10 @@ ALLOWED = {
     "yonder-desktop": {"yonder-adapters", "yonder-application"},
     "yonder-cli": {"yonder-protocol"},
 }
+
+
+def cargo_executable():
+    return os.environ.get("CARGO") or shutil.which("cargo") or str(Path.home() / ".cargo/bin/cargo")
 
 
 def check_dependencies(metadata):
@@ -177,7 +183,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     metadata = subprocess.check_output(
-        ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked", "--offline"],
+        [cargo_executable(), "metadata", "--format-version", "1", "--no-deps", "--locked", "--offline"],
         cwd=root, text=True,
     )
     check_dependencies(json.loads(metadata))
