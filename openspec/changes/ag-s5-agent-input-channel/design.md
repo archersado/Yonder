@@ -4,6 +4,8 @@
 
 本地样本必须证明输入进入同一Agent会话。现有MCP stdio仅提供Agent调用工具的方向，不能作为通过证据；不能原生接入双工协议的本地Agent连接器须用自己的CLI、SDK或会话API实现并验证当前会话输入Adapter，Yonder核心不得感知具体Agent。连接器必须把每条输入提交到Runtime的当前会话入口：活动turn时steer，空闲或前一turn已中断时开始新turn；Runtime内部排队成功不等于`accepted`。云端Agent Runtime不是另一套业务逻辑，也不需要额外连接器：它直接通过主动WSS双工信道承载同一个`AgentSession`、接收`agent.input`并返回accepted。
 
+Codex CLI 0.156.1及以上使用共享App Server的受支持接入：TUI与桥接连接同一Unix socket，用户显式传入`thread_id`。桥接在向Yonder声明`user_input`前用`thread/loaded/list`确认thread已加载；每次投递读取thread状态，活动时使用当前turn id调用`turn/steer`，空闲或中断后调用`turn/start`。桥接不调用`codex queue`、不读取Codex内部数据库，也不自动resume不属于该App Server当前内存会话的thread。
+
 正文位于有界内存消息中；日志、任务SQLite、任务事件和Outbox不含正文。协议由Rust类型生成Schema/TypeScript。
 
 ## 协议候选

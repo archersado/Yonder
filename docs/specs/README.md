@@ -135,6 +135,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-18 AG-S5失败关闭修复：排队探针仅在前一turn结束后作为下一turn到达；`yonder agent-bridge`已删除`codex queue`误报路径，不支持当前会话直接提交时明确退出，桌宠保持Agent未连接。
 
+2026-09-24 AG-S5恢复实施：Codex CLI 0.156.1官方支持共享App Server、`--remote`和`turn/steer`。新薄桥接要求显式socket/thread绑定，不使用`codex queue`；隔离macOS合约验证已证明活动turn走steer、中断后走start，真实TUI会话的独立证据仍待完成。
+
 2026-09-18 AD-VI-02证据修正：撤回Codex当前会话样本通过结论，模型无关`AgentSession`决策仍Accepted。云端产品WSS由AG-S1先定稿端点、认证、TLS和重连；AG-S5只复用已认证会话，不复制连接或使用Spike的不安全TLS配置。
 
 2026-09-18 AG-S1云端Connector设计补齐：单一出站WSS、认证绑定、系统TLS校验、有界重连及本地能力隔离已写入AC13～19。外部平台配对契约与持久设备凭据仍缺失，Credential Store接线按用户决定延期；当前不生成产品WSS Proposal，不开放匿名或明文凭据连接。

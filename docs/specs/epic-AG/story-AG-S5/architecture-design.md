@@ -18,6 +18,8 @@ Agent连接注册表同时是“是否至少存在一个可接收输入会话”
 
 现有MCP工具调用是Agent→Yonder单向路径，不能冒充反向输入。Codex、Claude Code等连接器各自提供真实“向当前会话追加用户输入”的Adapter；具体CLI、SDK或会话API只存在于连接器内，不能进入Desktop、Application或通用协议。连接器应使用Runtime的统一输入入口：活动turn时steer，空闲或中断后开始新turn；Runtime返回已接受steer或新turn后才返回`accepted`。禁止用新Agent进程代替当前会话，禁止把文字伪装成`task.create`，也禁止用Runtime内部待处理队列承载该输入。
 
+Codex首个产品Adapter使用CLI 0.156.1及以上的共享App Server模式。Codex TUI须通过`codex --remote unix://<socket>`连接该Server，薄桥接通过`codex app-server proxy --sock <socket>`连接同一控制socket，并要求显式的`YONDER_CODEX_THREAD_ID`；不根据最近会话、工作目录或单一候选自动猜测。注册`user_input`前必须确认该thread已在这个App Server内加载；活动turn使用该turn id调用`turn/steer`，空闲或中断后调用`turn/start`。只有App Server返回匹配的`turnId`或新turn才确认`accepted`；RPC错误、断连或deadline均失败关闭。
+
 正文只驻留于有界内存直至ack或失败关闭。普通日志、SQLite任务事件和Outbox只允许记录`input_id`与结果码，不记录正文。交付超时结果未知时不得自动重试。
 
 协议候选限制正文为非空UTF-8且不超过16 KiB，默认确认期限10秒、最大60秒。`source`首批支持`voice`与`selection`。连接器必须按`input_id`去重并对重复请求返回原结果；Yonder对`unknown`不自动重试。
