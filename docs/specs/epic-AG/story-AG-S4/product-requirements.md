@@ -36,6 +36,7 @@ BUA 部分复用并嵌入 ego-browser Skill 的有效操作规范；ego-lite 仍
 - SKILL-09：安装包、仓库发布物或 Skill 市场中的包内容一致，入口可被 Agent 自动发现；卸载 Skill 不影响 Yonder 桌面数据与 Runtime。
 - SKILL-10：使用真实 Yonder Runtime 分别验证 BUA、CUA、Document、Command 成功与拒绝路径；涉及原生 UI/Driver 的平台证据遵守各能力 Story 的完成门禁。
 - SKILL-11：形象生成先锁定用户授权的角色身份，再逐状态生成、透明度/循环/连续性质检；只将通过 DS-S4 manifest 校验的包交回 Yonder，本次外发取消或失败不替换当前形象。
+- SKILL-12：Skill 只编排 Yonder 已发布的 Gateway 能力，不实现第二套快脑、慢脑、Driver 或任务状态；快慢脑交接边界以 AD-EX-01/EX-S2/AD-EX-04 为准。
 
 ## 需求来源与验收映射
 

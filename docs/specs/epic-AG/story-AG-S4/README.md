@@ -2,7 +2,7 @@
 
 Story: AG-S4
 Epic: AG
-Status: draft
+Status: design-review
 OpenSpec: -
 
 ## 设计文档
@@ -14,6 +14,10 @@ OpenSpec: -
 ## 当前状态与前置条件
 
 本 Story 只记录统一 Agent Skill 的产品与架构规格，当前不生成 Skill、不创建 OpenSpec、不修改运行时代码。
+
+2026-09-23 设计增量：已明确 Skill 不实现第二套快慢脑或 Driver 循环；相关边界以 AD-EX-01/EX-S2 为准。
+
+同日补充 Skill 包结构候选，仅作为后续实现审阅输入；不改变当前“只写规格、不生成 Skill”的实施门禁。
 
 实施前必须完成并验证 Yonder 的 BUA、CUA、Document 与 Command 四类 Gateway 能力。BUA 继续复用 ego-lite Task Space；Skill 将 ego-browser 的操作规则作为 BUA 子模块，但所有任务登记、身份、状态、Observe、控制和完成均由 Yonder 管理。CUA、文档和命令不得由 Skill 建立旁路执行栈。
 
