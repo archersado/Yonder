@@ -2,7 +2,7 @@
 
 Story: VI-S2  
 Epic: VI  
-Status: draft  
+Status: design-review
 OpenSpec: -
 
 ## 设计文档
@@ -14,6 +14,8 @@ OpenSpec: -
 ## 当前状态与前置条件
 
 依赖VI-S1的音频会话、权限和ASR路线。Windows/macOS系统音频双路采集、转写服务和保留策略尚未完成统一样本；不得提前生成Proposal。
+
+2026-09-23 设计增量：三份设计已具备审阅条件；仍以 VI-S1 双平台门禁为实施前置，不生成 Proposal。
 
 ## OpenSpec 与验证
 
