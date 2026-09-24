@@ -100,13 +100,24 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[];
+    window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureConfirmRequests=[];
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
     tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
     tasks[20].observation={step_id:'open-document',result:'matched',summary:'文档已打开'};
     tasks[20].next_intent='编辑目标文档';
+    tasks.splice(18,0,{task_id:'test-task--1',name:'test-task--1',owner_agent_id:'test-agent',source:'local-agent',status:'running',sequence:'4'});
+    tasks.find(task=>task.task_id==='test-task-18').status='completed';
     window.__TAURI_INTERNALS__ = {invoke:async (command,input) => {
+      if (command === 'task_confirm') {
+        window.fixtureConfirmRequests.push(input);
+        const task=tasks.find(task=>task.task_id===input.taskId);
+        if (!task) throw new Error('任务不存在');
+        task.status='completed'; task.sequence='5';
+        task.user_confirmation={task_id:task.task_id,confirmation_id:input.confirmationId,result_sequence:'4',manifest_version:'1',comment:input.comment,confirmed_by:'desktop'};
+        task.artifact_manifest={task_id:task.task_id,version:'1',item_count:0};
+        return;
+      }
       if (command === 'user_takeover') {
         window.fixtureControlRequests.push(input);
         const task=tasks.find(task=>task.task_id===input.taskId);
@@ -194,6 +205,22 @@ export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.querySelectorAll('.task').length === 20);
   assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
   assert.equal(await page.evaluate(() => document.getElementById('page-label').textContent), '第 1 页 · 20 项');
+  await page.waitForTimeout(100);
+  await page.click('.task:has-text("test-task-18")');
+  await page.waitForFunction(() => document.getElementById('detail').textContent.includes('结果待确认'));
+  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('确认后生成首个清单')));
+  await page.fill('[aria-label="结果确认意见"]', '原生验证：结果可用');
+  await page.evaluate(() => document.querySelector('.confirm button')?.scrollIntoView({block: 'center'}));
+  await page.click('.confirm button');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('结果已确认，任务终态未改变'));
+  const confirmRequest = await page.evaluate(() => window.fixtureConfirmRequests[0]);
+  assert.equal(confirmRequest.taskId, 'test-task-18');
+  assert.equal(confirmRequest.expectedSequence, '4');
+  assert.equal(confirmRequest.comment, '原生验证：结果可用');
+  assert.ok(typeof confirmRequest.confirmationId === 'string' && confirmRequest.confirmationId.length > 0);
+  await page.click('.task:has-text("test-task-18")');
+  await page.waitForFunction(() => document.getElementById('detail').textContent.includes('已确认 · 结果序号 4 · 清单版本 1 · 原生验证：结果可用'));
+  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('版本 1 · 0 项 · 产物变化需重新检查')));
   await page.evaluate(() => {
     window.fixtureTasks.slice(0,20).forEach(task => { task.status='interrupted'; });
     window.fixtureTasks[0].status='paused'; window.fixtureTasks[1].status='cancelled';
@@ -214,5 +241,5 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelectorAll('.task').length), 20);
   assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
   assert.equal(await page.evaluate(() => window.nativeCalls.some(call => call.startsWith('jev_'))), false);
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

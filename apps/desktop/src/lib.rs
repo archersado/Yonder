@@ -43,6 +43,29 @@ pub enum HostError {
     InvalidConfig,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ConfirmError {
+    InvalidInput,
+    PermissionDenied,
+    NotFound,
+    Conflict,
+    QuotaExceeded,
+    StorageUnavailable,
+}
+
+impl ConfirmError {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Self::InvalidInput => "确认参数无效",
+            Self::PermissionDenied => "仅本机用户可确认结果",
+            Self::NotFound => "任务不存在",
+            Self::Conflict => "结果已更新或已有不同确认，请刷新后重试",
+            Self::QuotaExceeded => "审计容量不足，无法新增确认",
+            Self::StorageUnavailable => "任务存储不可用",
+        }
+    }
+}
+
 pub fn emit_pet_presentation(window: &WebviewWindow, has_tasks: bool, state: &str) {
     let state = match state {
         "idle" | "listening" | "thinking" | "executing" | "waiting_for_user" | "paused"
@@ -296,6 +319,32 @@ impl TaskHost {
             yonder_application::gateway::local_takeover_request(task_id, expected, now_ms)
                 .map_err(|_| HostError::StorageUnavailable)?;
         self.query(&request, now_ms)
+    }
+
+    /// Task Space 的显式本机用户确认入口；Agent 不能调用。
+    pub fn confirm_result(
+        &mut self,
+        task_id: &str,
+        expected_sequence: u64,
+        confirmation_id: &str,
+        comment: Option<&str>,
+    ) -> Result<yonder_application::Task, ConfirmError> {
+        yonder_application::confirm_result(
+            &mut self.store,
+            AuthContext::LocalUser("desktop"),
+            task_id,
+            expected_sequence,
+            confirmation_id,
+            comment,
+        )
+        .map_err(|error| match error {
+            yonder_application::Error::InvalidInput => ConfirmError::InvalidInput,
+            yonder_application::Error::PermissionDenied => ConfirmError::PermissionDenied,
+            yonder_application::Error::NotFound => ConfirmError::NotFound,
+            yonder_application::Error::Conflict => ConfirmError::Conflict,
+            yonder_application::Error::QuotaExceeded => ConfirmError::QuotaExceeded,
+            _ => ConfirmError::StorageUnavailable,
+        })
     }
 
     /// Task Space中的显式用户操作；引用、序号和所有权均从可信存储复核。

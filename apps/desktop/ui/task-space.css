@@ -43,6 +43,11 @@ dl { margin: 0; }
 dt { color: #8a8496; font-size: 11px; margin: 12px 0 4px; }
 dd { margin: 0; overflow-wrap: anywhere; }
 .browser-open { margin-top: 7px; }
+.confirm { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+.confirm label { display: flex; flex-direction: column; gap: 4px; color: #8a8496; font-size: 11px; }
+.confirm textarea { min-height: 56px; resize: vertical; font: inherit; border: 1px solid #e0dfeb; border-radius: 8px; padding: 6px; background: #fff; color: inherit; }
+.confirm textarea:focus-visible { outline: 2px solid #7864ba; outline-offset: 2px; }
+.confirm button { align-self: flex-end; }
 .placeholder { color: #8a8496; font-size: 12px; }
 .timeline { margin: 0; padding-left: 22px; }
 .timeline li { margin: 8px 0; padding-left: 3px; }
@@ -56,6 +61,7 @@ dd { margin: 0; overflow-wrap: anywhere; }
   :root { color: #ebe7f1; }
   .menu { background: #28242ffa; border-color: #45404f; }
   button, #detail, #tasks > li { background: #2e2b37; border-color: #45404f; }
+  .confirm textarea { background: #26232d; border-color: #45404f; }
   nav button[aria-pressed="true"], .task[aria-pressed="true"] { background: #403451; color: #e1d1fb; }
   .status { color: #ccb4f0; }
 }

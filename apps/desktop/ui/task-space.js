@@ -11,6 +11,7 @@ const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable
 let includeFinished = false, cursor = null, nextCursor = null, pageNumber = 1;
 let round = 0, selection = 0;
 const pendingControls = new Map();
+const confirmationIds = new Map();
 
 async function query(method, params) {
   const invoke = window.__TAURI_INTERNALS__?.invoke;
@@ -79,11 +80,31 @@ async function openBrowserTaskSpace(task, button) {
     button.disabled = false; button.textContent = '打开 ego-lite';
   }
 }
+async function confirmResult(task, button, textarea) {
+  button.disabled = true; button.textContent = '正在确认…';
+  const confirmationId = confirmationIds.get(task.task_id) ?? crypto.randomUUID();
+  confirmationIds.set(task.task_id, confirmationId);
+  const comment = textarea.value.trim() || null;
+  try {
+    await window.__TAURI_INTERNALS__.invoke('task_confirm', {
+      taskId: task.task_id,
+      expectedSequence: task.sequence,
+      confirmationId,
+      comment
+    });
+    message('结果已确认，任务终态未改变');
+    await load();
+  } catch (error) {
+    message(`结果确认失败：${error.message ?? '请刷新后重试'}`, true);
+    button.disabled = false; button.textContent = '确认结果';
+  }
+}
 function timelineText(event) {
   if (event.step_declaration) return `Agent 声明步骤：${event.step_declaration.label}`;
   if (event.attempt_result?.phase === 'unknown') return `执行结果未知：${unknownLabels[event.attempt_result.unknown_reason] ?? '原因未提供'}`;
   if (event.attempt_result?.phase === 'observed') return event.attempt_result.action_succeeded ? '动作已观察：成功' : '动作已观察：未达成';
   if (event.wait_reason) return `等待用户：${event.wait_reason}`;
+  if (event.user_confirmation) return `用户确认结果：结果序号 ${event.user_confirmation.result_sequence} · 清单版本 ${event.user_confirmation.manifest_version}`;
   return `${labels[event.previous] ?? event.previous} → ${labels[event.status] ?? event.status}`;
 }
 function appendTimeline(list, events, after) {
@@ -155,7 +176,17 @@ async function select(task, button) {
       const reference = browserReference = browserResult.value.reference, ownership = {agent:'Agent控制',agentDelegatedToUser:'用户控制',user:'用户控制'}[reference.ownership] ?? reference.ownership;
       browser = `${reference.external_task_ref} · ${ownership} · ${reference.managed_pages}个托管页面 · ${reference.finished ? '已结束' : '活动'} · 更新序号 ${reference.updated_sequence}`;
     }
-    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', waitReason], ['浏览器 Task Space', browser]]) {
+    const terminal = ['completed', 'failed'].includes(result.task.status);
+    const confirmation = result.task.user_confirmation;
+    const audit = terminal
+      ? confirmation
+        ? `已确认 · 结果序号 ${confirmation.result_sequence} · 清单版本 ${confirmation.manifest_version}${confirmation.comment ? ` · ${confirmation.comment}` : ''}`
+        : '结果待确认'
+      : '仅终态任务支持确认';
+    const manifest = result.task.artifact_manifest
+      ? `版本 ${result.task.artifact_manifest.version} · ${result.task.artifact_manifest.item_count} 项 · 产物变化需重新检查`
+      : terminal ? '确认后生成首个清单' : '不适用';
+    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', waitReason], ['浏览器 Task Space', browser], ['结果确认', audit], ['产物清单', manifest]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; dl.append(dt, dd);
       if (name === '浏览器 Task Space' && browserReference?.ownership === 'agent' && !browserReference.finished) {
         const open = document.createElement('button'); open.className = 'browser-open'; open.textContent = '打开 ego-lite';
@@ -163,6 +194,15 @@ async function select(task, button) {
       }
     }
     detail.append(dl);
+    if (terminal && !confirmation) {
+      const area = document.createElement('div'); area.className = 'confirm';
+      const label = document.createElement('label'); label.textContent = '确认意见（可选）';
+      const textarea = document.createElement('textarea'); textarea.maxLength = 2048;
+      textarea.placeholder = '记录本次结果检查说明'; textarea.setAttribute('aria-label', '结果确认意见');
+      const button = document.createElement('button'); button.textContent = '确认结果';
+      button.addEventListener('click', () => confirmResult(result.task, button, textarea));
+      label.append(textarea); area.append(label, button); detail.append(area);
+    }
     const heading = document.createElement('h3'); heading.textContent = '时间线'; detail.append(heading);
     if (timelineResult.status === 'rejected') {
       const error = document.createElement('p'); error.className = 'timeline-error'; error.textContent = `时间线读取失败：${timelineResult.reason?.message ?? '请重试'}`; detail.append(error);

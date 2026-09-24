@@ -500,6 +500,43 @@ async fn user_takeover(window:WebviewWindow,state:State<'_,TaskState>,task_id:St
 }
 
 #[tauri::command]
+async fn task_confirm(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    expected_sequence: String,
+    confirmation_id: String,
+    comment: Option<String>,
+) -> Result<(), String> {
+    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    let expected = expected_sequence.parse::<u64>().map_err(|_| "任务序号不可用")?;
+    let host = Arc::clone(&state.0);
+    let pet = window.app_handle().get_webview_window("pet");
+    let (presentation, terminal) = tauri::async_runtime::spawn_blocking(move || {
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        let host = host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
+        let task = host
+            .confirm_result(&task_id, expected, &confirmation_id, comment.as_deref())
+            .map_err(|error| error.message().to_owned())?;
+        Ok::<_, String>((
+            host.presentation().ok(),
+            matches!(
+                task.status,
+                yonder_application::Status::Completed | yonder_application::Status::Failed
+            ),
+        ))
+    })
+    .await.map_err(|_| "结果确认中断".to_owned())??;
+    if !terminal {
+        return Err("确认未保持任务终态".into());
+    }
+    if let (Some(pet), Some((has_tasks, task_state))) = (pet, presentation) {
+        yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,expected_sequence:String)->Result<(),String>{
     if window.label()!="task-space"{return Err("不允许的窗口".into())}
     let expected=expected_sequence.parse::<u64>().map_err(|_|"任务序号不可用")?;
@@ -650,7 +687,7 @@ fn agent_settings_close(window: WebviewWindow) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, browser_task_space_open, jev_config_get, jev_config_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, browser_task_space_open, jev_config_get, jev_config_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

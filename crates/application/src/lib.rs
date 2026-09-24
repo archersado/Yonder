@@ -50,6 +50,29 @@ pub struct TaskPresentation {
     pub next_intent: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
+pub struct TaskAudit {
+    pub manifest: Option<TaskArtifactManifest>,
+    pub confirmation: Option<TaskUserConfirmation>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskArtifactManifest {
+    pub task_id: String,
+    pub version: u64,
+    pub item_count: u16,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskUserConfirmation {
+    pub task_id: String,
+    pub confirmation_id: String,
+    pub result_sequence: u64,
+    pub manifest_version: u64,
+    pub comment: Option<String>,
+    pub confirmed_by: String,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StepDeclaration {
     pub step_id: String,
@@ -154,6 +177,8 @@ pub struct TaskEventRecord {
     pub step_declaration: Option<StepDeclaration>,
     pub attempt_result: Option<AttemptResultRecord>,
     pub wait_reason: Option<String>,
+    pub artifact_manifest: Option<TaskArtifactManifest>,
+    pub user_confirmation: Option<TaskUserConfirmation>,
 }
 
 /// 由完成认证的组合根提供，不能从请求 JSON 反序列化或按请求 agent_id 构造。
@@ -246,6 +271,8 @@ pub trait TaskStore {
                     step_declaration: None,
                     attempt_result: None,
                     wait_reason: None,
+                    artifact_manifest: None,
+                    user_confirmation: None,
                 })
                 .collect()
         })
@@ -265,6 +292,9 @@ pub trait TaskStore {
     fn supports_presentation(&self) -> bool {
         false
     }
+    fn supports_audit(&self) -> bool {
+        false
+    }
     fn wait_for_user(&mut self, _: &str, _: u64, _: &str) -> Result<Task, Error> {
         Err(Error::StorageUnavailable)
     }
@@ -279,6 +309,18 @@ pub trait TaskStore {
                 },
             )
         })
+    }
+    fn get_audit(&mut self, _id: &str) -> Result<TaskAudit, Error> {
+        Ok(TaskAudit::default())
+    }
+    fn confirm_result(
+        &mut self,
+        _id: &str,
+        _expected_sequence: u64,
+        _confirmation_id: &str,
+        _comment: Option<&str>,
+    ) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
     }
     fn record_observation(
         &mut self,
@@ -421,6 +463,33 @@ fn validate_id(id: &str) -> Result<(), Error> {
 
 pub fn valid_id(id: &str) -> bool {
     validate_id(id).is_ok()
+}
+
+/// Task Space 显式本地用户操作；Agent 不获得确认能力。
+pub fn confirm_result(
+    store: &mut impl TaskStore,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected_sequence: u64,
+    confirmation_id: &str,
+    comment: Option<&str>,
+) -> Result<Task, Error> {
+    if !matches!(auth, AuthContext::LocalUser(_)) {
+        return Err(Error::PermissionDenied);
+    }
+    validate_id(task_id)?;
+    validate_id(confirmation_id)?;
+    if expected_sequence == 0 || expected_sequence >= i64::MAX as u64 {
+        return Err(Error::InvalidInput);
+    }
+    if comment.is_some_and(|value| {
+        value.trim().is_empty()
+            || value.as_bytes().len() > 2048
+            || value.chars().any(char::is_control)
+    }) {
+        return Err(Error::InvalidInput);
+    }
+    store.confirm_result(task_id, expected_sequence, confirmation_id, comment)
 }
 
 pub fn get(store: &mut impl TaskStore, id: &str) -> Result<Task, Error> {
@@ -967,6 +1036,149 @@ mod tests {
             Err(Error::InvalidInput)
         );
         assert_eq!(get(&mut store, "../task"), Err(Error::InvalidInput));
+    }
+
+    struct AuditStore {
+        task: Task,
+        calls: Vec<(String, u64, String, Option<String>)>,
+    }
+
+    impl TaskStore for AuditStore {
+        fn create(&mut self, _: &str, _: &str, _: TaskSource) -> Result<Task, Error> {
+            Err(Error::StorageUnavailable)
+        }
+        fn get(&mut self, id: &str) -> Result<Task, Error> {
+            if id == self.task.id {
+                Ok(self.task.clone())
+            } else {
+                Err(Error::NotFound)
+            }
+        }
+        fn list(
+            &mut self,
+            _: Option<&str>,
+            _: Option<&str>,
+            _: bool,
+            _: usize,
+        ) -> Result<Vec<Task>, Error> {
+            Ok(vec![self.task.clone()])
+        }
+        fn running(&mut self, _: usize) -> Result<Vec<Task>, Error> {
+            Ok(Vec::new())
+        }
+        fn events(&mut self, _: &str, _: u64, _: usize) -> Result<Vec<Transition>, Error> {
+            Ok(Vec::new())
+        }
+        fn commit(&mut self, _: &str, _: u64, _: Transition) -> Result<(), Error> {
+            Err(Error::StorageUnavailable)
+        }
+        fn supports_audit(&self) -> bool {
+            true
+        }
+        fn get_audit(&mut self, id: &str) -> Result<TaskAudit, Error> {
+            if id == self.task.id {
+                Ok(TaskAudit::default())
+            } else {
+                Err(Error::NotFound)
+            }
+        }
+        fn confirm_result(
+            &mut self,
+            id: &str,
+            expected_sequence: u64,
+            confirmation_id: &str,
+            comment: Option<&str>,
+        ) -> Result<Task, Error> {
+            self.calls.push((
+                id.to_owned(),
+                expected_sequence,
+                confirmation_id.to_owned(),
+                comment.map(str::to_owned),
+            ));
+            self.task.sequence = expected_sequence + 1;
+            Ok(self.task.clone())
+        }
+    }
+
+    #[test]
+    fn audit_confirmation_is_local_user_only_and_bounds_inputs() {
+        let mut store = AuditStore {
+            task: Task {
+                id: "task-1".into(),
+                owner_agent_id: "a1".into(),
+                name: None,
+                source: TaskSource::LocalAgent,
+                status: Status::Completed,
+                sequence: 3,
+            },
+            calls: Vec::new(),
+        };
+        assert_eq!(
+            confirm_result(
+                &mut store,
+                AuthContext::Agent("a1"),
+                "task-1",
+                3,
+                "confirm-1",
+                Some("结果可用"),
+            ),
+            Err(Error::PermissionDenied)
+        );
+        assert!(store.calls.is_empty());
+        assert_eq!(
+            confirm_result(
+                &mut store,
+                AuthContext::LocalUser("desktop"),
+                "../task",
+                3,
+                "confirm-1",
+                Some("结果可用"),
+            ),
+            Err(Error::InvalidInput)
+        );
+        assert_eq!(
+            confirm_result(
+                &mut store,
+                AuthContext::LocalUser("desktop"),
+                "task-1",
+                3,
+                "confirm 1",
+                Some("结果可用"),
+            ),
+            Err(Error::InvalidInput)
+        );
+        assert_eq!(
+            confirm_result(
+                &mut store,
+                AuthContext::LocalUser("desktop"),
+                "task-1",
+                3,
+                "confirm-1",
+                Some("   "),
+            ),
+            Err(Error::InvalidInput)
+        );
+        assert!(store.calls.is_empty());
+
+        let confirmed = confirm_result(
+            &mut store,
+            AuthContext::LocalUser("desktop"),
+            "task-1",
+            3,
+            "confirm-1",
+            Some("结果可用"),
+        )
+        .unwrap();
+        assert_eq!(confirmed.sequence, 4);
+        assert_eq!(
+            store.calls,
+            vec![(
+                "task-1".to_owned(),
+                3,
+                "confirm-1".to_owned(),
+                Some("结果可用".to_owned()),
+            )]
+        );
     }
 }
 

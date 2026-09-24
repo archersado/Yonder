@@ -37,7 +37,7 @@ ST-S3已按AD-ST-01实施显式未加密任务存储，10项Adapter回归通过�
 
 后续主链为 TM-S1/AG-S1 设计审阅 → TM-S2 与 FI-S1 资源身份/执行契约 → DS-S2 统一展示；桌面仍依赖 DS-S1 的 E0 门禁。TM-S3/S4 为暂停接管与显式恢复，必须按前置顺序实施。
 
-本轮补拆 [TM-S5 时间线、产物与审计](epic-TM/story-TM-S5/README.md)，与 TM-S1 同期联审当前快照和历史写入边界。只有需求分工和设计初稿完成，没有生成新实施 Proposal。
+本轮补拆 [TM-S5 时间线、产物与审计](epic-TM/story-TM-S5/README.md)，与 TM-S1 同期联审当前快照和历史写入边界。当前完整审计闭环已进入 verification：AD-TM-14、OpenSpec、实现与回归完成，macOS 原生 UI 验证与 Windows 证据仍待完成。
 
 ## 历史迁移
 
@@ -172,6 +172,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-18 CU-S3门禁复核：后台原生动作macOS Spike已完成并停止扩展；AD-CU-06仍为Proposed，按其双平台门禁与用户暂缓Windows的决定，当前不开放产品Gateway、不创建通用NativeActionPort。恢复条件为Windows对等Spike和ADR接受，不以macOS样本绕过。
 
 2026-09-18 TM-S5既有时间线分页macOS子范围PASS：复用现有`task.events(after_sequence)`，Task Space每页20条，失败保留/重试及迟到选择保护通过；正式54条历史任务从`#1..#20`追加到`#40`。未来产物、确认、新payload字节预算与Windows证据仍保留门禁，完整TM-S5不Archive。
+
+2026-09-23 TM-S5完整审计子范围进入verification：Accepted AD-TM-14定稿本机用户结果确认、不可变产物清单、2 GiB审计配额、协议1.20与schema16迁移；OpenSpec、实现与回归已完成，macOS原生UI验证与Windows证据继续保留门禁。
 
 2026-09-18 TM-S1进入`tm-s1-agent-wait-for-user`实施：Accepted AD-TM-10定稿协议1.17与schema14，只允许归属Agent在已Observe并推进的安全步骤边界提交等待用户原因；不实现Resume或等待外部响应。
 

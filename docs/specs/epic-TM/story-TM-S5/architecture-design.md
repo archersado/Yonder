@@ -56,6 +56,22 @@ AD-TM-01 的 2026-09-12 补充列出各类最小历史事实；本 Story 复用�
 
 2026-09-18 按 Accepted AD-TM-09 增加既有事件分页：复用 `after_sequence`，Task Space 每页使用 `limit=20`，游标只取最后实际追加事件，用户显式加载下一页；选择轮次继续阻止迟到响应。当前有界事件字段无需新协议。未来产物、附件或可变正文仍受编码后 256 KiB 响应预算门禁，不因本增量解除。
 
+## 完整审计闭环增量（2026-09-23）
+
+依据 Accepted [AD-TM-22](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-22-AUDIT-COMPLETENESS-AND-QUOTA.md)，本子范围补齐用户结果确认、不可变产物清单、审计容量门禁和版本迁移。
+
+### 确认与清单
+
+- `TaskUserConfirmation` 绑定 `task_id`、被确认的 `result_sequence`、`manifest_version`、1..2048 UTF-8 字节确认意见和稳定 `confirmation_id`。只有可信本机控制用例可写入，Agent 不获得确认能力。
+- `TaskArtifactManifest` 以 `(task_id, manifest_version)` 唯一，首次为 1；清单发布后不可修改，条目仅包含不可复用顺序键、`reference_id` 和可用性结论。新增产物生成新版本，不篡改旧清单。
+- 确认、清单、事件、任务序号和 Outbox 在同一个 `IMMEDIATE` 事务内提交；重复 `confirmation_id` 返回既有回执，不同内容返回冲突，不追加事件。
+
+### 容量与迁移
+
+- 任务审计库上限 2 GiB；写入前可用磁盘必须保留 1 GiB。校验在创建、执行启动和确认前执行，失败返回 `QuotaExceeded`，不触发自动清理。
+- schema 15→16 只新增 `task_user_confirmations`、`task_artifact_manifests`、`task_artifact_manifest_items`、`task_audit_quota_state`；迁移前创建备份，事务失败整体回滚，未知版本拒绝。
+- 协议 1.20 增加可选 `user_confirmation` 与 `artifact_manifest` 投影；1.19 及以下会话继续收到旧形状。Rust 协议类型仍派生 Schema/TS，不手写第二份模型。
+
 本增量复用已有正式能力，不触发 Architecture Decision；产物、确认、保留清理和新事件 payload 仍须先更新 ADR。
 
 ## 人工接管记录与交回（2026-09-14用户变更）

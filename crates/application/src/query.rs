@@ -7,8 +7,9 @@ use yonder_protocol::{
     ControlRecord as ProtocolControl, FocusFailure as ProtocolFocusFailure,
     FocusPhase as ProtocolFocusPhase, QueryResult, Request, Response, RpcError,
     StepDeclaration as ProtocolStep, TaskEvent, TaskObservation as ProtocolObservation,
-    TaskObservationResult as ProtocolObservationResult, TaskSnapshot, TaskSource as ProtocolSource,
-    TaskStatus, Version,
+    TaskArtifactManifest as ProtocolManifest, TaskObservationResult as ProtocolObservationResult,
+    TaskSnapshot, TaskSource as ProtocolSource, TaskStatus,
+    TaskUserConfirmation as ProtocolConfirmation, Version,
 };
 
 pub(crate) fn status(value: Status) -> TaskStatus {
@@ -43,10 +44,20 @@ pub(crate) fn summary(task: crate::Task) -> TaskSnapshot {
         current_step: None,
         observation: None,
         next_intent: None,
+        artifact_manifest: None,
+        user_confirmation: None,
     }
 }
 
 pub(crate) fn full(task: crate::Task, presentation: crate::TaskPresentation) -> TaskSnapshot {
+    full_with_audit(task, presentation, crate::TaskAudit::default())
+}
+
+pub(crate) fn full_with_audit(
+    task: crate::Task,
+    presentation: crate::TaskPresentation,
+    audit: crate::TaskAudit,
+) -> TaskSnapshot {
     TaskSnapshot {
         task_id: task.id,
         owner_agent_id: task.owner_agent_id,
@@ -73,6 +84,19 @@ pub(crate) fn full(task: crate::Task, presentation: crate::TaskPresentation) -> 
                 summary: observation.summary,
             }),
         next_intent: presentation.next_intent,
+        artifact_manifest: audit.manifest.map(|manifest| ProtocolManifest {
+            task_id: manifest.task_id,
+            version: manifest.version.to_string(),
+            item_count: manifest.item_count,
+        }),
+        user_confirmation: audit.confirmation.map(|confirmation| ProtocolConfirmation {
+            task_id: confirmation.task_id,
+            confirmation_id: confirmation.confirmation_id,
+            result_sequence: confirmation.result_sequence.to_string(),
+            manifest_version: confirmation.manifest_version.to_string(),
+            comment: confirmation.comment,
+            confirmed_by: confirmation.confirmed_by,
+        }),
     }
 }
 
@@ -84,7 +108,7 @@ pub(crate) fn error(value: Error) -> RpcError {
         }
         Error::IdempotencyConflict => RpcError::new(-32009, "幂等键对应不同任务名称或说明"),
         Error::StepConflict => RpcError::new(-32013, "步骤标识对应不同标签"),
-        Error::QuotaExceeded => RpcError::new(-32014, "步骤声明已达配额"),
+        Error::QuotaExceeded => RpcError::new(-32014, "审计容量不足"),
         Error::PermissionDenied => RpcError::new(-32003, "此身份不允许执行该操作"),
         Error::NotFound => RpcError::new(-32004, "任务不存在"),
         Error::InvalidInput => RpcError::new(-32602, "非法请求参数"),
@@ -129,7 +153,16 @@ pub fn handle_encoded_current(
                 error: RpcError::new(-32002, "取消须通过Gateway会话"),
             }
         }
-        Ok(request) => handle_request_versioned(store, auth, request, now_ms, true, true, true),
+        Ok(request) => handle_request_versioned(
+            store,
+            auth,
+            request,
+            now_ms,
+            true,
+            true,
+            true,
+            store.supports_audit(),
+        ),
         Err(error) => Response::Failure {
             jsonrpc: Version::V2,
             id: None,
@@ -183,7 +216,7 @@ pub(crate) fn handle_request(
     request: Request,
     now_ms: u64,
 ) -> Response {
-    handle_request_versioned(store, auth, request, now_ms, false, false, false)
+    handle_request_versioned(store, auth, request, now_ms, false, false, false, false)
 }
 
 pub(crate) fn handle_request_versioned(
@@ -194,6 +227,7 @@ pub(crate) fn handle_request_versioned(
     include_steps: bool,
     include_attempt_results: bool,
     include_wait_reason: bool,
+    include_audit: bool,
 ) -> Response {
     let id = request.request_id().to_owned();
     let result = validate(&request, auth, now_ms).and_then(|()| {
@@ -232,13 +266,18 @@ pub(crate) fn handle_request_versioned(
         Request::Get { params, .. } => {
             let (task, presentation) = store.get_presentation(&params.task_id).map_err(error)?;
             if !auth.can_read(&task) { return Err(error(Error::NotFound)); }
-            Ok(QueryResult::Snapshot { task: full(task, presentation) })
+            let audit = if include_audit {
+                store.get_audit(&params.task_id).map_err(error)?
+            } else {
+                crate::TaskAudit::default()
+            };
+            Ok(QueryResult::Snapshot { task: full_with_audit(task, presentation, audit) })
         }
         Request::Events { params, .. } => {
             readable(store, auth, &params.task_id)?;
             let after = yonder_protocol::sequence(&params.after_sequence)?;
             let records = if include_steps { store.events_with_steps(&params.task_id, after, usize::from(params.limit)).map_err(error)? } else {
-                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, step_declaration: None, attempt_result: None, wait_reason: None }).collect()
+                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, step_declaration: None, attempt_result: None, wait_reason: None, artifact_manifest: None, user_confirmation: None }).collect()
             };
             Ok(QueryResult::Events { task_id: params.task_id, events: records.into_iter().map(|e| {
                 let attempt_result = if include_attempt_results { e.attempt_result.map(|result| {
@@ -257,7 +296,27 @@ pub(crate) fn handle_request_versioned(
                     };
                     ProtocolAttemptResult { step_id:result.step_id, attempt_id:result.attempt_id, worker_instance_id:result.worker_instance_id, host_session_id:result.host_session_id, phase, action_succeeded, observe_valid, unknown_reason }
                 }) } else { None };
-                TaskEvent { previous: status(e.transition.previous), status: status(e.transition.next), sequence: e.transition.sequence.to_string(), step_declaration: e.step_declaration.map(|step| ProtocolStep { step_id: step.step_id, label: step.label, accepted_sequence: step.accepted_sequence.to_string() }), attempt_result, wait_reason: include_wait_reason.then_some(e.wait_reason).flatten() }
+                TaskEvent {
+                    previous: status(e.transition.previous),
+                    status: status(e.transition.next),
+                    sequence: e.transition.sequence.to_string(),
+                    step_declaration: e.step_declaration.map(|step| ProtocolStep { step_id: step.step_id, label: step.label, accepted_sequence: step.accepted_sequence.to_string() }),
+                    attempt_result,
+                    wait_reason: include_wait_reason.then_some(e.wait_reason).flatten(),
+                    artifact_manifest: include_audit.then_some(e.artifact_manifest).flatten().map(|manifest| ProtocolManifest {
+                        task_id: manifest.task_id,
+                        version: manifest.version.to_string(),
+                        item_count: manifest.item_count,
+                    }),
+                    user_confirmation: include_audit.then_some(e.user_confirmation).flatten().map(|confirmation| ProtocolConfirmation {
+                        task_id: confirmation.task_id,
+                        confirmation_id: confirmation.confirmation_id,
+                        result_sequence: confirmation.result_sequence.to_string(),
+                        manifest_version: confirmation.manifest_version.to_string(),
+                        comment: confirmation.comment,
+                        confirmed_by: confirmation.confirmed_by,
+                    }),
+                }
             }).collect() })
         },
         Request::StepGet { params, .. } => {

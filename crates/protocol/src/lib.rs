@@ -628,6 +628,12 @@ pub struct TaskSnapshot {
     #[serde(default)]
     #[ts(optional)]
     pub next_intent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub artifact_manifest: Option<TaskArtifactManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub user_confirmation: Option<TaskUserConfirmation>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -645,6 +651,33 @@ pub struct TaskEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub wait_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub artifact_manifest: Option<TaskArtifactManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub user_confirmation: Option<TaskUserConfirmation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct TaskArtifactManifest {
+    pub task_id: String,
+    pub version: String,
+    pub item_count: u16,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct TaskUserConfirmation {
+    pub task_id: String,
+    pub confirmation_id: String,
+    pub result_sequence: String,
+    pub manifest_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub comment: Option<String>,
+    pub confirmed_by: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1424,6 +1457,8 @@ mod tests {
                     current_step: None,
                     observation: None,
                     next_intent: None,
+                    artifact_manifest: None,
+                    user_confirmation: None,
                 },
             },
         };
@@ -1431,6 +1466,67 @@ mod tests {
             serde_json::from_slice::<Response>(&encode(&response).unwrap()).unwrap(),
             response
         );
+    }
+
+    #[test]
+    fn audit_projection_fields_round_trip_and_stay_optional() {
+        let manifest = TaskArtifactManifest {
+            task_id: "task-1".into(),
+            version: "1".into(),
+            item_count: 2,
+        };
+        let confirmation = TaskUserConfirmation {
+            task_id: "task-1".into(),
+            confirmation_id: "confirm-1".into(),
+            result_sequence: "3".into(),
+            manifest_version: "1".into(),
+            comment: Some("结果可用".into()),
+            confirmed_by: "desktop".into(),
+        };
+        let task = TaskSnapshot {
+            task_id: "task-1".into(),
+            owner_agent_id: "a1".into(),
+            name: Some("审计确认".into()),
+            source: Some(TaskSource::LocalAgent),
+            status: TaskStatus::Completed,
+            sequence: "4".into(),
+            current_step: None,
+            observation: None,
+            next_intent: None,
+            artifact_manifest: Some(manifest.clone()),
+            user_confirmation: Some(confirmation.clone()),
+        };
+        let value = serde_json::to_value(&task).unwrap();
+        assert_eq!(value["artifact_manifest"]["version"], "1");
+        assert_eq!(value["user_confirmation"]["result_sequence"], "3");
+        assert_eq!(
+            serde_json::from_value::<TaskSnapshot>(value).unwrap(),
+            task
+        );
+
+        let event = TaskEvent {
+            previous: TaskStatus::Running,
+            status: TaskStatus::Completed,
+            sequence: "4".into(),
+            step_declaration: None,
+            attempt_result: None,
+            wait_reason: None,
+            artifact_manifest: Some(manifest),
+            user_confirmation: Some(confirmation),
+        };
+        let value = serde_json::to_value(&event).unwrap();
+        assert_eq!(value["artifact_manifest"]["item_count"], 2);
+        assert_eq!(value["user_confirmation"]["manifest_version"], "1");
+        assert_eq!(serde_json::from_value::<TaskEvent>(value).unwrap(), event);
+
+        let empty_task = TaskSnapshot {
+            artifact_manifest: None,
+            user_confirmation: None,
+            ..task
+        };
+        let value = serde_json::to_value(&empty_task).unwrap();
+        assert!(value.get("artifact_manifest").is_none());
+        assert!(value.get("user_confirmation").is_none());
     }
 
     #[test]

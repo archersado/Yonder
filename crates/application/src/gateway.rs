@@ -156,6 +156,7 @@ pub struct GatewaySession<'a> {
     can_running_filter: bool,
     can_wait_for_user: bool,
     can_presentation: bool,
+    can_audit: bool,
     browser_available: bool,
     can_computer: bool,
     can_computer_step: bool,
@@ -675,6 +676,7 @@ impl<'a> GatewaySession<'a> {
             can_running_filter: false,
             can_wait_for_user: false,
             can_presentation: false,
+            can_audit: false,
             browser_available: false,
             can_computer: false,
             can_computer_step: false,
@@ -844,6 +846,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_steps,
                 self.can_attempt_results,
                 self.can_wait_for_user,
+                self.can_audit,
             );
             // 旧客户端严格拒绝未知字段，只投影响应，不改存储的名称。
             if !self.can_name {
@@ -915,6 +918,23 @@ impl<'a> GatewaySession<'a> {
                     }
                 }
             }
+            if !self.can_audit {
+                if let Response::Success { result, .. } = &mut response {
+                    match result {
+                        QueryResult::Snapshot { task } | QueryResult::Step { task, .. } => {
+                            task.artifact_manifest = None;
+                            task.user_confirmation = None;
+                        }
+                        QueryResult::Events { events, .. } => {
+                            for event in events {
+                                event.artifact_manifest = None;
+                                event.user_confirmation = None;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
             if !self.can_focus {
                 if let Response::Success {
                     result: QueryResult::Control { control, .. },
@@ -956,13 +976,14 @@ impl<'a> GatewaySession<'a> {
                 self.can_running_filter = self.negotiated && params.protocol_version.minor >= 16 && store.supports_running_filter();
                 self.can_wait_for_user = self.can_advance && params.protocol_version.minor >= 17 && store.supports_wait_for_user();
                 self.can_presentation = self.negotiated && params.protocol_version.minor >= 19 && store.supports_presentation();
+                self.can_audit = self.negotiated && params.protocol_version.minor >= 20 && store.supports_audit();
                 self.can_computer=self.can_advance&&params.protocol_version.minor>=11&&self.computer_available&&!self.computer_permission_required;
                 self.can_computer_step=self.can_computer&&params.protocol_version.minor>=12;
                 self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
                 self.can_fail=self.can_complete&&params.protocol_version.minor>=18;
                 if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("仅支持未开始任务取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }

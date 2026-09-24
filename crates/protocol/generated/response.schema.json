@@ -664,9 +664,42 @@
         "accepted_sequence"
       ]
     },
+    "TaskArtifactManifest": {
+      "type": "object",
+      "properties": {
+        "item_count": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "version",
+        "item_count"
+      ]
+    },
     "TaskEvent": {
       "type": "object",
       "properties": {
+        "artifact_manifest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskArtifactManifest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "attempt_result": {
           "anyOf": [
             {
@@ -690,6 +723,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/StepDeclaration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_confirmation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskUserConfirmation"
             },
             {
               "type": "null"
@@ -741,6 +784,16 @@
     "TaskSnapshot": {
       "type": "object",
       "properties": {
+        "artifact_manifest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskArtifactManifest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "current_step": {
           "anyOf": [
             {
@@ -798,6 +851,16 @@
         },
         "task_id": {
           "type": "string"
+        },
+        "user_confirmation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskUserConfirmation"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -831,6 +894,40 @@
         "completed",
         "failed",
         "cancelled"
+      ]
+    },
+    "TaskUserConfirmation": {
+      "type": "object",
+      "properties": {
+        "comment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confirmation_id": {
+          "type": "string"
+        },
+        "confirmed_by": {
+          "type": "string"
+        },
+        "manifest_version": {
+          "type": "string"
+        },
+        "result_sequence": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "confirmation_id",
+        "result_sequence",
+        "manifest_version",
+        "confirmed_by"
       ]
     },
     "Version": {
