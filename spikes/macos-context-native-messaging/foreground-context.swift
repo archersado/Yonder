@@ -23,7 +23,8 @@ private final class ProbeState: @unchecked Sendable {
         lock.unlock()
     }
 
-    func replaceObserver(for processIdentifier: pid_t) {
+    @discardableResult
+    func replaceObserver(for processIdentifier: pid_t) -> Bool {
         releaseObserver()
         lock.lock()
         observerAttempts += 1
@@ -33,27 +34,29 @@ private final class ProbeState: @unchecked Sendable {
             guard let context else { return }
             Unmanaged<ProbeState>.fromOpaque(context).takeUnretainedValue().recordWindowEvent()
         }, &created)
-        guard result == .success, let created else { return }
+        guard result == .success, let created else { return false }
         let application = AXUIElementCreateApplication(processIdentifier)
         let context = Unmanaged.passUnretained(self).toOpaque()
-        guard AXObserverAddNotification(
+        let focusedWindowResult = AXObserverAddNotification(
             created,
             application,
             kAXFocusedWindowChangedNotification as CFString,
             context
-        ) == .success else { return }
-        _ = AXObserverAddNotification(
+        )
+        let windowCreatedResult = AXObserverAddNotification(
             created,
             application,
             kAXWindowCreatedNotification as CFString,
             context
         )
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(created), .defaultMode)
+        guard focusedWindowResult == .success || windowCreatedResult == .success else { return false }
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(created), .commonModes)
         lock.lock()
         observer = created
         observerRegistrations += 1
         observerReleased = false
         lock.unlock()
+        return true
     }
 
     func releaseObserver() {
@@ -63,7 +66,7 @@ private final class ProbeState: @unchecked Sendable {
         observerReleased = true
         lock.unlock()
         if let current {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(current), .defaultMode)
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(current), .commonModes)
         }
     }
 
@@ -112,8 +115,15 @@ guard seconds > 0, seconds <= 30 else {
 }
 
 private let state = ProbeState()
+private func bindObserver(for processIdentifier: pid_t) {
+    guard !state.replaceObserver(for: processIdentifier) else { return }
+    Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processIdentifier else { return }
+        state.replaceObserver(for: processIdentifier)
+    }
+}
 if trusted, let frontmost {
-    state.replaceObserver(for: frontmost.processIdentifier)
+    bindObserver(for: frontmost.processIdentifier)
 }
 let notificationCenter = NSWorkspace.shared.notificationCenter
 let token = notificationCenter.addObserver(
@@ -125,25 +135,7 @@ let token = notificationCenter.addObserver(
     guard trusted,
           let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
             as? NSRunningApplication else { return }
-    state.replaceObserver(for: application.processIdentifier)
-}
-
-let fixturePaths = arguments.indices.compactMap { index -> String? in
-    guard arguments[index] == "--fixture-app", arguments.indices.contains(index + 1) else { return nil }
-    return arguments[index + 1]
-}
-for (index, fixturePath) in fixturePaths.enumerated() {
-    let fixtureURL = URL(fileURLWithPath: fixturePath)
-    Timer.scheduledTimer(withTimeInterval: 1 + Double(index * 2), repeats: false) { _ in
-        if let identifier = Bundle(url: fixtureURL)?.bundleIdentifier,
-           let running = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first {
-            running.activate(options: [.activateAllWindows])
-            return
-        }
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: fixtureURL, configuration: configuration) { _, _ in }
-    }
+    bindObserver(for: application.processIdentifier)
 }
 
 RunLoop.current.run(until: Date().addingTimeInterval(seconds))

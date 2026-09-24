@@ -1,0 +1,35 @@
+{
+  "sample": "two_ad_hoc_signed_fixture_apps",
+  "bounded_registration_retry_ms": 500,
+  "runs": [
+    {
+      "activation_events": 4,
+      "window_events": 8,
+      "observer_attempts": 6,
+      "observer_registrations": 5,
+      "observer_released": true,
+      "workspace_notification_removed": true,
+      "passed": true
+    },
+    {
+      "activation_events": 4,
+      "window_events": 9,
+      "observer_attempts": 6,
+      "observer_registrations": 5,
+      "observer_released": true,
+      "workspace_notification_removed": true,
+      "passed": true
+    },
+    {
+      "activation_events": 4,
+      "window_events": 8,
+      "observer_attempts": 7,
+      "observer_registrations": 5,
+      "observer_released": true,
+      "workspace_notification_removed": true,
+      "passed": true
+    }
+  ],
+  "contains_user_content": false,
+  "passed": true
+}

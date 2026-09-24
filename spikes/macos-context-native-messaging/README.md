@@ -16,7 +16,7 @@
 ./run-macos.sh --observe 8
 ```
 
-可重复的原生事件样本依次激活TextEdit、Calculator和Finder，验证应用激活、AXObserver重绑定尝试和资源释放；不读取用户窗口：
+可重复的原生事件样本构建两个临时ad-hoc签名`.app`夹具，由外部脚本依次启动；每个夹具激活后再创建测试窗口，以验证应用激活、AX事件、Observer重绑定和资源释放。夹具只使用固定测试标题，不读取用户窗口：
 
 ```bash
 ./check-native-events.sh

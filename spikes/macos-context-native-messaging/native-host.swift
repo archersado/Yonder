@@ -42,6 +42,7 @@ private func writeMessage(_ value: [String: Any]) {
 }
 
 private func writeEvidence() {
+    guard FileManager.default.fileExists(atPath: evidenceURL.deletingLastPathComponent().path) else { return }
     var value: [String: Any] = [
         "accepted": sequence,
         "received_types": receivedTypes,

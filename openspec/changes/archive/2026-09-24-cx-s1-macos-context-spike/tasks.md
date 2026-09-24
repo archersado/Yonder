@@ -6,6 +6,6 @@
 - [x] 实现NSWorkspace/AXObserver无正文原生探针
 - [x] 实现有界Native Messaging Host与协议自检
 - [x] 完成Google Chrome用户级Host真实连接和隐私拒绝验证
-- [ ] 完成macOS独立Verification Goal
-- [ ] 依据证据接受或拒绝AD-CX-03
-- [ ] 后续另建产品Context Port接线Change
+- [x] 完成macOS独立Verification Goal
+- [x] 依据证据限定范围接受AD-CX-03
+- [x] 记录产品Context Port接线必须另建Change

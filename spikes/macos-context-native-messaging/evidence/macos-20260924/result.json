@@ -3,18 +3,16 @@
   "os_version": "26.5.1",
   "swift_version": "6.3.3",
   "native_events": {
-    "passed": false,
+    "passed": true,
     "accessibility_trusted": true,
-    "first_observed_activation_events": 2,
-    "first_observed_observer_registrations": 3,
-    "first_observed_window_events": 2,
-    "repeat_activation_events": 0,
-    "repeat_observer_attempts": 1,
-    "repeat_observer_registrations": 1,
-    "repeat_window_events": 0,
+    "repeat_runs": 3,
+    "minimum_activation_events": 4,
+    "minimum_observer_attempts": 6,
+    "minimum_observer_registrations": 5,
+    "minimum_window_events": 8,
     "observer_released": true,
     "workspace_notification_removed": true,
-    "reason": "event_delivery_not_reproducible"
+    "bounded_registration_retry_ms": 500
   },
   "native_messaging_protocol": {
     "passed": true,
@@ -41,8 +39,10 @@
   },
   "microsoft_edge": {
     "installed": false,
-    "native_messaging_connected": false
+    "native_messaging_connected": false,
+    "scope_status": "unverified"
   },
   "contains_user_content": false,
-  "overall": "failed"
+  "overall": "passed_for_native_and_google_chrome",
+  "unverified_scope": ["microsoft_edge"]
 }

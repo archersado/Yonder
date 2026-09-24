@@ -10,7 +10,7 @@ Windows依据Accepted AD-E0-05使用原生窗口事件与Native Messaging。macO
 
 MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，SQLCipher 延期至 ST-S2；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
 
-Spike生命周期由测试进程持有：启动后注册`NSWorkspace`通知；仅在Accessibility已授权时为当前前台进程注册`AXObserver`；应用切换时先移除旧Observer再绑定新进程；停止、超时和异常都移除通知与RunLoop source。只输出固定结果码、Bundle ID是否存在、PID有效性、窗口属性是否可访问、事件计数和资源释放状态。
+Spike生命周期由测试进程持有：启动后注册`NSWorkspace`通知；仅在Accessibility已授权时为当前前台进程注册`AXObserver`；应用切换时先移除旧Observer再绑定新进程。考虑LaunchServices激活通知可能早于AX服务就绪，首次注册失败时仅对仍处于前台的同一PID执行一次500ms有界重试，不轮询内容；RunLoop Source使用common modes。停止、超时和异常都移除通知与RunLoop Source。只输出固定结果码、Bundle ID是否存在、PID有效性、窗口属性是否可访问、事件计数和资源释放状态。
 
 Chrome Native Host使用32位本机字节序长度头，单帧上限1 MiB，完整读取后才解析JSON；stdout只写协议响应，诊断写stderr且不含Payload。用户级manifest必须使用绝对Host路径和精确`chrome-extension://<id>/`来源。扩展继续不申请`history`权限，并在`tab.incognito`时拒绝发送。
 
