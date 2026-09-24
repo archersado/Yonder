@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "drivers": [
+    {
+      "kind": "cua",
+      "name": "trycua",
+      "platforms": ["macos"]
+    },
+    {
+      "kind": "bua",
+      "name": "ego-lite",
+      "platforms": ["macos"]
+    }
+  ]
+}

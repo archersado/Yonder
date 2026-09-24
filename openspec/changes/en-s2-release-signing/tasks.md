@@ -1,0 +1,12 @@
+# 任务
+
+- [x] 三份设计文档
+- [x] 创建 OpenSpec proposal/design/spec delta
+- [x] 建立最小发布冻结脚本
+- [x] 增加版本冻结与启动一致性校验
+- [x] 验证既有升级前备份与迁移失败回退
+- [x] 增加 macOS 打包与本地签名验证
+- [x] 增加 macOS 公证命令
+- [ ] 执行 macOS 正式签名与公证
+- [ ] 增加 Windows 签名与同一样本验证（暂缓）
+- [x] 创建发布冻结子范围独立 Verification Goal（完整 Story 不 Archive）

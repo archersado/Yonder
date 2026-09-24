@@ -15,6 +15,7 @@ use yonder_application::{
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
+pub const SQLITE_SCHEMA_VERSION: i64 = 18;
 
 fn storage(_: rusqlite::Error) -> Error {
     Error::StorageUnavailable

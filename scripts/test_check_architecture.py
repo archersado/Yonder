@@ -98,6 +98,22 @@ class AssociationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check(self.body)
 
+    def test_verification_result_gate(self):
+        story = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
+        verification = self.root / "openspec/changes/oct-s1-task-status/verification-goal.md"
+        original_story = story.read_text()
+        original_verification = verification.read_text()
+        story.write_text(original_story.replace("Status: ready", "Status: verifying"), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            self.check(self.body)
+        verification.write_text("OCT-S1\nResult: FAIL", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            self.check(self.body)
+        verification.write_text("OCT-S1\nResult: PASS", encoding="utf-8")
+        self.check(self.body)
+        story.write_text(original_story, encoding="utf-8")
+        verification.write_text(original_verification, encoding="utf-8")
+
     def test_change_prefix_rejected(self):
         path = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
         path.write_text(path.read_text().replace("openspec/changes/oct-s1-task-status/", "openspec/changes/oct-s1-task-status-other/"), encoding="utf-8")

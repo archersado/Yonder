@@ -16,6 +16,7 @@ OpenSpec: module-epic-story-fence
 本 Story 为用户明确授权的流程调整；运行门禁自测后进入验证，不改运行时。
 
 2026-09-20 独立验证确认 15 项自测、架构检查及真实仓库关联接受/拒绝用例通过，当前规划为 13 个 Epic、34 个 Story。归档模拟发现门禁无法解析 `openspec/changes/archive/` 中的 Change，验证结论为失败并返回实施阶段；详见 Change 的 verification-goal.md。不得据此宣称其他 Story 设计或实现完成。
+2026-09-23 已修复门禁对归档 Change 的解析、PR 模板预填和验证结果门禁，见[归档修复记录](../../../../openspec/changes/module-epic-story-fence/verification-archive-fix-macos.md)；完整 EN-S1 仍需重新独立验证。
 
 2026-09-22 已修复归档 Proposal 的唯一解析，并新增归档后仍可通过规划门禁的回归；16 项自测与全量架构检查通过，等待独立复核。
 2026-09-22 复核已通过，归档路径缺陷闭环，本 Story 完成。

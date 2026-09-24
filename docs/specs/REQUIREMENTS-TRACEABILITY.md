@@ -16,7 +16,7 @@
 | 来源章节 | 产品/架构要求 | 归属 | 当前差距 |
 |---|---|---|---|
 | B 产品定义、桌宠；S Recording 与桌宠 | 可见控制、标准动画资源包导入 | DS | DS-S1 只有桌宠/宿主基础，资源包导入尚未独立拆分 |
-| B MVP 主干 1–2；S 非功能与发布 | 安装、账号连接、明确权限、双平台分发 | DS / AG / EN | 账号、连接管理、撤销和签名发布尚未细拆 |
+| B MVP 主干 1–2；S 非功能与发布 | 安装、账号连接、明确权限、双平台分发 | DS / AG / EN | 签名发布已拆分为 EN-S2；账号、连接管理和撤销仍待拆分 |
 | B Task Space 与权限模型；A ego-lite 接入参考；S Agent Gateway | 开放 Agent 接入、权限分离、连接发现与控制 | AG | AG-S1～S3已覆盖本地接入、创建和步骤增量；云端接入仍缺分解 |
 | A Agent Skill + 本地主机 CLI + 应用内 Runtime；用户2026-09-17变更 | 统一Yonder Skill覆盖BUA、CUA、文档和命令；BUA嵌入ego-browser规则 | AG-S4 | 规格已拆解；等待四类Gateway能力完成后再生成OpenSpec和Skill包 |
 | B Task Space 与权限模型；A CUA 与 BUA 的 Task Space；S 任务、状态与恢复 | 发起者、权限、生命周期、资源、时间线、产物、审计 | TM / DS | TM-S1 目前字段与范围不完整，不能只保留状态和最新详情 |

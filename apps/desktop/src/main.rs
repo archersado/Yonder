@@ -4,6 +4,7 @@ use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIco
 use yonder_desktop::TaskHost;
 use yonder_adapters::pet_pack;
 mod pet_window;
+mod release_contract;
 mod voice_input;
 
 struct TaskState(Arc<Mutex<Option<TaskHost>>>);
@@ -689,6 +690,7 @@ fn main() {
         .manage(pet_window::PetWindowState::default())
         .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, browser_task_space_open, jev_config_get, jev_config_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
+            release_contract::validate()?;
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let pet = app.get_webview_window("pet").ok_or("小龙窗口未创建")?;

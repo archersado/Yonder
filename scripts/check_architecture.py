@@ -46,6 +46,13 @@ def repository_file(root, value):
     return path
 
 
+def change_directory(root, change):
+    matches = [path for path in (root / "openspec/changes").glob(f"**/{change}") if path.is_dir()]
+    if len(matches) != 1:
+        raise ValueError(f"OpenSpec Change 不存在或重复：{change}")
+    return matches[0]
+
+
 def check_pr(root, event):
     body = (event["pull_request"].get("body") or "").replace("\r\n", "\n")
     fields = {}
@@ -69,7 +76,8 @@ def check_pr(root, event):
     if info["OpenSpec"] != change:
         raise ValueError("Story 与 PR 的 OpenSpec 不一致")
     story_text = story_path.read_text(encoding="utf-8")
-    prefix = f"openspec/changes/{change}"
+    directory = change_directory(root, change)
+    prefix = str(directory.relative_to(root))
     proposal = repository_file(root, f"{prefix}/proposal.md").read_text(encoding="utf-8")
     for name in ("design.md", "tasks.md"):
         if not repository_file(root, f"{prefix}/{name}").read_text(encoding="utf-8").strip():
@@ -85,10 +93,14 @@ def check_pr(root, event):
     if not re.search(change_pattern, story_text) or not re.search(story_pattern, proposal):
         raise ValueError("Story 与 OpenSpec 缺少双向引用")
     verification = repository_file(root, fields["Verification"])
-    if verification.suffix != ".md" or not re.search(
-        story_pattern, verification.read_text(encoding="utf-8")
-    ):
+    verification_text = verification.read_text(encoding="utf-8")
+    if verification.suffix != ".md" or not re.search(story_pattern, verification_text):
         raise ValueError("验证记录必须是引用该 Story 的 Markdown 文件")
+    result = re.findall(r"^Result:\s*(PASS|FAIL|PENDING)\s*$", verification_text, re.MULTILINE)
+    if result and result != ["PASS"]:
+        raise ValueError("验证记录未通过，不能进入 PR")
+    if info["Status"] in {"verifying", "done"} and result != ["PASS"]:
+        raise ValueError("verifying/done Story 必须引用 Result: PASS 的验证记录")
 
 
 DOCUMENTS = {
