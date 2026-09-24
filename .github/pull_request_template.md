@@ -1,6 +1,6 @@
-Story: EN-S1
-OpenSpec: module-epic-story-fence
-Verification: openspec/changes/module-epic-story-fence/verification-goal.md
+Story: <STORY-ID>
+OpenSpec: <CHANGE-ID>
+Verification: <VERIFICATION-RECORD>
 
 <!-- 将以上三行替换为本 PR 的真实关联。验证记录存在不代表验证通过。 -->
 

@@ -11,6 +11,15 @@ cargo test --workspace --locked
 cargo run -p yonder-protocol --example generate --locked -- --check
 ```
 
+发布冻结清单在提交后生成，默认打印 JSON；产物签名与公证由后续增量承接：
+
+```bash
+# macOS 需先执行 apps/desktop/package-macos-preview.py --release ...
+python3 scripts/release.py --artifacts
+```
+
+macOS 预览/发布共用 `apps/desktop/package-macos-preview.py`；`--release` 指向 release 产物，`--identity` 指定正式签名身份，`--allow-adhoc` 仅用于本机临时签名验证。
+
 脚本从 `cargo metadata --no-deps --locked --offline` 读取正式 Workspace 清单，覆盖依赖别名、开发/构建依赖及平台条件；隔离 Spike 不属于正式 Workspace。Domain 不得增加外部依赖。新增模块名称必须经架构核对后登记。
 
 PR 事件额外传 `--event "$GITHUB_EVENT_PATH"`，从 JSON 读取正文，不将正文作为 Shell 执行。PR 模板三行分别给出 Story ID、Change 名称和仓库相对验证记录路径，检查唯一性、文件存在、Story/Change 双向引用及验证记录引用 Story。此检查只验证关联，不判断证据真实性、规格是否覆盖全部代码或 Goal 是否通过。

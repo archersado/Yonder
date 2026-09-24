@@ -2,7 +2,7 @@
 
 ### Requirement: 模块 Epic 与 Story 设计围栏
 
-关联 EN-S1。
+关联 EN-S1。Yonder MUST 按模块维护 Epic/Story 设计门禁，实施 PR MUST 关联唯一 Story、OpenSpec 与独立 Verification。
 
 #### Scenario：规划完整性
 每个 epic-模块/README.md 定义唯一 Epic；story-ID/ 内有 README.md 和非空的产品需求、架构设计、视觉交互设计文档，包含各自必需章节。缺失、空章节、ID 或归属不符时检查失败。

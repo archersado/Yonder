@@ -4,7 +4,7 @@ use yonder_protocol::{AttemptResult as ProtocolAttemptResult,AttemptResultPhase,
 
 pub use yonder_protocol::Platform;
 
-const PROTOCOL: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
 
 pub fn is_execution_request(bytes: &[u8]) -> bool {
     matches!(yonder_protocol::decode(bytes), Ok(Request::BrowserExecute { .. } | Request::ComputerExecute { .. } | Request::ComputerStep { .. }))
@@ -85,7 +85,7 @@ mod tests {
             let target = if platform == Platform::Macos { &mut session } else { &mut other };
             for _ in 0..2 {
                 let response = target.handle(&mut NoStore, &hello, 1000);
-                assert_eq!(response, Response::Success { jsonrpc: Version::V2, id: "r1".into(), result: QueryResult::Hello { protocol_version: PROTOCOL, platform, capabilities: vec![CapabilityInfo { name: Capability::TaskRead, version: PROTOCOL, availability: Availability::Available, reason: None }] } });
+                assert_eq!(response, Response::Success { jsonrpc: Version::V2, id: "r1".into(), result: QueryResult::Hello { protocol_version: PROTOCOL_VERSION, platform, capabilities: vec![CapabilityInfo { name: Capability::TaskRead, version: PROTOCOL_VERSION, availability: Availability::Available, reason: None }] } });
                 assert!(!yonder_protocol::encode(&response).unwrap().is_empty());
             }
         }
@@ -311,7 +311,7 @@ impl<'a> GatewaySession<'a> {
         }
         let result = (|| {
             if let Request::Hello { params, .. } = &request {
-                self.negotiated = params.protocol_version.major == PROTOCOL.major;
+                self.negotiated = params.protocol_version.major == PROTOCOL_VERSION.major;
                 self.can_cancel = self.negotiated && params.protocol_version.minor >= 2 && store.supports_pending_cancel();
                 self.can_create = self.negotiated && params.protocol_version.minor >= 1 && store.supports_registration() && matches!(self.auth, AuthContext::Agent(_));
                 self.can_name = self.negotiated && params.protocol_version.minor >= 3 && store.supports_registration();

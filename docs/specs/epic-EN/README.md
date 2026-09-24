@@ -9,6 +9,7 @@ Epic: EN
 ## Stories
 
 - [EN-S1 模块 Epic 与 Story 设计门禁](story-EN-S1/README.md)
+- [EN-S2 发布签名与分发](story-EN-S2/README.md)
 
 ## 验收与依赖
 

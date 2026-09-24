@@ -6,6 +6,8 @@ pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
 
+pub const SQLITE_SCHEMA_VERSION: i64 = 14;
+
 fn storage(_: rusqlite::Error) -> Error { Error::StorageUnavailable }
 
 fn name(status: Status) -> &'static str {
@@ -58,7 +60,7 @@ impl SqliteTaskStore {
     fn initialize(mut db: Connection, migrate_plaintext: bool) -> Result<Self, Error> {
         // 在任何初始化写入前拒绝不可读格式及未知版本，包括已有加密库。
         let schema: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(storage)?;
-        if ![0,2,3,4,5,6,7,8,9,10,11,12,13,14].contains(&schema) { return Err(Error::StorageUnavailable); }
+        if ![0,2,3,4,5,6,7,8,9,10,11,12,13,SQLITE_SCHEMA_VERSION].contains(&schema) { return Err(Error::StorageUnavailable); }
         if schema != 0 && schema != 14 {
             if !migrate_plaintext { return Err(Error::StorageUnavailable); }
             if let Some(path) = db.path().filter(|path| !path.is_empty()) {
@@ -93,7 +95,7 @@ impl SqliteTaskStore {
         if schema < 11 { tx.execute_batch(include_str!("task_advance_schema.sql")).map_err(storage)?; }
         if schema < 12 { tx.execute_batch(include_str!("task_browser_reference_schema.sql")).map_err(storage)?; }
         if schema < 13 { tx.execute_batch(include_str!("task_focus_schema.sql")).map_err(storage)?; }
-        if schema < 14 { tx.execute_batch(include_str!("task_wait_schema.sql")).map_err(storage)?; }
+        if schema < SQLITE_SCHEMA_VERSION { tx.execute_batch(include_str!("task_wait_schema.sql")).map_err(storage)?; }
         tx.commit().map_err(storage)?;
         Ok(Self(db))
     }

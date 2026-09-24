@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+import shutil
 import unittest
 
 from check_architecture import DOCUMENTS, check_dependencies, check_planning, check_pr, repository_file
@@ -86,6 +87,22 @@ class AssociationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check(self.body)
 
+    def test_verification_result_gate(self):
+        story = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
+        verification = self.root / "openspec/changes/oct-s1-task-status/verification-goal.md"
+        original_story = story.read_text()
+        original_verification = verification.read_text()
+        story.write_text(original_story.replace("Status: ready", "Status: verifying"), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            self.check(self.body)
+        verification.write_text("OCT-S1\nResult: FAIL", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            self.check(self.body)
+        verification.write_text("OCT-S1\nResult: PASS", encoding="utf-8")
+        self.check(self.body)
+        story.write_text(original_story, encoding="utf-8")
+        verification.write_text(original_verification, encoding="utf-8")
+
     def test_change_prefix_rejected(self):
         path = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
         path.write_text(path.read_text().replace("openspec/changes/oct-s1-task-status/", "openspec/changes/oct-s1-task-status-other/"), encoding="utf-8")
@@ -153,6 +170,28 @@ class AssociationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.check(self.body)
             path.write_text(original, encoding="utf-8")
+
+    def test_archived_change_keeps_story_link(self):
+        active = self.root / "openspec/changes/oct-s1-task-status"
+        archived = self.root / "openspec/changes/archive/2026-09-23-oct-s1-task-status/oct-s1-task-status"
+        archived.parent.mkdir(parents=True)
+        active.rename(archived)
+        story = self.root / "docs/specs/epic-OCT/story-OCT-S1/README.md"
+        story.write_text(story.read_text().replace(
+            "openspec/changes/oct-s1-task-status/",
+            "openspec/changes/archive/2026-09-23-oct-s1-task-status/oct-s1-task-status/",
+        ), encoding="utf-8")
+        check_planning(self.root)
+
+    def test_duplicate_change_directories_are_rejected(self):
+        duplicate = self.root / "openspec/changes/archive/oct-s1-task-status"
+        duplicate.mkdir(parents=True)
+        shutil.copytree(
+            self.root / "openspec/changes/oct-s1-task-status",
+            duplicate / "oct-s1-task-status",
+        )
+        with self.assertRaises(ValueError):
+            check_planning(self.root)
 
 
 if __name__ == "__main__":
