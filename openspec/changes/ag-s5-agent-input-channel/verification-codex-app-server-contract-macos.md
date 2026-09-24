@@ -9,7 +9,7 @@
 
 ## 验证方法
 
-- 构建`yonder-cli`，用临时HOME和临时Unix Socket启动受控Yonder Gateway与App Server双端。
+- 构建`yonder-cli`，用临时HOME和临时Unix Socket启动受控Yonder Gateway与WebSocket-over-UDS App Server双端。
 - App Server首次返回`active + turn-active`，第二次返回`idle + interrupted`。
 - Gateway连续发送两条`agent.input`，验证握手声明的thread、方法顺序和accepted结果。
 - 命令：`python3 apps/yonder-cli/check-codex-agent-bridge-macos.py`。

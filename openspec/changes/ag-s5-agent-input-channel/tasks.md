@@ -6,13 +6,13 @@
 - [x] 撤回Codex当前会话候选通过结论并记录活动turn失败证据
 - [x] 定稿Rust协议、能力协商、长度和deadline
 - [x] 实现Application `AgentInputSink`与有界内存交付
-- [ ] 将Codex薄桥接从内部队列改为当前会话start/steer输入，并验证中断后下一条输入可继续
+- [x] 将Codex薄桥接从内部队列改为当前会话start/steer输入，并验证中断后下一条输入可继续
   - [x] 记录Codex 0.154活动turn投递失败证据；`codex queue`成功不等于steer或accepted
   - [x] 移除`codex queue`误报桥接；不支持时失败关闭且不注册`user_input`
   - [x] 2026-09-23复验共享App Server控制通道；当前CLI会话`notLoaded`、`canAcceptDirectInput=null`，`turn/start`返回`thread not found`
   - [x] 2026-09-24确认Codex CLI 0.156.1官方支持共享App Server、`--remote`与可确认的`turn/steer`
   - [x] 实现显式App Server socket + thread绑定的薄桥接，隔离合约验证活动steer/中断后start均只在RPC确认后accepted
-  - [ ] 使用真实Codex remote TUI会话完成macOS独立Verification Goal
+  - [x] 使用真实Codex remote TUI会话完成macOS独立Verification Goal
 - [ ] 等待AG-S1交付端点、认证、TLS与重连完整的产品WSS `AgentSession`，再复用其接入`agent.input`
 - [x] 接入VI-S1最终转写自动投递
 - [x] 设计桌宠Agent连接态的事件、视觉与可访问反馈

@@ -15,8 +15,8 @@ Codex通过MCP stdio启动CLI；CLI经当前用户私有UDS调用运行中的Yon
 
 ```bash
 codex app-server --listen unix:///tmp/yonder-codex.sock
-codex resume --remote unix:///tmp/yonder-codex.sock <thread-id>
+codex --remote unix:///tmp/yonder-codex.sock resume <thread-id>
 YONDER_AGENT_ID=codex YONDER_CODEX_THREAD_ID=<thread-id> YONDER_CODEX_APP_SERVER_SOCKET=/tmp/yonder-codex.sock /path/to/yonder agent-bridge
 ```
 
-桥接只在thread已由该App Server加载后向Yonder声明`user_input`；活动turn直接调用`turn/steer`，空闲或中断后调用`turn/start`。App Server未确认时不会向Yonder报告成功。
+桥接直接使用该监听socket上的WebSocket传输，只在thread已由App Server加载后向Yonder声明`user_input`；活动turn直接调用`turn/steer`，空闲或中断后调用`turn/start`。App Server未确认时不会向Yonder报告成功。

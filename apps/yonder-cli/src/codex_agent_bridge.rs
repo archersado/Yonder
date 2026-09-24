@@ -1,3 +1,7 @@
+use futures_util::{
+    SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
+};
 use interprocess::local_socket::{
     GenericFilePath, ToFsName,
     tokio::{Stream, prelude::*},
@@ -7,15 +11,15 @@ use std::{
     collections::{HashMap, VecDeque},
     env, io,
     path::{Path, PathBuf},
-    process::Stdio,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    net::UnixStream,
     sync::mpsc,
     task::JoinHandle,
 };
+use tokio_tungstenite::{WebSocketStream, client_async, tungstenite::Message};
 use yonder_protocol::{
     AgentInputParams, AgentInputResult, AgentRequest, AgentResponse, Capability, HelloParams,
     MAX_REQUEST_BYTES, OfferedCapability, ProtocolVersion, Request, Response, Version,
@@ -27,8 +31,7 @@ const MAX_DEDUP_RESULTS: usize = 1024;
 const MAX_PENDING_RESPONSES: usize = 8;
 
 struct CodexAppServer {
-    child: Child,
-    input: ChildStdin,
+    input: SplitSink<WebSocketStream<UnixStream>, Message>,
     responses: mpsc::Receiver<io::Result<Value>>,
     reader: JoinHandle<()>,
     next_id: u64,
@@ -36,26 +39,17 @@ struct CodexAppServer {
 
 impl CodexAppServer {
     async fn connect(socket: &Path) -> io::Result<Self> {
-        let mut child = Command::new("codex")
-            .args(["app-server", "proxy", "--sock"])
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|error| io::Error::other(format!("Codex App Server代理启动失败：{error}")))?;
-        let input = child
-            .stdin
-            .take()
-            .ok_or_else(|| io::Error::other("Codex App Server输入不可用"))?;
-        let output = child
-            .stdout
-            .take()
-            .ok_or_else(|| io::Error::other("Codex App Server输出不可用"))?;
+        let stream = UnixStream::connect(socket)
+            .await
+            .map_err(|error| io::Error::other(format!("Codex App Server连接失败：{error}")))?;
+        let (socket, _) = client_async("ws://localhost/", stream)
+            .await
+            .map_err(|error| {
+                io::Error::other(format!("Codex App Server WebSocket握手失败：{error}"))
+            })?;
+        let (input, output) = socket.split();
         let (responses, reader) = read_responses(output);
         let mut server = Self {
-            child,
             input,
             responses,
             reader,
@@ -102,16 +96,19 @@ impl CodexAppServer {
     }
 
     async fn write(&mut self, message: &Value) -> io::Result<()> {
-        let mut bytes = serde_json::to_vec(message).map_err(io::Error::other)?;
+        let bytes = serde_json::to_vec(message).map_err(io::Error::other)?;
         if bytes.len() > MAX_CODEX_FRAME_BYTES {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Codex App Server请求过大",
             ));
         }
-        bytes.push(b'\n');
-        self.input.write_all(&bytes).await?;
-        self.input.flush().await
+        let text = String::from_utf8(bytes)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Codex App Server请求无效"))?;
+        self.input
+            .send(Message::Text(text.into()))
+            .await
+            .map_err(io::Error::other)
     }
 
     async fn ensure_loaded(&mut self, thread_id: &str) -> io::Result<()> {
@@ -139,11 +136,12 @@ impl CodexAppServer {
         content: &str,
         timeout: Duration,
     ) -> io::Result<()> {
+        let deadline = Instant::now() + timeout;
         let result = self
             .call(
                 "thread/read",
                 json!({"threadId":thread_id,"includeTurns":true}),
-                timeout,
+                deadline.saturating_duration_since(Instant::now()),
             )
             .await?;
         let thread = result
@@ -163,7 +161,7 @@ impl CodexAppServer {
                     .call(
                         "turn/steer",
                         json!({"threadId":thread_id,"input":input,"expectedTurnId":turn_id}),
-                        timeout,
+                        deadline.saturating_duration_since(Instant::now()),
                     )
                     .await?;
                 if result.get("turnId").and_then(Value::as_str) == Some(turn_id) {
@@ -177,7 +175,7 @@ impl CodexAppServer {
                     .call(
                         "turn/start",
                         json!({"threadId":thread_id,"input":input}),
-                        timeout,
+                        deadline.saturating_duration_since(Instant::now()),
                     )
                     .await?;
                 if result
@@ -200,31 +198,31 @@ impl CodexAppServer {
 impl Drop for CodexAppServer {
     fn drop(&mut self) {
         self.reader.abort();
-        let _ = self.child.start_kill();
     }
 }
 
-fn read_responses(output: ChildStdout) -> (mpsc::Receiver<io::Result<Value>>, JoinHandle<()>) {
+fn read_responses(
+    mut output: SplitStream<WebSocketStream<UnixStream>>,
+) -> (mpsc::Receiver<io::Result<Value>>, JoinHandle<()>) {
     let (sender, receiver) = mpsc::channel(MAX_PENDING_RESPONSES);
     let reader = tokio::spawn(async move {
-        let mut output = BufReader::new(output);
         loop {
-            let mut bytes = Vec::new();
-            let result: io::Result<Value> = match output.read_until(b'\n', &mut bytes).await {
-                Ok(0) => Err(io::Error::new(
+            let result: io::Result<Value> = match output.next().await {
+                None | Some(Ok(Message::Close(_))) => Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "Codex App Server已断开",
                 )),
-                Ok(read) if read > MAX_CODEX_FRAME_BYTES || bytes.last() != Some(&b'\n') => Err(
-                    io::Error::new(io::ErrorKind::InvalidData, "Codex App Server响应无效"),
-                ),
-                Ok(_) => {
-                    bytes.pop();
-                    serde_json::from_slice(&bytes).map_err(|_| {
+                Some(Ok(Message::Text(text))) if text.len() <= MAX_CODEX_FRAME_BYTES => {
+                    serde_json::from_str(text.as_str()).map_err(|_| {
                         io::Error::new(io::ErrorKind::InvalidData, "Codex App Server响应无效")
                     })
                 }
-                Err(error) => Err(error),
+                Some(Ok(Message::Ping(_) | Message::Pong(_))) => continue,
+                Some(Ok(_)) => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Codex App Server响应无效",
+                )),
+                Some(Err(error)) => Err(io::Error::other(error)),
             };
             if result
                 .as_ref()
