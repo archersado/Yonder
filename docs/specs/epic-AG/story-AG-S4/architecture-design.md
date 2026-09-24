@@ -18,9 +18,30 @@ CUA 使用 Yonder 粗粒度组合步骤入口；Yonder负责步骤声明、资�
 
 Document 与 Command 在各自产品 Story 完成后按能力发现启用。Document Port 不暴露 OOXML；Command 默认结构化调用，Shell 单独授权。Skill 只组合已实现用例，不通过本机通用 shell、Office 自动化或直接文件修改填补能力缺口。
 
+若 Yonder 引入快慢脑交接，Skill 仍只调用 Gateway 的既有任务/执行入口；不得直接驱动 Jev、另建 Recipe、或在 Skill 内实现第二套决策循环。相关边界以 AD-EX-01/EX-S2/AD-EX-04 为准。
+
 ## 状态与契约
 
 Skill 保存于发布仓库的独立目录，包内包含主入口和按需读取的 BUA/CUA/Document/Command 参考；不包含运行时凭据和用户数据。调用方始终使用 Yonder 返回的 `task_id` 与最新 `sequence`。副作用请求超时、断连或结果不明时读取任务/事件并停止，不能自动重放。
+
+### Skill 包结构候选（待审）
+
+首版包结构建议保持最小，只包含 Agent 侧说明与声明式 manifest，不包含可执行代码或模型请求模板：
+
+```text
+skill/
+  SKILL.md
+  manifest.json
+  modules/
+    browser.md
+    computer.md
+    document.md
+    command.md
+```
+
+`manifest.json` 仅记录 `skill_version`、`yonder_protocol_min`、可用能力清单和 ego-browser 上游版本/提交来源，不保存用户数据、运行时凭据或任务状态。运行时先读取 manifest 并与当前 Yonder 能力/协议版本比对，不满足时明确返回“当前 Yonder 尚不支持该能力”，不降级到通用 shell、浏览器或其他替代执行栈。
+
+Skill 的调用链不因快慢脑架构改变而新增旁路；任何快慢脑能力缺失都须按能力发现返回不可用，而不是由 Skill 内部模拟或代理。
 
 首次实现前需确定 Skill 包的安装位置、版本与 Yonder 协议兼容范围；这些属于实施设计，不在当前规格中猜测。Document、Command 或 BUA 受监管动作协议尚未齐备时，AG-S4保持draft，不创建实现 Proposal。
 
