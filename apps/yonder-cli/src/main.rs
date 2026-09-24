@@ -4,6 +4,8 @@ use std::{env, io::{self, BufRead, Write}, path::PathBuf, sync::mpsc, thread, ti
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use yonder_protocol::{BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, EventsParams, GetParams, HelloParams, ListParams, ProtocolVersion, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
 
+mod codex_agent_bridge;
+
 const MCP_IDLE_TIMEOUT: Duration = Duration::from_secs(600);
 
 fn receive_line(receiver: &mpsc::Receiver<io::Result<Option<String>>>, timeout: Duration) -> io::Result<Option<String>> {
@@ -131,7 +133,7 @@ async fn handle(message: Value, counter: &mut u64, agent_id: &str) -> Option<Val
 }
 
 async fn agent_bridge() -> io::Result<()> {
-    Err(io::Error::other("Codex CLI当前只提供持久队列，未暴露可确认提交的当前会话输入通道"))
+    codex_agent_bridge::run(agent_id()?, socket_path()?).await
 }
 
 async fn mcp(agent_id: String) {
