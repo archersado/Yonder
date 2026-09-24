@@ -3,8 +3,9 @@
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
-from check_architecture import DOCUMENTS, check_dependencies, check_planning, check_pr, repository_file
+from check_architecture import DOCUMENTS, cargo_executable, check_dependencies, check_planning, check_pr, repository_file
 
 
 def metadata(name, dependencies):
@@ -14,6 +15,14 @@ def metadata(name, dependencies):
 
 
 class DependencyTests(unittest.TestCase):
+    def test_cargo_path_prefers_explicit_then_path_then_rustup(self):
+        with patch.dict("check_architecture.os.environ", {"CARGO": "/custom/cargo"}, clear=True):
+            self.assertEqual(cargo_executable(), "/custom/cargo")
+        with patch.dict("check_architecture.os.environ", {}, clear=True), patch("check_architecture.shutil.which", return_value="/usr/bin/cargo"):
+            self.assertEqual(cargo_executable(), "/usr/bin/cargo")
+        with patch.dict("check_architecture.os.environ", {}, clear=True), patch("check_architecture.shutil.which", return_value=None), patch("check_architecture.Path.home", return_value=Path("/home/test")):
+            self.assertEqual(cargo_executable(), "/home/test/.cargo/bin/cargo")
+
     def test_existing_directions(self):
         for name, targets in {
             "yonder-domain": [],
