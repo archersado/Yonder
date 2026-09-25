@@ -8,6 +8,7 @@ pub mod browser_use;
 pub mod command;
 pub mod computer_use;
 pub mod document;
+pub mod file;
 pub mod gateway;
 pub mod jev_config;
 pub mod jev_runtime;

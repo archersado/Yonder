@@ -149,6 +149,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-25 CM-S1 macOS结构化命令Runtime子范围PASS：Accepted AD-CM-01仅授权内部Application Port与macOS Adapter；字面参数、清空继承环境、正常/非零退出、启动失败、超时/取消、stdout/stderr各64 KiB及意外后台后代清理均通过。全仓117项Rust、68个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway/CLI/MCP、Shell、风险确认与Windows仍未开放，完整CM-S1保持implementing。
 
+2026-09-25 FI-S1 macOS受控文件Runtime子范围PASS：Accepted AD-FI-01仅授权内部Application Port与macOS Adapter；软/硬链接身份归并、授权根、16 MiB读取、身份+SHA-256抗陈旧替换、同目录原子提交、双层锁、失败清理、提交unknown及系统回收站均通过。回收站仅操作并清理自建临时夹具。全仓123项Rust、69个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway、任务接线、覆盖/删除确认UI与Windows仍未开放，完整FI-S1保持implementing。
+
 2026-09-18 AG-S5 Codex当前turn投递Goal FAIL：Codex CLI 0.154的`codex queue`仅确认持久排队，活动turn没有收到steer，现有桥接不能据此返回`accepted`。不使用内部数据库轮询或第二Agent绕过；等待受支持的当前会话`turn/start|turn/steer`连接入口后返回实施。
 
 2026-09-18 AG-S5失败关闭修复：排队探针仅在前一turn结束后作为下一turn到达；`yonder agent-bridge`已删除`codex queue`误报路径，不支持当前会话直接提交时明确退出，桌宠保持Agent未连接。

@@ -4,6 +4,7 @@ pub mod command;
 pub mod jev;
 pub mod cua;
 pub mod document;
+pub mod file;
 pub mod pet_pack;
 #[cfg(target_os = "macos")]
 pub mod ego_lite;

@@ -5248,6 +5248,7 @@ version = "0.1.0"
 dependencies = [
  "fs2",
  "image",
+ "objc2-foundation",
  "quick-xml 0.42.0",
  "rusqlite",
  "security-framework",
