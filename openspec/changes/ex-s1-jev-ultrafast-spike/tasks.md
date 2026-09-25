@@ -6,7 +6,7 @@
 - [x] 完成 macOS 对照样本与独立 Verification Goal
 - [x] 更新 AD-EX-02 为 Accepted（macOS-only）缩范围结论
 - [ ] 完成 Windows 对照样本
-- [x] 补齐官方 input 单价证据并更新 input-only 预算对照
-- [ ] 取得官方 output token 计费规则或明确不计费依据
+- [x] 补齐官方 input 单价证据并更新样本预算对照
+- [x] 取得官方 output token 不计费依据并更新完整 Jev 价格口径
 - [ ] 根据双平台证据更新 AD-EX-02 终局结论
 - [ ] 审阅与 Archive

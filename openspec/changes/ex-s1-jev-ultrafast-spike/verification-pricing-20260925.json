@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-25",
+  "source_url": "https://typesafe.ai/blog/introducing-system-one-models-and-jev",
+  "source_published_date": "2026-09-15",
+  "published_input_usd_per_billion_tokens": 42,
+  "published_input_usd_per_million_tokens": 0.042,
+  "published_output_usd_per_million_tokens": 0,
+  "published_output_tokens_free": true,
+  "sample_evidence": "verification-macos-evidence.json",
+  "baseline_input_tokens": 17061,
+  "baseline_output_tokens": 834,
+  "jev_input_tokens": 8088,
+  "jev_output_tokens": 834,
+  "baseline_same_jev_price_basis_cost_usd": 0.000716562,
+  "jev_published_price_cost_usd": 0.000339696,
+  "published_price_cost_reduction_rate": 0.5259363460524002,
+  "scope": "published-jev-input-and-output-pricing",
+  "full_published_jev_pricing_available": true,
+  "slow_brain_provider_bill_compared": false
+}

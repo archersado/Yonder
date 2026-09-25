@@ -40,6 +40,8 @@ TYPESAFE_API_KEY=<key> npm --prefix spikes/jev-ultrafast run probe -- --repeat 3
 
 2026-09-24 补证：TypeSafe 官方首页现已公开 `$42 / 10 亿 input tokens`，FAQ 说明当前价格可盈利而非临时亏损补贴；官方文档索引仍未发现 output token 计费规则。保持原始证据文件不变，另以 [价格结构化证据](verification-pricing-20260924.json) 回算：Jev 路径 8088 个 input tokens 为 `$0.000339696`，完整状态基线 17061 个 input tokens 为 `$0.000716562`，已知 input 费用下降 52.594%。该数值不包含任何未公开的 output 费用，不等同最终账单。
 
+2026-09-25 补证：TypeSafe 官方发布页已明确 Jev output tokens 免费，且继续列出 input 单价为 `$0.042 / 百万 tokens`。保持 2026-09-24 的历史快照不变，新增[价格独立复核记录](verification-pricing-20260925.md)与[结构化证据](verification-pricing-20260925.json)。在同一 Jev 官方价格基准下，Jev 候选摘要路径的完整公开价格为 `$0.000339696`，完整状态基线为 `$0.000716562`，费用下降 52.594%；两侧 output tokens 均为 834 且价格为零。该对照用于验证候选摘要的 Jev 成本变化，不是外部慢脑供应商的实际账单。
+
 ## 结论与限制
 
-macOS 隔离样本显示官方 `systemOne` 选择题接口可以在有界候选上稳定选择，且压缩候选摘要达到冻结 token、质量、时延与取消门槛。该结论只覆盖本 Spike 的固定样本，不证明真实 CUA/BUA/Document/Command Observe 质量，也不接产品 Gateway。2026-09-24 后续用户变更据此接受了 macOS-only 产品决策接线；Windows 证据与完整账单规则仍缺失，完整计划片段执行和双平台终局结论仍不得据此解锁。
+macOS 隔离样本显示官方 `systemOne` 选择题接口可以在有界候选上稳定选择，且压缩候选摘要达到冻结 token、质量、时延与取消门槛。该结论只覆盖本 Spike 的固定样本，不证明真实 CUA/BUA/Document/Command Observe 质量，也不接产品 Gateway。2026-09-24 后续用户变更据此接受了 macOS-only 产品决策接线；Jev 官方 input/output 价格证据已补齐，但 Windows 证据仍缺失，完整计划片段执行和双平台终局结论仍不得据此解锁。
