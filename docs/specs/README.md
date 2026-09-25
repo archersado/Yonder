@@ -143,6 +143,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-25 TM-S5产物清单核心版本化PASS：可信Application能力可发布完整不可变快照，任务序号、事件、Outbox、清单与条目同事务提交；固定版本分页受当前任务权限约束，确认绑定当时最新版本，后续changed/missing/新增引用不改写旧确认。全仓109项Rust测试、75项OpenSpec及33项Python测试通过。Gateway/具体能力Adapter/UI、交回与Recording审计、Windows验证仍待完成，完整Story不Archive。
 
+2026-09-25 TM-S5产物清单只读接线macOS子范围PASS：协议1.26新增`task.artifacts`并保持1.25隔离，Gateway当前权限、CLI/MCP、固定版本分页及Task Space空清单/四态/局部重试/确认后变化提示均通过；全仓110项Rust、76项OpenSpec、33项Python测试与macOS Ego Lite结构化证据完成。系统桌面锁屏期间未发送输入，正式Tauri原生操作、真实能力Adapter发布、交回与Recording审计、Windows仍待完成。
+
 2026-09-18 AG-S5 Codex当前turn投递Goal FAIL：Codex CLI 0.154的`codex queue`仅确认持久排队，活动turn没有收到steer，现有桥接不能据此返回`accepted`。不使用内部数据库轮询或第二Agent绕过；等待受支持的当前会话`turn/start|turn/steer`连接入口后返回实施。
 
 2026-09-18 AG-S5失败关闭修复：排队探针仅在前一turn结束后作为下一turn到达；`yonder agent-bridge`已删除`codex queue`误报路径，不支持当前会话直接提交时明确退出，桌宠保持Agent未连接。

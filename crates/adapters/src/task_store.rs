@@ -3716,6 +3716,50 @@ mod tests {
         .unwrap();
         assert_eq!(page.items[0].reference_id, "artifact-docx");
         assert_eq!(page.next_after_ordinal, Some(1));
+
+        use yonder_application::gateway::{GatewaySession, Platform};
+        use yonder_protocol::{QueryResult, Response};
+        let hello = |minor| {
+            format!(
+                r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#
+            )
+        };
+        let artifacts = format!(
+            r#"{{"jsonrpc":"2.0","id":"artifacts","method":"task.artifacts","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","manifest_version":"1","after_ordinal":0,"limit":1}}}}"#,
+            task.id
+        );
+        let mut old = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        old.handle(&mut store, hello(25).as_bytes(), 1000);
+        assert!(matches!(
+            old.handle(&mut store, artifacts.as_bytes(), 1000),
+            Response::Failure { error, .. } if error.code == -32010
+        ));
+        let mut current = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        assert!(matches!(
+            current.handle(&mut store, hello(26).as_bytes(), 1000),
+            Response::Success {
+                result: QueryResult::Hello { protocol_version, .. }, ..
+            } if protocol_version.minor == 26
+        ));
+        assert!(matches!(
+            current.handle(&mut store, artifacts.as_bytes(), 1000),
+            Response::Success {
+                result: QueryResult::ArtifactManifestPage {
+                    manifest_version,
+                    items,
+                    next_after_ordinal: Some(1),
+                    ..
+                }, ..
+            } if manifest_version == "1" && items.len() == 1
+        ));
+        let other_hello = hello(26).replace("a1", "a2");
+        let other_artifacts = artifacts.replace("a1", "a2");
+        let mut other = GatewaySession::new(AuthContext::Agent("a2"), Platform::Macos);
+        other.handle(&mut store, other_hello.as_bytes(), 1000);
+        assert!(matches!(
+            other.handle(&mut store, other_artifacts.as_bytes(), 1000),
+            Response::Failure { error, .. } if error.code == -32004
+        ));
         let tail = artifact_manifest_page(
             &mut store,
             AuthContext::Agent("a1"),

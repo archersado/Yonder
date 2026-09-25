@@ -47,6 +47,38 @@
     }
   ],
   "$defs": {
+    "ArtifactAvailability": {
+      "type": "string",
+      "enum": [
+        "available",
+        "missing",
+        "changed",
+        "unverified"
+      ]
+    },
+    "ArtifactManifestItem": {
+      "type": "object",
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/ArtifactAvailability"
+        },
+        "ordinal": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "reference_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "reference_id",
+        "availability"
+      ]
+    },
     "AttemptResult": {
       "type": "object",
       "properties": {
@@ -524,6 +556,43 @@
             "kind",
             "task_id",
             "events"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ArtifactManifestItem"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "artifact-manifest-page"
+            },
+            "manifest_version": {
+              "type": "string"
+            },
+            "next_after_ordinal": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            },
+            "task_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task_id",
+            "manifest_version",
+            "items"
           ]
         },
         {

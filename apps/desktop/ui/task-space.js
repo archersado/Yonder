@@ -9,6 +9,7 @@ const sourceLabels = { 'local-agent': '本地 Agent', 'cloud-agent': '云端 Age
 const observationLabels = { matched: '已匹配', 'not-matched': '未匹配', unknown: '未知' };
 const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable': '依赖不可用', 'worker-failed': '执行器失败', 'timed-out': '执行超时', 'invalid-response': '响应无效', 'identity-mismatch': '执行身份不匹配', 'observe-failed': '观察失败', 'user-input': '用户已接管输入' };
 const focusFailureLabels = { 'permission-unavailable':'缺少辅助功能权限', 'process-changed':'目标进程已变化', 'window-missing':'目标窗口不存在', 'mapping-not-unique':'无法唯一识别目标窗口', 'activation-failed':'窗口前置失败', 'verification-failed':'前置结果未通过核验', 'geometry-changed':'窗口身份已变化', 'reference-unavailable':'工作引用不可用' };
+const artifactAvailabilityLabels = { available:'可用', missing:'缺失', changed:'已变化', unverified:'未验证' };
 let includeFinished = false, cursor = null, nextCursor = null, pageNumber = 1;
 let round = 0, selection = 0;
 const pendingControls = new Map();
@@ -93,8 +94,8 @@ async function confirmResult(task, button, textarea) {
       confirmationId,
       comment
     });
-    message('结果已确认，任务终态未改变');
     await load();
+    message('结果已确认，任务终态未改变');
   } catch (error) {
     message(`结果确认失败：${error.message ?? '请刷新后重试'}`, true);
     button.disabled = false; button.textContent = '确认结果';
@@ -157,6 +158,67 @@ function offerTimelineMore(container, list, task, after, current, currentRound) 
     }
   });
 }
+function appendArtifacts(list, items, after) {
+  let cursor = Number(after);
+  for (const artifact of items) {
+    if (!Number.isInteger(artifact.ordinal) || artifact.ordinal <= cursor || !artifactAvailabilityLabels[artifact.availability]) throw new Error('产物清单顺序无效');
+    const item = document.createElement('li'), title = document.createElement('strong'), reference = document.createElement('small');
+    title.textContent = `产物 ${artifact.ordinal} · ${artifactAvailabilityLabels[artifact.availability]}`;
+    reference.textContent = `引用 ${artifact.reference_id}`;
+    item.append(title, reference); list.append(item); cursor = artifact.ordinal;
+  }
+  return cursor;
+}
+function offerArtifactMore(container, list, taskId, version, after, expectedCount, current, currentRound) {
+  const loaded = list.childElementCount;
+  if (loaded >= expectedCount) return;
+  const area = document.createElement('div'); area.className = 'artifact-more';
+  const hint = document.createElement('p'); hint.textContent = `已加载 ${loaded} / ${expectedCount} 项`;
+  const button = document.createElement('button'); button.textContent = '加载更多产物';
+  area.append(hint, button); container.append(area);
+  button.addEventListener('click', async () => {
+    button.disabled = true; button.textContent = '正在加载…';
+    area.querySelector('.artifact-error')?.remove();
+    try {
+      const page = await query('task.artifacts', { task_id: taskId, manifest_version: version, after_ordinal: after, limit: 20 });
+      if (current !== selection || currentRound !== round) return;
+      if (page.kind !== 'artifact-manifest-page' || page.task_id !== taskId || page.manifest_version !== version || !Array.isArray(page.items) || !page.items.length) throw new Error('后续产物为空，请刷新任务');
+      const nextAfter = appendArtifacts(list, page.items, after);
+      if (page.next_after_ordinal != null && page.next_after_ordinal !== nextAfter) throw new Error('产物续页游标无效');
+      if (page.next_after_ordinal == null && list.childElementCount < expectedCount) throw new Error('产物清单未完整返回');
+      area.remove();
+      if (page.next_after_ordinal != null) offerArtifactMore(container, list, taskId, version, nextAfter, expectedCount, current, currentRound);
+    } catch (error) {
+      if (current !== selection || currentRound !== round) return;
+      button.disabled = false; button.textContent = '重试加载产物';
+      const failure = document.createElement('p'); failure.className = 'artifact-error'; failure.textContent = `产物读取失败：${error.message ?? '请重试'}`; area.append(failure);
+    }
+  });
+}
+function renderArtifacts(container, task, pageResult, current, currentRound) {
+  const heading = document.createElement('h3'); heading.textContent = '产物'; container.append(heading);
+  const manifest = task.artifact_manifest;
+  if (!manifest) {
+    const empty = document.createElement('p'); empty.className = 'artifact-empty'; empty.textContent = '暂无产物清单'; container.append(empty); return;
+  }
+  if (pageResult.status === 'rejected') {
+    const error = document.createElement('div'); error.className = 'artifact-more';
+    const message = document.createElement('p'); message.className = 'artifact-error'; message.textContent = `产物读取失败：${pageResult.reason?.message ?? '请重试'}`;
+    const retry = document.createElement('button'); retry.textContent = '重试读取产物'; retry.addEventListener('click', () => select(task, document.querySelector(`button.task[data-task-id="${CSS.escape(task.task_id)}"]`)));
+    error.append(message, retry); container.append(error); return;
+  }
+  const page = pageResult.value;
+  if (page.kind !== 'artifact-manifest-page' || page.task_id !== task.task_id || page.manifest_version !== manifest.version || !Array.isArray(page.items)) throw new Error('产物清单响应不可用');
+  if (!page.items.length) {
+    if (manifest.item_count !== 0) throw new Error('产物清单未完整返回');
+    const empty = document.createElement('p'); empty.className = 'artifact-empty'; empty.textContent = '该版本没有产物'; container.append(empty); return;
+  }
+  const list = document.createElement('ul'); list.className = 'artifacts';
+  const after = appendArtifacts(list, page.items, 0); container.append(list);
+  if (page.next_after_ordinal != null && page.next_after_ordinal !== after) throw new Error('产物续页游标无效');
+  if (page.next_after_ordinal != null) offerArtifactMore(container, list, task.task_id, manifest.version, after, manifest.item_count, current, currentRound);
+  else if (list.childElementCount < manifest.item_count) throw new Error('产物清单未完整返回');
+}
 async function select(task, button) {
   const current = ++selection, currentRound = round;
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
@@ -173,6 +235,10 @@ async function select(task, button) {
     if (detailResult.status === 'rejected') throw detailResult.reason;
     const result = detailResult.value;
     if (result.kind !== 'step') throw new Error('任务详情响应不可用');
+    const artifactResult = result.task.artifact_manifest
+      ? await Promise.allSettled([query('task.artifacts', { task_id: result.task.task_id, manifest_version: result.task.artifact_manifest.version, after_ordinal: 0, limit: 20 })]).then(values => values[0])
+      : { status: 'fulfilled', value: null };
+    if (current !== selection || currentRound !== round) return;
     detail.replaceChildren();
     const h2 = document.createElement('h2'); h2.textContent = result.task.name || "未命名历史任务"; detail.append(h2);
     const dl = document.createElement('dl');
@@ -200,8 +266,9 @@ async function select(task, button) {
         ? `已确认 · 结果序号 ${confirmation.result_sequence} · 清单版本 ${confirmation.manifest_version}${confirmation.comment ? ` · ${confirmation.comment}` : ''}`
         : '结果待确认'
       : '仅终态任务支持确认';
+    const manifestChanged = result.task.artifact_manifest && confirmation && BigInt(result.task.artifact_manifest.version) > BigInt(confirmation.manifest_version);
     const manifest = result.task.artifact_manifest
-      ? `版本 ${result.task.artifact_manifest.version} · ${result.task.artifact_manifest.item_count} 项 · 产物变化需重新检查`
+      ? `版本 ${result.task.artifact_manifest.version} · ${result.task.artifact_manifest.item_count} 项${manifestChanged ? ' · 产物已变化，需重新检查' : ''}`
       : terminal ? '确认后生成首个清单' : '不适用';
     for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', waitReason], ['浏览器 Task Space', browser], ['结果确认', audit], ['产物清单', manifest]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; dl.append(dt, dd);
@@ -219,6 +286,11 @@ async function select(task, button) {
       const button = document.createElement('button'); button.textContent = '确认结果';
       button.addEventListener('click', () => confirmResult(result.task, button, textarea));
       label.append(textarea); area.append(label, button); detail.append(area);
+    }
+    try {
+      renderArtifacts(detail, result.task, artifactResult, current, currentRound);
+    } catch (error) {
+      const failure = document.createElement('p'); failure.className = 'artifact-error'; failure.textContent = `产物读取失败：${error.message ?? '请重试'}`; detail.append(failure);
     }
     const heading = document.createElement('h3'); heading.textContent = '时间线'; detail.append(heading);
     if (timelineResult.status === 'rejected') {
@@ -255,7 +327,7 @@ async function load(reset = true) {
       if (task.status !== 'running') pendingControls.delete(task.task_id);
       const pending = pendingControls.has(task.task_id);
       const li = document.createElement('li'), button = document.createElement('button');
-      button.className = 'task'; button.setAttribute('aria-pressed', 'false');
+      button.className = 'task'; button.dataset.taskId = task.task_id; button.setAttribute('aria-pressed', 'false');
       const title = document.createElement('strong'), agent = document.createElement('small'), status = document.createElement('span');
       title.textContent = task.name || "未命名历史任务";
       title.title = title.textContent; agent.textContent = `Agent · ${task.owner_agent_id}`;

@@ -56,6 +56,13 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .timeline-error { color: #9f483a; }
 .timeline-empty, .timeline-more { color: #8a8496; font-size: 12px; }
 .timeline-more p { margin: 8px 0; }
+.artifacts { list-style: none; margin: 0; padding: 0; }
+.artifacts li { margin: 8px 0; padding: 8px; border: 1px solid #e9e7ef; border-radius: 8px; }
+.artifacts strong, .artifacts small { display: block; overflow-wrap: anywhere; }
+.artifacts small { margin-top: 3px; color: #8a8496; font-size: 10px; }
+.artifact-empty, .artifact-more { color: #8a8496; font-size: 12px; }
+.artifact-more p { margin: 8px 0; }
+.artifact-error { color: #9f483a; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: #8a8496; font-size: 11px; }
 @media (prefers-color-scheme: dark) {
   :root { color: #ebe7f1; }

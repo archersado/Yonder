@@ -49,3 +49,5 @@ ts-rs 12.0.1 对枚举的 serde `deny_unknown_fields` 会输出忽略警告；Ru
 2026-09-18：Accepted AD-TM-11新增协议1.18 `task.fail`。归属Agent只可把最新已Observe失败并推进到stopped边界的CUA任务提交为failed；`task.complete`与`task.fail`分别只接受成功/失败结论，unknown不终结。
 
 2026-09-22：Accepted AD-TM-01新增协议1.19任务展示元数据。`task.get`与`task.step.get`返回完整快照中的可信来源、当前步骤、观察结果和下一步意图；`task.list`仍返回摘要。来源由登记入口绑定，观察与意图作为状态事件、展示事件和Outbox序号同事务提交；1.18及更低版本会话剥离新增字段，旧库迁移后的历史任务来源标记为`legacy`。
+
+2026-09-25：Accepted AD-TM-22清单读取增量新增协议1.26 `task.artifacts`。请求复用`task.read`并固定`task_id + manifest_version + after_ordinal + limit`；响应只含受控引用、稳定顺序和`available/missing/changed/unverified`，每页1..100项。1.25及以下会话拒绝该方法，发布清单仍不是Agent协议能力。

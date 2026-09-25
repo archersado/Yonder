@@ -315,6 +315,22 @@ pub struct EventsParams {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
+pub struct ArtifactParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    #[schemars(regex(pattern = "^[1-9][0-9]{0,18}$"))]
+    pub manifest_version: String,
+    pub after_ordinal: u16,
+    #[schemars(range(min = 1, max = 100))]
+    pub limit: u8,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
 pub struct CreateParams {
     pub agent_id: String,
     pub capability: Capability,
@@ -561,6 +577,13 @@ pub enum Request {
         request_id: String,
         params: EventsParams,
     },
+    #[serde(rename = "task.artifacts")]
+    Artifacts {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: ArtifactParams,
+    },
     #[serde(rename = "task.step.declare")]
     StepDeclare {
         jsonrpc: Version,
@@ -733,6 +756,23 @@ pub struct TaskArtifactManifest {
     pub item_count: u16,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactAvailability {
+    Available,
+    Missing,
+    Changed,
+    Unverified,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactManifestItem {
+    pub ordinal: u16,
+    pub reference_id: String,
+    pub availability: ArtifactAvailability,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct TaskCreationEvent {
@@ -900,6 +940,14 @@ pub enum QueryResult {
         task_id: String,
         events: Vec<TaskEvent>,
     },
+    ArtifactManifestPage {
+        task_id: String,
+        manifest_version: String,
+        items: Vec<ArtifactManifestItem>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        next_after_ordinal: Option<u16>,
+    },
     Step {
         task: TaskSnapshot,
         step: Option<StepDeclaration>,
@@ -1000,6 +1048,7 @@ impl Request {
             | Self::StepGet { params, .. }
             | Self::BrowserGet { params, .. } => &params.agent_id,
             Self::Events { params, .. } => &params.agent_id,
+            Self::Artifacts { params, .. } => &params.agent_id,
             Self::List { params, .. } => &params.agent_id,
             Self::Hello { params, .. } => &params.agent_id,
             Self::StepDeclare { params, .. } => &params.agent_id,
@@ -1019,6 +1068,7 @@ impl Request {
             | Self::Create { request_id, .. }
             | Self::Get { request_id, .. }
             | Self::Events { request_id, .. }
+            | Self::Artifacts { request_id, .. }
             | Self::List { request_id, .. }
             | Self::Hello { request_id, .. }
             | Self::StepDeclare { request_id, .. }
@@ -1043,6 +1093,7 @@ impl Request {
             Self::List { params, .. } => params.capability,
             Self::Get { params, .. } => params.capability,
             Self::Events { params, .. } => params.capability,
+            Self::Artifacts { params, .. } => params.capability,
             Self::StepDeclare { params, .. } => params.capability,
             Self::StepGet { params, .. } => params.capability,
             Self::BrowserGet { params, .. } => params.capability,
@@ -1243,6 +1294,18 @@ impl Request {
                     params.deadline,
                 )
             }
+            Self::Artifacts { params, .. } => {
+                if sequence(&params.manifest_version)? == 0
+                    || !(1..=100).contains(&params.limit)
+                {
+                    return Err(RpcError::new(-32602, "非法产物清单分页参数"));
+                }
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
+            }
             Self::StepDeclare { params, .. } => {
                 if sequence(&params.expected_sequence)? == 0
                     || !valid_id(&params.step_id)
@@ -1412,6 +1475,7 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         ComputerStepParams::decl(&config),
         GetParams::decl(&config),
         EventsParams::decl(&config),
+        ArtifactParams::decl(&config),
         ListParams::decl(&config),
         Request::decl(&config),
         TaskStatus::decl(&config),
@@ -1433,6 +1497,8 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         BrowserReference::decl(&config),
         ComputerObservation::decl(&config),
         TaskEvent::decl(&config),
+        ArtifactAvailability::decl(&config),
+        ArtifactManifestItem::decl(&config),
         QueryResult::decl(&config),
         RpcError::decl(&config),
         Response::decl(&config),
@@ -1560,6 +1626,50 @@ mod tests {
             serde_json::from_slice::<Response>(&encode(&response).unwrap()).unwrap(),
             response
         );
+    }
+
+    #[test]
+    fn artifact_page_contract_is_strict_and_versioned() {
+        let raw = br#"{"jsonrpc":"2.0","id":"a1","method":"task.artifacts","params":{"agent_id":"agent-1","capability":"task.read","deadline":2000,"task_id":"task-1","manifest_version":"2","after_ordinal":0,"limit":100}}"#;
+        let request = decode(raw).unwrap();
+        assert!(matches!(request, Request::Artifacts { .. }));
+        assert!(request.validate(1999).is_ok());
+
+        let value: serde_json::Value = serde_json::from_slice(raw).unwrap();
+        for (field, invalid) in [
+            ("manifest_version", serde_json::json!("0")),
+            ("manifest_version", serde_json::json!("01")),
+            ("limit", serde_json::json!(0)),
+            ("limit", serde_json::json!(101)),
+        ] {
+            let mut changed = value.clone();
+            changed["params"][field] = invalid;
+            assert!(
+                decode(&serde_json::to_vec(&changed).unwrap())
+                    .unwrap()
+                    .validate(0)
+                    .is_err()
+            );
+        }
+
+        let response = Response::Success {
+            jsonrpc: Version::V2,
+            id: "a1".into(),
+            result: QueryResult::ArtifactManifestPage {
+                task_id: "task-1".into(),
+                manifest_version: "2".into(),
+                items: vec![ArtifactManifestItem {
+                    ordinal: 1,
+                    reference_id: "artifact-docx".into(),
+                    availability: ArtifactAvailability::Changed,
+                }],
+                next_after_ordinal: Some(1),
+            },
+        };
+        let value = serde_json::to_value(&response).unwrap();
+        assert_eq!(value["result"]["kind"], "artifact-manifest-page");
+        assert_eq!(value["result"]["items"][0]["availability"], "changed");
+        assert_eq!(decode_response(&encode(&response).unwrap()).unwrap(), response);
     }
 
     #[test]

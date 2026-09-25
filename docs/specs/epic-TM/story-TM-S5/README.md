@@ -39,6 +39,8 @@ AC11 全量忙碌/未知归 TM-S1/TM-S6，不属于本 Story。复核发现审�
 
 2026-09-25 产物清单核心版本化 [独立 Verification Goal](../../../../openspec/changes/tm-s5-artifact-manifest-core/verification-goal.md) PASS：全仓 109 项 Rust 测试、75 项 OpenSpec、33 项 Python 测试及仓库门禁通过。Gateway/具体能力 Adapter/UI、交回与 Recording 审计、Windows 验证仍待完成，不 Archive。
 
+2026-09-25 产物清单只读接线 [tm-s5-artifact-list](../../../../openspec/changes/tm-s5-artifact-list/proposal.md) 的 macOS 子范围 PASS：协议 1.26 `task.artifacts`、当前权限、1.25 隔离、CLI/MCP、固定版本分页和 Task Space 四态/局部重试均已实现，见[独立 Verification Goal](../../../../openspec/changes/tm-s5-artifact-list/verification-goal.md)。真实能力 Adapter 发布、交回与 Recording 审计、正式 Tauri 原生操作及 Windows 仍保留，完整 Story 不 Archive。
+
 ## OpenSpec 与验证
 
 三份设计和相关 ADR 明确后创建独立 Change。验证必须包含多步骤历史、终态/用户确认分离、失效产物、审计权限与回滚；真实 UI/Driver 证据不能由合成事件替代。

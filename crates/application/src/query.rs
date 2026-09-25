@@ -1,6 +1,8 @@
 //! 进程内只读分派；调用方须先绑定认证身份，本模块不对外开放传输。
 use crate::{AuthContext, Error, Status, Task, TaskStore, events, get};
 use yonder_protocol::{
+    ArtifactAvailability as ProtocolArtifactAvailability,
+    ArtifactManifestItem as ProtocolArtifactManifestItem,
     AttemptResult as ProtocolAttemptResult, AttemptResultPhase as ProtocolAttemptPhase,
     AttemptStarted as ProtocolAttemptStarted, AttemptUnknownReason as ProtocolUnknownReason,
     BrowserReference, ControlKind as ProtocolControlKind, ControlPhase as ProtocolControlPhase,
@@ -226,6 +228,7 @@ pub fn handle_encoded_current(
             true,
             true,
             true,
+            true,
         ),
         Err(error) => Response::Failure {
             jsonrpc: Version::V2,
@@ -282,6 +285,7 @@ pub(crate) fn handle_request(
 ) -> Response {
     handle_request_versioned(
         store, auth, request, now_ms, false, false, false, false, false, false, false, false, false,
+        false,
     )
 }
 
@@ -299,6 +303,7 @@ pub(crate) fn handle_request_versioned(
     include_focus_history: bool,
     include_creation_history: bool,
     include_attempt_start_history: bool,
+    include_artifact_items: bool,
 ) -> Response {
     let id = request.request_id().to_owned();
     let result = validate(&request, auth, now_ms).and_then(|()| {
@@ -416,6 +421,52 @@ pub(crate) fn handle_request_versioned(
                 }
             }).collect();
             bounded_events_result(&id, params.task_id, projected)
+        },
+        Request::Artifacts { params, .. } => {
+            if !include_artifact_items {
+                Err(RpcError::new(
+                    -32010,
+                    "产物清单读取需要协议1.26及审计存储能力",
+                ))
+            } else {
+                let version = yonder_protocol::sequence(&params.manifest_version)?;
+                let page = crate::artifact_manifest_page(
+                    store,
+                    auth,
+                    &params.task_id,
+                    version,
+                    params.after_ordinal,
+                    usize::from(params.limit),
+                )
+                .map_err(error)?;
+                Ok(QueryResult::ArtifactManifestPage {
+                    task_id: page.task_id,
+                    manifest_version: page.version.to_string(),
+                    items: page
+                        .items
+                        .into_iter()
+                        .map(|item| ProtocolArtifactManifestItem {
+                            ordinal: item.ordinal,
+                            reference_id: item.reference_id,
+                            availability: match item.availability {
+                                crate::ArtifactAvailability::Available => {
+                                    ProtocolArtifactAvailability::Available
+                                }
+                                crate::ArtifactAvailability::Missing => {
+                                    ProtocolArtifactAvailability::Missing
+                                }
+                                crate::ArtifactAvailability::Changed => {
+                                    ProtocolArtifactAvailability::Changed
+                                }
+                                crate::ArtifactAvailability::Unverified => {
+                                    ProtocolArtifactAvailability::Unverified
+                                }
+                            },
+                        })
+                        .collect(),
+                    next_after_ordinal: page.next_after_ordinal,
+                })
+            }
         },
         Request::StepGet { params, .. } => {
             let (task, presentation) = store.get_presentation(&params.task_id).map_err(error)?;

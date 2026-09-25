@@ -17,7 +17,7 @@ use yonder_protocol::{
 pub use yonder_protocol::Platform;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 25 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 26 };
 const PROTOCOL: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
 
 pub fn is_execution_request(bytes: &[u8]) -> bool {
@@ -164,6 +164,7 @@ pub struct GatewaySession<'a> {
     can_focus_history: bool,
     can_creation_history: bool,
     can_attempt_start_history: bool,
+    can_artifact_items: bool,
     browser_available: bool,
     can_computer: bool,
     can_computer_step: bool,
@@ -689,6 +690,7 @@ impl<'a> GatewaySession<'a> {
             can_focus_history: false,
             can_creation_history: false,
             can_attempt_start_history: false,
+            can_artifact_items: false,
             browser_available: false,
             can_computer: false,
             can_computer_step: false,
@@ -839,6 +841,16 @@ impl<'a> GatewaySession<'a> {
                 error: RpcError::new(-32010, "浏览器引用读取需要协议1.15及存储能力"),
             };
         }
+        if matches!(request, Request::Artifacts { .. })
+            && self.negotiated
+            && !self.can_artifact_items
+        {
+            return Response::Failure {
+                jsonrpc: Version::V2,
+                id: Some(id),
+                error: RpcError::new(-32010, "产物清单读取需要协议1.26及审计存储能力"),
+            };
+        }
         if matches!(&request, Request::List { params, .. } if params.running_only)
             && self.negotiated
             && !self.can_running_filter
@@ -864,6 +876,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_focus_history,
                 self.can_creation_history,
                 self.can_attempt_start_history,
+                self.can_artifact_items,
             );
             // 旧客户端严格拒绝未知字段，只投影响应，不改存储的名称。
             if !self.can_name {
@@ -1000,13 +1013,14 @@ impl<'a> GatewaySession<'a> {
                 self.can_focus_history = self.can_control_history && params.protocol_version.minor >= 23;
                 self.can_creation_history = self.can_focus_history && params.protocol_version.minor >= 24;
                 self.can_attempt_start_history = self.can_creation_history && params.protocol_version.minor >= 25;
+                self.can_artifact_items = self.can_audit && params.protocol_version.minor >= 26;
                 self.can_computer=self.can_advance&&params.protocol_version.minor>=11&&self.computer_available&&!self.computer_permission_required;
                 self.can_computer_step=self.can_computer&&params.protocol_version.minor>=12;
                 self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
                 self.can_fail=self.can_complete&&params.protocol_version.minor>=18;
                 if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("仅支持未开始任务取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }

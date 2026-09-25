@@ -2,7 +2,7 @@ use interprocess::local_socket::{GenericFilePath, ToFsName, tokio::{Stream, prel
 use serde_json::{Value, json};
 use std::{env, io::{self, BufRead, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use yonder_protocol::{BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, EventsParams, GetParams, HelloParams, ListParams, ProtocolVersion, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
+use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, EventsParams, GetParams, HelloParams, ListParams, ProtocolVersion, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
 
 mod codex_agent_bridge;
 
@@ -48,7 +48,7 @@ async fn gateway(agent_id: &str, request: Request) -> io::Result<Response> {
         .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "Yonder未运行"))?;
     let hello = Request::Hello { jsonrpc: Version::V2, request_id: "hello".into(), params: HelloParams {
         agent_id: agent_id.into(), capability: Capability::TaskRead, deadline: now_ms()? + 60_000,
-        protocol_version: ProtocolVersion { major: 1, minor: 18 },
+        protocol_version: ProtocolVersion { major: 1, minor: 26 },
         session_id: None, offered_capabilities: None,
     }};
     match send(&stream, &hello).await? {
@@ -74,6 +74,7 @@ fn request(name: &str, args: &Value, id: String, deadline: u64, agent_id: &str) 
         "task_cancel" => { let (jsonrpc, request_id) = base(); Ok(Request::Cancel { jsonrpc, request_id, params: CancelParams { agent_id: agent_id.into(), capability: Capability::TaskCancel, deadline, task_id: field(args,"task_id")?.into(), expected_sequence: field(args,"expected_sequence")?.into() } }) },
         "task_control" => { let (jsonrpc, request_id) = base(); let kind=match field(args,"kind")? { "pause"=>ControlKind::Pause,"cancel"=>ControlKind::Cancel,"takeover"=>ControlKind::Takeover,_=>return Err("kind须为pause、cancel或takeover".into()) }; Ok(Request::Control { jsonrpc,request_id,params:ControlParams { agent_id:agent_id.into(),capability:Capability::TaskControl,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),kind } }) },
         "task_events" => { let (jsonrpc, request_id) = base(); Ok(Request::Events { jsonrpc, request_id, params: EventsParams { agent_id: agent_id.into(), capability: Capability::TaskRead, deadline, task_id: field(args,"task_id")?.into(), after_sequence: args.get("after_sequence").and_then(Value::as_str).unwrap_or("0").into(), limit: args.get("limit").and_then(Value::as_u64).unwrap_or(100).try_into().map_err(|_| "limit无效")? } }) },
+        "task_artifacts" => { let (jsonrpc, request_id) = base(); Ok(Request::Artifacts { jsonrpc, request_id, params: ArtifactParams { agent_id: agent_id.into(), capability: Capability::TaskRead, deadline, task_id: field(args,"task_id")?.into(), manifest_version: field(args,"manifest_version")?.into(), after_ordinal: args.get("after_ordinal").and_then(Value::as_u64).unwrap_or(0).try_into().map_err(|_| "after_ordinal无效")?, limit: args.get("limit").and_then(Value::as_u64).unwrap_or(100).try_into().map_err(|_| "limit无效")? } }) },
         "task_step_declare" => { let (jsonrpc, request_id) = base(); Ok(Request::StepDeclare { jsonrpc, request_id, params: StepDeclareParams { agent_id: agent_id.into(), capability: Capability::TaskStepDeclare, deadline, task_id: field(args,"task_id")?.into(), expected_sequence: field(args,"expected_sequence")?.into(), step_id: field(args,"step_id")?.into(), label: field(args,"label")?.into() } }) },
         "task_step_advance" => { let (jsonrpc,request_id)=base(); Ok(Request::StepAdvance { jsonrpc,request_id,params:StepAdvanceParams { agent_id:agent_id.into(),capability:Capability::TaskStepAdvance,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into() } }) },
         "browser_execute" => { let operation=match field(args,"operation")? { "create"=>BrowserOperation::Create,"observe"=>BrowserOperation::Observe,"hand-off"=>BrowserOperation::HandOff,"take-over"=>BrowserOperation::TakeOver,"finish"=>BrowserOperation::Finish,_=>return Err("operation须为create、observe、hand-off、take-over或finish".into()) }; let (jsonrpc,request_id)=base(); Ok(Request::BrowserExecute { jsonrpc,request_id,params:BrowserExecuteParams { agent_id:agent_id.into(),capability:Capability::BrowserExecute,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),operation } }) },
@@ -95,6 +96,7 @@ fn tools() -> Value {
         {"name":"task_cancel","description":"取消尚未开始的Yonder任务并保留数据","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))},
         {"name":"task_control","description":"请求在步骤边界暂停、取消或接管执行中的Yonder任务","inputSchema":object(vec!["task_id","expected_sequence","kind"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"kind":{"type":"string","enum":["pause","cancel","takeover"]}}))},
         {"name":"task_events","description":"读取Yonder任务增量事件","inputSchema":object(vec!["task_id"],json!({"task_id":{"type":"string"},"after_sequence":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":100}}))},
+        {"name":"task_artifacts","description":"按固定清单版本读取Yonder任务产物条目","inputSchema":object(vec!["task_id","manifest_version"],json!({"task_id":{"type":"string"},"manifest_version":{"type":"string","pattern":"^[1-9][0-9]{0,18}$"},"after_ordinal":{"type":"integer","minimum":0,"maximum":65535},"limit":{"type":"integer","minimum":1,"maximum":100}}))},
         {"name":"task_step_declare","description":"声明Agent当前任务步骤","inputSchema":object(vec!["task_id","expected_sequence","step_id","label"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"step_id":{"type":"string"},"label":{"type":"string"}}))},
         {"name":"task_step_get","description":"读取Agent当前任务步骤","inputSchema":object(vec!["task_id"],json!({"task_id":{"type":"string"}}))}
         ,{"name":"task_step_advance","description":"在动作已Observe后推进至下一步骤边界","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))}
@@ -203,6 +205,7 @@ mod tests {
         assert!(matches!(request("browser_execute",&json!({"task_id":"task-1","expected_sequence":"4","operation":"observe"}),"r3".into(),2000,"agent-a").unwrap(),Request::BrowserExecute { params:BrowserExecuteParams { operation:BrowserOperation::Observe,.. },.. }));
         assert!(matches!(request("computer_step",&json!({"task_id":"task-1","expected_sequence":"4","step_id":"type","label":"输入文本","tool_name":"type_text","arguments":{"text":"hello"}}),"r4".into(),2000,"agent-a").unwrap(),Request::ComputerStep { .. }));
         let tools=tools();let names=tools.as_array().unwrap().iter().filter_map(|tool|tool["name"].as_str()).collect::<Vec<_>>();
-        assert_eq!(names.len(),14);assert!(names.contains(&"computer_step"));assert!(names.contains(&"task_fail"));assert!(names.contains(&"task_wait_for_user"));assert!(!names.contains(&"computer_execute"));
+        assert!(matches!(request("task_artifacts",&json!({"task_id":"task-1","manifest_version":"2","after_ordinal":1,"limit":20}),"r5".into(),2000,"agent-a").unwrap(),Request::Artifacts { params:ArtifactParams { after_ordinal:1,limit:20,.. },.. }));
+        assert_eq!(names.len(),15);assert!(names.contains(&"computer_step"));assert!(names.contains(&"task_fail"));assert!(names.contains(&"task_wait_for_user"));assert!(names.contains(&"task_artifacts"));assert!(!names.contains(&"computer_execute"));
     }
 }

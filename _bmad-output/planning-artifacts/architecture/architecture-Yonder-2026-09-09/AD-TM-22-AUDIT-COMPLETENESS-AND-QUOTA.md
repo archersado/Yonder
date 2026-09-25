@@ -46,3 +46,15 @@ Architecture Impact：architecture-change（协议/持久化/容量门禁）。�
 - 若已有清单，用户确认绑定确认当时的最新版本；只有从未发布清单时才随确认创建空版本 1。确认后的新清单形成更高版本，旧确认继续绑定旧版本。
 
 本增量不增加 Gateway wire 方法或 Task Space 产物列表，因此只关闭存储与 Application 核心；真实 Adapter 发布、受控引用解析、UI 展示及 Windows 证据仍需后续独立 Change。4096 是防止单事务无界写入的工程限额，不是产品原文承诺。
+
+## 2026-09-25 清单读取协议与 Task Space 增量
+
+核心版本化已具备固定版本分页能力，但协议 1.25 只能返回清单摘要，Task Space 无法读取条目。接受以下只读接线：
+
+- 协议 1.26 新增 `task.artifacts`，沿用 `task.read` capability、既有请求身份与 deadline。请求必须包含 `task_id`、十进制 `manifest_version`、排他 `after_ordinal` 和 1..100 的 `limit`。
+- 成功结果为固定版本页：`task_id`、`manifest_version`、条目数组及可选 `next_after_ordinal`。条目只含 `ordinal`、受控 `reference_id` 与 `available / missing / changed / unverified`，不包含路径、正文、文件内容或可执行打开目标。
+- 只有协议 1.26 且存储支持审计清单的已认证会话可调用；1.25 及以下拒绝该方法。读取先按当前任务权限校验，再读取固定版本；跨 Agent、已撤权或不存在版本不泄露条目。
+- 单页最多 100 项，`reference_id` 仍受 128 字节 ASCII ID 限制，因此响应有结构性上界；续页只使用服务端返回的稳定 ordinal，不能切换到更新版本继续。
+- Task Space 默认读取当前快照声明的清单版本，显示四种可用性、空清单、继续加载和局部失败。只有当前清单版本高于确认绑定版本时才提示“产物已变化，需重新检查”；未读完不得称“全部产物已检查”。
+
+本增量不提供清单发布 wire 方法，不允许 Agent 或 UI 伪造条目，也不解析或打开真实文件。具体 Document/File/Command/BUA/CUA Adapter 在各自产品门禁通过后调用可信 Application 发布用例。

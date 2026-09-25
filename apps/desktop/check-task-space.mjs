@@ -100,7 +100,7 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureConfirmRequests=[];
+    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[];
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
     tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
@@ -109,6 +109,7 @@ export async function checkTaskSpace(page) {
     tasks.splice(18,0,{task_id:'test-task--1',name:'test-task--1',owner_agent_id:'test-agent',source:'local-agent',status:'running',sequence:'4'});
     tasks.find(task=>task.task_id==='test-task-18').status='completed';
     window.__TAURI_INTERNALS__ = {invoke:async (command,input) => {
+      window.nativeCalls.push(command);
       if (command === 'task_confirm') {
         window.fixtureConfirmRequests.push(input);
         const task=tasks.find(task=>task.task_id===input.taskId);
@@ -134,6 +135,15 @@ export async function checkTaskSpace(page) {
       if (method === 'task.events' && window.fixtureTimelineError) throw new Error('测试时间线失败');
       if (method === 'task.events' && params.after_sequence !== '0' && window.fixtureTimelinePageError) throw new Error('任务历史不完整，请刷新后重试');
       if (method === 'task.events') window.fixtureEventRequests.push(params);
+      if (method === 'task.artifacts') {
+        window.fixtureArtifactRequests.push(params);
+        if (params.after_ordinal > 0 && window.fixtureArtifactPageError) throw new Error('测试产物分页失败');
+        const items = window.fixtureArtifactItems[params.task_id] ?? [];
+        const start = items.findIndex(item => item.ordinal > params.after_ordinal);
+        const page = start < 0 ? [] : items.slice(start,start+params.limit);
+        const next = start >= 0 && start+params.limit < items.length ? page.at(-1).ordinal : null;
+        return JSON.stringify({jsonrpc:'2.0',id:'test-response',result:{kind:'artifact-manifest-page',task_id:params.task_id,manifest_version:params.manifest_version,items:page,next_after_ordinal:next}});
+      }
       if (method === 'task.browser.get' && window.fixtureBrowserError) throw new Error('测试浏览器引用失败');
       const listed = method === 'task.list' && params.running_only ? tasks.filter(task => task.status === 'running') : tasks;
       const start = params.after_task_id ? listed.findIndex(task => task.task_id === params.after_task_id)+1 : 0;
@@ -227,11 +237,32 @@ export async function checkTaskSpace(page) {
   assert.equal(confirmRequest.expectedSequence, '4');
   assert.equal(confirmRequest.comment, '原生验证：结果可用');
   assert.ok(typeof confirmRequest.confirmationId === 'string' && confirmRequest.confirmationId.length > 0);
+  await page.waitForFunction(() => !document.getElementById('refresh').disabled && [...document.querySelectorAll('.task')].some(task => task.textContent.includes('test-task-18')));
   await page.click('.task:has-text("test-task-18")');
-  await page.waitForFunction(() => document.getElementById('detail').textContent.includes('已确认 · 结果序号 4 · 清单版本 1 · 原生验证：结果可用'));
-  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('版本 1 · 0 项 · 产物变化需重新检查')));
+  await page.waitForFunction(() => document.getElementById('detail').textContent.includes('已确认 · 结果序号 4 · 清单版本 1 · 原生验证：结果可用'), undefined, {timeout:20000});
+  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('版本 1 · 0 项')));
+  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('该版本没有产物')));
+  assert.equal(await page.evaluate(() => document.getElementById('detail').textContent.includes('产物已变化，需重新检查')),false);
   await page.evaluate(() => {
-    window.fixtureTasks.slice(0,20).forEach(task => { task.status='interrupted'; });
+    const task=window.fixtureTasks.find(task=>task.task_id==='test-task-18');
+    task.sequence='6'; task.artifact_manifest={task_id:task.task_id,version:'2',item_count:21};
+    window.fixtureArtifactItems[task.task_id]=Array.from({length:21},(_,index)=>({ordinal:index+1,reference_id:'artifact-'+String(index+1).padStart(2,'0'),availability:['available','missing','changed','unverified'][index%4]}));
+  });
+  await page.click('.task:has-text("test-task-18")');
+  await page.waitForFunction(() => document.querySelectorAll('.artifacts li').length === 20);
+  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('版本 2 · 21 项 · 产物已变化，需重新检查')));
+  assert.ok(await page.evaluate(() => document.querySelector('.artifacts').textContent.includes('产物 2 · 缺失') && document.querySelector('.artifacts').textContent.includes('引用 artifact-03')));
+  await page.evaluate(() => { window.fixtureArtifactPageError=true; });
+  await page.click('.artifact-more button');
+  await page.waitForFunction(() => document.querySelector('.artifact-more .artifact-error'));
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.artifacts li').length),20);
+  assert.equal(await page.evaluate(() => document.querySelector('.artifact-more button').textContent),'重试加载产物');
+  await page.evaluate(() => { window.fixtureArtifactPageError=false; });
+  await page.click('.artifact-more button');
+  await page.waitForFunction(() => document.querySelectorAll('.artifacts li').length === 21 && !document.querySelector('.artifact-more'));
+  assert.deepEqual(await page.evaluate(() => { const {task_id,manifest_version,after_ordinal,limit}=window.fixtureArtifactRequests.slice(-1)[0]; return {task_id,manifest_version,after_ordinal,limit}; }),{task_id:'test-task-18',manifest_version:'2',after_ordinal:20,limit:20});
+  await page.evaluate(() => {
+    window.fixtureTasks.slice(0,21).forEach(task => { task.status='interrupted'; });
     window.fixtureTasks[0].status='paused'; window.fixtureTasks[1].status='cancelled';
   });
   await page.click('#ongoing');
@@ -269,5 +300,5 @@ export async function checkTaskSpace(page) {
   assert.ok(attemptStartText.includes('执行尝试已准备（步骤 step-one · 尝试 attempt-one）'));
   assert.ok(!attemptStartText.includes('worker-secret') && !attemptStartText.includes('host-secret'));
   await page.evaluate(() => { window.fixtureAttemptStartHistory = false; });
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,artifactEmpty:true,artifactVersionChange:true,artifactPagination:true,artifactPartialFailure:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

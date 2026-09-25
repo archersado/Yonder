@@ -1,0 +1,27 @@
+{
+  "task_space_id": 123,
+  "platform": "macos",
+  "fixture_only": true,
+  "artifact_empty": true,
+  "artifact_version_change": true,
+  "artifact_pagination": true,
+  "artifact_partial_failure": true,
+  "visible": {
+    "summary": "版本 2 · 21 项 · 产物已变化，需重新检查",
+    "item_count": 20,
+    "first": "产物 1 · 可用 引用 artifact-01",
+    "fourth": "产物 4 · 未验证 引用 artifact-04",
+    "more": "已加载 20 / 21 项 加载更多产物"
+  },
+  "regressions": {
+    "audit_confirmation": true,
+    "timeline_pagination": true,
+    "timeline_partial_failure": true,
+    "historical_observation": true,
+    "historical_creation": true,
+    "historical_attempt_start": true,
+    "browser_reference": true,
+    "latest_response_wins": true,
+    "running_only": true
+  }
+}
