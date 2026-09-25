@@ -3239,6 +3239,7 @@ mod tests {
             r#"{{"jsonrpc":"2.0","id":"g","method":"task.get","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}"}}}}"#,
             task.id
         );
+        let step_get = get.replace("task.get", "task.step.get");
         let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
         session.handle(&mut store, hello(20).as_bytes(), 1000);
         let snapshot = match session.handle(&mut store, get.as_bytes(), 1000) {
@@ -3247,6 +3248,12 @@ mod tests {
         };
         assert!(snapshot.artifact_manifest.is_some());
         assert_eq!(snapshot.user_confirmation.as_ref().unwrap().result_sequence, "3");
+        let step_snapshot = match session.handle(&mut store, step_get.as_bytes(), 1000) {
+            Response::Success { result: yonder_protocol::QueryResult::Step { task, .. }, .. } => task,
+            other => panic!("{other:?}"),
+        };
+        assert!(step_snapshot.artifact_manifest.is_some());
+        assert_eq!(step_snapshot.user_confirmation.as_ref().unwrap().result_sequence, "3");
         session.handle(&mut store, hello(19).as_bytes(), 1000);
         let old_snapshot = match session.handle(&mut store, get.as_bytes(), 1000) {
             Response::Success { result: yonder_protocol::QueryResult::Snapshot { task }, .. } => task,
@@ -3254,6 +3261,12 @@ mod tests {
         };
         assert!(old_snapshot.artifact_manifest.is_none());
         assert!(old_snapshot.user_confirmation.is_none());
+        let old_step_snapshot = match session.handle(&mut store, step_get.as_bytes(), 1000) {
+            Response::Success { result: yonder_protocol::QueryResult::Step { task, .. }, .. } => task,
+            other => panic!("{other:?}"),
+        };
+        assert!(old_step_snapshot.artifact_manifest.is_none());
+        assert!(old_step_snapshot.user_confirmation.is_none());
     }
 
     #[test]

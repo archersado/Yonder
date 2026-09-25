@@ -9,5 +9,5 @@
 - [x] 接入 Task Space 终态确认 UI
 - [x] 增加协议/存储/应用/前端回归测试
 - [x] 创建独立 Verification Goal
-- [ ] 完成 macOS 原生验证
+- [x] 完成 macOS 原生验证
 - [ ] Windows 与完整 TM-S5 验证后 Archive

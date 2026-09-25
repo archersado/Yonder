@@ -3,7 +3,7 @@
 Story: TM-S5
 Epic: TM
 Status: verifying
-OpenSpec: tm-s5-readonly-timeline
+OpenSpec: tm-s5-audit-completeness
 
 ## 设计文档
 
@@ -13,9 +13,9 @@ OpenSpec: tm-s5-readonly-timeline
 
 ## 当前状态与前置条件
 
-2026-09-23 当前实现已覆盖协议 1.20、SQLite schema 18、本机用户确认、不可变产物清单与审计容量门禁，并通过协议、存储、应用与前端回归；macOS 原生 UI 验证与 Windows/完整 Story 验证仍待完成。与 TM-S1 同期审阅历史事件与快照事务，AG 提供授权，DS-S2 提供结果/时间线界面；TM-S2/S3/S4 提供实际执行和控制事实。录制原始时间线由 RC 管理，不复制进任务审计。
+2026-09-25 当前实现已覆盖协议 1.20、SQLite schema 18、本机用户确认、不可变产物清单与审计容量门禁，并通过协议、存储、应用、前端回归及 macOS 原生 UI 验证；Windows/完整 Story 验证仍待完成。与 TM-S1 同期审阅历史事件与快照事务，AG 提供授权，DS-S2 提供结果/时间线界面；TM-S2/S3/S4 提供实际执行和控制事实。录制原始时间线由 RC 管理，不复制进任务审计。
 
-待定：事件内容与大小、产物身份/版本引用、分页与保留/删除语义、用户确认事件及幂等。尚未创建 Proposal，不得进入代码实施。
+历史待定项中的分页、用户确认、清单版本、审计配额、协议版本和迁移门禁已由后续设计、AD-TM-22 与关联 OpenSpec 收敛；取消任务继续按 AD-TM-06 保留数据，不在本 Story 引入自动清理或删除。
 
 已完成与 TM-S1 的当前值/历史职责及事务边界设计复核，见 [联合复核](../TM-S1-TM-S5-DESIGN-REVIEW.md)。不代表字段契约已全部定案，也不是实施验证。
 
@@ -23,11 +23,11 @@ OpenSpec: tm-s5-readonly-timeline
 
 已补保留/删除范围、去重随任务保留、产物版本和清单分页方案；任务审计不擅用上下文/附件 TTL，未同步/固定内容保持保护。尚未实施清理或删除。
 
-AC11 全量忙碌/未知归 TM-S1/TM-S6，不属于本 Story。完整 TM-S5 下一步仍须联审总配额、清理/删除同步、协议版本和迁移门禁。
+AC11 全量忙碌/未知归 TM-S1/TM-S6，不属于本 Story。TM-S5 当前只剩 Windows 与完整 Story 验证门禁；不得以 macOS 子范围 PASS 提前 Archive。
 
 2026-09-23 建立 [AD-TM-22](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-22-AUDIT-COMPLETENESS-AND-QUOTA.md)，收敛用户结果确认、不可变产物清单、审计容量门禁、协议 1.20 与 schema 18 迁移；该子范围进入 design-review，完整 Story 保持 implementing。
 
-2026-09-23 完整审计闭环的实现与协议/存储/应用/前端回归已通过，见 [独立 Verification Goal](../../../../openspec/changes/tm-s5-audit-completeness/verification-goal.md)；macOS 原生 UI 验证仍待完成，Story 保持 implementing。
+2026-09-25 完整审计闭环的实现与协议/存储/应用/前端回归、macOS 原生 UI 验证均通过，见 [独立 Verification Goal](../../../../openspec/changes/tm-s5-audit-completeness/verification-goal.md)。验证中修复 `task.step.get` 未返回审计投影的问题；Windows 仍暂缓，Story 保持 verifying，不 Archive。
 
 ## OpenSpec 与验证
 

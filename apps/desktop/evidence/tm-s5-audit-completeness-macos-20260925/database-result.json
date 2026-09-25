@@ -1,0 +1,23 @@
+{
+  "artifact_manifest": {
+    "created_sequence": 5,
+    "item_count": 0,
+    "version": 1
+  },
+  "event_count": 5,
+  "outbox_count": 5,
+  "outbox_pending_count": 5,
+  "passed": true,
+  "task": {
+    "source": "local-agent",
+    "state": "completed",
+    "sequence": 5,
+    "task_id": "task_tm_s5_native_20260925"
+  },
+  "user_confirmation": {
+    "confirmed_by": "local-user",
+    "confirmation_sequence": 5,
+    "manifest_version": 1,
+    "result_sequence": 4
+  }
+}

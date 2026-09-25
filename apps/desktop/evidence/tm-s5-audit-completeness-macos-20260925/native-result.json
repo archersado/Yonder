@@ -1,0 +1,14 @@
+{
+  "confirmation_submitted" : true,
+  "confirmed_projection_visible" : true,
+  "contains_user_content" : false,
+  "empty_manifest_explained" : true,
+  "isolated_profile" : true,
+  "manifest_version" : 1,
+  "passed" : true,
+  "pending_confirmation_visible" : true,
+  "platform" : "macos",
+  "terminal_status_after" : "completed",
+  "terminal_status_before" : "completed",
+  "timeline_visible" : true
+}

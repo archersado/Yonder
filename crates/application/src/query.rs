@@ -49,10 +49,6 @@ pub(crate) fn summary(task: crate::Task) -> TaskSnapshot {
     }
 }
 
-pub(crate) fn full(task: crate::Task, presentation: crate::TaskPresentation) -> TaskSnapshot {
-    full_with_audit(task, presentation, crate::TaskAudit::default())
-}
-
 pub(crate) fn full_with_audit(
     task: crate::Task,
     presentation: crate::TaskPresentation,
@@ -323,7 +319,12 @@ pub(crate) fn handle_request_versioned(
             let (task, presentation) = store.get_presentation(&params.task_id).map_err(error)?;
             if !auth.can_read(&task) { return Err(error(Error::NotFound)); }
             let step = presentation.current_step.clone().map(|step| ProtocolStep { step_id: step.step_id, label: step.label, accepted_sequence: step.accepted_sequence.to_string() });
-            Ok(QueryResult::Step { task: full(task, presentation), step })
+            let audit = if include_audit {
+                store.get_audit(&params.task_id).map_err(error)?
+            } else {
+                crate::TaskAudit::default()
+            };
+            Ok(QueryResult::Step { task: full_with_audit(task, presentation, audit), step })
         },
         Request::BrowserGet { params, .. } => {
             let task = readable(store, auth, &params.task_id)?;
