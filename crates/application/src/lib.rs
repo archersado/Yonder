@@ -177,6 +177,7 @@ pub struct TaskEventRecord {
     pub transition: Transition,
     pub creation_event: Option<CreationEventRecord>,
     pub step_declaration: Option<StepDeclaration>,
+    pub attempt_started: Option<AttemptStartedRecord>,
     pub attempt_result: Option<AttemptResultRecord>,
     pub observation: Option<TaskObservation>,
     pub control_event: Option<ControlEventRecord>,
@@ -184,6 +185,14 @@ pub struct TaskEventRecord {
     pub wait_reason: Option<String>,
     pub artifact_manifest: Option<TaskArtifactManifest>,
     pub user_confirmation: Option<TaskUserConfirmation>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttemptStartedRecord {
+    pub step_id: String,
+    pub attempt_id: String,
+    pub worker_instance_id: String,
+    pub host_session_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -296,6 +305,7 @@ pub trait TaskStore {
                     transition,
                     creation_event: None,
                     step_declaration: None,
+                    attempt_started: None,
                     attempt_result: None,
                     observation: None,
                     control_event: None,

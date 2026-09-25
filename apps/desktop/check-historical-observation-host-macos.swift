@@ -2,15 +2,16 @@
 import AppKit
 import ApplicationServices
 
-guard (CommandLine.arguments.count == 2 || (CommandLine.arguments.count == 3 && ["--control", "--focus", "--creation"].contains(CommandLine.arguments[2]))), AXIsProcessTrusted() else { exit(2) }
+guard (CommandLine.arguments.count == 2 || (CommandLine.arguments.count == 3 && ["--control", "--focus", "--creation", "--attempt-start"].contains(CommandLine.arguments[2]))), AXIsProcessTrusted() else { exit(2) }
 let mode = CommandLine.arguments.count == 3 ? CommandLine.arguments[2] : "--observation"
 let controlMode = mode == "--control"
 let focusMode = mode == "--focus"
 let creationMode = mode == "--creation"
-let bundleIdentifier = creationMode ? "com.yonder.creation.fixture" : (focusMode ? "com.yonder.focus.fixture" : (controlMode ? "com.yonder.control.fixture" : "com.yonder.observation.fixture"))
-let taskName = creationMode ? "原生创建来源验证任务" : (focusMode ? "原生定位历史验证任务" : (controlMode ? "原生控制历史验证任务" : "原生 Observe 验证任务"))
-let firstText = creationMode ? "任务创建：云端 Agent · Agent fixture-agent" : (focusMode ? "接管：正在定位任务工作" : (controlMode ? "接管：停止请求已登记（尝试 attempt-one）" : "Observe（步骤 step-one）：已匹配"))
-let secondText = creationMode ? firstText : (focusMode ? "接管：任务工作定位成功" : (controlMode ? "接管：步骤边界停止已确认（尝试 attempt-one）" : "Observe（步骤 step-two）：未知"))
+let attemptStartMode = mode == "--attempt-start"
+let bundleIdentifier = attemptStartMode ? "com.yonder.attempt-start.fixture" : (creationMode ? "com.yonder.creation.fixture" : (focusMode ? "com.yonder.focus.fixture" : (controlMode ? "com.yonder.control.fixture" : "com.yonder.observation.fixture")))
+let taskName = attemptStartMode ? "原生尝试开始验证任务" : (creationMode ? "原生创建来源验证任务" : (focusMode ? "原生定位历史验证任务" : (controlMode ? "原生控制历史验证任务" : "原生 Observe 验证任务")))
+let firstText = attemptStartMode ? "执行尝试已准备（步骤 step-one · 尝试 attempt-one）" : (creationMode ? "任务创建：云端 Agent · Agent fixture-agent" : (focusMode ? "接管：正在定位任务工作" : (controlMode ? "接管：停止请求已登记（尝试 attempt-one）" : "Observe（步骤 step-one）：已匹配")))
+let secondText = attemptStartMode ? "动作已观察：成功" : (creationMode ? firstText : (focusMode ? "接管：任务工作定位成功" : (controlMode ? "接管：步骤边界停止已确认（尝试 attempt-one）" : "Observe（步骤 step-two）：未知")))
 guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else { exit(2) }
 let root = AXUIElementCreateApplication(app.processIdentifier)
 func attr(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
@@ -104,9 +105,9 @@ func capture(_ element: AXUIElement, _ filename: String) throws {
     try process.run(); process.waitUntilExit()
     guard process.terminationStatus == 0 else { throw NSError(domain: "observe-fixture", code: 8) }
 }
-try capture(first, creationMode ? "native-host-creation.png" : (focusMode ? "native-host-focus-locating.png" : (controlMode ? "native-host-control-pending.png" : "native-host-observation-step-one.png")))
+try capture(first, attemptStartMode ? "native-host-attempt-start.png" : (creationMode ? "native-host-creation.png" : (focusMode ? "native-host-focus-locating.png" : (controlMode ? "native-host-control-pending.png" : "native-host-observation-step-one.png"))))
 if !creationMode {
-    try capture(second, focusMode ? "native-host-focus-succeeded.png" : (controlMode ? "native-host-control-stopped.png" : "native-host-observation-step-two.png"))
+    try capture(second, attemptStartMode ? "native-host-attempt-result.png" : (focusMode ? "native-host-focus-succeeded.png" : (controlMode ? "native-host-control-stopped.png" : "native-host-observation-step-two.png")))
 }
 let report: [String: Any] = [
     "pid": Int(app.processIdentifier),

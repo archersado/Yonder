@@ -100,7 +100,7 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureConfirmRequests=[];
+    window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureConfirmRequests=[];
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
     tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
@@ -142,6 +142,8 @@ export async function checkTaskSpace(page) {
         : method === 'task.browser.get' ? {kind:'browser-state',task:tasks.find(task => task.task_id === params.task_id),reference:{external_task_ref:'ego:49',ownership:'agent',managed_pages:1,finished:false,updated_sequence:'3'}}
         : method === 'task.events' && window.fixtureCreationHistory ? {kind:'events',task_id:params.task_id,events:params.after_sequence === '0' ? [
           {previous:'created',status:'created',sequence:'1',creation_event:{owner_agent_id:'test-agent',source:'cloud-agent'}}] : []}
+        : method === 'task.events' && window.fixtureAttemptStartHistory ? {kind:'events',task_id:params.task_id,events:params.after_sequence === '0' ? [
+          {previous:'created',status:'running',sequence:'1',attempt_started:{step_id:'step-one',attempt_id:'attempt-one',worker_instance_id:'worker-secret',host_session_id:'host-secret'}}] : []}
         : method === 'task.events' && window.fixtureObserveHistory ? {kind:'events',task_id:params.task_id,events:params.after_sequence === '0' ? [
           {previous:'created',status:'created',sequence:'1',observation:{step_id:'first',result:'matched',summary:'已打开 <img src=x>'}},
           {previous:'running',status:'running',sequence:'2',observation:{step_id:'second',result:'not-matched',summary:'未找到目标'}},
@@ -260,6 +262,12 @@ export async function checkTaskSpace(page) {
   await page.click('.task >> nth=0');
   await page.waitForFunction(() => document.querySelector('.timeline')?.textContent.includes('任务创建：云端 Agent · Agent test-agent'));
   assert.ok((await page.evaluate(() => document.querySelector('.timeline').textContent)).includes('任务创建：云端 Agent · Agent test-agent'));
-  await page.evaluate(() => { window.fixtureCreationHistory = false; });
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  await page.evaluate(() => { window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = true; });
+  await page.click('.task >> nth=0');
+  await page.waitForFunction(() => document.querySelector('.timeline')?.textContent.includes('执行尝试已准备'));
+  const attemptStartText = await page.evaluate(() => document.querySelector('.timeline').textContent);
+  assert.ok(attemptStartText.includes('执行尝试已准备（步骤 step-one · 尝试 attempt-one）'));
+  assert.ok(!attemptStartText.includes('worker-secret') && !attemptStartText.includes('host-secret'));
+  await page.evaluate(() => { window.fixtureAttemptStartHistory = false; });
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

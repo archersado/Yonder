@@ -1,0 +1,32 @@
+{
+  "formal_tauri_host": true,
+  "isolated_socket": "/Users/archersado/Library/Application Support/com.yonder.attempt-start.fixture/agent.sock",
+  "task_id": "task_52afc7f96a54a31c8d7fcf53dcef01a0",
+  "versions": {
+    "24": {
+      "negotiated_minor": 24,
+      "start_facts": [],
+      "result_sequences": [
+        "4"
+      ]
+    },
+    "25": {
+      "negotiated_minor": 25,
+      "start_facts": [
+        {
+          "sequence": "3",
+          "step_id": "step-one",
+          "attempt_id": "attempt-one",
+          "worker_instance_id": "worker-one",
+          "host_session_id": "host-one"
+        }
+      ],
+      "result_sequences": [
+        "4"
+      ]
+    }
+  },
+  "start_and_result_are_distinct": true,
+  "payload_exposed": false,
+  "passed": true
+}

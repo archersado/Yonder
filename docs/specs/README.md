@@ -222,3 +222,5 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-24 TM-S5 继续按 Accepted AD-TM-19 推进接管定位历史事实：schema 19 与协议 1.23 保留 `locating → focused/failed` 不可变序列，事务回滚、零回填迁移和 macOS 正式 Tauri 宿主/Gateway/UI 证据通过；Windows 按用户决定暂缓，完整 TM-S5 仍未 Archive。
 
 2026-09-24 TM-S5 继续按 Accepted AD-TM-20 推进任务创建来源历史：协议 1.24 只读投影创建事务已提交的来源与归属 Agent，1.23 隔离、越权拒绝、损坏数据与零回填测试及 macOS 正式 Tauri 宿主证据通过；Windows 按用户决定暂缓，完整 TM-S5 仍未 Archive。
+
+2026-09-25 TM-S5 继续按 Accepted AD-TM-21 推进执行尝试开始历史：协议 1.25 仅按 `accepted_sequence` 对应的原 Start 事件投影不可变执行身份，1.24 隔离、越权拒绝、损坏身份与旧任务零回填回归通过；macOS 正式 Tauri 宿主、私有 Unix Socket 与原生 Task Space 证据通过。Windows 按用户决定暂缓，完整 TM-S5 仍未 Archive。

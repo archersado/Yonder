@@ -15,6 +15,8 @@ OpenSpec: tm-s5-audit-completeness
 
 2026-09-25 当前实现已覆盖协议 1.20、SQLite schema 18、本机用户确认、不可变产物清单与审计容量门禁，并通过协议、存储、应用、前端回归及 macOS 原生 UI 验证；Windows/完整 Story 验证仍待完成。与 TM-S1 同期审阅历史事件与快照事务，AG 提供授权，DS-S2 提供结果/时间线界面；TM-S2/S3/S4 提供实际执行和控制事实。录制原始时间线由 RC 管理，不复制进任务审计。
 
+2026-09-25 执行尝试开始历史投影已完成 macOS 子范围：协议 1.25 按原 Start 序号输出不可变 step/attempt/worker/host 身份，1.24 隔离有效；Task Space 只显示 step/attempt 的“已准备”文案，并与最终结果保持不同事件。正式隔离 Tauri 宿主、私有 Unix Socket、原生 UI 和独立 Verification Goal 均通过；Windows 按用户决定暂缓，Change 不 Archive。
+
 历史待定项中的分页、用户确认、清单版本、审计配额、协议版本和迁移门禁已由后续设计、AD-TM-22 与关联 OpenSpec 收敛；取消任务继续按 AD-TM-06 保留数据，不在本 Story 引入自动清理或删除。
 
 2026-09-24 的事件响应预算、缺口检测、历史 Observe、控制、定位与创建来源增量已有独立 macOS 验证；合并后协议扩展至 1.24、SQLite schema 19。AD-TM-22 的产物清单确认继续作为唯一确认语义，早期 AD-TM-14 实现不进入主干。

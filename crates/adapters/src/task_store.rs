@@ -2232,7 +2232,7 @@ impl TaskStore for SqliteTaskStore {
         if after >= i64::MAX as u64 {
             return Ok(vec![]);
         }
-        let mut stmt = self.0.prepare("SELECT e.previous,e.state,e.sequence,s.step_id,s.label,s.accepted_sequence,a.step_id,a.attempt_id,a.worker_instance_id,a.host_session_id,a.phase,a.action_succeeded,a.observe_valid,a.unknown_reason,e.wait_reason,m.version,m.item_count,c.confirmation_id,c.result_sequence,c.manifest_version,c.comment,c.confirmed_by,p.payload,h.attempt_id,h.control_id,h.kind,h.accepted_sequence,h.stopped_sequence,f.control_id,f.phase,f.failure,g.payload,t.owner_agent_id FROM events e JOIN tasks t ON t.id=e.task_id LEFT JOIN task_steps s ON s.task_id=e.task_id AND s.accepted_sequence=e.sequence LEFT JOIN task_attempts a ON a.task_id=e.task_id AND a.result_sequence=e.sequence LEFT JOIN task_artifact_manifests m ON m.task_id=e.task_id AND m.created_sequence=e.sequence LEFT JOIN task_user_confirmations c ON c.task_id=e.task_id AND c.confirmation_sequence=e.sequence LEFT JOIN task_presentation_events p ON p.task_id=e.task_id AND p.sequence=e.sequence AND p.kind='observation' LEFT JOIN task_controls h ON h.task_id=e.task_id AND (h.accepted_sequence=e.sequence OR h.stopped_sequence=e.sequence) LEFT JOIN task_focus_events f ON f.task_id=e.task_id AND f.sequence=e.sequence LEFT JOIN task_presentation_events g ON g.task_id=e.task_id AND g.sequence=e.sequence AND g.kind='source' WHERE e.task_id=?1 AND e.sequence>?2 ORDER BY e.sequence LIMIT ?3").map_err(storage)?;
+        let mut stmt = self.0.prepare("SELECT e.previous,e.state,e.sequence,s.step_id,s.label,s.accepted_sequence,a.step_id,a.attempt_id,a.worker_instance_id,a.host_session_id,a.phase,a.action_succeeded,a.observe_valid,a.unknown_reason,e.wait_reason,m.version,m.item_count,c.confirmation_id,c.result_sequence,c.manifest_version,c.comment,c.confirmed_by,p.payload,h.attempt_id,h.control_id,h.kind,h.accepted_sequence,h.stopped_sequence,f.control_id,f.phase,f.failure,g.payload,t.owner_agent_id,ast.step_id,ast.attempt_id,ast.worker_instance_id,ast.host_session_id FROM events e JOIN tasks t ON t.id=e.task_id LEFT JOIN task_steps s ON s.task_id=e.task_id AND s.accepted_sequence=e.sequence LEFT JOIN task_attempts a ON a.task_id=e.task_id AND a.result_sequence=e.sequence LEFT JOIN task_attempts ast ON ast.task_id=e.task_id AND ast.accepted_sequence=e.sequence LEFT JOIN task_artifact_manifests m ON m.task_id=e.task_id AND m.created_sequence=e.sequence LEFT JOIN task_user_confirmations c ON c.task_id=e.task_id AND c.confirmation_sequence=e.sequence LEFT JOIN task_presentation_events p ON p.task_id=e.task_id AND p.sequence=e.sequence AND p.kind='observation' LEFT JOIN task_controls h ON h.task_id=e.task_id AND (h.accepted_sequence=e.sequence OR h.stopped_sequence=e.sequence) LEFT JOIN task_focus_events f ON f.task_id=e.task_id AND f.sequence=e.sequence LEFT JOIN task_presentation_events g ON g.task_id=e.task_id AND g.sequence=e.sequence AND g.kind='source' WHERE e.task_id=?1 AND e.sequence>?2 ORDER BY e.sequence LIMIT ?3").map_err(storage)?;
         let rows = stmt
             .query_map(params![id, after as i64, limit as i64], |r| {
                 Ok((
@@ -2269,6 +2269,10 @@ impl TaskStore for SqliteTaskStore {
                     r.get::<_, Option<String>>(30)?,
                     r.get::<_, Option<String>>(31)?,
                     r.get::<_, String>(32)?,
+                    r.get::<_, Option<String>>(33)?,
+                    r.get::<_, Option<String>>(34)?,
+                    r.get::<_, Option<String>>(35)?,
+                    r.get::<_, Option<String>>(36)?,
                 ))
             })
             .map_err(storage)?;
@@ -2307,6 +2311,10 @@ impl TaskStore for SqliteTaskStore {
                 focus_failure_value,
                 source_payload,
                 owner_agent_id,
+                started_step_id,
+                started_attempt_id,
+                started_worker_id,
+                started_host_id,
             ) = row.map_err(storage)?;
             let creation_event = source_payload
                 .as_deref()
@@ -2328,6 +2336,39 @@ impl TaskStore for SqliteTaskStore {
                         .map_err(|_| Error::StorageUnavailable)?,
                 }),
                 (None, None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let attempt_started = match (
+                started_step_id,
+                started_attempt_id,
+                started_worker_id,
+                started_host_id,
+            ) {
+                (
+                    Some(step_id),
+                    Some(attempt_id),
+                    Some(worker_instance_id),
+                    Some(host_session_id),
+                ) => {
+                    if [
+                        step_id.as_str(),
+                        attempt_id.as_str(),
+                        worker_instance_id.as_str(),
+                        host_session_id.as_str(),
+                    ]
+                    .iter()
+                    .any(|value| !yonder_application::valid_id(value))
+                    {
+                        return Err(Error::StorageUnavailable);
+                    }
+                    Some(yonder_application::AttemptStartedRecord {
+                        step_id,
+                        attempt_id,
+                        worker_instance_id,
+                        host_session_id,
+                    })
+                }
+                (None, None, None, None) => None,
                 _ => return Err(Error::StorageUnavailable),
             };
             let attempt_result = match (
@@ -2486,6 +2527,7 @@ impl TaskStore for SqliteTaskStore {
                 },
                 creation_event,
                 step_declaration,
+                attempt_started,
                 attempt_result,
                 observation,
                 control_event,
@@ -3940,6 +3982,120 @@ mod tests {
         assert_eq!(
             store.events_with_steps(&task.id, 0, 1).unwrap()[0].creation_event,
             None
+        );
+    }
+
+    #[test]
+    fn historical_attempt_start_is_immutable_authorized_and_gated_to_125() {
+        use yonder_application::gateway::{GatewaySession, Platform};
+        use yonder_protocol::{QueryResult, Response};
+
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let task = create(&mut store, "attempt-start-history").unwrap();
+        let (task, _) = store
+            .declare_step("a1", &task.id, task.sequence, "step-one", "打开文档")
+            .unwrap();
+        let requested = ExecutionAttempt {
+            task_id: task.id.clone(),
+            step_id: "step-one".into(),
+            attempt_id: "attempt-one".into(),
+            worker_instance_id: "worker-one".into(),
+            host_session_id: "host-one".into(),
+            phase: AttemptPhase::Prepared,
+            accepted_sequence: 0,
+        };
+        let (_, accepted) = store.prepare_attempt(&requested, task.sequence).unwrap();
+        let (_, result) = store
+            .record_attempt_result(
+                &accepted,
+                accepted.accepted_sequence,
+                AttemptConclusion::Observed {
+                    action_succeeded: true,
+                },
+            )
+            .unwrap();
+        let records = store.events_with_steps(&task.id, 0, 100).unwrap();
+        let start = records
+            .iter()
+            .find(|event| event.transition.sequence == accepted.accepted_sequence)
+            .unwrap();
+        assert_eq!(
+            start.attempt_started,
+            Some(yonder_application::AttemptStartedRecord {
+                step_id: "step-one".into(),
+                attempt_id: "attempt-one".into(),
+                worker_instance_id: "worker-one".into(),
+                host_session_id: "host-one".into(),
+            })
+        );
+        assert!(start.attempt_result.is_none());
+        let result_event = records
+            .iter()
+            .find(|event| event.transition.sequence == result.result_sequence)
+            .unwrap();
+        assert!(result_event.attempt_started.is_none());
+        assert!(result_event.attempt_result.is_some());
+
+        let request = format!(
+            r#"{{"jsonrpc":"2.0","id":"events","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"0","limit":100}}}}"#,
+            task.id
+        );
+        for (minor, visible) in [(24, false), (25, true)] {
+            let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+            let hello = format!(
+                r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#
+            );
+            assert!(
+                matches!(session.handle(&mut store, hello.as_bytes(), 1000), Response::Success { result: QueryResult::Hello { protocol_version, .. }, .. } if protocol_version.minor == minor)
+            );
+            let events = match session.handle(&mut store, request.as_bytes(), 1000) {
+                Response::Success {
+                    result: QueryResult::Events { events, .. },
+                    ..
+                } => events,
+                other => panic!("{other:?}"),
+            };
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|event| event.attempt_started.is_some())
+                    .count(),
+                usize::from(visible)
+            );
+        }
+
+        let mut foreign = GatewaySession::new(AuthContext::Agent("a2"), Platform::Macos);
+        foreign.handle(&mut store, br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a2","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":25}}}"#, 1000);
+        let denied = foreign.handle(
+            &mut store,
+            request
+                .replace("\"agent_id\":\"a1\"", "\"agent_id\":\"a2\"")
+                .as_bytes(),
+            1000,
+        );
+        assert!(matches!(denied, Response::Failure { error, .. } if error.code == -32004));
+
+        let legacy = create(&mut store, "attempt-start-legacy").unwrap();
+        let legacy = transition(&mut store, &legacy.id, legacy.sequence, Action::Start).unwrap();
+        assert!(
+            store
+                .events_with_steps(&legacy.id, 0, 100)
+                .unwrap()
+                .iter()
+                .all(|event| event.attempt_started.is_none())
+        );
+
+        store
+            .0
+            .execute(
+                "UPDATE task_attempts SET host_session_id='' WHERE task_id=?1",
+                [&task.id],
+            )
+            .unwrap();
+        assert_eq!(
+            store.events_with_steps(&task.id, 0, 100),
+            Err(Error::StorageUnavailable)
         );
     }
 

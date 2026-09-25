@@ -113,6 +113,7 @@ function timelineText(event) {
     return `${kind}：${phase}（尝试 ${event.control_event.attempt_id}）`;
   }
   if (event.step_declaration) return `Agent 声明步骤：${event.step_declaration.label}`;
+  if (event.attempt_started) return `执行尝试已准备（步骤 ${event.attempt_started.step_id} · 尝试 ${event.attempt_started.attempt_id}）`;
   if (event.observation) {
     const result = {'matched':'已匹配','not-matched':'未匹配','unknown':'未知'}[event.observation.result] ?? '未知';
     return `Observe（步骤 ${event.observation.step_id}）：${result} · ${event.observation.summary}`;

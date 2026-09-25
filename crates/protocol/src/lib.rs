@@ -692,6 +692,9 @@ pub struct TaskEvent {
     pub step_declaration: Option<StepDeclaration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
+    pub attempt_started: Option<AttemptStarted>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub attempt_result: Option<AttemptResult>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -711,6 +714,15 @@ pub struct TaskEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub user_confirmation: Option<TaskUserConfirmation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct AttemptStarted {
+    pub step_id: String,
+    pub attempt_id: String,
+    pub worker_instance_id: String,
+    pub host_session_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1589,6 +1601,12 @@ mod tests {
             sequence: "4".into(),
             creation_event: None,
             step_declaration: None,
+            attempt_started: Some(AttemptStarted {
+                step_id: "step-1".into(),
+                attempt_id: "attempt-1".into(),
+                worker_instance_id: "worker-1".into(),
+                host_session_id: "host-1".into(),
+            }),
             attempt_result: None,
             observation: None,
             control_event: None,
@@ -1600,6 +1618,7 @@ mod tests {
         let value = serde_json::to_value(&event).unwrap();
         assert_eq!(value["artifact_manifest"]["item_count"], 2);
         assert_eq!(value["user_confirmation"]["manifest_version"], "1");
+        assert_eq!(value["attempt_started"]["attempt_id"], "attempt-1");
         assert_eq!(serde_json::from_value::<TaskEvent>(value).unwrap(), event);
 
         let empty_task = TaskSnapshot {

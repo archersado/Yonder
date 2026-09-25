@@ -2,8 +2,8 @@
 use crate::{AuthContext, Error, Status, Task, TaskStore, events, get};
 use yonder_protocol::{
     AttemptResult as ProtocolAttemptResult, AttemptResultPhase as ProtocolAttemptPhase,
-    AttemptUnknownReason as ProtocolUnknownReason, BrowserReference,
-    ControlKind as ProtocolControlKind, ControlPhase as ProtocolControlPhase,
+    AttemptStarted as ProtocolAttemptStarted, AttemptUnknownReason as ProtocolUnknownReason,
+    BrowserReference, ControlKind as ProtocolControlKind, ControlPhase as ProtocolControlPhase,
     ControlRecord as ProtocolControl, FocusFailure as ProtocolFocusFailure,
     FocusPhase as ProtocolFocusPhase, QueryResult, Request, Response, RpcError,
     StepDeclaration as ProtocolStep, TaskArtifactManifest as ProtocolManifest, TaskEvent,
@@ -225,6 +225,7 @@ pub fn handle_encoded_current(
             true,
             true,
             true,
+            true,
         ),
         Err(error) => Response::Failure {
             jsonrpc: Version::V2,
@@ -280,7 +281,7 @@ pub(crate) fn handle_request(
     now_ms: u64,
 ) -> Response {
     handle_request_versioned(
-        store, auth, request, now_ms, false, false, false, false, false, false, false, false,
+        store, auth, request, now_ms, false, false, false, false, false, false, false, false, false,
     )
 }
 
@@ -297,6 +298,7 @@ pub(crate) fn handle_request_versioned(
     include_control_history: bool,
     include_focus_history: bool,
     include_creation_history: bool,
+    include_attempt_start_history: bool,
 ) -> Response {
     let id = request.request_id().to_owned();
     let result = validate(&request, auth, now_ms).and_then(|()| {
@@ -346,7 +348,7 @@ pub(crate) fn handle_request_versioned(
             let task = readable(store, auth, &params.task_id)?;
             let after = yonder_protocol::sequence(&params.after_sequence)?;
             let records = if include_steps { store.events_with_steps(&params.task_id, after, usize::from(params.limit)).map_err(error)? } else {
-                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, creation_event: None, step_declaration: None, attempt_result: None, observation: None, control_event: None, focus_event: None, wait_reason: None, artifact_manifest: None, user_confirmation: None }).collect()
+                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, creation_event: None, step_declaration: None, attempt_started: None, attempt_result: None, observation: None, control_event: None, focus_event: None, wait_reason: None, artifact_manifest: None, user_confirmation: None }).collect()
             };
             check_event_continuity(after, task.sequence, usize::from(params.limit), &records)?;
             let projected = records.into_iter().map(|e| {
@@ -387,6 +389,12 @@ pub(crate) fn handle_request_versioned(
                     sequence: e.transition.sequence.to_string(),
                     creation_event,
                     step_declaration: e.step_declaration.map(|step| ProtocolStep { step_id: step.step_id, label: step.label, accepted_sequence: step.accepted_sequence.to_string() }),
+                    attempt_started: include_attempt_start_history.then(|| e.attempt_started).flatten().map(|attempt| ProtocolAttemptStarted {
+                        step_id: attempt.step_id,
+                        attempt_id: attempt.attempt_id,
+                        worker_instance_id: attempt.worker_instance_id,
+                        host_session_id: attempt.host_session_id,
+                    }),
                     attempt_result,
                     observation: include_observation_history.then(|| e.observation).flatten().map(observation),
                     control_event,
@@ -455,6 +463,7 @@ mod tests {
                 label,
                 accepted_sequence: sequence.to_string(),
             }),
+            attempt_started: None,
             attempt_result: None,
             observation: None,
             control_event: None,
@@ -475,6 +484,7 @@ mod tests {
             },
             creation_event: None,
             step_declaration: None,
+            attempt_started: None,
             attempt_result: None,
             observation: None,
             control_event: None,

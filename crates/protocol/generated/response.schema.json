@@ -102,6 +102,30 @@
         "unknown"
       ]
     },
+    "AttemptStarted": {
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "host_session_id": {
+          "type": "string"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "worker_instance_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "step_id",
+        "attempt_id",
+        "worker_instance_id",
+        "host_session_id"
+      ]
+    },
     "AttemptUnknownReason": {
       "type": "string",
       "enum": [
@@ -770,6 +794,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/AttemptResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempt_started": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptStarted"
             },
             {
               "type": "null"
