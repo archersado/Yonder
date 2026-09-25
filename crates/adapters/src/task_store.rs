@@ -2760,6 +2760,18 @@ impl TaskStore for SqliteTaskStore {
         task_name: Option<&str>,
         source: TaskSource,
     ) -> Result<Task, Error> {
+        self.register_with_outcome(owner, key, description, task_name, source)
+            .map(|outcome| outcome.task)
+    }
+
+    fn register_with_outcome(
+        &mut self,
+        owner: &str,
+        key: &str,
+        description: &str,
+        task_name: Option<&str>,
+        source: TaskSource,
+    ) -> Result<yonder_application::RegistrationOutcome, Error> {
         if [owner, key].iter().any(|id| {
             id.is_empty()
                 || id.len() > 128
@@ -2780,7 +2792,7 @@ impl TaskStore for SqliteTaskStore {
             "SELECT c.task_id,c.description,t.state,t.sequence,c.name,t.name,t.source FROM task_creations c JOIN tasks t ON t.id=c.task_id WHERE c.owner_agent_id=?1 AND c.idempotency_key=?2",
             params![owner,key], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?)),
         ).optional().map_err(storage)?;
-        let task = if let Some((
+        let (task, created) = if let Some((
             id,
             original,
             state,
@@ -2796,14 +2808,14 @@ impl TaskStore for SqliteTaskStore {
             {
                 return Err(Error::IdempotencyConflict);
             }
-            Task {
+            (Task {
                 id,
                 owner_agent_id: owner.into(),
                 name: current_name,
                 source: task_source(&current_source)?,
                 status: status(&state)?,
                 sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            }
+            }, false)
         } else {
             Self::ensure_audit_capacity(&tx)?;
             let id: String = tx
@@ -2817,17 +2829,17 @@ impl TaskStore for SqliteTaskStore {
                 .map_err(storage)?;
             tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES (?1,1,'source',?2)", params![id,format!(r#"{{"source":"{}"}}"#, source_name(source))]).map_err(storage)?;
             tx.execute("INSERT INTO task_creations(owner_agent_id,idempotency_key,task_id,description,name) VALUES (?1,?2,?3,?4,?5)", params![owner,key,id,description,task_name]).map_err(storage)?;
-            Task {
+            (Task {
                 id,
                 owner_agent_id: owner.into(),
                 name: task_name.map(str::to_owned),
                 source,
                 status: Status::Created,
                 sequence: 1,
-            }
+            }, true)
         };
         tx.commit().map_err(storage)?;
-        Ok(task)
+        Ok(yonder_application::RegistrationOutcome { task, created })
     }
 
     fn list(
@@ -3259,6 +3271,114 @@ mod tests {
                 .unwrap(),
             2
         );
+    }
+
+    #[test]
+    fn creation_replay_survives_restart_and_never_reemits_the_new_task_signal() {
+        use yonder_application::gateway::{GatewaySession, Platform};
+        use yonder_protocol::{QueryResult, Response};
+
+        let directory = std::env::temp_dir().join(format!(
+            "yonder-create-replay-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("tasks.db");
+        let hello = br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":26}}}"#;
+        let create = |request_id: &str, key: &str, name: &str| {
+            format!(
+                r#"{{"jsonrpc":"2.0","id":"{request_id}","method":"task.create","params":{{"agent_id":"a1","capability":"task.create","deadline":2000,"idempotency_key":"{key}","description":"固定说明","name":"{name}"}}}}"#
+            )
+        };
+
+        let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
+        let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        session.handle(&mut store, hello, 1000);
+        let (first_bytes, first_signal) = session
+            .handle_encoded_with_create_signal(
+                &mut store,
+                create("create_1", "stable_key", "稳定任务").as_bytes(),
+                1000,
+            )
+            .unwrap();
+        assert!(first_signal);
+        let task = match yonder_protocol::decode_response(&first_bytes).unwrap() {
+            Response::Success {
+                result: QueryResult::Snapshot { task },
+                ..
+            } => task,
+            other => panic!("{other:?}"),
+        };
+        yonder_application::cancel_pending(
+            &mut store,
+            AuthContext::LocalUser("desktop"),
+            &task.task_id,
+            1,
+        )
+        .unwrap();
+        store
+            .0
+            .execute(
+                "UPDATE task_audit_quota_state SET max_bytes=1 WHERE id=1",
+                [],
+            )
+            .unwrap();
+        drop(store);
+
+        let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
+        let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        session.handle(&mut store, hello, 1000);
+        let (replay_bytes, replay_signal) = session
+            .handle_encoded_with_create_signal(
+                &mut store,
+                create("create_2", "stable_key", "稳定任务").as_bytes(),
+                1000,
+            )
+            .unwrap();
+        assert!(!replay_signal);
+        assert!(matches!(
+            yonder_protocol::decode_response(&replay_bytes).unwrap(),
+            Response::Success { result: QueryResult::Snapshot { task: replay }, .. }
+                if replay.task_id == task.task_id
+                    && replay.status == yonder_protocol::TaskStatus::Cancelled
+                    && replay.sequence == "2"
+        ));
+
+        let (_, conflicting_signal) = session
+            .handle_encoded_with_create_signal(
+                &mut store,
+                create("create_3", "stable_key", "不同任务").as_bytes(),
+                1000,
+            )
+            .unwrap();
+        assert!(!conflicting_signal);
+        let (new_bytes, new_signal) = session
+            .handle_encoded_with_create_signal(
+                &mut store,
+                create("create_4", "new_key", "新任务").as_bytes(),
+                1000,
+            )
+            .unwrap();
+        assert!(!new_signal);
+        assert!(matches!(
+            yonder_protocol::decode_response(&new_bytes).unwrap(),
+            Response::Failure { error, .. } if error.code == -32014
+        ));
+        let counts: (i64, i64, i64, i64) = store
+            .0
+            .query_row(
+                "SELECT (SELECT count(*) FROM tasks),(SELECT count(*) FROM events),(SELECT count(*) FROM outbox),(SELECT count(*) FROM task_creations)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (1, 2, 2, 1));
+        drop(store);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

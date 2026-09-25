@@ -774,6 +774,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(1650));
         assert_ne!(reopened.presentation().unwrap().1, "listening");
         reopened.query_session(&mut session, create, 1000).unwrap();
+        assert_eq!(reopened.presentation().unwrap(), (true, "idle"));
         let created = reopened
             .store
             .list(None, None, false, 100)

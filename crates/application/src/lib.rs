@@ -23,6 +23,14 @@ pub struct Task {
     pub sequence: u64,
 }
 
+/// 任务登记的内部结果；`created` 只用于抑制幂等重投的瞬时宿主提示，
+/// 不进入协议或任务事实源。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegistrationOutcome {
+    pub task: Task,
+    pub created: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TaskSource {
     LocalAgent,
@@ -306,6 +314,20 @@ pub trait TaskStore {
         _: TaskSource,
     ) -> Result<Task, Error> {
         Err(Error::StorageUnavailable)
+    }
+    fn register_with_outcome(
+        &mut self,
+        owner: &str,
+        key: &str,
+        description: &str,
+        task_name: Option<&str>,
+        source: TaskSource,
+    ) -> Result<RegistrationOutcome, Error> {
+        self.register(owner, key, description, task_name, source)
+            .map(|task| RegistrationOutcome {
+                task,
+                created: true,
+            })
     }
     fn supports_step_declarations(&self) -> bool {
         false
@@ -674,6 +696,18 @@ pub fn register(
     name: Option<&str>,
     source: TaskSource,
 ) -> Result<Task, Error> {
+    register_with_outcome(store, auth, key, description, name, source).map(|outcome| outcome.task)
+}
+
+/// 已握手 Gateway 使用；除任务快照外明确区分首次登记和持久幂等命中。
+pub fn register_with_outcome(
+    store: &mut impl TaskStore,
+    auth: AuthContext<'_>,
+    key: &str,
+    description: &str,
+    name: Option<&str>,
+    source: TaskSource,
+) -> Result<RegistrationOutcome, Error> {
     if !matches!(auth, AuthContext::Agent(_)) {
         return Err(Error::PermissionDenied);
     }
@@ -685,7 +719,7 @@ pub fn register(
     {
         return Err(Error::InvalidInput);
     }
-    store.register(auth.agent_id(), key, description, name, source)
+    store.register_with_outcome(auth.agent_id(), key, description, name, source)
 }
 
 pub fn record_observation(

@@ -1,0 +1,23 @@
+{
+  "story": "TM-S1",
+  "change": "tm-s1-dedup-lifetime",
+  "platform": "macOS",
+  "date": "2026-09-25",
+  "isolated_database": true,
+  "first_create_signal": true,
+  "replay_after_cancel_restart_and_quota_signal": false,
+  "replay_task_identity_preserved": true,
+  "replay_status": "cancelled",
+  "replay_sequence": "2",
+  "conflicting_payload_rejected": true,
+  "new_key_rejected_when_quota_full": true,
+  "core_table_counts_unchanged_after_replay": true,
+  "task_host_first_presentation": "listening",
+  "task_host_replay_presentation": "idle",
+  "event_8k_budget": "pass",
+  "response_256k_budget": "pass",
+  "workspace_tests": 111,
+  "python_tests": 33,
+  "active_openspec_validations": 67,
+  "windows": "deferred"
+}

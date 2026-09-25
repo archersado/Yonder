@@ -172,6 +172,8 @@ pub struct GatewaySession<'a> {
     can_fail: bool,
     computer_available: bool,
     computer_permission_required: bool,
+    /// 仅在一次同步 `handle` 调用期间传递给桌面组合根，不是协议或核心状态。
+    last_create_was_new: bool,
 }
 
 #[cfg(test)]
@@ -386,9 +388,8 @@ impl<'a> GatewaySession<'a> {
         bytes: &[u8],
         now_ms: u64,
     ) -> Result<(Vec<u8>, bool), crate::Error> {
-        let create = matches!(yonder_protocol::decode(bytes), Ok(Request::Create { .. }));
         let response = self.handle(store, bytes, now_ms);
-        let accepted = create && matches!(response, Response::Success { .. });
+        let accepted = self.last_create_was_new && matches!(response, Response::Success { .. });
         Ok((
             yonder_protocol::encode(&response).map_err(|_| crate::Error::StorageUnavailable)?,
             accepted,
@@ -698,10 +699,12 @@ impl<'a> GatewaySession<'a> {
             can_fail: false,
             computer_available: false,
             computer_permission_required: false,
+            last_create_was_new: false,
         }
     }
 
     pub fn handle(&mut self, store: &mut impl TaskStore, bytes: &[u8], now_ms: u64) -> Response {
+        self.last_create_was_new = false;
         let request = match yonder_protocol::decode(bytes) {
             Ok(request) => request,
             Err(error) => {
@@ -732,7 +735,7 @@ impl<'a> GatewaySession<'a> {
             } else if self.can_name && params.name.is_none() {
                 Err(RpcError::new(-32602, "Agent须提供任务名称"))
             } else {
-                crate::register(
+                crate::register_with_outcome(
                     store,
                     self.auth,
                     &params.idempotency_key,
@@ -741,8 +744,9 @@ impl<'a> GatewaySession<'a> {
                     crate::TaskSource::LocalAgent,
                 )
                 .map_err(query::error)
-                .map(|task| {
-                    let mut snapshot = query::summary(task);
+                .map(|outcome| {
+                    self.last_create_was_new = outcome.created;
+                    let mut snapshot = query::summary(outcome.task);
                     if !self.can_name {
                         snapshot.name = None;
                     }

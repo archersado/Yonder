@@ -2,8 +2,8 @@
 
 Story: TM-S1
 Epic: TM
-Status: implementing
-OpenSpec: oct-s1-task-status
+Status: verifying
+OpenSpec: tm-s1-dedup-lifetime
 
 2026-09-18 增加 `tm-s1-agent-wait-for-user` 子范围：按 Accepted AD-TM-10 将安全步骤边界的 Agent 等待请求接入协议 1.17，持久化等待原因并驱动既有桌宠状态；不实现 Resume。
 
@@ -17,7 +17,7 @@ OpenSpec: oct-s1-task-status
 
 ## 当前状态与前置条件
 
-三份设计已按原始产品与架构扩展到 16 条验收条件；新增授权引用、资源失效、等待/恢复与历史一致性。TM-S5 承担时间线/产物/审计的专门查询与验收，二者共同审阅写入事务。当前为 implementing，剩余 payload 与去重寿命等设计项未定案，不继续追加功能代码。
+三份设计已按原始产品与架构扩展到 16 条验收条件；新增授权引用、资源失效、等待/恢复与历史一致性。TM-S5 承担时间线/产物/审计的专门查询与验收，二者共同审阅写入事务。2026-09-25 已定案事件编码预算与创建去重寿命；本增量修复创建重投仍触发桌宠“新任务”瞬时信号的问题，并补齐跨重启、终态、配额与编码边界回归。完整 Story 的跨模块 AC12～16 与 Windows 验证仍由对应 Story/平台证据关闭。
 
 ## 逐步拆解清单
 
@@ -26,7 +26,7 @@ OpenSpec: oct-s1-task-status
 - [x] 明确状态文案、错误、加载/空态和未知信息的表现
 - [x] 补齐原需求的信息归属和跨模块责任，新增 TM-S5 时间线/产物/审计 Story 三份设计
 - [x] 当前值/历史事实、同事务与外部产物边界完成设计复核，见 [联合复核](../TM-S1-TM-S5-DESIGN-REVIEW.md)
-- [x] 定义 task/step/attempt/request/sequence 职责、作者/状态允许矩阵和重投递/迟到结果规则；仍待 payload 与去重寿命定稿
+- [x] 定义 task/step/attempt/request/sequence 职责、作者/状态允许矩阵和重投递/迟到结果规则；payload 预算与创建去重寿命已定稿
 - [x] 列出历史事件最小事实、观察轮次与受控引用，提出单事件/整页字节预算并完成文档边界走查；尚无实现测试
 - [x] 补齐保留/删除/去重寿命及产物版本清单方案；区分源文档期限与工程建议，待整体 ADR 和跨模块审阅
 - [x] AC10：确定名称、来源、步骤、观察/意图的字段与限额，更新主体、脱敏与持久化规则
@@ -34,6 +34,8 @@ OpenSpec: oct-s1-task-status
 - [x] 先更新涉及的 ADR，再同步三份设计和跨模块接口
 - [x] 设计审阅通过后明确新 Proposal 范围；旧 Change 仅保留历史承接，不扩展跨模块代码
 - [x] 建立实现后的独立验证目标，不把文档检查视为产品验收
+- [x] 定案 8 KiB 单事件、256 KiB 响应预算和创建幂等记录随任务审计保留的寿命
+- [x] 实施创建首次登记/幂等重投内部结果区分，确保重投不产生第二次桌宠创建信号
 
 AC10/AC11 设计已定案。2026-09-22 [`tm-s1-task-presentation-metadata`](../../../../openspec/changes/archive/2026-09-22-tm-s1-task-presentation-metadata/proposal.md) 已完成协议 1.19、SQLite schema 15、分作者用例与 Gateway 查询接线，全量 Rust 测试、生成物检查和架构门禁通过；macOS 原生展示与[独立 Verification Goal](../../../../openspec/changes/archive/2026-09-22-tm-s1-task-presentation-metadata/verification-goal.md)已通过，Change 已归档，Windows 按用户要求暂缓。历史保留和产物版本仍归 AD-TM-01 的 Proposed 部分。真实认证归 AG-S1、资源派发归 TM-S2、可见总览归 DS-S2；密钥与环绕菜单仍暂停。
 原生验证证据：`apps/desktop/evidence/tm-s1-presentation-20260922/result.json` 与 `tm-s1-native.png`。
@@ -41,6 +43,8 @@ AC10/AC11 设计已定案。2026-09-22 [`tm-s1-task-presentation-metadata`](../.
 ## OpenSpec 与验证
 
 openspec/changes/oct-s1-task-status/
+
+当前增量：[tm-s1-dedup-lifetime](../../../../openspec/changes/tm-s1-dedup-lifetime/proposal.md)。
 
 [Change](../../../../openspec/changes/oct-s1-task-status/proposal.md)；独立验证在该 Change 内维护，记录存在不代表通过。
 
