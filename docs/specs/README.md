@@ -131,6 +131,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-18 VI-S1 macOS撤权/设备切换取证未关闭：adhoc预览包在应用级权限重置后仍沿用授权，采集中重置没有产生撤权事件；本机仅有一个输入设备。两项继续保留真实环境门禁，不以模拟结果替代。
 
+2026-09-25 VI-S1 macOS会话收口实现完成：候选VAD在检测到有效语音后以0.90秒静音结束，手停/静音/总时限共用单终态门闩；Rust稳定会话ID拒绝迟到回调并单次领取final。确定性原生/前端验证PASS，真实麦克风声学样本因透明WebView入口无法被本轮合成指针触发而继续保留，Windows与ADR门禁不变。
+
 2026-09-18 AG-S5 Codex当前turn投递Goal FAIL：Codex CLI 0.154的`codex queue`仅确认持久排队，活动turn没有收到steer，现有桥接不能据此返回`accepted`。不使用内部数据库轮询或第二Agent绕过；等待受支持的当前会话`turn/start|turn/steer`连接入口后返回实施。
 
 2026-09-18 AG-S5失败关闭修复：排队探针仅在前一turn结束后作为下一turn到达；`yonder agent-bridge`已删除`codex queue`误报路径，不支持当前会话直接提交时明确退出，桌宠保持Agent未连接。

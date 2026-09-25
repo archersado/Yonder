@@ -12,9 +12,9 @@ legacy_source = desktop / "target/preview/Yonda Task Space.app"
 if not source.is_dir() and legacy_source.is_dir():
     source = legacy_source
 variant = sys.argv[1] if len(sys.argv) == 2 else "observation"
-if variant not in ("observation", "control", "focus", "creation", "attempt-start"):
-    raise SystemExit("仅允许 observation、control、focus、creation 或 attempt-start 隔离夹具")
-label = {"observation": "Observe", "control": "Control", "focus": "Focus", "creation": "Creation", "attempt-start": "Attempt Start"}[variant]
+if variant not in ("observation", "control", "focus", "creation", "attempt-start", "voice-session"):
+    raise SystemExit("仅允许 observation、control、focus、creation、attempt-start 或 voice-session 隔离夹具")
+label = {"observation": "Observe", "control": "Control", "focus": "Focus", "creation": "Creation", "attempt-start": "Attempt Start", "voice-session": "Voice Session"}[variant]
 bundle = desktop / f"target/preview/Yonda {label} Fixture.app"
 binary = root / "target/debug/yonder-desktop"
 identifier = f"com.yonder.{variant}.fixture"

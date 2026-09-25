@@ -17,7 +17,9 @@ OpenSpec: vi-s1-voice-input-spike
 
 macOS无录音能力清单已通过：`zh-CN`识别器可用并支持本机识别，首次探针未请求权限。首次授权拒绝/撤权、设备切换与Windows样本仍未完成。
 
-2026-09-25用户确认“停顿后整段发送”。现有macOS候选实现只有20秒总时限与手动停止，尚无说话后短暂停顿的自动结束判定；VI1-04/VI1-10未通过。须先完成双平台统一静音样本并接受AD-VI-01，不能将当前候选实现记为该行为已交付。Agent当前会话投递仍受AG-S5独立门禁约束。
+2026-09-25用户确认“停顿后整段发送”时，macOS候选只有20秒总时限与手动停止，尚无说话后短暂停顿的自动结束判定；VI1-04/VI1-10当时未通过。双平台统一静音样本和AD-VI-01仍是完整Story门禁；Agent当前会话投递仍受AG-S5独立门禁约束。
+
+2026-09-25 macOS候选已实现PCM RMS语音活动判定、有效语音后0.90秒静音收尾、手停/静音/总时限单终态门闩，以及跨FFI稳定会话ID和Rust单次final领取。确定性原生样本、重复/迟到回调和前端提示回归通过；隔离签名宿主完成构建与启动，但合成指针无法触发透明WebView入口，因此真实麦克风的声学自动结束与整段单条投递仍保留为未通过门禁。见[独立Verification Goal](../../../../openspec/changes/vi-s1-voice-input-spike/verification-macos-session-finalization.md)。
 
 2026-09-18 macOS已授权会话子范围PASS：正式Yonda桌宠内显式开始、真实麦克风中文转写、无确认自动投递、完成后立即重新取得麦克风、手动停止、Agent断开错误及Esc取消均通过；PCM和转写正文未进入证据。见[独立验证](../../../../openspec/changes/vi-s1-voice-input-spike/verification-macos-explicit.md)。应用级权限重置后adhoc预览包仍沿用授权，采集中重置也未产生撤权事件；本机只有一个输入设备。首次权限拒绝、真实运行中撤权、设备切换与Windows样本仍待验证，AD-VI-01保持Proposed。
 
