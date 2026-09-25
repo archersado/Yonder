@@ -8,6 +8,7 @@
 - [x] 增加 macOS 打包与本地签名验证
 - [x] 增加 macOS 公证命令
 - [x] 增加macOS发布包装配白名单、敏感文件/自有文本审计及结构化证据
+- [x] 绑定desktop/CLI构建提交、最终签名二进制哈希与发布冻结HEAD
 - [ ] 执行 macOS 正式签名与公证
 - [ ] 增加 Windows 签名与同一样本验证（暂缓）
 - [x] 创建发布冻结子范围独立 Verification Goal（完整 Story 不 Archive）

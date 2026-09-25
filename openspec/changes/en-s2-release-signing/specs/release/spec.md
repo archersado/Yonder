@@ -10,6 +10,14 @@ Yonder 发布产物 MUST 使用同一固定版本，并包含 desktop、CLI、MC
 
 发布脚本 MUST 校验提交 SHA、协议版本和 SQLite schema 版本一致；不一致时拒绝发布。
 
+#### Scenario: 构建提交可追溯
+
+- **WHEN** macOS 打包脚本装配 release desktop 与 CLI
+- **THEN** 两个二进制必须分别报告相同的固定版本、`release` profile 与 40 位构建提交
+- **AND** 构建提交必须等于当前无已跟踪改动源码树的 HEAD
+- **AND** 包内构建来源记录必须声明两个二进制各自的构建身份
+- **AND** 发布冻结必须重新执行最终包内身份入口、校验包签名、记录最终二进制SHA-256，并拒绝旧提交、开发 profile、身份缺失或身份不一致的产物
+
 ### Requirement: 签名与公证
 
 macOS 产物 MUST 通过 `codesign` 与 `notarytool`；Windows 产物 MUST 通过 code-sign。签名失败 MUST 阻止发布。

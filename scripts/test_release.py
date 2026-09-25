@@ -70,6 +70,27 @@ class ReleaseManifestTest(unittest.TestCase):
             path = bundle / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"fixture")
+        for relative, package in {
+            "Contents/MacOS/yonder-desktop": "yonder-desktop",
+            "Contents/MacOS/yonder": "yonder-cli",
+        }.items():
+            path = bundle / relative
+            path.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json\n"
+                f"print(json.dumps({{'schema':1,'package':'{package}','version':'0.1.0',"
+                "'profile':'release','commit':'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}))\n",
+                encoding="utf-8",
+            )
+            path.chmod(0o755)
+        provenance = bundle / "Contents/Resources/build-provenance.json"
+        provenance.write_text(
+            '{"schema":1,"version":"0.1.0","profile":"release",'
+            '"commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
+            '"artifacts":{"desktop":{"package":"yonder-desktop"},'
+            '"cli":{"package":"yonder-cli"}}}\n',
+            encoding="utf-8",
+        )
         info = bundle / "Contents/Info.plist"
         info.parent.mkdir(parents=True, exist_ok=True)
         with info.open("wb") as stream:
@@ -79,12 +100,39 @@ class ReleaseManifestTest(unittest.TestCase):
     def test_bundle_audit_accepts_allowlisted_release_contents(self):
         with tempfile.TemporaryDirectory() as directory:
             bundle = self.make_bundle(directory)
-            result = audit_macos_bundle(bundle, expected_channel="dev")
+            result = audit_macos_bundle(
+                bundle,
+                expected_channel="dev",
+                expected_commit="a" * 40,
+                expected_version="0.1.0",
+            )
             self.assertTrue(result["passed"])
             self.assertEqual(result["channel"], "dev")
+            self.assertEqual(result["build_commit"], "a" * 40)
+            self.assertEqual(set(result["binary_sha256"]), {"desktop", "cli"})
             self.assertFalse(result["sensitive_values_recorded"])
             with self.assertRaisesRegex(ValueError, "发布通道不一致"):
                 audit_macos_bundle(bundle, expected_channel="stable")
+
+    def test_bundle_audit_rejects_stale_build_identity_and_changed_binary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = self.make_bundle(directory)
+            with self.assertRaisesRegex(ValueError, "构建提交与冻结提交不一致"):
+                audit_macos_bundle(bundle, expected_commit="b" * 40)
+            (bundle / "Contents/MacOS/yonder").write_bytes(b"changed")
+            with self.assertRaisesRegex(ValueError, "yonder构建身份不可用"):
+                audit_macos_bundle(bundle, expected_commit="a" * 40)
+
+    def test_bundle_audit_rejects_development_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = self.make_bundle(directory)
+            provenance = bundle / "Contents/Resources/build-provenance.json"
+            provenance.write_text(
+                provenance.read_text(encoding="utf-8").replace('"profile":"release"', '"profile":"debug"'),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "不是release"):
+                audit_macos_bundle(bundle)
 
     def test_bundle_audit_rejects_user_data_and_secret_text_without_echoing_value(self):
         with tempfile.TemporaryDirectory() as directory:

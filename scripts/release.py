@@ -80,6 +80,14 @@ def git_commit(root):
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
 
 
+def require_clean_tracked_tree(root):
+    changed = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, text=True
+    ).strip()
+    if changed:
+        raise ValueError("发布冻结要求源码树无已跟踪改动")
+
+
 def sha256(path):
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -100,10 +108,24 @@ def tree_sha256(root):
     return digest.hexdigest()
 
 
+def executable_build_info(path, argument):
+    try:
+        result = subprocess.run(
+            [str(path), argument], check=True, capture_output=True, text=True, timeout=10
+        )
+        info = json.loads(result.stdout)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError) as error:
+        raise ValueError(f"macOS发布{path.name}构建身份不可用") from error
+    if not isinstance(info, dict):
+        raise ValueError(f"macOS发布{path.name}构建身份不可用")
+    return info
+
+
 MACOS_BUNDLE_EXACT_FILES = {
     "Contents/Info.plist",
     "Contents/MacOS/yonder-desktop",
     "Contents/MacOS/yonder",
+    "Contents/Resources/build-provenance.json",
     "Contents/Resources/channel.json",
     "Contents/Resources/driver-manifest.json",
     "Contents/Resources/release-contract.json",
@@ -145,6 +167,7 @@ FORBIDDEN_BUNDLE_SUFFIXES = (
 )
 OWNED_TEXT_FILES = {
     "Contents/Info.plist",
+    "Contents/Resources/build-provenance.json",
     "Contents/Resources/channel.json",
     "Contents/Resources/driver-manifest.json",
     "Contents/Resources/release-contract.json",
@@ -158,7 +181,13 @@ SENSITIVE_TEXT_PATTERNS = (
 )
 
 
-def audit_macos_bundle(bundle, expected_channel=None):
+def audit_macos_bundle(
+    bundle,
+    expected_channel=None,
+    expected_commit=None,
+    expected_version=None,
+    verify_signature=False,
+):
     if not bundle.is_dir():
         raise ValueError(f"macOS发布包不存在：{bundle}")
     files = []
@@ -186,6 +215,53 @@ def audit_macos_bundle(bundle, expected_channel=None):
     if expected_channel and channel_payload["channel"] != expected_channel:
         raise ValueError(f"macOS发布通道不一致：期望{expected_channel}，实际{channel_payload['channel']}")
 
+    provenance_path = bundle / "Contents/Resources/build-provenance.json"
+    provenance = json.loads(read_text(provenance_path))
+    if set(provenance) != {"schema", "version", "profile", "commit", "artifacts"} or provenance.get("schema") != 1:
+        raise ValueError("macOS发布构建来源格式无效")
+    if provenance.get("profile") != "release":
+        raise ValueError("macOS发布构建来源不是release")
+    build_commit = provenance.get("commit")
+    if not isinstance(build_commit, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", build_commit):
+        raise ValueError("macOS发布构建提交无效")
+    if expected_commit and build_commit != expected_commit:
+        raise ValueError("macOS发布构建提交与冻结提交不一致")
+    if expected_version and provenance.get("version") != expected_version:
+        raise ValueError("macOS发布构建版本与冻结版本不一致")
+    artifact_specs = {
+        "desktop": ("yonder-desktop", bundle / "Contents/MacOS/yonder-desktop", "--release-build-info"),
+        "cli": ("yonder-cli", bundle / "Contents/MacOS/yonder", "build-info"),
+    }
+    artifacts = provenance.get("artifacts")
+    if not isinstance(artifacts, dict) or set(artifacts) != set(artifact_specs):
+        raise ValueError("macOS发布构建来源缺少二进制")
+
+    if verify_signature:
+        try:
+            subprocess.run(
+                ["/usr/bin/codesign", "--verify", "--deep", "--strict", str(bundle)],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            raise ValueError("macOS发布签名校验失败") from error
+
+    binary_hashes = {}
+    for name, (package, path, argument) in artifact_specs.items():
+        record = artifacts.get(name)
+        if not isinstance(record, dict) or set(record) != {"package"} or record.get("package") != package:
+            raise ValueError(f"macOS发布{name}构建来源无效")
+        info = executable_build_info(path, argument)
+        if set(info) != {"schema", "package", "version", "profile", "commit"} or info.get("schema") != 1:
+            raise ValueError(f"macOS发布{name}构建身份格式无效")
+        if info.get("package") != package or info.get("version") != provenance.get("version"):
+            raise ValueError(f"macOS发布{name}构建版本不一致")
+        if info.get("profile") != "release" or info.get("commit") != build_commit:
+            raise ValueError(f"macOS发布{name}构建身份不一致")
+        binary_hashes[name] = sha256(path)
+
     with (bundle / "Contents/Info.plist").open("rb") as stream:
         info = plistlib.load(stream)
     if "LSEnvironment" in info:
@@ -204,6 +280,9 @@ def audit_macos_bundle(bundle, expected_channel=None):
         "passed": True,
         "file_count": len(files),
         "channel": channel_payload["channel"],
+        "build_commit": build_commit,
+        "binary_sha256": binary_hashes,
+        "signature_verified": verify_signature,
         "allowlist_version": 1,
         "sensitive_values_recorded": False,
     }
@@ -218,6 +297,7 @@ def collect_manifest(root, include_artifacts=False, expected_channel=None):
         raise ValueError(f"Desktop 版本不一致：{desktop.get('version')}")
     protocol = protocol_version(root)
     schema = sqlite_schema_version(root)
+    commit = git_commit(root)
     contract_path = release_contract(root, version, protocol, schema)
     driver_path, drivers = driver_manifest(root, version)
     generated = [
@@ -237,6 +317,7 @@ def collect_manifest(root, include_artifacts=False, expected_channel=None):
     if sys.platform == "darwin":
         artifacts["macos_app"] = "target/release/Yonda.app"
     if include_artifacts:
+        require_clean_tracked_tree(root)
         desktop_path = root / artifacts["desktop"]
         cli_path = root / artifacts["cli"]
         macos_app = artifacts.get("macos_app")
@@ -252,7 +333,9 @@ def collect_manifest(root, include_artifacts=False, expected_channel=None):
             "mcp": {"path": artifacts["cli"], "command": ["yonder", "mcp"], "sha256": sha256(cli_path)},
         }
         if sys.platform == "darwin":
-            bundle_audit = audit_macos_bundle(root / macos_app, expected_channel)
+            bundle_audit = audit_macos_bundle(
+                root / macos_app, expected_channel, commit, version, verify_signature=True
+            )
             artifacts["macos_app"] = {
                 "path": macos_app,
                 "sha256": tree_sha256(root / macos_app),
@@ -262,7 +345,7 @@ def collect_manifest(root, include_artifacts=False, expected_channel=None):
     return {
         "schema": 1,
         "version": version,
-        "commit": git_commit(root),
+        "commit": commit,
         "packages": packages,
         "protocol": protocol,
         "sqlite_schema": schema,

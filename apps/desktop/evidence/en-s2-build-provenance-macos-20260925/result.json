@@ -1,0 +1,21 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-25",
+  "scope": "release_build_provenance",
+  "version": "0.1.0",
+  "profile": "release",
+  "commit_binding": "current_head_exact_match",
+  "desktop_identity_verified": true,
+  "cli_identity_verified": true,
+  "packaged_binary_identities_verified": true,
+  "final_signed_binary_hashes_recorded": true,
+  "tracked_source_tree_clean": true,
+  "adhoc_signature_verified": true,
+  "negative_stale_commit_rejected": true,
+  "negative_debug_profile_rejected": true,
+  "negative_changed_binary_rejected": true,
+  "sensitive_values_recorded": false,
+  "formal_signing_completed": false,
+  "notarization_completed": false,
+  "windows_deferred": true
+}

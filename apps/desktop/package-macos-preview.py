@@ -1,9 +1,73 @@
 """将正式桌面宿主及固定版本 CUA SDK 封装为 macOS .app。"""
 from pathlib import Path
 import argparse
+import json
 import plistlib
+import re
 import shutil
 import subprocess
+
+
+COMMIT_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
+
+
+def repository_commit(root):
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+
+
+def require_clean_tracked_tree(root):
+    changed = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, text=True
+    ).strip()
+    if changed:
+        raise ValueError("release打包要求源码树无已跟踪改动")
+
+
+def read_build_info(executable, argument):
+    result = subprocess.run(
+        [str(executable), argument], check=True, capture_output=True, text=True, timeout=10
+    )
+    try:
+        info = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{executable.name}构建身份不可用") from error
+    if not isinstance(info, dict):
+        raise ValueError(f"{executable.name}构建身份不可用")
+    return info
+
+
+def validate_build_info(info, package, version, profile, commit=None):
+    expected_keys = {"schema", "package", "version", "profile", "commit"}
+    if set(info) != expected_keys or info.get("schema") != 1:
+        raise ValueError(f"{package}构建身份格式无效")
+    if info.get("package") != package or info.get("version") != version:
+        raise ValueError(f"{package}构建版本不一致")
+    if info.get("profile") != profile:
+        raise ValueError(f"{package}构建profile不一致")
+    actual_commit = info.get("commit")
+    if profile == "release" and (not isinstance(actual_commit, str) or not COMMIT_PATTERN.fullmatch(actual_commit)):
+        raise ValueError(f"{package}缺少release构建提交")
+    if commit is not None and actual_commit != commit:
+        raise ValueError(f"{package}构建提交不一致")
+
+
+def build_provenance(desktop_binary, cli_binary, version, profile, commit=None):
+    desktop_info = read_build_info(desktop_binary, "--release-build-info")
+    cli_info = read_build_info(cli_binary, "build-info")
+    validate_build_info(desktop_info, "yonder-desktop", version, profile, commit)
+    validate_build_info(cli_info, "yonder-cli", version, profile, commit)
+    if desktop_info["commit"] != cli_info["commit"]:
+        raise ValueError("desktop与CLI构建提交不一致")
+    return {
+        "schema": 1,
+        "version": version,
+        "profile": profile,
+        "commit": desktop_info["commit"],
+        "artifacts": {
+            "desktop": {"package": "yonder-desktop"},
+            "cli": {"package": "yonder-cli"},
+        },
+    }
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -30,6 +94,19 @@ def main():
     if args.notary_profile and (args.identity == "-" or args.allow_adhoc):
         raise SystemExit("公证产物必须使用正式 codesign 身份")
 
+    contract = json.loads((desktop / "release-contract.json").read_text(encoding="utf-8"))
+    expected_commit = None
+    if args.release:
+        try:
+            require_clean_tracked_tree(root)
+            expected_commit = repository_commit(root)
+        except (ValueError, subprocess.CalledProcessError) as error:
+            raise SystemExit(str(error)) from error
+    try:
+        provenance = build_provenance(binary, cli, contract["version"], profile, expected_commit)
+    except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, KeyError) as error:
+        raise SystemExit(f"发布构建身份校验失败：{error}") from error
+
     executable = bundle / "Contents/MacOS/yonder-desktop"
     if bundle.exists():
         shutil.rmtree(bundle)
@@ -48,6 +125,10 @@ def main():
         shutil.copytree(modules / package, resources / "node_modules" / package)
     shutil.copy2(desktop / "release-contract.json", bundle / "Contents/Resources/release-contract.json")
     shutil.copy2(desktop / "driver-manifest.json", bundle / "Contents/Resources/driver-manifest.json")
+    (bundle / "Contents/Resources/build-provenance.json").write_text(
+        json.dumps(provenance, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     (bundle / "Contents/Resources/channel.json").write_text(
         f'{{"channel":"{args.channel}"}}\n', encoding="utf-8"
     )

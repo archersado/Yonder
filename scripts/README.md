@@ -14,11 +14,13 @@ cargo run -p yonder-protocol --example generate --locked -- --check
 发布冻结清单在提交后生成，默认打印 JSON；产物签名与公证由后续增量承接：
 
 ```bash
-# macOS 需先执行 apps/desktop/package-macos-preview.py --release ...
+# <commit> 必须是当前干净源码树的40位HEAD；两个release二进制都要使用同一值构建。
+YONDER_BUILD_COMMIT=<commit> cargo build --release --locked -p yonder-desktop -p yonder-cli
+python3 apps/desktop/package-macos-preview.py --release --allow-adhoc --channel dev
 python3 scripts/release.py --artifacts --channel dev
 ```
 
-macOS 预览/发布共用 `apps/desktop/package-macos-preview.py`；`--release` 指向 release 产物，`--identity` 指定正式签名身份，`--allow-adhoc` 仅用于本机临时签名验证。
+macOS 预览/发布共用 `apps/desktop/package-macos-preview.py`；`--release` 指向 release 产物并拒绝开发profile、旧提交、desktop/CLI身份不一致或有已跟踪改动的源码树，`--identity` 指定正式签名身份，`--allow-adhoc` 仅用于本机临时签名验证。打包生成的`build-provenance.json`声明两个构建身份；发布冻结会重新执行最终包内身份入口、校验签名、记录最终二进制哈希并与当前HEAD交叉核对。
 
 脚本从 `cargo metadata --no-deps --locked --offline` 读取正式 Workspace 清单，覆盖依赖别名、开发/构建依赖及平台条件；隔离 Spike 不属于正式 Workspace。Domain 不得增加外部依赖。新增模块名称必须经架构核对后登记。
 

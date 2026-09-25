@@ -10,6 +10,8 @@
 
 最小增量先生成发布冻结清单：校验 Workspace/desktop/Driver manifest 版本、协议基线、SQLite schema 和 release 产物存在性，并记录 SHA-256。签名、公证和安装样本由后续增量承接。
 
+release 构建由 `YONDER_BUILD_COMMIT` 显式注入当前 40 位 Git SHA；desktop 与 CLI 都提供无副作用的结构化构建身份入口。macOS 打包前要求源码树无已跟踪改动，分别读取两个二进制的身份并校验版本、`release` profile、提交以及相互一致性，然后生成只含这些公开构建字段的 `build-provenance.json`。签名会改变Mach-O字节，因此不把签名前哈希写入受签名资源形成自引用；发布冻结不信任来源文件的声明，而是重新执行最终包内两个身份入口、校验包签名、计算最终二进制哈希，并把身份提交与冻结时HEAD交叉校验。开发构建可使用 `development` 占位，但不能进入release包。
+
 桌面启动读取同一份 `release-contract.json`，核对包版本、协议基线和 SQLite schema；不一致时拒绝启动。CLI/MCP 与桌面共享 Workspace 版本，由发布冻结清单校验。
 
 macOS 打包脚本支持 `--channel dev|stable` 和 `--notary-profile`；公证凭据只保存在系统 Keychain Profile，不进入仓库、日志或任务状态。
@@ -26,7 +28,7 @@ macOS 使用 `codesign` 与 `notarytool`；Windows 使用 code-sign。证书与�
 
 发布命令输出结构化 JSON，记录版本、提交、构建环境、产物哈希、签名/公证结果、迁移回退测试和安装/卸载样本。证据不包含正文、截图、输入或完整命令输出。
 
-发布冻结在计算macOS包哈希前审计装配边界：只允许`Contents/MacOS`中的desktop/CLI、`Contents/Resources/cua`固定Driver运行时与依赖、三份发布元数据、`Info.plist`和系统签名目录。拒绝符号链接、数据库、日志、环境/密钥/证书容器文件；对Yonder自有JSON、plist与Worker源码检查私钥和真实令牌形态。第三方依赖源码不做关键字扫描，避免把API字段名误报为凭据；其来源仍由锁文件和允许的包目录约束。审计结果只记录文件数、通道与布尔结论，不回显正文或匹配值。
+发布冻结在计算macOS包哈希前审计装配边界：只允许`Contents/MacOS`中的desktop/CLI、`Contents/Resources/cua`固定Driver运行时与依赖、四份发布元数据、`Info.plist`和系统签名目录。拒绝符号链接、数据库、日志、环境/密钥/证书容器文件；对Yonder自有JSON、plist与Worker源码检查私钥和真实令牌形态。第三方依赖源码不做关键字扫描，避免把API字段名误报为凭据；其来源仍由锁文件和允许的包目录约束。审计结果只记录文件数、通道、构建提交、最终二进制哈希与布尔结论，不回显正文或匹配值。
 
 ## 失败与验证
 

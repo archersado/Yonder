@@ -708,6 +708,16 @@ fn agent_settings_close(window: WebviewWindow) -> Result<(), String> {
 }
 
 fn main() {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--release-build-info")) {
+        println!("{}", serde_json::json!({
+            "schema": 1,
+            "package": env!("CARGO_PKG_NAME"),
+            "version": env!("CARGO_PKG_VERSION"),
+            "profile": env!("YONDER_BUILD_PROFILE"),
+            "commit": env!("YONDER_BUILD_COMMIT"),
+        }));
+        return;
+    }
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
         .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])

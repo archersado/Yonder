@@ -6,7 +6,7 @@
 
 ## 产物与版本
 
-一次发布包含 desktop、CLI、MCP、IPC 协议、迁移和 Driver manifest，所有产物使用同一 `major.minor.patch` 版本，禁止 `latest`。发布前冻结提交 SHA、协议版本和 SQLite schema 版本；产物内记录该三元组，运行时启动时只做一致性校验，不尝试自动迁移或下载。
+一次发布包含 desktop、CLI、MCP、IPC 协议、迁移和 Driver manifest，所有产物使用同一 `major.minor.patch` 版本，禁止 `latest`。发布前冻结提交 SHA、协议版本和 SQLite schema 版本；产物内记录该三元组，运行时启动时只做一致性校验，不尝试自动迁移或下载。release 构建必须显式注入 40 位提交 SHA，desktop 与 CLI 分别提供只读构建身份输出；打包脚本只接受两者版本、profile 与提交完全一致且提交等于当前干净源码树 HEAD 的产物。包内 `build-provenance.json` 固定记录两份二进制的构建身份；签名后的发布冻结重新执行两份只读身份入口、校验包签名并记录最终二进制 SHA-256，不能用当前 HEAD 为旧二进制背书，也不在签名资源内制造自引用哈希。
 
 Driver manifest 固定为 `apps/desktop/driver-manifest.json`，只声明当前实际交付的 CUA/BUA Driver 名称、版本和支持平台；发布冻结脚本校验它与 Workspace 版本一致，并记录哈希。未交付的平台不写入 manifest。
 

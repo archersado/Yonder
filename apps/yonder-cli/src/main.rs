@@ -164,9 +164,16 @@ async fn mcp(agent_id: String) {
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     match env::args().nth(1).as_deref() {
+        Some("build-info")=>println!("{}", json!({
+            "schema":1,
+            "package":env!("CARGO_PKG_NAME"),
+            "version":env!("CARGO_PKG_VERSION"),
+            "profile":env!("YONDER_BUILD_PROFILE"),
+            "commit":env!("YONDER_BUILD_COMMIT"),
+        })),
         Some("mcp")=>match agent_id() { Ok(id)=>mcp(id).await, Err(error)=>{eprintln!("{error}");std::process::exit(2)} },
         Some("agent-bridge")=>if let Err(error)=agent_bridge().await{eprintln!("Agent输入桥接关闭：{error}");std::process::exit(1)},
-        _=>{eprintln!("用法：YONDER_AGENT_ID=<agent-id> yonder <mcp|agent-bridge>");std::process::exit(2)}
+        _=>{eprintln!("用法：YONDER_AGENT_ID=<agent-id> yonder <mcp|agent-bridge|build-info>");std::process::exit(2)}
     }
 }
 
