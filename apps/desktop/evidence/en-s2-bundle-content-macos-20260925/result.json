@@ -1,0 +1,21 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-25",
+  "scope": "release_bundle_content_audit",
+  "protocol": "1.25",
+  "sqlite_schema": 19,
+  "release_tests_passed": 5,
+  "allowlist_version": 1,
+  "audited_file_count": 191,
+  "channel": "dev",
+  "content_audit_passed": true,
+  "sensitive_values_recorded": false,
+  "user_database_fixture_rejected": true,
+  "private_key_fixture_rejected_without_echo": true,
+  "stable_request_for_dev_bundle_rejected": true,
+  "bundle_signature": "adhoc",
+  "current_commit_release_rebuilt": false,
+  "formal_signing_completed": false,
+  "notarization_completed": false,
+  "windows_deferred": true
+}

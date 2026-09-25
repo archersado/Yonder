@@ -15,7 +15,7 @@ cargo run -p yonder-protocol --example generate --locked -- --check
 
 ```bash
 # macOS 需先执行 apps/desktop/package-macos-preview.py --release ...
-python3 scripts/release.py --artifacts
+python3 scripts/release.py --artifacts --channel dev
 ```
 
 macOS 预览/发布共用 `apps/desktop/package-macos-preview.py`；`--release` 指向 release 产物，`--identity` 指定正式签名身份，`--allow-adhoc` 仅用于本机临时签名验证。

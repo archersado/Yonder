@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import plistlib
 import re
 import subprocess
 import sys
@@ -99,7 +100,118 @@ def tree_sha256(root):
     return digest.hexdigest()
 
 
-def collect_manifest(root, include_artifacts=False):
+MACOS_BUNDLE_EXACT_FILES = {
+    "Contents/Info.plist",
+    "Contents/MacOS/yonder-desktop",
+    "Contents/MacOS/yonder",
+    "Contents/Resources/channel.json",
+    "Contents/Resources/driver-manifest.json",
+    "Contents/Resources/release-contract.json",
+    "Contents/Resources/cua/node",
+    "Contents/Resources/cua/cua_worker.mjs",
+    "Contents/Resources/cua/jev_worker.mjs",
+}
+MACOS_BUNDLE_PREFIXES = (
+    "Contents/Resources/cua/node_modules/",
+    "Contents/_CodeSignature/",
+)
+FORBIDDEN_BUNDLE_NAMES = {
+    ".env",
+    ".env.local",
+    ".netrc",
+    ".npmrc",
+    "credentials",
+    "credentials.json",
+    "id_ed25519",
+    "id_rsa",
+    "tasks.db",
+    "tasks.db-shm",
+    "tasks.db-wal",
+}
+FORBIDDEN_BUNDLE_SUFFIXES = (
+    ".db",
+    ".db-shm",
+    ".db-wal",
+    ".cer",
+    ".crt",
+    ".jsonl",
+    ".key",
+    ".log",
+    ".p12",
+    ".pem",
+    ".pfx",
+    ".sqlite",
+    ".sqlite3",
+)
+OWNED_TEXT_FILES = {
+    "Contents/Info.plist",
+    "Contents/Resources/channel.json",
+    "Contents/Resources/driver-manifest.json",
+    "Contents/Resources/release-contract.json",
+    "Contents/Resources/cua/cua_worker.mjs",
+    "Contents/Resources/cua/jev_worker.mjs",
+}
+SENSITIVE_TEXT_PATTERNS = (
+    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
+)
+
+
+def audit_macos_bundle(bundle, expected_channel=None):
+    if not bundle.is_dir():
+        raise ValueError(f"macOS发布包不存在：{bundle}")
+    files = []
+    for path in sorted(bundle.rglob("*")):
+        relative = path.relative_to(bundle).as_posix()
+        if path.is_symlink():
+            raise ValueError(f"macOS发布包禁止符号链接：{relative}")
+        if not path.is_file():
+            continue
+        if relative not in MACOS_BUNDLE_EXACT_FILES and not relative.startswith(MACOS_BUNDLE_PREFIXES):
+            raise ValueError(f"macOS发布包含未允许路径：{relative}")
+        lower_name = path.name.lower()
+        if lower_name in FORBIDDEN_BUNDLE_NAMES or lower_name.startswith(".env.") or lower_name.endswith(FORBIDDEN_BUNDLE_SUFFIXES):
+            raise ValueError(f"macOS发布包含敏感文件：{relative}")
+        files.append(relative)
+
+    missing = sorted(MACOS_BUNDLE_EXACT_FILES - set(files))
+    if missing:
+        raise ValueError(f"macOS发布缺少固定内容：{', '.join(missing)}")
+
+    channel_path = bundle / "Contents/Resources/channel.json"
+    channel_payload = json.loads(read_text(channel_path))
+    if set(channel_payload) != {"channel"} or channel_payload["channel"] not in {"dev", "stable"}:
+        raise ValueError("macOS发布通道元数据无效")
+    if expected_channel and channel_payload["channel"] != expected_channel:
+        raise ValueError(f"macOS发布通道不一致：期望{expected_channel}，实际{channel_payload['channel']}")
+
+    with (bundle / "Contents/Info.plist").open("rb") as stream:
+        info = plistlib.load(stream)
+    if "LSEnvironment" in info:
+        raise ValueError("macOS发布包禁止嵌入环境变量")
+
+    for relative in sorted(OWNED_TEXT_FILES):
+        path = bundle / relative
+        if relative == "Contents/Info.plist":
+            content = json.dumps(info, ensure_ascii=False)
+        else:
+            content = read_text(path)
+        if any(pattern.search(content) for pattern in SENSITIVE_TEXT_PATTERNS):
+            raise ValueError(f"macOS发布自有文本包含敏感内容：{relative}")
+
+    return {
+        "passed": True,
+        "file_count": len(files),
+        "channel": channel_payload["channel"],
+        "allowlist_version": 1,
+        "sensitive_values_recorded": False,
+    }
+
+
+def collect_manifest(root, include_artifacts=False, expected_channel=None):
+    if expected_channel and not include_artifacts:
+        raise ValueError("校验发布通道必须同时启用产物审计")
     version, packages = workspace_versions(root)
     desktop = json.loads(read_text(root / "apps/desktop/tauri.conf.json"))
     if desktop.get("version") != version:
@@ -140,10 +252,12 @@ def collect_manifest(root, include_artifacts=False):
             "mcp": {"path": artifacts["cli"], "command": ["yonder", "mcp"], "sha256": sha256(cli_path)},
         }
         if sys.platform == "darwin":
+            bundle_audit = audit_macos_bundle(root / macos_app, expected_channel)
             artifacts["macos_app"] = {
                 "path": macos_app,
                 "sha256": tree_sha256(root / macos_app),
                 "hash_kind": "recursive-files-sha256",
+                "content_audit": bundle_audit,
             }
     return {
         "schema": 1,
@@ -169,8 +283,9 @@ def main():
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output", type=Path, help="发布冻结清单输出路径；默认打印 JSON")
     parser.add_argument("--artifacts", action="store_true", help="校验并记录 release 产物哈希")
+    parser.add_argument("--channel", choices=["dev", "stable"], help="校验产物通道与发布请求一致；须与--artifacts同用")
     args = parser.parse_args()
-    manifest = collect_manifest(args.root, args.artifacts)
+    manifest = collect_manifest(args.root, args.artifacts, args.channel)
     rendered = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
