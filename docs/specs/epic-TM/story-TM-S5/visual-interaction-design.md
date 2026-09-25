@@ -46,6 +46,8 @@
 
 ## 待决事项
 
+2026-09-25 核心版本化增量不新增界面。后续 Task Space 接线必须按选定的清单版本分页展示 `available / missing / changed / unverified`，保留已加载条目并对读取失败提供局部重试；清单版本高于确认版本时才提示“产物已变化，需重新检查”。在 Gateway 和受控引用解析完成前，界面不得从路径、当前文件或条目数量猜测产物内容与有效性。
+
 ## 完整审计闭环增量（2026-09-23）
 
 依据 [AD-TM-22](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-22-AUDIT-COMPLETENESS-AND-QUOTA.md)，任务详情在终态后显示：

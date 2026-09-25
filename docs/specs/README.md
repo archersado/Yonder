@@ -141,6 +141,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-25 EX-S1补齐Jev官方价格证据：TypeSafe官方发布页明确input为`$0.042 / 百万tokens`且output免费；固定样本在同一Jev价格基准下由`$0.000716562`降至`$0.000339696`，降幅52.594%。该结果不等同外部慢脑供应商账单；Windows与双平台终局ADR门禁不变。
 
+2026-09-25 TM-S5产物清单核心版本化PASS：可信Application能力可发布完整不可变快照，任务序号、事件、Outbox、清单与条目同事务提交；固定版本分页受当前任务权限约束，确认绑定当时最新版本，后续changed/missing/新增引用不改写旧确认。全仓109项Rust测试、75项OpenSpec及33项Python测试通过。Gateway/具体能力Adapter/UI、交回与Recording审计、Windows验证仍待完成，完整Story不Archive。
+
 2026-09-18 AG-S5 Codex当前turn投递Goal FAIL：Codex CLI 0.154的`codex queue`仅确认持久排队，活动turn没有收到steer，现有桥接不能据此返回`accepted`。不使用内部数据库轮询或第二Agent绕过；等待受支持的当前会话`turn/start|turn/steer`连接入口后返回实施。
 
 2026-09-18 AG-S5失败关闭修复：排队探针仅在前一turn结束后作为下一turn到达；`yonder agent-bridge`已删除`codex queue`误报路径，不支持当前会话直接提交时明确退出，桌宠保持Agent未连接。

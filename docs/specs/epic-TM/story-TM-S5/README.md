@@ -27,11 +27,17 @@ OpenSpec: tm-s5-audit-completeness
 
 已补保留/删除范围、去重随任务保留、产物版本和清单分页方案；任务审计不擅用上下文/附件 TTL，未同步/固定内容保持保护。尚未实施清理或删除。
 
-AC11 全量忙碌/未知归 TM-S1/TM-S6，不属于本 Story。TM-S5 当前只剩 Windows 与完整 Story 验证门禁；不得以 macOS 子范围 PASS 提前 Archive。
+AC11 全量忙碌/未知归 TM-S1/TM-S6，不属于本 Story。复核发现审计闭环首版只会在确认时生成空清单，尚未实现非空清单发布、版本变化和条目失效；因此 TM-S5 除 Windows 外仍有 AC05 的核心、Gateway/Adapter/UI 接线与完整 Story 验证门禁，不得以既有 macOS 子范围 PASS 提前 Archive。
+
+2026-09-25 `tm-s5-artifact-manifest-core` 已通过独立验证：可信内部发布、不可变版本、引用可用性、同事务事件/Outbox 与受授权内部分页均已实现；确认会绑定当时最新清单，后续版本不改写旧确认。该 Change 不开放 Agent 发布或 UI 条目列表，只关闭 AC05 的核心存储/Application 子范围，完整 Story 继续保持 verifying。
 
 2026-09-23 建立 [AD-TM-22](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-22-AUDIT-COMPLETENESS-AND-QUOTA.md)，收敛用户结果确认、不可变产物清单、审计容量门禁、协议 1.20 与 schema 18 迁移；该子范围进入 design-review，完整 Story 保持 implementing。
 
 2026-09-25 完整审计闭环的实现与协议/存储/应用/前端回归、macOS 原生 UI 验证均通过，见 [独立 Verification Goal](../../../../openspec/changes/tm-s5-audit-completeness/verification-goal.md)。验证中修复 `task.step.get` 未返回审计投影的问题；Windows 仍暂缓，Story 保持 verifying，不 Archive。
+
+产物清单核心版本化增量：[tm-s5-artifact-manifest-core](../../../../openspec/changes/tm-s5-artifact-manifest-core/proposal.md)。
+
+2026-09-25 产物清单核心版本化 [独立 Verification Goal](../../../../openspec/changes/tm-s5-artifact-manifest-core/verification-goal.md) PASS：全仓 109 项 Rust 测试、75 项 OpenSpec、33 项 Python 测试及仓库门禁通过。Gateway/具体能力 Adapter/UI、交回与 Recording 审计、Windows 验证仍待完成，不 Archive。
 
 ## OpenSpec 与验证
 

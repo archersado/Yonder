@@ -1,10 +1,11 @@
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
 use yonder_application::{
-    Action, AttemptConclusion, AttemptPhase, AttemptResultRecord, ControlKind, ControlPhase,
-    ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status, StepBoundaryRecord,
-    StepDeclaration, StopRecord, Task, TaskEventRecord, TaskObservation, TaskObservationResult,
-    TaskPresentation, TaskSource, TaskStore, Transition,
+    Action, ArtifactAvailability, AttemptConclusion, AttemptPhase, AttemptResultRecord,
+    ControlKind, ControlPhase, ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status,
+    StepBoundaryRecord, StepDeclaration, StopRecord, Task, TaskArtifactManifest,
+    TaskArtifactManifestItem, TaskEventRecord, TaskObservation, TaskObservationResult,
+    TaskPresentation, TaskSource, TaskStore, Transition, MAX_ARTIFACT_MANIFEST_ITEMS,
     agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
     browser_use::{BrowserReferenceRecord, valid_ref},
     computer_use::UnknownReason,
@@ -201,6 +202,25 @@ fn parse_focus_failure(value: &str) -> Result<FocusFailure, Error> {
         "verification-failed" => Ok(FocusFailure::VerificationFailed),
         "geometry-changed" => Ok(FocusFailure::GeometryChanged),
         "reference-unavailable" => Ok(FocusFailure::ReferenceUnavailable),
+        _ => Err(Error::StorageUnavailable),
+    }
+}
+
+fn artifact_availability_name(value: ArtifactAvailability) -> &'static str {
+    match value {
+        ArtifactAvailability::Available => "available",
+        ArtifactAvailability::Missing => "missing",
+        ArtifactAvailability::Changed => "changed",
+        ArtifactAvailability::Unverified => "unverified",
+    }
+}
+
+fn artifact_availability(value: &str) -> Result<ArtifactAvailability, Error> {
+    match value {
+        "available" => Ok(ArtifactAvailability::Available),
+        "missing" => Ok(ArtifactAvailability::Missing),
+        "changed" => Ok(ArtifactAvailability::Changed),
+        "unverified" => Ok(ArtifactAvailability::Unverified),
         _ => Err(Error::StorageUnavailable),
     }
 }
@@ -691,6 +711,180 @@ impl TaskStore for SqliteTaskStore {
         })
     }
 
+    fn publish_artifact_manifest(
+        &mut self,
+        task_id: &str,
+        expected_sequence: u64,
+        items: &[TaskArtifactManifestItem],
+    ) -> Result<(Task, TaskArtifactManifest), Error> {
+        if !yonder_application::valid_id(task_id)
+            || expected_sequence == 0
+            || expected_sequence >= i64::MAX as u64
+            || items.len() > MAX_ARTIFACT_MANIFEST_ITEMS
+            || items.iter().enumerate().any(|(index, item)| {
+                item.ordinal != u16::try_from(index + 1).unwrap_or(0)
+                    || !yonder_application::valid_id(&item.reference_id)
+            })
+        {
+            return Err(Error::InvalidInput);
+        }
+        let mut unique = std::collections::HashSet::with_capacity(items.len());
+        if items
+            .iter()
+            .any(|item| !unique.insert(item.reference_id.as_str()))
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let (state, sequence, owner_agent_id, task_name, source): (
+            String,
+            i64,
+            String,
+            Option<String>,
+            String,
+        ) = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage)?
+            .ok_or(Error::NotFound)?;
+        if state == "created" {
+            return Err(Error::StopRequired);
+        }
+        if expected_sequence
+            != u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?
+        {
+            return Err(Error::Conflict);
+        }
+        Self::ensure_audit_capacity(&tx)?;
+        let version: i64 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(version),0)+1 FROM task_artifact_manifests WHERE task_id=?1",
+                [task_id],
+                |row| row.get(0),
+            )
+            .map_err(storage)?;
+        if version <= 0 {
+            return Err(Error::StorageUnavailable);
+        }
+        let next_sequence = sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx
+            .execute(
+                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
+                params![next_sequence, task_id, sequence],
+            )
+            .map_err(storage)?
+            != 1
+        {
+            return Err(Error::Conflict);
+        }
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,?2,?3,?3)",
+            params![task_id, next_sequence, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
+            params![task_id, next_sequence],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO task_artifact_manifests(task_id,version,created_sequence,item_count) VALUES (?1,?2,?3,?4)",
+            params![task_id, version, next_sequence, i64::try_from(items.len()).map_err(|_| Error::InvalidInput)?],
+        )
+        .map_err(storage)?;
+        for item in items {
+            tx.execute(
+                "INSERT INTO task_artifact_manifest_items(task_id,version,ordinal,reference_id,availability) VALUES (?1,?2,?3,?4,?5)",
+                params![task_id, version, i64::from(item.ordinal), item.reference_id, artifact_availability_name(item.availability)],
+            )
+            .map_err(storage)?;
+        }
+        tx.commit().map_err(storage)?;
+        let task = Task {
+            id: task_id.to_owned(),
+            owner_agent_id,
+            name: task_name,
+            source: task_source(&source)?,
+            status: status(&state)?,
+            sequence: u64::try_from(next_sequence).map_err(|_| Error::StorageUnavailable)?,
+        };
+        let manifest = TaskArtifactManifest {
+            task_id: task_id.to_owned(),
+            version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
+            item_count: u16::try_from(items.len()).map_err(|_| Error::StorageUnavailable)?,
+        };
+        Ok((task, manifest))
+    }
+
+    fn artifact_manifest_items(
+        &mut self,
+        task_id: &str,
+        version: u64,
+        after_ordinal: u16,
+        limit: usize,
+    ) -> Result<Vec<TaskArtifactManifestItem>, Error> {
+        if !yonder_application::valid_id(task_id)
+            || version == 0
+            || version >= i64::MAX as u64
+            || !(1..=101).contains(&limit)
+        {
+            return Err(Error::InvalidInput);
+        }
+        let exists: bool = self
+            .0
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM task_artifact_manifests WHERE task_id=?1 AND version=?2)",
+                params![task_id, version as i64],
+                |row| row.get(0),
+            )
+            .map_err(storage)?;
+        if !exists {
+            return Err(Error::NotFound);
+        }
+        let mut statement = self
+            .0
+            .prepare(
+                "SELECT ordinal,reference_id,availability FROM task_artifact_manifest_items WHERE task_id=?1 AND version=?2 AND ordinal>?3 ORDER BY ordinal LIMIT ?4",
+            )
+            .map_err(storage)?;
+        statement
+            .query_map(
+                params![task_id, version as i64, i64::from(after_ordinal), limit as i64],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .map_err(storage)?
+            .map(|row| {
+                let (ordinal, reference_id, availability) = row.map_err(storage)?;
+                Ok(TaskArtifactManifestItem {
+                    ordinal: u16::try_from(ordinal).map_err(|_| Error::StorageUnavailable)?,
+                    reference_id,
+                    availability: artifact_availability(&availability)?,
+                })
+            })
+            .collect()
+    }
+
     fn confirm_result(
         &mut self,
         task_id: &str,
@@ -776,6 +970,22 @@ impl TaskStore for SqliteTaskStore {
             return Err(Error::Conflict);
         }
         Self::ensure_audit_capacity(&tx)?;
+        let manifest_version: i64 = tx
+            .query_row(
+                "SELECT version FROM task_artifact_manifests WHERE task_id=?1 ORDER BY version DESC LIMIT 1",
+                [task_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage)?
+            .unwrap_or(1);
+        let create_empty_manifest = !tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM task_artifact_manifests WHERE task_id=?1)",
+                [task_id],
+                |row| row.get::<_, bool>(0),
+            )
+            .map_err(storage)?;
         let next_sequence = sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
         if tx
             .execute(
@@ -797,14 +1007,16 @@ impl TaskStore for SqliteTaskStore {
             params![task_id, next_sequence],
         )
         .map_err(storage)?;
+        if create_empty_manifest {
+            tx.execute(
+                "INSERT INTO task_artifact_manifests(task_id, version, created_sequence, item_count) VALUES (?1, 1, ?2, 0)",
+                params![task_id, next_sequence],
+            )
+            .map_err(storage)?;
+        }
         tx.execute(
-            "INSERT INTO task_artifact_manifests(task_id, version, created_sequence, item_count) VALUES (?1, 1, ?2, 0)",
-            params![task_id, next_sequence],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO task_user_confirmations(confirmation_id, task_id, result_sequence, confirmation_sequence, manifest_version, comment, confirmed_by) VALUES (?1, ?2, ?3, ?4, 1, ?5, 'local-user')",
-            params![confirmation_id, task_id, sequence, next_sequence, comment],
+            "INSERT INTO task_user_confirmations(confirmation_id, task_id, result_sequence, confirmation_sequence, manifest_version, comment, confirmed_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'local-user')",
+            params![confirmation_id, task_id, sequence, next_sequence, manifest_version, comment],
         )
         .map_err(storage)?;
         tx.commit().map_err(storage)?;
@@ -3454,6 +3666,268 @@ mod tests {
                 (false, false, false)
             );
         }
+    }
+
+    #[test]
+    fn artifact_manifests_are_versioned_authorized_and_transactional() {
+        use yonder_application::{
+            ArtifactAvailability, ArtifactManifestEntry, artifact_manifest_page,
+            publish_artifact_manifest,
+        };
+
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let task = yonder_application::register(
+            &mut store,
+            AuthContext::Agent("a1"),
+            "manifest",
+            "产物清单",
+            None,
+            TaskSource::LocalAgent,
+        )
+        .unwrap();
+        let first_entries = vec![
+            ArtifactManifestEntry {
+                reference_id: "artifact-docx".into(),
+                availability: ArtifactAvailability::Available,
+            },
+            ArtifactManifestEntry {
+                reference_id: "artifact-preview".into(),
+                availability: ArtifactAvailability::Unverified,
+            },
+        ];
+        assert_eq!(
+            publish_artifact_manifest(&mut store, &task.id, 1, &first_entries),
+            Err(Error::StopRequired)
+        );
+        transition(&mut store, &task.id, 1, Action::Start).unwrap();
+        let (published, first) =
+            publish_artifact_manifest(&mut store, &task.id, 2, &first_entries).unwrap();
+        assert_eq!((published.sequence, first.version, first.item_count), (3, 1, 2));
+
+        let page = artifact_manifest_page(
+            &mut store,
+            AuthContext::Agent("a1"),
+            &task.id,
+            1,
+            0,
+            1,
+        )
+        .unwrap();
+        assert_eq!(page.items[0].reference_id, "artifact-docx");
+        assert_eq!(page.next_after_ordinal, Some(1));
+        let tail = artifact_manifest_page(
+            &mut store,
+            AuthContext::Agent("a1"),
+            &task.id,
+            1,
+            page.next_after_ordinal.unwrap(),
+            1,
+        )
+        .unwrap();
+        assert_eq!(tail.items[0].reference_id, "artifact-preview");
+        assert_eq!(tail.next_after_ordinal, None);
+        assert_eq!(
+            artifact_manifest_page(
+                &mut store,
+                AuthContext::Agent("a2"),
+                &task.id,
+                1,
+                0,
+                100,
+            ),
+            Err(Error::NotFound)
+        );
+        assert_eq!(
+            artifact_manifest_page(
+                &mut store,
+                AuthContext::Agent("a1"),
+                &task.id,
+                2,
+                0,
+                100,
+            ),
+            Err(Error::NotFound)
+        );
+
+        transition(&mut store, &task.id, 3, Action::Complete).unwrap();
+        yonder_application::confirm_result(
+            &mut store,
+            AuthContext::LocalUser("desktop"),
+            &task.id,
+            4,
+            "confirm-manifest",
+            None,
+        )
+        .unwrap();
+        let second_entries = vec![
+            ArtifactManifestEntry {
+                reference_id: "artifact-docx".into(),
+                availability: ArtifactAvailability::Changed,
+            },
+            ArtifactManifestEntry {
+                reference_id: "artifact-preview".into(),
+                availability: ArtifactAvailability::Missing,
+            },
+            ArtifactManifestEntry {
+                reference_id: "artifact-log".into(),
+                availability: ArtifactAvailability::Available,
+            },
+        ];
+        let (_, second) =
+            publish_artifact_manifest(&mut store, &task.id, 5, &second_entries).unwrap();
+        assert_eq!((second.version, second.item_count), (2, 3));
+        let audit = store.get_audit(&task.id).unwrap();
+        assert_eq!(audit.manifest.unwrap().version, 2);
+        assert_eq!(audit.confirmation.unwrap().manifest_version, 1);
+        let original = artifact_manifest_page(
+            &mut store,
+            AuthContext::LocalUser("desktop"),
+            &task.id,
+            1,
+            0,
+            100,
+        )
+        .unwrap();
+        assert_eq!(
+            original.items,
+            vec![
+                TaskArtifactManifestItem {
+                    ordinal: 1,
+                    reference_id: "artifact-docx".into(),
+                    availability: ArtifactAvailability::Available,
+                },
+                TaskArtifactManifestItem {
+                    ordinal: 2,
+                    reference_id: "artifact-preview".into(),
+                    availability: ArtifactAvailability::Unverified,
+                },
+            ]
+        );
+        let events = store.events_with_steps(&task.id, 0, 100).unwrap();
+        assert_eq!(events[2].artifact_manifest.as_ref().unwrap().version, 1);
+        assert_eq!(events[5].artifact_manifest.as_ref().unwrap().version, 2);
+
+        let rollback = yonder_application::register(
+            &mut store,
+            AuthContext::Agent("a1"),
+            "manifest-rollback",
+            "回滚清单",
+            None,
+            TaskSource::LocalAgent,
+        )
+        .unwrap();
+        transition(&mut store, &rollback.id, 1, Action::Start).unwrap();
+        store
+            .0
+            .execute_batch("CREATE TRIGGER fail_manifest_item BEFORE INSERT ON task_artifact_manifest_items BEGIN SELECT RAISE(ABORT,'test failure'); END;")
+            .unwrap();
+        assert_eq!(
+            publish_artifact_manifest(&mut store, &rollback.id, 2, &first_entries),
+            Err(Error::StorageUnavailable)
+        );
+        store
+            .0
+            .execute_batch("DROP TRIGGER fail_manifest_item")
+            .unwrap();
+        assert_eq!(store.get(&rollback.id).unwrap().sequence, 2);
+        assert!(store.get_audit(&rollback.id).unwrap().manifest.is_none());
+        let counts: (i64, i64, i64) = store
+            .0
+            .query_row(
+                "SELECT (SELECT count(*) FROM events WHERE task_id=?1),(SELECT count(*) FROM outbox WHERE task_id=?1),(SELECT count(*) FROM task_artifact_manifest_items WHERE task_id=?1)",
+                [&rollback.id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (2, 2, 0));
+    }
+
+    #[test]
+    fn artifact_manifest_input_and_quota_are_bounded() {
+        use yonder_application::{
+            ArtifactAvailability, ArtifactManifestEntry, MAX_ARTIFACT_MANIFEST_ITEMS,
+            publish_artifact_manifest,
+        };
+
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let task = yonder_application::register(
+            &mut store,
+            AuthContext::Agent("a1"),
+            "bounded-manifest",
+            "有界清单",
+            None,
+            TaskSource::LocalAgent,
+        )
+        .unwrap();
+        transition(&mut store, &task.id, 1, Action::Start).unwrap();
+        let duplicate = vec![
+            ArtifactManifestEntry {
+                reference_id: "same".into(),
+                availability: ArtifactAvailability::Available,
+            },
+            ArtifactManifestEntry {
+                reference_id: "same".into(),
+                availability: ArtifactAvailability::Missing,
+            },
+        ];
+        assert_eq!(
+            publish_artifact_manifest(&mut store, &task.id, 2, &duplicate),
+            Err(Error::InvalidInput)
+        );
+        let excessive = (0..=MAX_ARTIFACT_MANIFEST_ITEMS)
+            .map(|index| ArtifactManifestEntry {
+                reference_id: format!("artifact-{index}"),
+                availability: ArtifactAvailability::Available,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            publish_artifact_manifest(&mut store, &task.id, 2, &excessive),
+            Err(Error::InvalidInput)
+        );
+
+        let path = std::env::temp_dir().join(format!(
+            "yonder-artifact-quota-{}-{}.db",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut quota_store = SqliteTaskStore::open_unencrypted(&path).unwrap();
+        let quota_task = yonder_application::register(
+            &mut quota_store,
+            AuthContext::Agent("a1"),
+            "quota-manifest",
+            "配额清单",
+            None,
+            TaskSource::LocalAgent,
+        )
+        .unwrap();
+        transition(&mut quota_store, &quota_task.id, 1, Action::Start).unwrap();
+        quota_store
+            .0
+            .execute(
+                "UPDATE task_audit_quota_state SET max_bytes=1 WHERE id=1",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            publish_artifact_manifest(
+                &mut quota_store,
+                &quota_task.id,
+                2,
+                &[ArtifactManifestEntry {
+                    reference_id: "artifact".into(),
+                    availability: ArtifactAvailability::Available,
+                }],
+            ),
+            Err(Error::QuotaExceeded)
+        );
+        assert_eq!(quota_store.get(&quota_task.id).unwrap().sequence, 2);
+        drop(quota_store);
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

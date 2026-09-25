@@ -64,6 +64,37 @@ pub struct TaskArtifactManifest {
     pub item_count: u16,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArtifactAvailability {
+    Available,
+    Missing,
+    Changed,
+    Unverified,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArtifactManifestEntry {
+    pub reference_id: String,
+    pub availability: ArtifactAvailability,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskArtifactManifestItem {
+    pub ordinal: u16,
+    pub reference_id: String,
+    pub availability: ArtifactAvailability,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArtifactManifestPage {
+    pub task_id: String,
+    pub version: u64,
+    pub items: Vec<TaskArtifactManifestItem>,
+    pub next_after_ordinal: Option<u16>,
+}
+
+pub const MAX_ARTIFACT_MANIFEST_ITEMS: usize = 4096;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TaskUserConfirmation {
     pub task_id: String,
@@ -362,6 +393,23 @@ pub trait TaskStore {
     ) -> Result<Task, Error> {
         Err(Error::StorageUnavailable)
     }
+    fn publish_artifact_manifest(
+        &mut self,
+        _: &str,
+        _: u64,
+        _: &[TaskArtifactManifestItem],
+    ) -> Result<(Task, TaskArtifactManifest), Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn artifact_manifest_items(
+        &mut self,
+        _: &str,
+        _: u64,
+        _: u16,
+        _: usize,
+    ) -> Result<Vec<TaskArtifactManifestItem>, Error> {
+        Err(Error::StorageUnavailable)
+    }
     fn record_observation(
         &mut self,
         _: &str,
@@ -530,6 +578,77 @@ pub fn confirm_result(
         return Err(Error::InvalidInput);
     }
     store.confirm_result(task_id, expected_sequence, confirmation_id, comment)
+}
+
+/// 可信能力用例发布完整清单快照；不向 Agent Gateway 暴露发布入口。
+pub fn publish_artifact_manifest(
+    store: &mut impl TaskStore,
+    task_id: &str,
+    expected_sequence: u64,
+    entries: &[ArtifactManifestEntry],
+) -> Result<(Task, TaskArtifactManifest), Error> {
+    validate_id(task_id)?;
+    if expected_sequence == 0
+        || expected_sequence >= i64::MAX as u64
+        || entries.len() > MAX_ARTIFACT_MANIFEST_ITEMS
+    {
+        return Err(Error::InvalidInput);
+    }
+    let mut references = std::collections::HashSet::with_capacity(entries.len());
+    let items = entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            validate_id(&entry.reference_id)?;
+            if !references.insert(entry.reference_id.as_str()) {
+                return Err(Error::InvalidInput);
+            }
+            Ok(TaskArtifactManifestItem {
+                ordinal: u16::try_from(index + 1).map_err(|_| Error::InvalidInput)?,
+                reference_id: entry.reference_id.clone(),
+                availability: entry.availability,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    store.publish_artifact_manifest(task_id, expected_sequence, &items)
+}
+
+/// 读取固定清单版本；先按当前身份验证任务可见性，再读取受控引用元信息。
+pub fn artifact_manifest_page(
+    store: &mut impl TaskStore,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    version: u64,
+    after_ordinal: u16,
+    limit: usize,
+) -> Result<ArtifactManifestPage, Error> {
+    validate_id(auth.agent_id())?;
+    validate_id(task_id)?;
+    if version == 0 || version >= i64::MAX as u64 || !(1..=100).contains(&limit) {
+        return Err(Error::InvalidInput);
+    }
+    let task = store.get(task_id)?;
+    if !auth.can_read(&task) {
+        return Err(Error::NotFound);
+    }
+    let mut items = store.artifact_manifest_items(
+        task_id,
+        version,
+        after_ordinal,
+        limit.saturating_add(1),
+    )?;
+    let next_after_ordinal = if items.len() > limit {
+        items.truncate(limit);
+        items.last().map(|item| item.ordinal)
+    } else {
+        None
+    };
+    Ok(ArtifactManifestPage {
+        task_id: task_id.to_owned(),
+        version,
+        items,
+        next_after_ordinal,
+    })
 }
 
 pub fn get(store: &mut impl TaskStore, id: &str) -> Result<Task, Error> {
