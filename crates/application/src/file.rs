@@ -49,6 +49,13 @@ pub struct FileWriteReceipt {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileSourceGuard {
+    pub source: FileReadRequest,
+    pub expected_identity: FileIdentity,
+    pub expected_sha256: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FileTrashRequest {
     pub path: String,
     pub authorized_root: String,
@@ -103,6 +110,13 @@ pub trait FilePort {
         validator: &dyn FileValidator,
     ) -> Result<FileWriteReceipt, FileError>;
 
+    fn write_atomic_guarded(
+        &self,
+        source: &FileSourceGuard,
+        request: &FileWriteRequest,
+        validator: &dyn FileValidator,
+    ) -> Result<FileWriteReceipt, FileError>;
+
     fn trash(
         &self,
         request: &FileTrashRequest,
@@ -141,6 +155,25 @@ pub fn write_atomic(
     request: &FileWriteRequest,
     validator: &dyn FileValidator,
 ) -> Result<FileWriteReceipt, FileError> {
+    validate_write(request)?;
+    port.write_atomic(request, validator)
+}
+
+pub fn write_atomic_guarded(
+    port: &dyn FilePort,
+    source: &FileSourceGuard,
+    request: &FileWriteRequest,
+    validator: &dyn FileValidator,
+) -> Result<FileWriteReceipt, FileError> {
+    validate_location(&source.source.path, &source.source.authorized_root)?;
+    if !valid_hash(&source.expected_sha256) {
+        return Err(FileError::InvalidInput);
+    }
+    validate_write(request)?;
+    port.write_atomic_guarded(source, request, validator)
+}
+
+fn validate_write(request: &FileWriteRequest) -> Result<(), FileError> {
     validate_location(&request.path, &request.authorized_root)?;
     if request.bytes.len() > MAX_FILE_CONTENT_BYTES {
         return Err(FileError::TooLarge);
@@ -154,7 +187,7 @@ pub fn write_atomic(
     ) {
         return Err(FileError::InvalidInput);
     }
-    port.write_atomic(request, validator)
+    Ok(())
 }
 
 pub fn trash(
@@ -205,6 +238,15 @@ mod tests {
                 sha256: "0".repeat(64),
                 bytes_written: request.bytes.len() as u64,
             })
+        }
+
+        fn write_atomic_guarded(
+            &self,
+            _: &FileSourceGuard,
+            request: &FileWriteRequest,
+            validator: &dyn FileValidator,
+        ) -> Result<FileWriteReceipt, FileError> {
+            self.write_atomic(request, validator)
         }
 
         fn trash(

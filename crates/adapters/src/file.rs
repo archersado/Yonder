@@ -1,6 +1,6 @@
 use yonder_application::file::{
-    FileError, FilePort, FileReadRequest, FileSnapshot, FileTrashReceipt, FileTrashRequest,
-    FileValidator, FileWriteReceipt, FileWriteRequest, LocalTrashAuthorization,
+    FileError, FilePort, FileReadRequest, FileSnapshot, FileSourceGuard, FileTrashReceipt,
+    FileTrashRequest, FileValidator, FileWriteReceipt, FileWriteRequest, LocalTrashAuthorization,
 };
 
 pub struct ControlledFileAdapter {
@@ -33,6 +33,15 @@ impl FilePort for ControlledFileAdapter {
 
     fn write_atomic(
         &self,
+        _: &FileWriteRequest,
+        _: &dyn FileValidator,
+    ) -> Result<FileWriteReceipt, FileError> {
+        Err(FileError::UnsupportedPlatform)
+    }
+
+    fn write_atomic_guarded(
+        &self,
+        _: &FileSourceGuard,
         _: &FileWriteRequest,
         _: &dyn FileValidator,
     ) -> Result<FileWriteReceipt, FileError> {
@@ -248,6 +257,7 @@ mod macos {
         {
             return Err(FileError::IdentityChanged);
         }
+        FileExt::unlock(&file).map_err(io_error)?;
         let canonical_path = path.to_str().ok_or(FileError::InvalidInput)?.to_owned();
         Ok(FileSnapshot {
             canonical_path,
@@ -370,6 +380,81 @@ mod macos {
             return Err(FileError::ContentChanged);
         }
         Ok(file)
+    }
+
+    fn verify_source(
+        file: &mut File,
+        requested_path: &str,
+        root: &Path,
+        expected_identity: FileIdentity,
+        expected_hash: &str,
+    ) -> Result<(), FileError> {
+        let (current_path, current_metadata) = existing(root, requested_path)?;
+        if identity(&current_metadata) != expected_identity {
+            return Err(FileError::IdentityChanged);
+        }
+        let descriptor_metadata = file.metadata().map_err(io_error)?;
+        if identity(&descriptor_metadata) != expected_identity {
+            return Err(FileError::IdentityChanged);
+        }
+        let descriptor_path = fs::canonicalize(requested_path).map_err(io_error)?;
+        if descriptor_path != current_path {
+            return Err(FileError::IdentityChanged);
+        }
+        let bytes = bounded_read(file)?;
+        if hash(&bytes) != expected_hash {
+            return Err(FileError::ContentChanged);
+        }
+        Ok(())
+    }
+
+    struct GuardedValidator<'a> {
+        file: Mutex<File>,
+        requested_path: String,
+        root: PathBuf,
+        expected_identity: FileIdentity,
+        expected_hash: String,
+        inner: &'a dyn FileValidator,
+        error: Mutex<Option<FileError>>,
+    }
+
+    impl GuardedValidator<'_> {
+        fn verify(&self) -> Result<(), FileError> {
+            let mut file = self.file.lock().map_err(|_| FileError::Unknown)?;
+            verify_source(
+                &mut file,
+                &self.requested_path,
+                &self.root,
+                self.expected_identity,
+                &self.expected_hash,
+            )
+        }
+
+        fn reject(&self, error: FileError) -> bool {
+            if let Ok(mut stored) = self.error.lock() {
+                *stored = Some(error);
+            }
+            false
+        }
+
+        fn take_error(&self) -> Option<FileError> {
+            self.error.lock().ok().and_then(|mut error| error.take())
+        }
+    }
+
+    impl FileValidator for GuardedValidator<'_> {
+        fn validate(&self, staged_bytes: &[u8]) -> bool {
+            if let Err(error) = self.verify() {
+                return self.reject(error);
+            }
+            if !self.inner.validate(staged_bytes) {
+                return false;
+            }
+            match self.verify() {
+                Ok(()) => true,
+                Err(error) => self.reject(error),
+            }
+        }
     }
 
     impl FilePort for ControlledFileAdapter {
@@ -498,6 +583,70 @@ mod macos {
             })
         }
 
+        fn write_atomic_guarded(
+            &self,
+            source: &FileSourceGuard,
+            request: &FileWriteRequest,
+            validator: &dyn FileValidator,
+        ) -> Result<FileWriteReceipt, FileError> {
+            validate_location(&source.source.path, &source.source.authorized_root)?;
+            validate_location(&request.path, &request.authorized_root)?;
+            if !valid_hash(&source.expected_sha256)
+                || matches!(
+                    &request.mode,
+                    FileWriteMode::Replace {
+                        expected_sha256,
+                        ..
+                    } if !valid_hash(expected_sha256)
+                )
+            {
+                return Err(FileError::InvalidInput);
+            }
+            if request.bytes.len() > MAX_FILE_CONTENT_BYTES {
+                return Err(FileError::TooLarge);
+            }
+
+            let root = canonical_root(&source.source.authorized_root)?;
+            let (source_path, metadata) = existing(&root, &source.source.path)?;
+            if identity(&metadata) != source.expected_identity {
+                return Err(FileError::IdentityChanged);
+            }
+            let _source_lease =
+                acquire(&self.leases, LeaseKey::Existing(source.expected_identity))?;
+            let mut source_file = OpenOptions::new()
+                .read(true)
+                .open(&source_path)
+                .map_err(io_error)?;
+            FileExt::try_lock_shared(&source_file).map_err(|_| FileError::HostLocked)?;
+            verify_source(
+                &mut source_file,
+                &source.source.path,
+                &root,
+                source.expected_identity,
+                &source.expected_sha256,
+            )?;
+
+            let guarded = GuardedValidator {
+                file: Mutex::new(source_file),
+                requested_path: source.source.path.clone(),
+                root,
+                expected_identity: source.expected_identity,
+                expected_hash: source.expected_sha256.clone(),
+                inner: validator,
+                error: Mutex::new(None),
+            };
+            let receipt = match self.write_atomic(request, &guarded) {
+                Err(FileError::ValidationFailed) => {
+                    return Err(guarded.take_error().unwrap_or(FileError::ValidationFailed));
+                }
+                result => result?,
+            };
+            if guarded.verify().is_err() {
+                return Err(FileError::Unknown);
+            }
+            Ok(receipt)
+        }
+
         fn trash(
             &self,
             request: &FileTrashRequest,
@@ -521,8 +670,8 @@ mod tests {
     use yonder_application::{
         AuthContext,
         file::{
-            AcceptAnyFile, FileIdentity, FileWriteMode, MAX_FILE_CONTENT_BYTES, read, trash,
-            write_atomic,
+            AcceptAnyFile, FileIdentity, FileSourceGuard, FileWriteMode, MAX_FILE_CONTENT_BYTES,
+            read, trash, write_atomic, write_atomic_guarded,
         },
     };
 
@@ -598,6 +747,15 @@ mod tests {
     impl FileValidator for CreateRace {
         fn validate(&self, _: &[u8]) -> bool {
             fs::write(&self.0, b"intruder").unwrap();
+            true
+        }
+    }
+
+    struct ChangeSource(PathBuf);
+
+    impl FileValidator for ChangeSource {
+        fn validate(&self, _: &[u8]) -> bool {
+            fs::write(&self.0, b"changed while validating").unwrap();
             true
         }
     }
@@ -745,6 +903,78 @@ mod tests {
             Err(FileError::AlreadyExists)
         );
         assert_eq!(fs::read(&raced).unwrap(), b"intruder");
+        assert!(fs::read_dir(&root.0).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".yonder-")
+        }));
+
+        let identity_source = root.0.join("identity-source.txt");
+        let replacement = root.0.join("replacement.txt");
+        let identity_target = root.0.join("identity-target.txt");
+        fs::write(&identity_source, b"original identity").unwrap();
+        let identity_snapshot = read_file(&adapter, &root, &identity_source);
+        fs::write(&replacement, b"replacement identity").unwrap();
+        fs::rename(&replacement, &identity_source).unwrap();
+        assert_eq!(
+            write_atomic_guarded(
+                &adapter,
+                &FileSourceGuard {
+                    source: FileReadRequest {
+                        path: value(&identity_source),
+                        authorized_root: root.value(),
+                    },
+                    expected_identity: identity_snapshot.identity,
+                    expected_sha256: identity_snapshot.sha256,
+                },
+                &FileWriteRequest {
+                    path: value(&identity_target),
+                    authorized_root: root.value(),
+                    bytes: b"output".to_vec(),
+                    mode: FileWriteMode::CreateNew,
+                },
+                &AcceptAnyFile,
+            ),
+            Err(FileError::IdentityChanged)
+        );
+        assert!(!identity_target.exists());
+    }
+
+    #[test]
+    fn guarded_create_rejects_source_change_without_publishing_output() {
+        let root = TestRoot::new("guarded");
+        let source = root.0.join("source.txt");
+        let target = root.0.join("target.txt");
+        fs::write(&source, b"before").unwrap();
+        let adapter = ControlledFileAdapter::default();
+        let snapshot = read_file(&adapter, &root, &source);
+        let source_request = FileReadRequest {
+            path: value(&source),
+            authorized_root: root.value(),
+        };
+        let request = FileWriteRequest {
+            path: value(&target),
+            authorized_root: root.value(),
+            bytes: b"output".to_vec(),
+            mode: FileWriteMode::CreateNew,
+        };
+        assert_eq!(
+            write_atomic_guarded(
+                &adapter,
+                &FileSourceGuard {
+                    source: source_request,
+                    expected_identity: snapshot.identity,
+                    expected_sha256: snapshot.sha256,
+                },
+                &request,
+                &ChangeSource(source.clone()),
+            ),
+            Err(FileError::ContentChanged)
+        );
+        assert!(!target.exists());
+        assert_eq!(fs::read(source).unwrap(), b"changed while validating");
         assert!(fs::read_dir(&root.0).unwrap().all(|entry| {
             !entry
                 .unwrap()

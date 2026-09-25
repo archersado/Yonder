@@ -1,8 +1,18 @@
-use quick_xml::{events::{BytesText, Event}, Reader, Writer};
+use quick_xml::{
+    Reader, Writer,
+    events::{BytesText, Event},
+};
 use sha2::{Digest, Sha256};
-use std::{collections::HashSet, io::{Cursor, Read, Write}, path::{Component, Path}};
-use yonder_application::document::{DocumentError, DocumentFormat, DocumentPort, DocumentSnapshot, DocumentTransform, ReplaceUniqueText};
-use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
+use std::{
+    collections::HashSet,
+    io::{Cursor, Read, Write},
+    path::{Component, Path},
+};
+use yonder_application::document::{
+    DocumentError, DocumentFormat, DocumentPort, DocumentSnapshot, DocumentTransform,
+    ReplaceUniqueText,
+};
+use zip::{CompressionMethod, ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 const MAX_SOURCE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_ENTRY_BYTES: u64 = 32 * 1024 * 1024;
@@ -13,55 +23,118 @@ const MAX_REPLACEMENT_BYTES: usize = 64 * 1024;
 
 pub struct OoxmlDocumentAdapter;
 
-struct Entry { name: String, bytes: Vec<u8>, compression: CompressionMethod, directory: bool, mode: Option<u32> }
-struct Package { format: DocumentFormat, entries: Vec<Entry> }
+struct Entry {
+    name: String,
+    bytes: Vec<u8>,
+    compression: CompressionMethod,
+    directory: bool,
+    mode: Option<u32>,
+}
+struct Package {
+    format: DocumentFormat,
+    entries: Vec<Entry>,
+}
 
-fn hash(bytes: &[u8]) -> String { format!("{:x}", Sha256::digest(bytes)) }
+fn hash(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
 
 fn safe_name(name: &str) -> bool {
-    !name.contains('\\') && !Path::new(name).components().any(|part| matches!(part, Component::ParentDir | Component::RootDir | Component::Prefix(_)))
+    !name.contains('\\')
+        && !Path::new(name).components().any(|part| {
+            matches!(
+                part,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
 }
 
 fn parse_package(source: &[u8]) -> Result<Package, DocumentError> {
-    if source.is_empty() || source.len() > MAX_SOURCE_BYTES { return Err(DocumentError::LimitExceeded); }
-    let mut zip = ZipArchive::new(Cursor::new(source)).map_err(|_| DocumentError::InvalidArchive)?;
-    if zip.len() == 0 || zip.len() > MAX_ENTRIES { return Err(DocumentError::LimitExceeded); }
+    if source.is_empty() || source.len() > MAX_SOURCE_BYTES {
+        return Err(DocumentError::LimitExceeded);
+    }
+    let mut zip =
+        ZipArchive::new(Cursor::new(source)).map_err(|_| DocumentError::InvalidArchive)?;
+    if zip.len() == 0 || zip.len() > MAX_ENTRIES {
+        return Err(DocumentError::LimitExceeded);
+    }
     let mut entries = Vec::with_capacity(zip.len());
     let mut names = HashSet::new();
     let mut total = 0_u64;
     for index in 0..zip.len() {
-        let mut file = zip.by_index(index).map_err(|_| DocumentError::InvalidArchive)?;
+        let mut file = zip
+            .by_index(index)
+            .map_err(|_| DocumentError::InvalidArchive)?;
         let name = file.name().to_owned();
-        total = total.checked_add(file.size()).ok_or(DocumentError::LimitExceeded)?;
-        if !safe_name(&name) || !names.insert(name.clone()) || file.size() > MAX_ENTRY_BYTES || total > MAX_TOTAL_BYTES { return Err(DocumentError::LimitExceeded); }
+        total = total
+            .checked_add(file.size())
+            .ok_or(DocumentError::LimitExceeded)?;
+        if !safe_name(&name)
+            || !names.insert(name.clone())
+            || file.size() > MAX_ENTRY_BYTES
+            || total > MAX_TOTAL_BYTES
+        {
+            return Err(DocumentError::LimitExceeded);
+        }
         let mut bytes = Vec::with_capacity(file.size() as usize);
-        file.read_to_end(&mut bytes).map_err(|_| DocumentError::InvalidArchive)?;
-        entries.push(Entry { name, bytes, compression: file.compression(), directory: file.is_dir(), mode: file.unix_mode() });
+        file.read_to_end(&mut bytes)
+            .map_err(|_| DocumentError::InvalidArchive)?;
+        entries.push(Entry {
+            name,
+            bytes,
+            compression: file.compression(),
+            directory: file.is_dir(),
+            mode: file.unix_mode(),
+        });
     }
     let has = |name: &str| entries.iter().any(|entry| entry.name == name);
-    let formats = [(has("word/document.xml"), DocumentFormat::Docx), (has("xl/workbook.xml"), DocumentFormat::Xlsx), (has("ppt/presentation.xml"), DocumentFormat::Pptx)];
-    let mut found = formats.into_iter().filter_map(|(present, format)| present.then_some(format));
+    let formats = [
+        (has("word/document.xml"), DocumentFormat::Docx),
+        (has("xl/workbook.xml"), DocumentFormat::Xlsx),
+        (has("ppt/presentation.xml"), DocumentFormat::Pptx),
+    ];
+    let mut found = formats
+        .into_iter()
+        .filter_map(|(present, format)| present.then_some(format));
     let format = found.next().ok_or(DocumentError::UnsupportedFormat)?;
-    if found.next().is_some() { return Err(DocumentError::UnsupportedFormat); }
+    if found.next().is_some() {
+        return Err(DocumentError::UnsupportedFormat);
+    }
     Ok(Package { format, entries })
 }
 
 fn text_part(format: DocumentFormat, name: &str) -> bool {
     match format {
-        DocumentFormat::Docx => name == "word/document.xml" || ((name.starts_with("word/header") || name.starts_with("word/footer")) && name.ends_with(".xml")),
-        DocumentFormat::Xlsx => name == "xl/sharedStrings.xml" || (name.starts_with("xl/worksheets/") && name.ends_with(".xml")),
+        DocumentFormat::Docx => {
+            name == "word/document.xml"
+                || ((name.starts_with("word/header") || name.starts_with("word/footer"))
+                    && name.ends_with(".xml"))
+        }
+        DocumentFormat::Xlsx => {
+            name == "xl/sharedStrings.xml"
+                || (name.starts_with("xl/worksheets/") && name.ends_with(".xml"))
+        }
         DocumentFormat::Pptx => name.starts_with("ppt/slides/slide") && name.ends_with(".xml"),
     }
 }
 
-fn read_texts(xml: &[u8], texts: &mut Vec<String>, limit: usize, truncated: &mut bool) -> Result<(), DocumentError> {
+fn read_texts(
+    xml: &[u8],
+    texts: &mut Vec<String>,
+    limit: usize,
+    truncated: &mut bool,
+) -> Result<(), DocumentError> {
     let mut reader = Reader::from_reader(xml);
     loop {
         match reader.read_event().map_err(|_| DocumentError::InvalidXml)? {
             Event::Text(text) => {
                 let value = text.xml10_content();
                 if !value.is_empty() {
-                    if texts.len() < limit { texts.push(value.into_owned()); } else { *truncated = true; }
+                    if texts.len() < limit {
+                        texts.push(value.into_owned());
+                    } else {
+                        *truncated = true;
+                    }
                 }
             }
             Event::Eof => return Ok(()),
@@ -89,10 +162,14 @@ fn replace(xml: &[u8], before: &str, after: &str) -> Result<Vec<u8>, DocumentErr
         match reader.read_event().map_err(|_| DocumentError::InvalidXml)? {
             Event::Text(text) if text.xml10_content().contains(before) => {
                 let value = text.xml10_content().replace(before, after);
-                writer.write_event(Event::Text(BytesText::new(&value))).map_err(|_| DocumentError::InvalidXml)?;
+                writer
+                    .write_event(Event::Text(BytesText::new(&value)))
+                    .map_err(|_| DocumentError::InvalidXml)?;
             }
             Event::Eof => return Ok(writer.into_inner()),
-            event => writer.write_event(event).map_err(|_| DocumentError::InvalidXml)?,
+            event => writer
+                .write_event(event)
+                .map_err(|_| DocumentError::InvalidXml)?,
         }
     }
 }
@@ -101,47 +178,249 @@ fn write_package(package: &Package) -> Result<Vec<u8>, DocumentError> {
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     for entry in &package.entries {
         let mut options = SimpleFileOptions::default().compression_method(entry.compression);
-        if let Some(mode) = entry.mode { options = options.unix_permissions(mode); }
-        if entry.directory { zip.add_directory(&entry.name, options) } else { zip.start_file(&entry.name, options) }.map_err(|_| DocumentError::InvalidArchive)?;
-        if !entry.directory { zip.write_all(&entry.bytes).map_err(|_| DocumentError::InvalidArchive)?; }
+        if let Some(mode) = entry.mode {
+            options = options.unix_permissions(mode);
+        }
+        if entry.directory {
+            zip.add_directory(&entry.name, options)
+        } else {
+            zip.start_file(&entry.name, options)
+        }
+        .map_err(|_| DocumentError::InvalidArchive)?;
+        if !entry.directory {
+            zip.write_all(&entry.bytes)
+                .map_err(|_| DocumentError::InvalidArchive)?;
+        }
     }
-    Ok(zip.finish().map_err(|_| DocumentError::InvalidArchive)?.into_inner())
+    Ok(zip
+        .finish()
+        .map_err(|_| DocumentError::InvalidArchive)?
+        .into_inner())
 }
 
 impl DocumentPort for OoxmlDocumentAdapter {
-    fn inspect(&self, source: &[u8], max_text_nodes: usize) -> Result<DocumentSnapshot, DocumentError> {
-        if max_text_nodes == 0 || max_text_nodes > MAX_TEXT_NODES { return Err(DocumentError::InvalidInput); }
+    fn inspect(
+        &self,
+        source: &[u8],
+        max_text_nodes: usize,
+    ) -> Result<DocumentSnapshot, DocumentError> {
+        if max_text_nodes == 0 || max_text_nodes > MAX_TEXT_NODES {
+            return Err(DocumentError::InvalidInput);
+        }
         let package = parse_package(source)?;
         let mut texts = Vec::new();
         let mut truncated = false;
-        for entry in package.entries.iter().filter(|entry| text_part(package.format, &entry.name)) { read_texts(&entry.bytes, &mut texts, max_text_nodes, &mut truncated)?; }
-        Ok(DocumentSnapshot { format: package.format, sha256: hash(source), texts, truncated })
+        for entry in package
+            .entries
+            .iter()
+            .filter(|entry| text_part(package.format, &entry.name))
+        {
+            read_texts(&entry.bytes, &mut texts, max_text_nodes, &mut truncated)?;
+        }
+        Ok(DocumentSnapshot {
+            format: package.format,
+            sha256: hash(source),
+            texts,
+            truncated,
+        })
     }
 
-    fn replace_unique_text(&self, source: &[u8], operation: ReplaceUniqueText<'_>) -> Result<DocumentTransform, DocumentError> {
-        if operation.before.is_empty() || operation.before.len() > MAX_REPLACEMENT_BYTES || operation.after.len() > MAX_REPLACEMENT_BYTES { return Err(DocumentError::InvalidInput); }
+    fn replace_unique_text(
+        &self,
+        source: &[u8],
+        operation: ReplaceUniqueText<'_>,
+    ) -> Result<DocumentTransform, DocumentError> {
+        if operation.before.is_empty()
+            || operation.before.len() > MAX_REPLACEMENT_BYTES
+            || operation.after.len() > MAX_REPLACEMENT_BYTES
+        {
+            return Err(DocumentError::InvalidInput);
+        }
         let mut package = parse_package(source)?;
         let mut count = 0;
-        for entry in package.entries.iter().filter(|entry| text_part(package.format, &entry.name)) { count += occurrences(&entry.bytes, operation.before)?; }
-        match count { 0 => return Err(DocumentError::TargetNotFound), 1 => {}, _ => return Err(DocumentError::TargetAmbiguous) }
-        for entry in package.entries.iter_mut().filter(|entry| text_part(package.format, &entry.name)) {
-            if occurrences(&entry.bytes, operation.before)? == 1 { entry.bytes = replace(&entry.bytes, operation.before, operation.after)?; break; }
+        for entry in package
+            .entries
+            .iter()
+            .filter(|entry| text_part(package.format, &entry.name))
+        {
+            count += occurrences(&entry.bytes, operation.before)?;
+        }
+        match count {
+            0 => return Err(DocumentError::TargetNotFound),
+            1 => {}
+            _ => return Err(DocumentError::TargetAmbiguous),
+        }
+        for entry in package
+            .entries
+            .iter_mut()
+            .filter(|entry| text_part(package.format, &entry.name))
+        {
+            if occurrences(&entry.bytes, operation.before)? == 1 {
+                entry.bytes = replace(&entry.bytes, operation.before, operation.after)?;
+                break;
+            }
         }
         let bytes = write_package(&package)?;
-        if parse_package(&bytes)?.format != package.format { return Err(DocumentError::InvalidArchive); }
-        Ok(DocumentTransform { format: package.format, source_sha256: hash(source), output_sha256: hash(&bytes), bytes })
+        if parse_package(&bytes)?.format != package.format {
+            return Err(DocumentError::InvalidArchive);
+        }
+        Ok(DocumentTransform {
+            format: package.format,
+            source_sha256: hash(source),
+            output_sha256: hash(&bytes),
+            bytes,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::file::ControlledFileAdapter;
+    use fs2::FileExt;
+    use std::{
+        fs::{self, OpenOptions},
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+    use yonder_application::{
+        AuthContext,
+        document::{
+            DocumentFileError, DocumentOverwriteRequest, DocumentSaveAsRequest, inspect_file,
+            overwrite_local, save_as,
+        },
+        file::{FileError, FileReadRequest},
+    };
 
     const CASES: [(&[u8], DocumentFormat, &str, &str); 3] = [
-        (include_bytes!("../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.docx"), DocumentFormat::Docx, "YONDER_DOCX_BEFORE", "YONDER_DOCX_AFTER"),
-        (include_bytes!("../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.xlsx"), DocumentFormat::Xlsx, "YONDER_XLSX_BEFORE", "YONDER_XLSX_AFTER"),
-        (include_bytes!("../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.pptx"), DocumentFormat::Pptx, "YONDER_PPTX_BEFORE", "YONDER_PPTX_AFTER"),
+        (
+            include_bytes!(
+                "../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.docx"
+            ),
+            DocumentFormat::Docx,
+            "YONDER_DOCX_BEFORE",
+            "YONDER_DOCX_AFTER",
+        ),
+        (
+            include_bytes!(
+                "../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.xlsx"
+            ),
+            DocumentFormat::Xlsx,
+            "YONDER_XLSX_BEFORE",
+            "YONDER_XLSX_AFTER",
+        ),
+        (
+            include_bytes!(
+                "../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.pptx"
+            ),
+            DocumentFormat::Pptx,
+            "YONDER_PPTX_BEFORE",
+            "YONDER_PPTX_AFTER",
+        ),
     ];
+
+    struct TestRoot(PathBuf);
+
+    impl TestRoot {
+        fn new(label: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "yonder-document-{label}-{}-{unique}",
+                std::process::id()
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn value(&self) -> String {
+            value(&self.0)
+        }
+    }
+
+    impl Drop for TestRoot {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn value(path: &Path) -> String {
+        path.to_str().unwrap().to_owned()
+    }
+
+    fn source_request(root: &TestRoot, source: &Path) -> FileReadRequest {
+        FileReadRequest {
+            path: value(source),
+            authorized_root: root.value(),
+        }
+    }
+
+    fn save_request(
+        root: &TestRoot,
+        source: &Path,
+        output: &Path,
+        expected_sha256: String,
+        before: &str,
+        after: &str,
+    ) -> DocumentSaveAsRequest {
+        DocumentSaveAsRequest {
+            source: source_request(root, source),
+            output_path: value(output),
+            output_authorized_root: root.value(),
+            expected_sha256,
+            before: before.into(),
+            after: after.into(),
+        }
+    }
+
+    struct MutatingDocumentPort<'a> {
+        inner: &'a OoxmlDocumentAdapter,
+        source: PathBuf,
+    }
+
+    impl DocumentPort for MutatingDocumentPort<'_> {
+        fn inspect(
+            &self,
+            source: &[u8],
+            max_text_nodes: usize,
+        ) -> Result<DocumentSnapshot, DocumentError> {
+            self.inner.inspect(source, max_text_nodes)
+        }
+
+        fn replace_unique_text(
+            &self,
+            source: &[u8],
+            operation: ReplaceUniqueText<'_>,
+        ) -> Result<DocumentTransform, DocumentError> {
+            let transformed = self.inner.replace_unique_text(source, operation)?;
+            fs::write(&self.source, b"changed before commit").unwrap();
+            Ok(transformed)
+        }
+    }
+
+    struct InvalidOutputDocumentPort<'a>(&'a OoxmlDocumentAdapter);
+
+    impl DocumentPort for InvalidOutputDocumentPort<'_> {
+        fn inspect(
+            &self,
+            source: &[u8],
+            max_text_nodes: usize,
+        ) -> Result<DocumentSnapshot, DocumentError> {
+            self.0.inspect(source, max_text_nodes)
+        }
+
+        fn replace_unique_text(
+            &self,
+            source: &[u8],
+            operation: ReplaceUniqueText<'_>,
+        ) -> Result<DocumentTransform, DocumentError> {
+            let mut transformed = self.0.replace_unique_text(source, operation)?;
+            transformed.bytes = b"not an OOXML package".to_vec();
+            Ok(transformed)
+        }
+    }
 
     #[test]
     fn reads_and_replaces_all_supported_formats() {
@@ -151,17 +430,294 @@ mod tests {
             let snapshot = adapter.inspect(source, 100).unwrap();
             assert_eq!(snapshot.format, format);
             assert!(snapshot.texts.iter().any(|text| text.contains(before)));
-            let transformed = adapter.replace_unique_text(source, ReplaceUniqueText { before, after }).unwrap();
+            let transformed = adapter
+                .replace_unique_text(source, ReplaceUniqueText { before, after })
+                .unwrap();
             assert_eq!(source, original);
             assert_eq!(transformed.format, format);
-            assert!(adapter.inspect(&transformed.bytes, 100).unwrap().texts.iter().any(|text| text.contains(after)));
-            let before_parts = parse_package(source).unwrap().entries.into_iter().map(|entry| (entry.name, entry.bytes)).collect::<std::collections::BTreeMap<_, _>>();
-            let after_parts = parse_package(&transformed.bytes).unwrap().entries.into_iter().map(|entry| (entry.name, entry.bytes)).collect::<std::collections::BTreeMap<_, _>>();
-            assert_eq!(before_parts.keys().collect::<Vec<_>>(), after_parts.keys().collect::<Vec<_>>());
-            assert_eq!(before_parts.iter().filter(|(name, bytes)| after_parts.get(*name) != Some(*bytes)).count(), 1);
-            assert_eq!(adapter.replace_unique_text(&transformed.bytes, ReplaceUniqueText { before: "missing", after }).unwrap_err(), DocumentError::TargetNotFound);
-            let ambiguous = adapter.replace_unique_text(source, ReplaceUniqueText { before, after: "DUP DUP" }).unwrap();
-            assert_eq!(adapter.replace_unique_text(&ambiguous.bytes, ReplaceUniqueText { before: "DUP", after }).unwrap_err(), DocumentError::TargetAmbiguous);
+            assert!(
+                adapter
+                    .inspect(&transformed.bytes, 100)
+                    .unwrap()
+                    .texts
+                    .iter()
+                    .any(|text| text.contains(after))
+            );
+            let before_parts = parse_package(source)
+                .unwrap()
+                .entries
+                .into_iter()
+                .map(|entry| (entry.name, entry.bytes))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let after_parts = parse_package(&transformed.bytes)
+                .unwrap()
+                .entries
+                .into_iter()
+                .map(|entry| (entry.name, entry.bytes))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            assert_eq!(
+                before_parts.keys().collect::<Vec<_>>(),
+                after_parts.keys().collect::<Vec<_>>()
+            );
+            assert_eq!(
+                before_parts
+                    .iter()
+                    .filter(|(name, bytes)| after_parts.get(*name) != Some(*bytes))
+                    .count(),
+                1
+            );
+            assert_eq!(
+                adapter
+                    .replace_unique_text(
+                        &transformed.bytes,
+                        ReplaceUniqueText {
+                            before: "missing",
+                            after
+                        }
+                    )
+                    .unwrap_err(),
+                DocumentError::TargetNotFound
+            );
+            let ambiguous = adapter
+                .replace_unique_text(
+                    source,
+                    ReplaceUniqueText {
+                        before,
+                        after: "DUP DUP",
+                    },
+                )
+                .unwrap();
+            assert_eq!(
+                adapter
+                    .replace_unique_text(
+                        &ambiguous.bytes,
+                        ReplaceUniqueText {
+                            before: "DUP",
+                            after
+                        }
+                    )
+                    .unwrap_err(),
+                DocumentError::TargetAmbiguous
+            );
         }
+    }
+
+    #[test]
+    fn file_runtime_reads_and_saves_all_supported_formats_without_changing_sources() {
+        let root = TestRoot::new("formats");
+        let files = ControlledFileAdapter::default();
+        let documents = OoxmlDocumentAdapter;
+        for (index, (fixture, format, before, after)) in CASES.into_iter().enumerate() {
+            let source = root.0.join(format!("source-{index}"));
+            let output = root.0.join(format!("output-{index}"));
+            fs::write(&source, fixture).unwrap();
+            let original = fs::read(&source).unwrap();
+            let inspected =
+                inspect_file(&files, &documents, &source_request(&root, &source), 100).unwrap();
+            assert_eq!(inspected.document.format, format);
+            assert!(
+                inspected
+                    .document
+                    .texts
+                    .iter()
+                    .any(|text| text.contains(before))
+            );
+            let receipt = save_as(
+                &files,
+                &documents,
+                &save_request(
+                    &root,
+                    &source,
+                    &output,
+                    inspected.document.sha256,
+                    before,
+                    after,
+                ),
+            )
+            .unwrap();
+            assert_eq!(receipt.format, format);
+            assert_eq!(fs::read(&source).unwrap(), original);
+            let output_bytes = fs::read(&output).unwrap();
+            assert_eq!(receipt.sha256, hash(&output_bytes));
+            assert!(
+                documents
+                    .inspect(&output_bytes, 100)
+                    .unwrap()
+                    .texts
+                    .iter()
+                    .any(|text| text.contains(after))
+            );
+        }
+    }
+
+    #[test]
+    fn save_as_rejects_changed_source_existing_target_and_invalid_output() {
+        let root = TestRoot::new("save-failures");
+        let files = ControlledFileAdapter::default();
+        let documents = OoxmlDocumentAdapter;
+        let (fixture, _, before, after) = CASES[0];
+
+        let changed_source = root.0.join("changed.docx");
+        let changed_output = root.0.join("changed-output.docx");
+        fs::write(&changed_source, fixture).unwrap();
+        let snapshot = inspect_file(
+            &files,
+            &documents,
+            &source_request(&root, &changed_source),
+            100,
+        )
+        .unwrap();
+        let mutating = MutatingDocumentPort {
+            inner: &documents,
+            source: changed_source.clone(),
+        };
+        assert_eq!(
+            save_as(
+                &files,
+                &mutating,
+                &save_request(
+                    &root,
+                    &changed_source,
+                    &changed_output,
+                    snapshot.document.sha256,
+                    before,
+                    after,
+                ),
+            ),
+            Err(DocumentFileError::File(FileError::ContentChanged))
+        );
+        assert!(!changed_output.exists());
+
+        let source = root.0.join("source.docx");
+        let existing = root.0.join("existing.docx");
+        fs::write(&source, fixture).unwrap();
+        fs::write(&existing, b"preserve target").unwrap();
+        let snapshot =
+            inspect_file(&files, &documents, &source_request(&root, &source), 100).unwrap();
+        let hash_conflict_output = root.0.join("hash-conflict.docx");
+        assert_eq!(
+            save_as(
+                &files,
+                &documents,
+                &save_request(
+                    &root,
+                    &source,
+                    &hash_conflict_output,
+                    "0".repeat(64),
+                    before,
+                    after,
+                ),
+            ),
+            Err(DocumentFileError::HashConflict)
+        );
+        assert!(!hash_conflict_output.exists());
+        assert_eq!(
+            save_as(
+                &files,
+                &documents,
+                &save_request(
+                    &root,
+                    &source,
+                    &existing,
+                    snapshot.document.sha256.clone(),
+                    before,
+                    after,
+                ),
+            ),
+            Err(DocumentFileError::File(FileError::AlreadyExists))
+        );
+        assert_eq!(fs::read(&existing).unwrap(), b"preserve target");
+
+        let invalid_output = root.0.join("invalid.docx");
+        assert_eq!(
+            save_as(
+                &files,
+                &InvalidOutputDocumentPort(&documents),
+                &save_request(
+                    &root,
+                    &source,
+                    &invalid_output,
+                    snapshot.document.sha256,
+                    before,
+                    after,
+                ),
+            ),
+            Err(DocumentFileError::File(FileError::ValidationFailed))
+        );
+        assert!(!invalid_output.exists());
+    }
+
+    #[test]
+    fn overwrite_requires_local_user_and_respects_host_lock() {
+        let root = TestRoot::new("overwrite");
+        let files = ControlledFileAdapter::default();
+        let documents = OoxmlDocumentAdapter;
+        let (fixture, format, before, after) = CASES[0];
+        let source = root.0.join("source.docx");
+        fs::write(&source, fixture).unwrap();
+        let inspected =
+            inspect_file(&files, &documents, &source_request(&root, &source), 100).unwrap();
+        let request = DocumentOverwriteRequest {
+            source: source_request(&root, &source),
+            expected_sha256: inspected.document.sha256,
+            before: before.into(),
+            after: after.into(),
+        };
+        let invalid_agent_request = DocumentOverwriteRequest {
+            source: FileReadRequest {
+                path: "relative.docx".into(),
+                authorized_root: root.value(),
+            },
+            ..request.clone()
+        };
+        assert_eq!(
+            overwrite_local(
+                &files,
+                &documents,
+                AuthContext::Agent("agent-a"),
+                &invalid_agent_request,
+            ),
+            Err(DocumentFileError::PermissionDenied)
+        );
+        assert_eq!(
+            overwrite_local(&files, &documents, AuthContext::Agent("agent-a"), &request),
+            Err(DocumentFileError::PermissionDenied)
+        );
+        assert_eq!(fs::read(&source).unwrap(), fixture);
+
+        let locked = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&source)
+            .unwrap();
+        FileExt::try_lock_exclusive(&locked).unwrap();
+        assert_eq!(
+            overwrite_local(
+                &files,
+                &documents,
+                AuthContext::LocalUser("desktop"),
+                &request,
+            ),
+            Err(DocumentFileError::File(FileError::HostLocked))
+        );
+        FileExt::unlock(&locked).unwrap();
+        assert_eq!(fs::read(&source).unwrap(), fixture);
+
+        let receipt = overwrite_local(
+            &files,
+            &documents,
+            AuthContext::LocalUser("desktop"),
+            &request,
+        )
+        .unwrap();
+        assert_eq!(receipt.format, format);
+        assert!(
+            documents
+                .inspect(&fs::read(source).unwrap(), 100)
+                .unwrap()
+                .texts
+                .iter()
+                .any(|text| text.contains(after))
+        );
     }
 }
