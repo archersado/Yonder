@@ -137,6 +137,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-25 EN-S2补齐REL-01/06构建来源绑定：desktop与CLI的release身份、当前干净HEAD、最终签名包内二进制SHA-256和冻结清单形成交叉校验，旧提交、开发profile、无效签名或改写产物失败关闭。当前提交release重建与临时签名包验证PASS；正式Developer ID、公证、安装生命周期及Windows门禁不变。
 
+2026-09-25 EN-S2补齐macOS安装生命周期：哈希不同的新旧临时签名包在隔离根目录完成新装、升级、候选落位失败回退与可恢复卸载，合成SQLite/sidecar/附件哈希全程不变；未触碰真实应用或用户数据。正式Developer ID、公证、Gatekeeper与Windows门禁不变。
+
 2026-09-18 AG-S5 Codex当前turn投递Goal FAIL：Codex CLI 0.154的`codex queue`仅确认持久排队，活动turn没有收到steer，现有桥接不能据此返回`accepted`。不使用内部数据库轮询或第二Agent绕过；等待受支持的当前会话`turn/start|turn/steer`连接入口后返回实施。
 
 2026-09-18 AG-S5失败关闭修复：排队探针仅在前一turn结束后作为下一turn到达；`yonder agent-bridge`已删除`codex queue`误报路径，不支持当前会话直接提交时明确退出，桌宠保持Agent未连接。

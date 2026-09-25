@@ -20,6 +20,8 @@ macOS 已能生成 `.app` 并完成临时签名校验；正式签名与公证仍
 
 同日构建来源绑定增量PASS：release desktop与CLI必须分别报告相同的版本、profile和40位构建提交，打包只接受当前干净源码树HEAD；包内`build-provenance.json`声明两份身份，冻结阶段重新执行最终包内身份入口、校验签名并记录最终二进制SHA-256，拒绝旧提交、开发profile或被改写产物。当前提交release重建、临时签名装配与冻结验证通过，见[独立Verification Goal](../../../../openspec/changes/en-s2-release-signing/verification-build-provenance-macos.md)。正式签名、公证、安装生命周期与Windows仍保留门禁。
 
+同日macOS隔离安装生命周期增量PASS：使用哈希不同的上一版与当前提交临时签名包，在临时根目录完成新装、升级、候选落位失败回退和可恢复卸载；合成SQLite主库、sidecar与附件全程哈希不变，未访问真实`/Applications`、HOME或用户库。见[独立Verification Goal](../../../../openspec/changes/en-s2-release-signing/verification-install-lifecycle-macos.md)。正式Developer ID、公证、Gatekeeper与Windows仍保留门禁。
+
 OpenSpec：`openspec/changes/en-s2-release-signing/`。
 
 实施前置包括：桌面宿主、CLI/MCP、协议版本、SQLite 迁移和 Driver manifest 的版本边界明确；macOS notarize 与 Windows code-sign 证书策略确定；数据库备份和升级路径已冻结。

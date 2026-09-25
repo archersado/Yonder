@@ -1,0 +1,21 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-25",
+  "scope": "isolated_install_lifecycle",
+  "channel": "dev",
+  "build_commit_binding": "current_head_exact_match",
+  "previous_and_candidate_distinct": true,
+  "fresh_install_passed": true,
+  "upgrade_passed": true,
+  "rollback_before_candidate_placement_passed": true,
+  "rollback_after_candidate_placement_passed": true,
+  "uninstall_moved_to_recoverable_location": true,
+  "user_data_preserved": true,
+  "application_hashes_recorded": true,
+  "synthetic_user_data_hash_recorded": true,
+  "real_user_paths_accessed": false,
+  "user_content_recorded": false,
+  "formal_signing_completed": false,
+  "notarization_completed": false,
+  "windows_deferred": true
+}
