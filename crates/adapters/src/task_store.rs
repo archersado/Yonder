@@ -41,7 +41,8 @@ impl SqliteTaskStore {
             .len();
         let available_bytes = fs2::available_space(path).map_err(|_| Error::StorageUnavailable)?;
         if database_size >= u64::try_from(max_bytes).map_err(|_| Error::StorageUnavailable)?
-            || available_bytes < u64::try_from(reserve_bytes).map_err(|_| Error::StorageUnavailable)?
+            || available_bytes
+                < u64::try_from(reserve_bytes).map_err(|_| Error::StorageUnavailable)?
         {
             return Err(Error::QuotaExceeded);
         }
@@ -104,12 +105,16 @@ fn stored_source(payload: &str) -> Result<TaskSource, Error> {
 }
 
 fn stored_observation(payload: &str) -> Result<TaskObservation, Error> {
-    let value: StoredObservation = serde_json::from_str(payload).map_err(|_| Error::StorageUnavailable)?;
+    let value: StoredObservation =
+        serde_json::from_str(payload).map_err(|_| Error::StorageUnavailable)?;
     if !yonder_application::valid_id(&value.step_id)
         || value.summary.is_empty()
         || value.summary.trim() != value.summary
         || value.summary.len() > 2048
-        || value.summary.chars().any(|character| character.is_control() && character != '\n')
+        || value
+            .summary
+            .chars()
+            .any(|character| character.is_control() && character != '\n')
     {
         return Err(Error::StorageUnavailable);
     }
@@ -227,7 +232,11 @@ impl SqliteTaskStore {
         let schema: i64 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
-        if ![0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].contains(&schema) {
+        if ![
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ]
+        .contains(&schema)
+        {
             return Err(Error::StorageUnavailable);
         }
         if schema != 0 && schema != 19 {
@@ -269,7 +278,11 @@ impl SqliteTaskStore {
             }
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
-        } else if ![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].contains(&schema) {
+        } else if ![
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ]
+        .contains(&schema)
+        {
             return Err(Error::StorageUnavailable);
         }
         if schema == 0 || schema == 2 {
@@ -348,9 +361,7 @@ impl SqliteTaskStore {
         Ok(Self(db))
     }
 
-    fn agent_registration(
-        row: &rusqlite::Row<'_>,
-    ) -> Result<AgentRegistration, rusqlite::Error> {
+    fn agent_registration(row: &rusqlite::Row<'_>) -> Result<AgentRegistration, rusqlite::Error> {
         let status: String = row.get(1)?;
         let status = match status.as_str() {
             "enabled" => AgentRegistrationStatus::Enabled,
@@ -419,11 +430,7 @@ impl SqliteTaskStore {
 }
 
 impl AgentRegistry for SqliteTaskStore {
-    fn register_agent(
-        &mut self,
-        agent_id: &str,
-        now_ms: u64,
-    ) -> Result<AgentRegistration, Error> {
+    fn register_agent(&mut self, agent_id: &str, now_ms: u64) -> Result<AgentRegistration, Error> {
         if !yonder_application::valid_id(agent_id)
             || now_ms >= i64::MAX as u64
             || now_ms < 1_000_000_000_000
@@ -439,7 +446,8 @@ impl AgentRegistry for SqliteTaskStore {
             params![agent_id, now_ms as i64],
         )
         .map_err(storage)?;
-        let value = Self::get_agent_registration(&tx, agent_id)?.ok_or(Error::StorageUnavailable)?;
+        let value =
+            Self::get_agent_registration(&tx, agent_id)?.ok_or(Error::StorageUnavailable)?;
         tx.commit().map_err(storage)?;
         Ok(value)
     }
@@ -515,11 +523,9 @@ impl AgentRegistry for SqliteTaskStore {
         tx.commit().map_err(storage)?;
         Ok(())
     }
-
 }
 
 impl SqliteTaskStore {
-
     fn update_focus(
         &mut self,
         task_id: &str,
@@ -655,25 +661,34 @@ impl TaskStore for SqliteTaskStore {
             .optional()
             .map_err(storage)?;
         let manifest = match manifest {
-            Some((version, _created_sequence, item_count)) => Some(yonder_application::TaskArtifactManifest {
-                task_id: task_id.to_owned(),
-                version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
-                item_count: u16::try_from(item_count).map_err(|_| Error::StorageUnavailable)?,
-            }),
+            Some((version, _created_sequence, item_count)) => {
+                Some(yonder_application::TaskArtifactManifest {
+                    task_id: task_id.to_owned(),
+                    version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
+                    item_count: u16::try_from(item_count).map_err(|_| Error::StorageUnavailable)?,
+                })
+            }
             None => None,
         };
         let confirmation = match confirmation {
-            Some((confirmation_id, result_sequence, manifest_version, comment, confirmed_by)) => Some(yonder_application::TaskUserConfirmation {
-                task_id: task_id.to_owned(),
-                confirmation_id,
-                result_sequence: u64::try_from(result_sequence).map_err(|_| Error::StorageUnavailable)?,
-                manifest_version: u64::try_from(manifest_version).map_err(|_| Error::StorageUnavailable)?,
-                comment,
-                confirmed_by,
-            }),
+            Some((confirmation_id, result_sequence, manifest_version, comment, confirmed_by)) => {
+                Some(yonder_application::TaskUserConfirmation {
+                    task_id: task_id.to_owned(),
+                    confirmation_id,
+                    result_sequence: u64::try_from(result_sequence)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                    manifest_version: u64::try_from(manifest_version)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                    comment,
+                    confirmed_by,
+                })
+            }
             None => None,
         };
-        Ok(yonder_application::TaskAudit { manifest, confirmation })
+        Ok(yonder_application::TaskAudit {
+            manifest,
+            confirmation,
+        })
     }
 
     fn confirm_result(
@@ -682,8 +697,8 @@ impl TaskStore for SqliteTaskStore {
         expected_sequence: u64,
         confirmation_id: &str,
         comment: Option<&str>,
-        ) -> Result<Task, Error> {
-            if !yonder_application::valid_id(task_id)
+    ) -> Result<Task, Error> {
+        if !yonder_application::valid_id(task_id)
             || !yonder_application::valid_id(confirmation_id)
             || expected_sequence == 0
             || expected_sequence >= i64::MAX as u64
@@ -699,11 +714,25 @@ impl TaskStore for SqliteTaskStore {
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(storage)?;
-        let (state, sequence, owner_agent_id, name, source): (String, i64, String, Option<String>, String) = tx
+        let (state, sequence, owner_agent_id, name, source): (
+            String,
+            i64,
+            String,
+            Option<String>,
+            String,
+        ) = tx
             .query_row(
                 "SELECT state, sequence, owner_agent_id, name, source FROM tasks WHERE id=?1",
                 [task_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
             )
             .optional()
             .map_err(storage)?
@@ -719,10 +748,17 @@ impl TaskStore for SqliteTaskStore {
             )
             .optional()
             .map_err(storage)?;
-        if let Some((existing_confirmation_id, existing_task_id, result_sequence, existing_comment)) = existing {
+        if let Some((
+            existing_confirmation_id,
+            existing_task_id,
+            result_sequence,
+            existing_comment,
+        )) = existing
+        {
             if existing_confirmation_id == confirmation_id
                 && existing_task_id == task_id
-                && expected_sequence == u64::try_from(result_sequence).map_err(|_| Error::StorageUnavailable)?
+                && expected_sequence
+                    == u64::try_from(result_sequence).map_err(|_| Error::StorageUnavailable)?
                 && existing_comment.as_deref() == comment
             {
                 return Ok(Task {
@@ -740,9 +776,7 @@ impl TaskStore for SqliteTaskStore {
             return Err(Error::Conflict);
         }
         Self::ensure_audit_capacity(&tx)?;
-        let next_sequence = sequence
-            .checked_add(1)
-            .ok_or(Error::StorageUnavailable)?;
+        let next_sequence = sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
         if tx
             .execute(
                 "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
@@ -2044,7 +2078,7 @@ impl TaskStore for SqliteTaskStore {
         expected: u64,
         result: TaskObservationResult,
         summary: &str,
-        ) -> Result<Task, Error> {
+    ) -> Result<Task, Error> {
         if !yonder_application::valid_id(task_id)
             || !yonder_application::valid_id(attempt_id)
             || expected == 0
@@ -2343,11 +2377,14 @@ impl TaskStore for SqliteTaskStore {
                 _ => return Err(Error::StorageUnavailable),
             };
             let artifact_manifest = match (manifest_version, manifest_item_count) {
-                (Some(version), Some(item_count)) => Some(yonder_application::TaskArtifactManifest {
-                    task_id: id.to_owned(),
-                    version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
-                    item_count: u16::try_from(item_count).map_err(|_| Error::StorageUnavailable)?,
-                }),
+                (Some(version), Some(item_count)) => {
+                    Some(yonder_application::TaskArtifactManifest {
+                        task_id: id.to_owned(),
+                        version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
+                        item_count: u16::try_from(item_count)
+                            .map_err(|_| Error::StorageUnavailable)?,
+                    })
+                }
                 (None, None) => None,
                 _ => return Err(Error::StorageUnavailable),
             };
@@ -2358,26 +2395,42 @@ impl TaskStore for SqliteTaskStore {
                 confirmation_comment,
                 confirmed_by,
             ) {
-                (Some(confirmation_id), Some(result_sequence), Some(manifest_version), comment, Some(confirmed_by)) => {
-                    Some(yonder_application::TaskUserConfirmation {
-                        task_id: id.to_owned(),
-                        confirmation_id,
-                        result_sequence: u64::try_from(result_sequence)
-                            .map_err(|_| Error::StorageUnavailable)?,
-                        manifest_version: u64::try_from(manifest_version)
-                            .map_err(|_| Error::StorageUnavailable)?,
-                        comment,
-                        confirmed_by,
-                    })
-                }
+                (
+                    Some(confirmation_id),
+                    Some(result_sequence),
+                    Some(manifest_version),
+                    comment,
+                    Some(confirmed_by),
+                ) => Some(yonder_application::TaskUserConfirmation {
+                    task_id: id.to_owned(),
+                    confirmation_id,
+                    result_sequence: u64::try_from(result_sequence)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                    manifest_version: u64::try_from(manifest_version)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                    comment,
+                    confirmed_by,
+                }),
                 (None, None, None, None, None) => None,
                 _ => return Err(Error::StorageUnavailable),
             };
-            let observation = observation_payload.as_deref().map(stored_observation).transpose()?;
-            let control_event = match (control_attempt_id, control_id, control_kind, control_accepted, control_stopped) {
+            let observation = observation_payload
+                .as_deref()
+                .map(stored_observation)
+                .transpose()?;
+            let control_event = match (
+                control_attempt_id,
+                control_id,
+                control_kind,
+                control_accepted,
+                control_stopped,
+            ) {
                 (Some(attempt_id), Some(control_id), Some(kind), Some(accepted), stopped) => {
-                    if accepted <= 0 || stopped.is_some_and(|value| value < accepted)
-                        || !yonder_application::valid_id(&attempt_id) || !yonder_application::valid_id(&control_id) {
+                    if accepted <= 0
+                        || stopped.is_some_and(|value| value < accepted)
+                        || !yonder_application::valid_id(&attempt_id)
+                        || !yonder_application::valid_id(&control_id)
+                    {
                         return Err(Error::StorageUnavailable);
                     }
                     let kind = match kind.as_str() {
@@ -2386,24 +2439,41 @@ impl TaskStore for SqliteTaskStore {
                         "takeover" => ControlKind::Takeover,
                         _ => return Err(Error::StorageUnavailable),
                     };
-                    let phase = if stopped == Some(sequence) { ControlPhase::Stopped }
-                        else if accepted == sequence { ControlPhase::Pending }
-                        else { return Err(Error::StorageUnavailable) };
-                    Some(yonder_application::ControlEventRecord { attempt_id, control_id, kind, phase })
+                    let phase = if stopped == Some(sequence) {
+                        ControlPhase::Stopped
+                    } else if accepted == sequence {
+                        ControlPhase::Pending
+                    } else {
+                        return Err(Error::StorageUnavailable);
+                    };
+                    Some(yonder_application::ControlEventRecord {
+                        attempt_id,
+                        control_id,
+                        kind,
+                        phase,
+                    })
                 }
                 (None, None, None, None, None) => None,
                 _ => return Err(Error::StorageUnavailable),
             };
             let focus_event = match (focus_control_id, focus_phase, focus_failure_value) {
                 (Some(control_id), Some(phase), failure) => {
-                    if !yonder_application::valid_id(&control_id) { return Err(Error::StorageUnavailable); }
+                    if !yonder_application::valid_id(&control_id) {
+                        return Err(Error::StorageUnavailable);
+                    }
                     let (phase, failure) = match (phase.as_str(), failure.as_deref()) {
                         ("locating", None) => (FocusPhase::Locating, None),
                         ("focused", None) => (FocusPhase::Focused, None),
-                        ("failed", Some(value)) => (FocusPhase::Failed, Some(parse_focus_failure(value)?)),
+                        ("failed", Some(value)) => {
+                            (FocusPhase::Failed, Some(parse_focus_failure(value)?))
+                        }
                         _ => return Err(Error::StorageUnavailable),
                     };
-                    Some(yonder_application::FocusEventRecord { control_id, phase, failure })
+                    Some(yonder_application::FocusEventRecord {
+                        control_id,
+                        phase,
+                        failure,
+                    })
                 }
                 (None, None, None) => None,
                 _ => return Err(Error::StorageUnavailable),
@@ -2775,23 +2845,40 @@ mod tests {
         use yonder_protocol::{QueryResult, Response};
 
         for missing in [1, 2, 3] {
-            let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+            let mut store =
+                SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
             create(&mut store, "gap-task").unwrap();
             transition(&mut store, "gap-task", 1, Action::Start).unwrap();
             transition(&mut store, "gap-task", 2, Action::Complete).unwrap();
-            let request = |after, limit| format!(
-                r#"{{"jsonrpc":"2.0","id":"gap","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"gap-task","after_sequence":"{after}","limit":{limit}}}}}"#
-            );
+            let request = |after, limit| {
+                format!(
+                    r#"{{"jsonrpc":"2.0","id":"gap","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"gap-task","after_sequence":"{after}","limit":{limit}}}}}"#
+                )
+            };
             assert!(matches!(
                 yonder_application::query::handle(&mut store, AuthContext::Agent("a1"), request(0, 1).as_bytes(), 1000),
                 Response::Success { result: QueryResult::Events { events, .. }, .. } if events.len() == 1 && events[0].sequence == "1"
             ));
-            let empty = yonder_application::query::handle_encoded_current(&mut store, AuthContext::Agent("a1"), request(3, 10).as_bytes(), 1000).unwrap();
-            assert!(matches!(serde_json::from_slice::<Response>(&empty).unwrap(), Response::Success { result: QueryResult::Events { events, .. }, .. } if events.is_empty()));
+            let empty = yonder_application::query::handle_encoded_current(
+                &mut store,
+                AuthContext::Agent("a1"),
+                request(3, 10).as_bytes(),
+                1000,
+            )
+            .unwrap();
+            assert!(
+                matches!(serde_json::from_slice::<Response>(&empty).unwrap(), Response::Success { result: QueryResult::Events { events, .. }, .. } if events.is_empty())
+            );
             let before = store.0.query_row("SELECT (SELECT sequence FROM tasks WHERE id='gap-task'), (SELECT count(*) FROM events WHERE task_id='gap-task'), (SELECT count(*) FROM outbox WHERE task_id='gap-task')", [], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))).unwrap();
             // 仅测试夹具绕过外键，模拟损坏或未来错误裁剪留下的历史缺口。
             store.0.execute_batch("PRAGMA foreign_keys=OFF").unwrap();
-            store.0.execute("DELETE FROM events WHERE task_id='gap-task' AND sequence=?1", [missing]).unwrap();
+            store
+                .0
+                .execute(
+                    "DELETE FROM events WHERE task_id='gap-task' AND sequence=?1",
+                    [missing],
+                )
+                .unwrap();
             let after_delete = store.0.query_row("SELECT (SELECT sequence FROM tasks WHERE id='gap-task'), (SELECT count(*) FROM events WHERE task_id='gap-task'), (SELECT count(*) FROM outbox WHERE task_id='gap-task')", [], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))).unwrap();
             assert_eq!(before, (3, 3, 3));
             assert_eq!(after_delete, (3, 2, 3));
@@ -2801,8 +2888,16 @@ mod tests {
                     yonder_application::query::handle(&mut store, AuthContext::Agent("a1"), bytes.as_bytes(), 1000),
                     Response::Failure { error, .. } if error.code == -32016
                 ));
-                let encoded = yonder_application::query::handle_encoded_current(&mut store, AuthContext::Agent("a1"), bytes.as_bytes(), 1000).unwrap();
-                assert!(matches!(serde_json::from_slice::<Response>(&encoded).unwrap(), Response::Failure { error, .. } if error.code == -32016));
+                let encoded = yonder_application::query::handle_encoded_current(
+                    &mut store,
+                    AuthContext::Agent("a1"),
+                    bytes.as_bytes(),
+                    1000,
+                )
+                .unwrap();
+                assert!(
+                    matches!(serde_json::from_slice::<Response>(&encoded).unwrap(), Response::Failure { error, .. } if error.code == -32016)
+                );
             }
             assert!(matches!(
                 yonder_application::query::handle(&mut store, AuthContext::Agent("a2"), request(0, 10).replace("\"agent_id\":\"a1\"", "\"agent_id\":\"a2\"").as_bytes(), 1000),
@@ -3358,7 +3453,10 @@ mod tests {
             Some("结果可用"),
         )
         .unwrap();
-        assert_eq!((confirmed.status, confirmed.sequence), (Status::Completed, 4));
+        assert_eq!(
+            (confirmed.status, confirmed.sequence),
+            (Status::Completed, 4)
+        );
         assert_eq!(
             yonder_application::confirm_result(
                 &mut store,
@@ -3385,12 +3483,29 @@ mod tests {
         );
         let events = store.events_with_steps(&task.id, 0, 100).unwrap();
         assert_eq!(events.len(), 4);
-        assert_eq!(events[3].user_confirmation.as_ref().unwrap().result_sequence, 3);
-        assert_eq!(events[3].user_confirmation.as_ref().unwrap().confirmation_id, "confirm-1");
+        assert_eq!(
+            events[3]
+                .user_confirmation
+                .as_ref()
+                .unwrap()
+                .result_sequence,
+            3
+        );
+        assert_eq!(
+            events[3]
+                .user_confirmation
+                .as_ref()
+                .unwrap()
+                .confirmation_id,
+            "confirm-1"
+        );
         let audit = store.get_audit(&task.id).unwrap();
         assert_eq!(audit.manifest.as_ref().unwrap().version, 1);
         assert_eq!(audit.manifest.as_ref().unwrap().item_count, 0);
-        assert_eq!(audit.confirmation.as_ref().unwrap().comment.as_deref(), Some("结果可用"));
+        assert_eq!(
+            audit.confirmation.as_ref().unwrap().comment.as_deref(),
+            Some("结果可用")
+        );
 
         let hello = |minor| {
             format!(
@@ -3405,26 +3520,48 @@ mod tests {
         let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
         session.handle(&mut store, hello(20).as_bytes(), 1000);
         let snapshot = match session.handle(&mut store, get.as_bytes(), 1000) {
-            Response::Success { result: yonder_protocol::QueryResult::Snapshot { task }, .. } => task,
+            Response::Success {
+                result: yonder_protocol::QueryResult::Snapshot { task },
+                ..
+            } => task,
             other => panic!("{other:?}"),
         };
         assert!(snapshot.artifact_manifest.is_some());
-        assert_eq!(snapshot.user_confirmation.as_ref().unwrap().result_sequence, "3");
+        assert_eq!(
+            snapshot.user_confirmation.as_ref().unwrap().result_sequence,
+            "3"
+        );
         let step_snapshot = match session.handle(&mut store, step_get.as_bytes(), 1000) {
-            Response::Success { result: yonder_protocol::QueryResult::Step { task, .. }, .. } => task,
+            Response::Success {
+                result: yonder_protocol::QueryResult::Step { task, .. },
+                ..
+            } => task,
             other => panic!("{other:?}"),
         };
         assert!(step_snapshot.artifact_manifest.is_some());
-        assert_eq!(step_snapshot.user_confirmation.as_ref().unwrap().result_sequence, "3");
+        assert_eq!(
+            step_snapshot
+                .user_confirmation
+                .as_ref()
+                .unwrap()
+                .result_sequence,
+            "3"
+        );
         session.handle(&mut store, hello(19).as_bytes(), 1000);
         let old_snapshot = match session.handle(&mut store, get.as_bytes(), 1000) {
-            Response::Success { result: yonder_protocol::QueryResult::Snapshot { task }, .. } => task,
+            Response::Success {
+                result: yonder_protocol::QueryResult::Snapshot { task },
+                ..
+            } => task,
             other => panic!("{other:?}"),
         };
         assert!(old_snapshot.artifact_manifest.is_none());
         assert!(old_snapshot.user_confirmation.is_none());
         let old_step_snapshot = match session.handle(&mut store, step_get.as_bytes(), 1000) {
-            Response::Success { result: yonder_protocol::QueryResult::Step { task, .. }, .. } => task,
+            Response::Success {
+                result: yonder_protocol::QueryResult::Step { task, .. },
+                ..
+            } => task,
             other => panic!("{other:?}"),
         };
         assert!(old_step_snapshot.artifact_manifest.is_none());
@@ -3470,7 +3607,10 @@ mod tests {
             .unwrap();
         store
             .0
-            .execute("UPDATE task_audit_quota_state SET max_bytes=1 WHERE id=1", [])
+            .execute(
+                "UPDATE task_audit_quota_state SET max_bytes=1 WHERE id=1",
+                [],
+            )
             .unwrap();
         let before: (i64, i64) = store
             .0
@@ -3560,54 +3700,164 @@ mod tests {
     #[test]
     fn historical_observations_keep_each_step_and_gate_protocol_121() {
         use yonder_application::admission::{Admission, Resource, start_attempt};
-        use yonder_application::computer_use::{DispatchOutcome, UnknownReason, record_dispatch_outcome};
+        use yonder_application::computer_use::{
+            DispatchOutcome, UnknownReason, record_dispatch_outcome,
+        };
         use yonder_application::gateway::{GatewaySession, Platform};
         use yonder_application::{advance_after_observe, prepare_next_attempt};
-        use yonder_protocol::{QueryResult, Response, TaskObservationResult as ProtocolObservationResult};
+        use yonder_protocol::{
+            QueryResult, Response, TaskObservationResult as ProtocolObservationResult,
+        };
 
-        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         let task = create(&mut store, "observation-history").unwrap();
-        let (task, _) = store.declare_step("a1", &task.id, task.sequence, "step-1", "第一步").unwrap();
+        let (task, _) = store
+            .declare_step("a1", &task.id, task.sequence, "step-1", "第一步")
+            .unwrap();
         let attempt = |step: &str, id: &str| ExecutionAttempt {
-            task_id: task.id.clone(), step_id: step.into(), attempt_id: id.into(),
-            worker_instance_id: "worker-1".into(), host_session_id: "host-1".into(),
-            phase: AttemptPhase::Prepared, accepted_sequence: 0,
+            task_id: task.id.clone(),
+            step_id: step.into(),
+            attempt_id: id.into(),
+            worker_instance_id: "worker-1".into(),
+            host_session_id: "host-1".into(),
+            phase: AttemptPhase::Prepared,
+            accepted_sequence: 0,
         };
         let gate = Admission::new(1).unwrap();
-        let (_, first, _) = start_attempt(&mut store, &gate, &attempt("step-1", "attempt-1"), task.sequence, &[Resource::Desktop]).unwrap();
-        let (first_result, _) = record_dispatch_outcome(&mut store, &task.id, &first.attempt_id, DispatchOutcome::Known { action_succeeded: true, observation: None }).unwrap();
-        let first_observation = yonder_application::record_observation(&mut store, &task.id, &first.attempt_id, first_result.sequence, TaskObservationResult::Matched, "第一步匹配").unwrap();
+        let (_, first, _) = start_attempt(
+            &mut store,
+            &gate,
+            &attempt("step-1", "attempt-1"),
+            task.sequence,
+            &[Resource::Desktop],
+        )
+        .unwrap();
+        let (first_result, _) = record_dispatch_outcome(
+            &mut store,
+            &task.id,
+            &first.attempt_id,
+            DispatchOutcome::Known {
+                action_succeeded: true,
+                observation: None,
+            },
+        )
+        .unwrap();
+        let first_observation = yonder_application::record_observation(
+            &mut store,
+            &task.id,
+            &first.attempt_id,
+            first_result.sequence,
+            TaskObservationResult::Matched,
+            "第一步匹配",
+        )
+        .unwrap();
         let (advanced, _) = advance_after_observe(&mut store, &task.id, &first.attempt_id).unwrap();
-        let (declared, _) = store.declare_step("a1", &task.id, advanced.sequence, "step-2", "第二步").unwrap();
-        let (_, second) = prepare_next_attempt(&mut store, &attempt("step-2", "attempt-2"), declared.sequence).unwrap();
-        let (second_result, _) = record_dispatch_outcome(&mut store, &task.id, &second.attempt_id, DispatchOutcome::Unknown(UnknownReason::TimedOut)).unwrap();
-        let second_observation = yonder_application::record_observation(&mut store, &task.id, &second.attempt_id, second_result.sequence, TaskObservationResult::Unknown, "第二步未能核实").unwrap();
+        let (declared, _) = store
+            .declare_step("a1", &task.id, advanced.sequence, "step-2", "第二步")
+            .unwrap();
+        let (_, second) = prepare_next_attempt(
+            &mut store,
+            &attempt("step-2", "attempt-2"),
+            declared.sequence,
+        )
+        .unwrap();
+        let (second_result, _) = record_dispatch_outcome(
+            &mut store,
+            &task.id,
+            &second.attempt_id,
+            DispatchOutcome::Unknown(UnknownReason::TimedOut),
+        )
+        .unwrap();
+        let second_observation = yonder_application::record_observation(
+            &mut store,
+            &task.id,
+            &second.attempt_id,
+            second_result.sequence,
+            TaskObservationResult::Unknown,
+            "第二步未能核实",
+        )
+        .unwrap();
         assert!(second_observation.sequence > first_observation.sequence);
-        assert_eq!(store.get_presentation(&task.id).unwrap().1.observation.unwrap().summary, "第二步未能核实");
+        assert_eq!(
+            store
+                .get_presentation(&task.id)
+                .unwrap()
+                .1
+                .observation
+                .unwrap()
+                .summary,
+            "第二步未能核实"
+        );
 
-        let request = format!(r#"{{"jsonrpc":"2.0","id":"history","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"0","limit":100}}}}"#, task.id);
+        let request = format!(
+            r#"{{"jsonrpc":"2.0","id":"history","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"0","limit":100}}}}"#,
+            task.id
+        );
         let mut old = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
         let hello = br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":20}}}"#;
         old.handle(&mut store, hello, 1000);
-        assert!(matches!(old.handle(&mut store, request.as_bytes(), 1000), Response::Success { result: QueryResult::Events { events, .. }, .. } if events.iter().all(|event| event.observation.is_none())));
+        assert!(
+            matches!(old.handle(&mut store, request.as_bytes(), 1000), Response::Success { result: QueryResult::Events { events, .. }, .. } if events.iter().all(|event| event.observation.is_none()))
+        );
 
         let mut current = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
         let hello = br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":21}}}"#;
-        assert!(matches!(current.handle(&mut store, hello, 1000), Response::Success { result: QueryResult::Hello { protocol_version, .. }, .. } if protocol_version.minor == 21));
+        assert!(
+            matches!(current.handle(&mut store, hello, 1000), Response::Success { result: QueryResult::Hello { protocol_version, .. }, .. } if protocol_version.minor == 21)
+        );
         let events = match current.handle(&mut store, request.as_bytes(), 1000) {
-            Response::Success { result: QueryResult::Events { events, .. }, .. } => events,
+            Response::Success {
+                result: QueryResult::Events { events, .. },
+                ..
+            } => events,
             other => panic!("{other:?}"),
         };
-        let observations: Vec<_> = events.iter().filter_map(|event| event.observation.as_ref().map(|value| (event.sequence.clone(), value.step_id.clone(), value.result, value.summary.clone()))).collect();
-        assert_eq!(observations, vec![
-            (first_observation.sequence.to_string(), "step-1".into(), ProtocolObservationResult::Matched, "第一步匹配".into()),
-            (second_observation.sequence.to_string(), "step-2".into(), ProtocolObservationResult::Unknown, "第二步未能核实".into()),
-        ]);
+        let observations: Vec<_> = events
+            .iter()
+            .filter_map(|event| {
+                event.observation.as_ref().map(|value| {
+                    (
+                        event.sequence.clone(),
+                        value.step_id.clone(),
+                        value.result,
+                        value.summary.clone(),
+                    )
+                })
+            })
+            .collect();
+        assert_eq!(
+            observations,
+            vec![
+                (
+                    first_observation.sequence.to_string(),
+                    "step-1".into(),
+                    ProtocolObservationResult::Matched,
+                    "第一步匹配".into()
+                ),
+                (
+                    second_observation.sequence.to_string(),
+                    "step-2".into(),
+                    ProtocolObservationResult::Unknown,
+                    "第二步未能核实".into()
+                ),
+            ]
+        );
         let unauthorized = request.replace("\"agent_id\":\"a1\"", "\"agent_id\":\"a2\"");
-        assert!(matches!(yonder_application::query::handle_encoded_current(&mut store, AuthContext::Agent("a2"), unauthorized.as_bytes(), 1000).map(|bytes| yonder_protocol::decode_response(&bytes).unwrap()), Ok(Response::Failure { error, .. }) if error.code == -32004));
+        assert!(
+            matches!(yonder_application::query::handle_encoded_current(&mut store, AuthContext::Agent("a2"), unauthorized.as_bytes(), 1000).map(|bytes| yonder_protocol::decode_response(&bytes).unwrap()), Ok(Response::Failure { error, .. }) if error.code == -32004)
+        );
 
-        store.0.execute("UPDATE task_presentation_events SET payload='{}' WHERE task_id=?1 AND sequence=?2", params![task.id, first_observation.sequence as i64]).unwrap();
-        assert!(matches!(current.handle(&mut store, request.as_bytes(), 1000), Response::Failure { error, .. } if error.code == -32603));
+        store
+            .0
+            .execute(
+                "UPDATE task_presentation_events SET payload='{}' WHERE task_id=?1 AND sequence=?2",
+                params![task.id, first_observation.sequence as i64],
+            )
+            .unwrap();
+        assert!(
+            matches!(current.handle(&mut store, request.as_bytes(), 1000), Response::Failure { error, .. } if error.code == -32603)
+        );
     }
 
     #[test]
@@ -3649,7 +3899,9 @@ mod tests {
                 format!(r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"0","limit":1}}}}"#, task.id).as_bytes(),
                 1000,
             );
-            assert!(matches!(response, yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::Events { ref events, .. }, .. } if events[0].creation_event.is_some() == visible));
+            assert!(
+                matches!(response, yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::Events { ref events, .. }, .. } if events[0].creation_event.is_some() == visible)
+            );
         }
 
         let mut foreign = yonder_application::gateway::GatewaySession::new(
@@ -3662,7 +3914,9 @@ mod tests {
             format!(r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a2","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"0","limit":1}}}}"#, task.id).as_bytes(),
             1000,
         );
-        assert!(matches!(denied, yonder_protocol::Response::Failure { error, .. } if error.code == -32004));
+        assert!(
+            matches!(denied, yonder_protocol::Response::Failure { error, .. } if error.code == -32004)
+        );
 
         store
             .0
@@ -3932,7 +4186,10 @@ mod tests {
 
     #[test]
     fn agent_registry_gates_writes_and_preserves_existing_tasks() {
-        use yonder_application::{admission::Admission, gateway::{GatewaySession, Platform}};
+        use yonder_application::{
+            admission::Admission,
+            gateway::{GatewaySession, Platform},
+        };
         use yonder_protocol::{QueryResult, Response};
 
         let mut store =
@@ -3942,15 +4199,7 @@ mod tests {
         let hello = br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":3}}}"#;
         let (blocked_hello, _) = session
             .handle_encoded_with_runtimes(
-                &mut store,
-                &gate,
-                None,
-                None,
-                None,
-                false,
-                "host",
-                hello,
-                1000,
+                &mut store, &gate, None, None, None, false, "host", hello, 1000,
             )
             .unwrap();
         assert!(
@@ -3960,33 +4209,20 @@ mod tests {
         AgentRegistry::register_agent(&mut store, "a1", 1_000_000_000_000).unwrap();
         let (_, _) = session
             .handle_encoded_with_runtimes(
-                &mut store,
-                &gate,
-                None,
-                None,
-                None,
-                false,
-                "host",
-                hello,
-                1000,
+                &mut store, &gate, None, None, None, false, "host", hello, 1000,
             )
             .unwrap();
         let create = br#"{"jsonrpc":"2.0","id":"create","method":"task.create","params":{"agent_id":"a1","capability":"task.create","deadline":2000,"idempotency_key":"one","description":"test","name":"kept"}}"#;
         let (created, _) = session
             .handle_encoded_with_runtimes(
-                &mut store,
-                &gate,
-                None,
-                None,
-                None,
-                false,
-                "host",
-                create,
-                1000,
+                &mut store, &gate, None, None, None, false, "host", create, 1000,
             )
             .unwrap();
         let task_id = match yonder_protocol::decode_response(&created).unwrap() {
-            Response::Success { result: QueryResult::Snapshot { task }, .. } => task.task_id,
+            Response::Success {
+                result: QueryResult::Snapshot { task },
+                ..
+            } => task.task_id,
             value => panic!("任务创建应成功：{value:?}"),
         };
         AgentRegistry::set_agent_status(
@@ -5364,23 +5600,71 @@ mod tests {
         let control_history = store.events_with_steps(&task.id, 4, 2).unwrap();
         assert_eq!(control_history.len(), 2);
         assert_eq!(control_history[0].transition.sequence, 5);
-        assert_eq!(control_history[0].control_event.as_ref().map(|value| (value.kind, value.phase)), Some((ControlKind::Takeover, ControlPhase::Pending)));
+        assert_eq!(
+            control_history[0]
+                .control_event
+                .as_ref()
+                .map(|value| (value.kind, value.phase)),
+            Some((ControlKind::Takeover, ControlPhase::Pending))
+        );
         assert_eq!(control_history[1].transition.sequence, 6);
-        assert_eq!(control_history[1].control_event.as_ref().map(|value| (value.kind, value.phase)), Some((ControlKind::Takeover, ControlPhase::Stopped)));
+        assert_eq!(
+            control_history[1]
+                .control_event
+                .as_ref()
+                .map(|value| (value.kind, value.phase)),
+            Some((ControlKind::Takeover, ControlPhase::Stopped))
+        );
         for (minor, expected) in [(21, 0), (22, 2)] {
-            let mut session = yonder_application::gateway::GatewaySession::new(AuthContext::Agent("a1"), yonder_application::gateway::Platform::Macos);
-            let hello = format!(r#"{{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#);
+            let mut session = yonder_application::gateway::GatewaySession::new(
+                AuthContext::Agent("a1"),
+                yonder_application::gateway::Platform::Macos,
+            );
+            let hello = format!(
+                r#"{{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#
+            );
             session.handle(&mut store, hello.as_bytes(), 1000);
-            let request = format!(r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"4","limit":2}}}}"#, task.id);
+            let request = format!(
+                r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"4","limit":2}}}}"#,
+                task.id
+            );
             let result = session.handle(&mut store, request.as_bytes(), 1000);
-            assert!(matches!(result, yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::Events { ref events, .. }, .. } if events.iter().filter(|event| event.control_event.is_some()).count() == expected));
+            assert!(
+                matches!(result, yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::Events { ref events, .. }, .. } if events.iter().filter(|event| event.control_event.is_some()).count() == expected)
+            );
         }
-        let unauthorized = format!(r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a2","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"4","limit":2}}}}"#, task.id);
-        let denied = yonder_application::query::handle_encoded_current(&mut store, AuthContext::Agent("a2"), unauthorized.as_bytes(), 1000).unwrap();
-        assert!(matches!(yonder_protocol::decode_response(&denied).unwrap(), yonder_protocol::Response::Failure { error, .. } if error.code == -32004));
-        store.0.execute("UPDATE task_controls SET control_id='invalid control' WHERE task_id=?1", [&task.id]).unwrap();
-        assert!(matches!(store.events_with_steps(&task.id, 4, 2), Err(Error::StorageUnavailable)));
-        store.0.execute("UPDATE task_controls SET control_id=?1 WHERE task_id=?2", params![control.control_id, task.id]).unwrap();
+        let unauthorized = format!(
+            r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a2","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"4","limit":2}}}}"#,
+            task.id
+        );
+        let denied = yonder_application::query::handle_encoded_current(
+            &mut store,
+            AuthContext::Agent("a2"),
+            unauthorized.as_bytes(),
+            1000,
+        )
+        .unwrap();
+        assert!(
+            matches!(yonder_protocol::decode_response(&denied).unwrap(), yonder_protocol::Response::Failure { error, .. } if error.code == -32004)
+        );
+        store
+            .0
+            .execute(
+                "UPDATE task_controls SET control_id='invalid control' WHERE task_id=?1",
+                [&task.id],
+            )
+            .unwrap();
+        assert!(matches!(
+            store.events_with_steps(&task.id, 4, 2),
+            Err(Error::StorageUnavailable)
+        ));
+        store
+            .0
+            .execute(
+                "UPDATE task_controls SET control_id=?1 WHERE task_id=?2",
+                params![control.control_id, task.id],
+            )
+            .unwrap();
         assert_eq!(
             stop_at_boundary(
                 &mut store,
@@ -5764,9 +6048,14 @@ mod tests {
             (paused.status, control.phase),
             (Status::Paused, ControlPhase::Stopped)
         );
-        let direct = store.events_with_steps(&task.id, boundary.sequence, 1).unwrap();
+        let direct = store
+            .events_with_steps(&task.id, boundary.sequence, 1)
+            .unwrap();
         assert_eq!(direct[0].transition.sequence, control.accepted_sequence);
-        assert_eq!(direct[0].control_event.as_ref().map(|value| value.phase), Some(ControlPhase::Stopped));
+        assert_eq!(
+            direct[0].control_event.as_ref().map(|value| value.phase),
+            Some(ControlPhase::Stopped)
+        );
         gate.release_task_after_stop(&task.id).unwrap();
         gate.set_desktop_taken_over(true).unwrap();
         struct Focus;
@@ -5796,10 +6085,19 @@ mod tests {
             process_start_microseconds: 1,
         };
         store.0.execute_batch("CREATE TRIGGER reject_focus_history BEFORE INSERT ON task_focus_events BEGIN SELECT RAISE(ABORT,'focus history failure'); END;").unwrap();
-        assert_eq!(focus_takeover(&mut store, &mut Focus, &reference), Err(Error::StorageUnavailable));
+        assert_eq!(
+            focus_takeover(&mut store, &mut Focus, &reference),
+            Err(Error::StorageUnavailable)
+        );
         assert_eq!(store.get(&task.id).unwrap().sequence, paused.sequence);
-        assert_eq!(store.get_control(&task.id).unwrap().unwrap().focus_phase, None);
-        store.0.execute_batch("DROP TRIGGER reject_focus_history;").unwrap();
+        assert_eq!(
+            store.get_control(&task.id).unwrap().unwrap().focus_phase,
+            None
+        );
+        store
+            .0
+            .execute_batch("DROP TRIGGER reject_focus_history;")
+            .unwrap();
         let (focused, control, outcome) =
             focus_takeover(&mut store, &mut Focus, &reference).unwrap();
         assert_eq!(
@@ -5819,22 +6117,63 @@ mod tests {
         assert!(gate.try_acquire("other", &[Resource::Desktop]).is_err());
         assert_eq!(store.events(&task.id, 0, 100).unwrap().len(), 8);
         let focus_history = store.events_with_steps(&task.id, 6, 2).unwrap();
-        assert_eq!(focus_history[0].focus_event.as_ref().map(|value| (value.phase, value.failure)), Some((FocusPhase::Locating, None)));
-        assert_eq!(focus_history[1].focus_event.as_ref().map(|value| (value.phase, value.failure)), Some((FocusPhase::Focused, None)));
+        assert_eq!(
+            focus_history[0]
+                .focus_event
+                .as_ref()
+                .map(|value| (value.phase, value.failure)),
+            Some((FocusPhase::Locating, None))
+        );
+        assert_eq!(
+            focus_history[1]
+                .focus_event
+                .as_ref()
+                .map(|value| (value.phase, value.failure)),
+            Some((FocusPhase::Focused, None))
+        );
         for (minor, expected) in [(22, 0), (23, 2)] {
-            let mut session = yonder_application::gateway::GatewaySession::new(AuthContext::Agent("a1"), yonder_application::gateway::Platform::Macos);
-            let hello = format!(r#"{{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#);
+            let mut session = yonder_application::gateway::GatewaySession::new(
+                AuthContext::Agent("a1"),
+                yonder_application::gateway::Platform::Macos,
+            );
+            let hello = format!(
+                r#"{{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#
+            );
             session.handle(&mut store, hello.as_bytes(), 1000);
-            let request = format!(r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"6","limit":2}}}}"#, task.id);
+            let request = format!(
+                r#"{{"jsonrpc":"2.0","id":"e","method":"task.events","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{}","after_sequence":"6","limit":2}}}}"#,
+                task.id
+            );
             let result = session.handle(&mut store, request.as_bytes(), 1000);
-            assert!(matches!(result, yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::Events { ref events, .. }, .. } if events.iter().filter(|event| event.focus_event.is_some()).count() == expected));
+            assert!(
+                matches!(result, yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::Events { ref events, .. }, .. } if events.iter().filter(|event| event.focus_event.is_some()).count() == expected)
+            );
         }
-        store.0.execute_batch("DROP TABLE task_focus_events; PRAGMA user_version=18;").unwrap();
+        store
+            .0
+            .execute_batch("DROP TABLE task_focus_events; PRAGMA user_version=18;")
+            .unwrap();
         let db = store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
-        assert_eq!(store.get_control(&task.id).unwrap().unwrap().focus_phase, Some(FocusPhase::Focused));
-        assert_eq!(store.0.query_row("SELECT count(*) FROM task_focus_events", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
-        assert_eq!(store.0.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 19);
+        assert_eq!(
+            store.get_control(&task.id).unwrap().unwrap().focus_phase,
+            Some(FocusPhase::Focused)
+        );
+        assert_eq!(
+            store
+                .0
+                .query_row("SELECT count(*) FROM task_focus_events", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            store
+                .0
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            19
+        );
     }
 
     #[test]
@@ -6747,75 +7086,6 @@ mod tests {
         assert!(
             matches!(old.handle(&mut store,events.as_bytes(),1000),Response::Success{result:QueryResult::Events{events,..},..} if events[0].wait_reason.is_none())
         );
-    }
-
-    // AD-TM-22 已用审计清单确认取代早期 AD-TM-14 草案；保留旧测试源码仅供迁移审阅。
-    #[cfg(any())]
-    #[test]
-    fn result_confirmation_is_terminal_local_idempotent_and_atomic() {
-        use yonder_application::gateway::{GatewaySession, Platform};
-        use yonder_protocol::{QueryResult, Response};
-
-        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
-        create(&mut store, "confirmed-task").unwrap();
-        transition(&mut store, "confirmed-task", 1, Action::Start).unwrap();
-        transition(&mut store, "confirmed-task", 2, Action::Complete).unwrap();
-
-        let request = br#"{"jsonrpc":"2.0","id":"confirm-request","method":"task.result.confirm","params":{"agent_id":"desktop","capability":"task.result.confirm","deadline":2000,"task_id":"confirmed-task","expected_sequence":"3","reviewed_sequence":"3","confirmation_id":"confirmation-1"}}"#;
-        assert!(matches!(
-            yonder_application::query::handle(&mut store, AuthContext::Agent("desktop"), request, 1000),
-            Response::Failure { error, .. } if error.code == -32003
-        ));
-        let response = yonder_application::query::handle(&mut store, AuthContext::LocalUser("desktop"), request, 1000);
-        assert!(matches!(
-            response,
-            Response::Success { result: QueryResult::ResultConfirmation { ref task, ref confirmation }, .. }
-                if task.status == yonder_protocol::TaskStatus::Completed
-                    && task.sequence == "4"
-                    && confirmation.reviewed_sequence == "3"
-                    && confirmation.confirmed_sequence == "4"
-        ));
-        let (_, duplicate) = store.confirm_result("desktop", "confirmed-task", 3, 3, "confirmation-2").unwrap();
-        assert_eq!(duplicate.confirmation_id, "confirmation-1");
-        assert_eq!(store.get("confirmed-task").unwrap().sequence, 4);
-        let events = store.events_with_steps("confirmed-task", 3, 10).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].result_confirmation.as_ref().unwrap().reviewed_sequence, 3);
-        assert_eq!(store.0.query_row("SELECT count(*) FROM outbox WHERE task_id='confirmed-task'", [], |r| r.get::<_,i64>(0)).unwrap(), 4);
-        assert_eq!(store.confirm_result("desktop", "confirmed-task", 4, 4, "confirmation-audit-event"), Err(Error::InvalidInput));
-        assert_eq!(store.get_presentation("confirmed-task").unwrap().1.terminal_result_sequence, Some(3));
-
-        let hello = |minor| format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#);
-        let get = br#"{"jsonrpc":"2.0","id":"get","method":"task.get","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"confirmed-task"}}"#;
-        let mut old = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
-        old.handle(&mut store, hello(19).as_bytes(), 1000);
-        assert!(matches!(old.handle(&mut store, get, 1000), Response::Success { result: QueryResult::Snapshot { task }, .. } if task.result_confirmation.is_none()));
-        let mut current = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
-        let negotiated = current.handle(&mut store, hello(20).as_bytes(), 1000);
-        assert!(matches!(negotiated, Response::Success { result: QueryResult::Hello { protocol_version, .. }, .. } if protocol_version.minor == 20));
-        assert!(matches!(current.handle(&mut store, get, 1000), Response::Success { result: QueryResult::Snapshot { task }, .. } if task.result_confirmation.as_ref().is_some_and(|value| value.confirmed_sequence == "4")));
-
-        create(&mut store, "running-task").unwrap();
-        transition(&mut store, "running-task", 1, Action::Start).unwrap();
-        assert_eq!(store.confirm_result("desktop", "running-task", 2, 2, "confirmation-running"), Err(Error::Conflict));
-        assert_eq!(store.get("running-task").unwrap().sequence, 2);
-
-        create(&mut store, "rollback-task").unwrap();
-        transition(&mut store, "rollback-task", 1, Action::Cancel).unwrap();
-        store.0.execute_batch("CREATE TRIGGER fail_confirmation_outbox BEFORE INSERT ON outbox WHEN NEW.task_id='rollback-task' BEGIN SELECT RAISE(ABORT,'test failure'); END;").unwrap();
-        assert_eq!(store.confirm_result("desktop", "rollback-task", 2, 2, "confirmation-rollback"), Err(Error::StorageUnavailable));
-        assert_eq!(store.get("rollback-task").unwrap().sequence, 2);
-        assert_eq!(store.0.query_row("SELECT count(*) FROM task_result_confirmations WHERE task_id='rollback-task'", [], |r| r.get::<_,i64>(0)).unwrap(), 0);
-        assert_eq!(store.events("rollback-task", 0, 10).unwrap().len(), 2);
-
-        create(&mut store, "late-audit-task").unwrap();
-        transition(&mut store, "late-audit-task", 1, Action::Cancel).unwrap();
-        store.0.execute_batch("UPDATE tasks SET sequence=3 WHERE id='late-audit-task'; INSERT INTO events(task_id,sequence,previous,state) VALUES ('late-audit-task',3,'cancelled','cancelled'); INSERT INTO outbox(task_id,sequence) VALUES ('late-audit-task',3);").unwrap();
-        assert_eq!(store.get_presentation("late-audit-task").unwrap().1.terminal_result_sequence, Some(2));
-        assert_eq!(store.confirm_result("desktop", "late-audit-task", 3, 3, "confirmation-wrong-result"), Err(Error::InvalidInput));
-        let (late_task, late_confirmation) = store.confirm_result("desktop", "late-audit-task", 3, 2, "confirmation-late-audit").unwrap();
-        assert_eq!(late_task.sequence, 4);
-        assert_eq!(late_confirmation.reviewed_sequence, 2);
     }
 
     #[test]

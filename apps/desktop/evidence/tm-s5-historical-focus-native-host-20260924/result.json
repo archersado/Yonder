@@ -1,0 +1,29 @@
+{
+  "formal_tauri_host": true,
+  "isolated_socket": "/Users/archersado/Library/Application Support/com.yonder.focus.fixture/agent.sock",
+  "task_id": "task_730933aef90d997d972f663bc1edef41",
+  "versions": {
+    "22": {
+      "negotiated_minor": 22,
+      "events": 8,
+      "focus_facts": []
+    },
+    "23": {
+      "negotiated_minor": 23,
+      "events": 8,
+      "focus_facts": [
+        {
+          "sequence": "7",
+          "control_id": "control_3",
+          "phase": "locating"
+        },
+        {
+          "sequence": "8",
+          "control_id": "control_3",
+          "phase": "focused"
+        }
+      ]
+    }
+  },
+  "passed": true
+}

@@ -111,9 +111,12 @@ pub enum AgentInputSource {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 pub enum AgentAttachmentMime {
-    #[serde(rename = "image/png")] ImagePng,
-    #[serde(rename = "image/jpeg")] ImageJpeg,
-    #[serde(rename = "image/webp")] ImageWebp,
+    #[serde(rename = "image/png")]
+    ImagePng,
+    #[serde(rename = "image/jpeg")]
+    ImageJpeg,
+    #[serde(rename = "image/webp")]
+    ImageWebp,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -131,10 +134,14 @@ pub struct AgentAttachmentBeginParams {
 
 impl AgentAttachmentBeginParams {
     pub fn validate(&self, now_ms: u64) -> Result<(), RpcError> {
-        if !valid_id(&self.attachment_id) || !valid_id(&self.session_id)
+        if !valid_id(&self.attachment_id)
+            || !valid_id(&self.session_id)
             || !(1..=MAX_AGENT_ATTACHMENT_BYTES).contains(&self.byte_length)
-            || self.sha256.len() != 64 || !self.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
-            || self.deadline <= now_ms || self.deadline > 9_007_199_254_740_991 {
+            || self.sha256.len() != 64
+            || !self.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || self.deadline <= now_ms
+            || self.deadline > 9_007_199_254_740_991
+        {
             return Err(RpcError::new(-32602, "非法Agent附件声明"));
         }
         Ok(())
@@ -153,10 +160,22 @@ pub struct AgentAttachmentChunkParams {
 impl AgentAttachmentChunkParams {
     pub fn validate(&self) -> Result<(), RpcError> {
         let bytes = self.data_base64.as_bytes();
-        if !valid_id(&self.attachment_id) || !valid_id(&self.session_id) || bytes.is_empty()
-            || bytes.len() > MAX_AGENT_ATTACHMENT_CHUNK_BASE64_BYTES || bytes.len() % 4 != 0
-            || !bytes.iter().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
-            || bytes.iter().position(|byte| *byte == b'=').is_some_and(|start| start < bytes.len().saturating_sub(2) || !bytes[start..].iter().all(|byte| *byte == b'=')) {
+        if !valid_id(&self.attachment_id)
+            || !valid_id(&self.session_id)
+            || bytes.is_empty()
+            || bytes.len() > MAX_AGENT_ATTACHMENT_CHUNK_BASE64_BYTES
+            || bytes.len() % 4 != 0
+            || !bytes
+                .iter()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
+            || bytes
+                .iter()
+                .position(|byte| *byte == b'=')
+                .is_some_and(|start| {
+                    start < bytes.len().saturating_sub(2)
+                        || !bytes[start..].iter().all(|byte| *byte == b'=')
+                })
+        {
             return Err(RpcError::new(-32602, "非法Agent附件分块"));
         }
         Ok(())
@@ -165,7 +184,10 @@ impl AgentAttachmentChunkParams {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct AgentAttachmentFinishParams { pub attachment_id: String, pub session_id: String }
+pub struct AgentAttachmentFinishParams {
+    pub attachment_id: String,
+    pub session_id: String,
+}
 
 impl AgentAttachmentFinishParams {
     pub fn validate(&self) -> Result<(), RpcError> {
@@ -200,7 +222,10 @@ impl AgentInputParams {
             || !valid_id(&self.session_id)
             || self.content.trim().is_empty()
             || self.content.as_bytes().len() > 16 * 1024
-            || self.attachment_id.as_deref().is_some_and(|value| !valid_id(value))
+            || self
+                .attachment_id
+                .as_deref()
+                .is_some_and(|value| !valid_id(value))
             || self.created_at > self.deadline
             || self.deadline > 9_007_199_254_740_991
             || self.deadline <= now_ms
@@ -216,11 +241,22 @@ impl AgentInputParams {
 #[serde(tag = "method", deny_unknown_fields)]
 pub enum AgentRequest {
     #[serde(rename = "agent.attachment.begin")]
-    AttachmentBegin { jsonrpc: Version, params: AgentAttachmentBeginParams },
+    AttachmentBegin {
+        jsonrpc: Version,
+        params: AgentAttachmentBeginParams,
+    },
     #[serde(rename = "agent.attachment.chunk")]
-    AttachmentChunk { jsonrpc: Version, params: AgentAttachmentChunkParams },
+    AttachmentChunk {
+        jsonrpc: Version,
+        params: AgentAttachmentChunkParams,
+    },
     #[serde(rename = "agent.attachment.finish")]
-    AttachmentFinish { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: AgentAttachmentFinishParams },
+    AttachmentFinish {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: AgentAttachmentFinishParams,
+    },
     #[serde(rename = "agent.input")]
     Input {
         jsonrpc: Version,
@@ -1163,8 +1199,7 @@ impl Request {
                 if params.session_id.is_some() != offers_input
                     || params.session_id.as_deref().is_some_and(|id| !valid_id(id))
                     || offers_input && params.protocol_version.minor < 14
-                    || offers_attachment
-                        && (!offers_input || params.protocol_version.minor < 19)
+                    || offers_attachment && (!offers_input || params.protocol_version.minor < 19)
                 {
                     return Err(RpcError::new(-32602, "非法Agent会话声明"));
                 }
@@ -1546,17 +1581,18 @@ mod tests {
         let value = serde_json::to_value(&task).unwrap();
         assert_eq!(value["artifact_manifest"]["version"], "1");
         assert_eq!(value["user_confirmation"]["result_sequence"], "3");
-        assert_eq!(
-            serde_json::from_value::<TaskSnapshot>(value).unwrap(),
-            task
-        );
+        assert_eq!(serde_json::from_value::<TaskSnapshot>(value).unwrap(), task);
 
         let event = TaskEvent {
             previous: TaskStatus::Running,
             status: TaskStatus::Completed,
             sequence: "4".into(),
+            creation_event: None,
             step_declaration: None,
             attempt_result: None,
+            observation: None,
+            control_event: None,
+            focus_event: None,
             wait_reason: None,
             artifact_manifest: Some(manifest),
             user_confirmation: Some(confirmation),
@@ -1698,22 +1734,56 @@ mod tests {
         let hello = serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":19},"session_id":"s1","offered_capabilities":["user_input","user_input_attachment"]}});
         let hello = serde_json::to_vec(&hello).unwrap();
         assert!(decode(&hello).unwrap().validate(1000).is_ok());
-        assert_eq!(input_registration(&hello), Some(("a1".into(), "s1".into(), true)));
+        assert_eq!(
+            input_registration(&hello),
+            Some(("a1".into(), "s1".into(), true))
+        );
 
-        let begin = AgentAttachmentBeginParams { attachment_id: "image_1".into(), session_id: "s1".into(), mime: AgentAttachmentMime::ImagePng, byte_length: MAX_AGENT_ATTACHMENT_BYTES, sha256: "0".repeat(64), deadline: 2000 };
+        let begin = AgentAttachmentBeginParams {
+            attachment_id: "image_1".into(),
+            session_id: "s1".into(),
+            mime: AgentAttachmentMime::ImagePng,
+            byte_length: MAX_AGENT_ATTACHMENT_BYTES,
+            sha256: "0".repeat(64),
+            deadline: 2000,
+        };
         assert!(begin.validate(1000).is_ok());
-        let chunk = AgentAttachmentChunkParams { attachment_id: "image_1".into(), session_id: "s1".into(), sequence: 0, data_base64: "A".repeat(64_172) };
+        let chunk = AgentAttachmentChunkParams {
+            attachment_id: "image_1".into(),
+            session_id: "s1".into(),
+            sequence: 0,
+            data_base64: "A".repeat(64_172),
+        };
         assert!(chunk.validate().is_ok());
-        assert!(encode_agent_request(&AgentRequest::AttachmentChunk { jsonrpc: Version::V2, params: chunk }).unwrap().len() <= MAX_REQUEST_BYTES);
+        assert!(
+            encode_agent_request(&AgentRequest::AttachmentChunk {
+                jsonrpc: Version::V2,
+                params: chunk
+            })
+            .unwrap()
+            .len()
+                <= MAX_REQUEST_BYTES
+        );
 
-        let mut invalid = begin.clone(); invalid.byte_length += 1;
+        let mut invalid = begin.clone();
+        invalid.byte_length += 1;
         assert!(invalid.validate(1000).is_err());
-        let invalid_chunk = AgentAttachmentChunkParams { attachment_id: "image_1".into(), session_id: "s1".into(), sequence: 0, data_base64: "====".into() };
+        let invalid_chunk = AgentAttachmentChunkParams {
+            attachment_id: "image_1".into(),
+            session_id: "s1".into(),
+            sequence: 0,
+            data_base64: "====".into(),
+        };
         assert!(invalid_chunk.validate().is_err());
 
         let mut old = serde_json::from_slice::<serde_json::Value>(&hello).unwrap();
         old["params"]["protocol_version"]["minor"] = 18.into();
-        assert!(decode(&serde_json::to_vec(&old).unwrap()).unwrap().validate(1000).is_err());
+        assert!(
+            decode(&serde_json::to_vec(&old).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
     }
 
     #[test]

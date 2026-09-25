@@ -234,6 +234,30 @@
         "target_visible"
       ]
     },
+    "ControlEvent": {
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "control_id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ControlKind"
+        },
+        "phase": {
+          "$ref": "#/$defs/ControlPhase"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "control_id",
+        "kind",
+        "phase"
+      ]
+    },
     "ControlKind": {
       "type": "string",
       "enum": [
@@ -302,6 +326,32 @@
         "phase",
         "accepted_sequence",
         "stopped_sequence"
+      ]
+    },
+    "FocusEvent": {
+      "type": "object",
+      "properties": {
+        "control_id": {
+          "type": "string"
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FocusFailure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phase": {
+          "$ref": "#/$defs/FocusPhase"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "control_id",
+        "phase"
       ]
     },
     "FocusFailure": {
@@ -687,6 +737,22 @@
         "item_count"
       ]
     },
+    "TaskCreationEvent": {
+      "type": "object",
+      "properties": {
+        "owner_agent_id": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/TaskSource"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "owner_agent_id",
+        "source"
+      ]
+    },
     "TaskEvent": {
       "type": "object",
       "properties": {
@@ -704,6 +770,46 @@
           "anyOf": [
             {
               "$ref": "#/$defs/AttemptResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "control_event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ControlEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creation_event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskCreationEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focus_event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FocusEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskObservation"
             },
             {
               "type": "null"

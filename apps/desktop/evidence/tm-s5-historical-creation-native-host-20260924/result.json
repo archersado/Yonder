@@ -1,0 +1,26 @@
+{
+  "formal_tauri_host": true,
+  "isolated_socket": "/Users/archersado/Library/Application Support/com.yonder.creation.fixture/agent.sock",
+  "task_id": "task_d7bbee4531c537c8280330f198b92c9d",
+  "versions": {
+    "23": {
+      "negotiated_minor": 23,
+      "events": 1,
+      "creation_facts": []
+    },
+    "24": {
+      "negotiated_minor": 24,
+      "events": 1,
+      "creation_facts": [
+        {
+          "sequence": "1",
+          "owner_agent_id": "fixture-agent",
+          "source": "cloud-agent"
+        }
+      ]
+    }
+  },
+  "description_exposed": false,
+  "idempotency_key_exposed": false,
+  "passed": true
+}

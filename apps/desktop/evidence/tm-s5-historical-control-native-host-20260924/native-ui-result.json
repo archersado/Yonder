@@ -1,0 +1,9 @@
+{
+  "bundle_identifier" : "com.yonder.control.fixture",
+  "first_fact_visible" : "接管：停止请求已登记（尝试 attempt-one）",
+  "formal_tauri_host" : true,
+  "passed" : true,
+  "pid" : 62159,
+  "real_user_task_database_used" : false,
+  "second_fact_visible" : "接管：步骤边界停止已确认（尝试 attempt-one）"
+}

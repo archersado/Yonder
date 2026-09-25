@@ -1,0 +1,9 @@
+{
+  "bundle_identifier" : "com.yonder.observation.fixture",
+  "formal_tauri_host" : true,
+  "passed" : true,
+  "pid" : 47199,
+  "real_user_task_database_used" : false,
+  "step_one_matched_visible" : true,
+  "step_two_unknown_visible" : true
+}

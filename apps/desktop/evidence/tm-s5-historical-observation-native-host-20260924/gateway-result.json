@@ -1,0 +1,29 @@
+{
+  "formal_tauri_host": true,
+  "isolated_socket": "/Users/archersado/Library/Application Support/com.yonder.observation.fixture/agent.sock",
+  "task_id": "task_0313066c8c5504ae60221e4142303abb",
+  "versions": {
+    "20": {
+      "negotiated_minor": 20,
+      "events": 11,
+      "observations": []
+    },
+    "21": {
+      "negotiated_minor": 21,
+      "events": 11,
+      "observations": [
+        {
+          "step_id": "step-one",
+          "result": "matched",
+          "summary": "目标已打开"
+        },
+        {
+          "step_id": "step-two",
+          "result": "unknown",
+          "summary": "核实超时，结果未知"
+        }
+      ]
+    }
+  },
+  "passed": true
+}

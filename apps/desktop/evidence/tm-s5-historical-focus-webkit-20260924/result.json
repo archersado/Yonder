@@ -1,0 +1,7 @@
+{
+  "focus_failure_reason_visible" : true,
+  "focus_locating_visible" : true,
+  "passed" : true,
+  "platform" : "macOS WebKit fixture",
+  "real_task_database_used" : false
+}

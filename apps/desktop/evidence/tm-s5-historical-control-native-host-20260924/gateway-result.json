@@ -1,0 +1,33 @@
+{
+  "formal_tauri_host": true,
+  "isolated_socket": "/Users/archersado/Library/Application Support/com.yonder.control.fixture/agent.sock",
+  "task_id": "task_4a5778ab1b99f8ed40b8765a62e4f785",
+  "versions": {
+    "21": {
+      "negotiated_minor": 21,
+      "events": 6,
+      "control_facts": []
+    },
+    "22": {
+      "negotiated_minor": 22,
+      "events": 6,
+      "control_facts": [
+        {
+          "sequence": "5",
+          "attempt_id": "attempt-one",
+          "control_id": "control_3",
+          "kind": "takeover",
+          "phase": "pending"
+        },
+        {
+          "sequence": "6",
+          "attempt_id": "attempt-one",
+          "control_id": "control_3",
+          "kind": "takeover",
+          "phase": "stopped"
+        }
+      ]
+    }
+  },
+  "passed": true
+}

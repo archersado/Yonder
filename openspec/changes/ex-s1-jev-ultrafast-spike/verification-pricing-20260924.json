@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-24",
+  "source_url": "https://typesafe.ai/",
+  "documentation_index_url": "https://docs.typesafe.ai/llms.txt",
+  "published_input_usd_per_billion_tokens": 42,
+  "published_input_usd_per_million_tokens": 0.042,
+  "official_faq_says_current_price_is_profitable": true,
+  "output_pricing_rule_found": false,
+  "sample_evidence": "verification-macos-evidence.json",
+  "baseline_input_tokens": 17061,
+  "baseline_output_tokens": 834,
+  "jev_input_tokens": 8088,
+  "jev_output_tokens": 834,
+  "baseline_known_input_cost_usd": 0.000716562,
+  "jev_known_input_cost_usd": 0.000339696,
+  "known_input_cost_reduction_rate": 0.5259363460524002,
+  "scope": "input-only-known-cost",
+  "full_bill_available": false
+}

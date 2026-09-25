@@ -6,8 +6,8 @@ use yonder_protocol::{
     ControlKind as ProtocolControlKind, ControlPhase as ProtocolControlPhase,
     ControlRecord as ProtocolControl, FocusFailure as ProtocolFocusFailure,
     FocusPhase as ProtocolFocusPhase, QueryResult, Request, Response, RpcError,
-    StepDeclaration as ProtocolStep, TaskEvent, TaskObservation as ProtocolObservation,
-    TaskArtifactManifest as ProtocolManifest, TaskObservationResult as ProtocolObservationResult,
+    StepDeclaration as ProtocolStep, TaskArtifactManifest as ProtocolManifest, TaskEvent,
+    TaskObservation as ProtocolObservation, TaskObservationResult as ProtocolObservationResult,
     TaskSnapshot, TaskSource as ProtocolSource, TaskStatus,
     TaskUserConfirmation as ProtocolConfirmation, Version,
 };
@@ -48,7 +48,10 @@ fn bounded_events_result(
         response_bytes = next_bytes;
         selected.push(event);
     }
-    Ok(QueryResult::Events { task_id, events: selected })
+    Ok(QueryResult::Events {
+        task_id,
+        events: selected,
+    })
 }
 
 fn check_event_continuity(
@@ -276,7 +279,9 @@ pub(crate) fn handle_request(
     request: Request,
     now_ms: u64,
 ) -> Response {
-    handle_request_versioned(store, auth, request, now_ms, false, false, false, false, false, false, false, false)
+    handle_request_versioned(
+        store, auth, request, now_ms, false, false, false, false, false, false, false, false,
+    )
 }
 
 pub(crate) fn handle_request_versioned(
@@ -426,6 +431,7 @@ pub(crate) fn handle_request_versioned(
             jsonrpc: Version::V2,
             id,
             result,
+        },
         Err(error) => Response::Failure {
             jsonrpc: Version::V2,
             id: Some(id),
@@ -486,9 +492,14 @@ mod tests {
         let page = bounded_events_result(
             "request-1",
             "task-1".into(),
-            (1..=100).map(|sequence| event(sequence, "\"".repeat(3_000))).collect(),
-        ).unwrap();
-        let QueryResult::Events { events, .. } = page else { panic!("expected events") };
+            (1..=100)
+                .map(|sequence| event(sequence, "\"".repeat(3_000)))
+                .collect(),
+        )
+        .unwrap();
+        let QueryResult::Events { events, .. } = page else {
+            panic!("expected events")
+        };
         let last = events.last().unwrap().sequence.parse::<usize>().unwrap();
         assert!(last < 100);
         assert!(last > 1);
@@ -496,23 +507,34 @@ mod tests {
         let encoded = yonder_protocol::encode(&Response::Success {
             jsonrpc: Version::V2,
             id: "request-1".into(),
-            result: QueryResult::Events { task_id: "task-1".into(), events },
-        }).unwrap();
+            result: QueryResult::Events {
+                task_id: "task-1".into(),
+                events,
+            },
+        })
+        .unwrap();
         assert!(encoded.len() <= yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES);
 
         let next = bounded_events_result(
             "request-2",
             "task-1".into(),
-            ((last + 1)..=100).map(|sequence| event(sequence, "\"".repeat(3_000))).collect(),
-        ).unwrap();
-        let QueryResult::Events { events, .. } = next else { panic!("expected events") };
+            ((last + 1)..=100)
+                .map(|sequence| event(sequence, "\"".repeat(3_000)))
+                .collect(),
+        )
+        .unwrap();
+        let QueryResult::Events { events, .. } = next else {
+            panic!("expected events")
+        };
         assert_eq!(events[0].sequence, (last + 1).to_string());
     }
 
     #[test]
     fn events_budget_rejects_escaped_oversize_event_and_unfittable_first_item() {
         let oversized = bounded_events_result(
-            "request-1", "task-1".into(), vec![event(1, "\"".repeat(4_100))],
+            "request-1",
+            "task-1".into(),
+            vec![event(1, "\"".repeat(4_100))],
         );
         assert!(oversized.is_err());
 
@@ -520,19 +542,35 @@ mod tests {
         let empty_bytes = yonder_protocol::encode(&Response::Success {
             jsonrpc: Version::V2,
             id: String::new(),
-            result: QueryResult::Events { task_id: "task-1".into(), events: vec![] },
-        }).unwrap().len();
+            result: QueryResult::Events {
+                task_id: "task-1".into(),
+                events: vec![],
+            },
+        })
+        .unwrap()
+        .len();
         let event_bytes = yonder_protocol::encoded_task_event_len(&single).unwrap();
-        let exact_id = "a".repeat(yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES - empty_bytes - event_bytes);
+        let exact_id =
+            "a".repeat(yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES - empty_bytes - event_bytes);
         let exact = bounded_events_result(&exact_id, "task-1".into(), vec![single]);
         let encoded = yonder_protocol::encode(&Response::Success {
             jsonrpc: Version::V2,
             id: exact_id.clone(),
             result: exact.unwrap(),
-        }).unwrap();
-        assert_eq!(encoded.len(), yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES);
-        let first_unfittable = bounded_events_result(&(exact_id + "a"), "task-1".into(), vec![event(1, "a".into())]);
+        })
+        .unwrap();
+        assert_eq!(
+            encoded.len(),
+            yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES
+        );
+        let first_unfittable = bounded_events_result(
+            &(exact_id + "a"),
+            "task-1".into(),
+            vec![event(1, "a".into())],
+        );
         assert!(first_unfittable.is_err());
-        assert!(matches!(bounded_events_result("request-1", "task-1".into(), vec![]), Ok(QueryResult::Events { events, .. }) if events.is_empty()));
+        assert!(
+            matches!(bounded_events_result("request-1", "task-1".into(), vec![]), Ok(QueryResult::Events { events, .. }) if events.is_empty())
+        );
     }
 }

@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-24",
+  "platform": "macOS",
+  "sdk_version": "0.6.0",
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "model": "jev-latest",
+  "credential_configured": true,
+  "remote_call": true,
+  "decision": "handback",
+  "verification_attempts": [
+    {
+      "timeout_ms": 1500,
+      "remote_call": false,
+      "error": "timed-out",
+      "elapsed_ms": 6990
+    },
+    {
+      "timeout_ms": 3000,
+      "remote_call": true,
+      "decision": "handback",
+      "elapsed_ms": 4823
+    }
+  ],
+  "automatic_retry_attempted": false,
+  "unauthenticated_endpoint_probe": {
+    "http_code": 405,
+    "connect_ms": 0,
+    "tls_ms": 1349,
+    "total_ms": 1795
+  },
+  "secret_logged": false,
+  "request_or_response_body_logged": false
+}

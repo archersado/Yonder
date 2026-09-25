@@ -1,0 +1,9 @@
+{
+  "creation_source_visible" : true,
+  "description_exposed" : false,
+  "idempotency_key_exposed" : false,
+  "owner_agent_visible" : true,
+  "passed" : true,
+  "platform" : "macOS WebKit fixture",
+  "real_task_database_used" : false
+}

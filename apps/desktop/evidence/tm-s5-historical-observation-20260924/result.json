@@ -1,0 +1,9 @@
+{
+  "observe_matched_visible" : true,
+  "observe_not_matched_visible" : true,
+  "observe_unknown_visible" : true,
+  "passed" : true,
+  "platform" : "macOS WebKit fixture",
+  "real_task_database_used" : false,
+  "summary_rendered_as_text" : true
+}

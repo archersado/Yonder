@@ -57,7 +57,7 @@ mod tests {
         let contract = r#"{
             "version": "0.0.0",
             "protocol": {"major": 1, "minor": 20},
-            "sqlite_schema": 18
+            "sqlite_schema": 19
         }"#;
         assert_eq!(validate_contract(contract).unwrap_err(), "桌面版本与发布契约不一致");
     }
@@ -67,7 +67,7 @@ mod tests {
         let contract = r#"{
             "version": "0.1.0",
             "protocol": {"major": 1, "minor": 999},
-            "sqlite_schema": 18
+            "sqlite_schema": 19
         }"#;
         assert_eq!(validate_contract(contract).unwrap_err(), "协议版本与发布契约不一致");
     }
