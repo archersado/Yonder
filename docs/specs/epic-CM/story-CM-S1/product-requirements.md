@@ -6,7 +6,7 @@
 
 ## 范围与非目标
 
-本 Story 仅负责“结构化命令执行”。命令协议、取消及输出上限数值待定，不安装新依赖。
+本 Story 仅负责“结构化命令执行”。首批实现 macOS 内部 Runtime/Port，不开放 Shell 或 Agent Gateway；Windows 按用户决定延期并明确 unavailable。不安装新依赖。
 
 ## 验收条件
 
@@ -20,7 +20,17 @@
 
 ## 待决事项
 
-命令协议、取消及输出上限数值待定，不安装新依赖。
+Agent Gateway 的可信风险确认引用、任务事件投影及 Windows Job Object 仍待后续增量；不得用 Agent 自报布尔值绕过确认。
+
+## macOS Runtime 增量（2026-09-25）
+
+来源：CM-01/02/04/05/06、Accepted AD-CM-01 和 macOS Spike。
+
+- CM-RUNTIME-01：只接受规范化绝对 program/cwd、字面 args 和显式有界 env；stdin 关闭、环境清空，不经过 Shell。
+- CM-RUNTIME-02：stdout/stderr 并行排空且分别保留最多 64 KiB；任一路超限停止整个进程组并返回超限，不把截断结果当成功。
+- CM-RUNTIME-03：超时、取消、输出超限均停止父进程和后代；无法确认进程组消失返回 unknown，不自动重试。
+- CM-RUNTIME-04：正常零/非零退出、启动失败、超时、取消、超限和 unknown 稳定区分；输出只在内存结果中返回，不写任务库或日志。
+- CM-RUNTIME-05：非 macOS 构建只暴露 unavailable，不注册未验证执行实现。
 
 ## 需求来源
 

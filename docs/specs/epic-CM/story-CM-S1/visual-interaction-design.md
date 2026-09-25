@@ -14,4 +14,8 @@ Agent调用通过结构化响应观察`starting/running/stopping/exited/unknown`
 
 ## 待决事项
 
-命令协议、取消及输出上限数值待定，不安装新依赖。
+本增量没有用户入口：调用方只获得结构化状态与有界输出。Agent Gateway 风险确认和 Task Space 事件接线后，才显示命令步骤。Windows 显示“当前平台暂不支持”，不得显示可执行按钮。
+
+## macOS Runtime 调用反馈
+
+内部调用方区分 `exited / timed-out / cancelled / output-limit-exceeded / unknown`；非零退出显示退出码而不是“系统不可用”。超时、取消和输出超限只有在完整进程组停止已确认时才显示对应确定结果，否则显示“结果待核实”。stdout/stderr 截断不得隐藏为普通成功，也不得进入日志、桌宠提示或任务名称。

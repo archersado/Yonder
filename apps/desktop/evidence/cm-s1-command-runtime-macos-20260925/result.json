@@ -1,0 +1,23 @@
+{
+  "story": "CM-S1",
+  "change": "cm-s1-macos-command-runtime",
+  "platform": "macOS",
+  "date": "2026-09-25",
+  "scope": "internal-command-runtime",
+  "literal_arguments_without_shell": "pass",
+  "inherited_environment_cleared": "pass",
+  "normal_and_nonzero_exit": "pass",
+  "invalid_path_and_start_failure": "pass",
+  "timeout_stops_process_group": "pass",
+  "cancellation_stops_process_group": "pass",
+  "stdout_limit_bytes": 65536,
+  "stderr_limit_bytes": 65536,
+  "output_overflow_stops_process_group": "pass",
+  "unexpected_descendant_result": "unknown-and-cleaned",
+  "gateway_exposed": false,
+  "shell_exposed": false,
+  "workspace_tests": 117,
+  "python_tests": 33,
+  "active_openspec_validations": 68,
+  "windows": "deferred-unavailable"
+}

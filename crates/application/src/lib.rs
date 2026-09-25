@@ -5,6 +5,7 @@ pub mod agent_registry;
 pub mod agent_input;
 pub mod region_preview;
 pub mod browser_use;
+pub mod command;
 pub mod computer_use;
 pub mod document;
 pub mod gateway;
