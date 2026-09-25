@@ -167,6 +167,13 @@ pub fn save_as(
         documents,
         expected_format: transform.format,
     };
+    let output_target = crate::file::inspect_create_target(
+        files,
+        &crate::file::FileCreateTargetRequest {
+            path: request.output_path.clone(),
+            authorized_root: request.output_authorized_root.clone(),
+        },
+    )?;
     let receipt = crate::file::write_atomic_guarded(
         files,
         &FileSourceGuard {
@@ -178,7 +185,9 @@ pub fn save_as(
             path: request.output_path.clone(),
             authorized_root: request.output_authorized_root.clone(),
             bytes: transform.bytes,
-            mode: FileWriteMode::CreateNew,
+            mode: FileWriteMode::CreateNew {
+                expected_parent_identity: output_target.parent_identity,
+            },
         },
         &validator,
     )?;

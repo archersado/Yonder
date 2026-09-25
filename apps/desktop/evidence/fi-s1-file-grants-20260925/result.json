@@ -1,0 +1,23 @@
+{
+  "story": "FI-S1",
+  "change": "fi-s1-ephemeral-file-grants",
+  "platform": "application-core+macOS",
+  "date": "2026-09-25",
+  "local_user_only_issue": true,
+  "task_agent_purpose_bound": true,
+  "max_lifetime_ms": 900000,
+  "max_grants": 256,
+  "read_reusable": true,
+  "side_effect_grant": "atomically-consumed-on-first-resolution",
+  "concurrent_write_resolvers": 8,
+  "concurrent_write_successes": 1,
+  "existing_file_bytes_retained_in_grant": false,
+  "create_target_parent_identity_bound": true,
+  "wrong_parent_identity": "rejected-without-output",
+  "gateway_exposed": false,
+  "workspace_tests": 131,
+  "python_tests": 33,
+  "active_openspec_changes": 71,
+  "openspec_items": 81,
+  "windows": "deferred-unavailable"
+}

@@ -2,7 +2,9 @@
 
 ## 边界与依赖
 
-可信 File Adapter 规范身份，处理软链接和硬链接；同文件写串行，后续任务接线依赖 TM-S2/TM-S7。Accepted AD-FI-01 当前只授权 macOS Runtime，Windows 返回 unavailable；授权引用与可信确认未定案前不接 Gateway。
+可信 File Adapter 规范身份，处理软链接和硬链接；同文件写串行，后续任务接线依赖 TM-S2/TM-S7。Accepted AD-FI-01 当前只授权 macOS Runtime，Windows 返回 unavailable；Accepted AD-FI-02 已定案授权引用核心，但原生选择器、Gateway 与可信确认产品接线完成前仍不开放文件执行入口。
+
+Accepted AD-FI-02 新增 Application 内存授权 Registry：LocalUser 为当前非终态任务签发绑定归属 Agent、用途、文件身份/目标父目录和有效期的引用。既有文件签发复用 File Port 快照但丢弃正文；新目标通过 File Port `inspect_create_target` 规范化父目录并确认目标不存在。Registry 不访问文件系统，Adapter 不访问任务或授权状态。
 
 ## 状态与契约
 
@@ -18,3 +20,5 @@ Application 定义 `FilePort`、平台无关 `FileIdentity`、有界读取快照
 ## 架构影响
 
 本增量新增 Application File Port 和 macOS Adapter，依赖方向保持 adapters→application；不变更协议、SQLite、任务状态所有者或 Gateway。Windows 编译路径稳定返回 unavailable。
+
+临时授权核心只新增 Application 内存状态及 File Port 新建目标预检，不修改 SQLite、协议或 Gateway。写用途引用解析时原子消费；实际文件操作继续使用身份/hash/父目录重新校验，授权不能代替并发保护。

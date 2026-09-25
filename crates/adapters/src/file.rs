@@ -1,6 +1,7 @@
 use yonder_application::file::{
-    FileError, FilePort, FileReadRequest, FileSnapshot, FileSourceGuard, FileTrashReceipt,
-    FileTrashRequest, FileValidator, FileWriteReceipt, FileWriteRequest, LocalTrashAuthorization,
+    FileCreateTarget, FileCreateTargetRequest, FileError, FilePort, FileReadRequest, FileSnapshot,
+    FileSourceGuard, FileTrashReceipt, FileTrashRequest, FileValidator, FileWriteReceipt,
+    FileWriteRequest, LocalTrashAuthorization,
 };
 
 pub struct ControlledFileAdapter {
@@ -28,6 +29,13 @@ impl Default for ControlledFileAdapter {
 #[cfg(not(target_os = "macos"))]
 impl FilePort for ControlledFileAdapter {
     fn read(&self, _: &FileReadRequest) -> Result<FileSnapshot, FileError> {
+        Err(FileError::UnsupportedPlatform)
+    }
+
+    fn inspect_create_target(
+        &self,
+        _: &FileCreateTargetRequest,
+    ) -> Result<FileCreateTarget, FileError> {
         Err(FileError::UnsupportedPlatform)
     }
 
@@ -468,6 +476,19 @@ mod macos {
             snapshot(&path)
         }
 
+        fn inspect_create_target(
+            &self,
+            request: &FileCreateTargetRequest,
+        ) -> Result<FileCreateTarget, FileError> {
+            validate_location(&request.path, &request.authorized_root)?;
+            let root = canonical_root(&request.authorized_root)?;
+            let (target, parent_identity, _) = new_target(&root, &request.path)?;
+            Ok(FileCreateTarget {
+                canonical_path: target.to_str().ok_or(FileError::InvalidInput)?.to_owned(),
+                parent_identity,
+            })
+        }
+
         fn write_atomic(
             &self,
             request: &FileWriteRequest,
@@ -488,8 +509,13 @@ mod macos {
             }
             let root = canonical_root(&request.authorized_root)?;
             let (target, lease_key) = match &request.mode {
-                FileWriteMode::CreateNew => {
+                FileWriteMode::CreateNew {
+                    expected_parent_identity,
+                } => {
                     let (target, parent, name) = new_target(&root, &request.path)?;
+                    if parent != *expected_parent_identity {
+                        return Err(FileError::IdentityChanged);
+                    }
                     (target, LeaseKey::New { parent, name })
                 }
                 FileWriteMode::Replace {
@@ -515,10 +541,17 @@ mod macos {
                     *expected_identity,
                     expected_sha256,
                 )?),
-                FileWriteMode::CreateNew => None,
+                FileWriteMode::CreateNew { .. } => None,
             };
 
             let parent = target.parent().ok_or(FileError::InvalidInput)?;
+            if let FileWriteMode::CreateNew {
+                expected_parent_identity,
+            } = &request.mode
+                && identity(&fs::metadata(parent).map_err(io_error)?) != *expected_parent_identity
+            {
+                return Err(FileError::IdentityChanged);
+            }
             let (mut temporary, mut staged) = create_temporary(self, parent)?;
             if let Some(target_file) = &locked_target {
                 staged
@@ -533,7 +566,14 @@ mod macos {
             }
 
             match &request.mode {
-                FileWriteMode::CreateNew => {
+                FileWriteMode::CreateNew {
+                    expected_parent_identity,
+                } => {
+                    if identity(&fs::metadata(parent).map_err(io_error)?)
+                        != *expected_parent_identity
+                    {
+                        return Err(FileError::IdentityChanged);
+                    }
                     if fs::symlink_metadata(&target).is_ok() {
                         return Err(FileError::AlreadyExists);
                     }
@@ -663,7 +703,7 @@ mod tests {
     use fs2::FileExt;
     use std::{
         fs::{self, OpenOptions},
-        os::unix::fs::symlink,
+        os::unix::fs::{MetadataExt, symlink},
         path::{Path, PathBuf},
         time::{SystemTime, UNIX_EPOCH},
     };
@@ -671,7 +711,7 @@ mod tests {
         AuthContext,
         file::{
             AcceptAnyFile, FileIdentity, FileSourceGuard, FileWriteMode, MAX_FILE_CONTENT_BYTES,
-            read, trash, write_atomic, write_atomic_guarded,
+            inspect_create_target, read, trash, write_atomic, write_atomic_guarded,
         },
     };
 
@@ -730,6 +770,16 @@ mod tests {
             mode: FileWriteMode::Replace {
                 expected_identity: snapshot.identity,
                 expected_sha256: snapshot.sha256.clone(),
+            },
+        }
+    }
+
+    fn create_new(root: &TestRoot) -> FileWriteMode {
+        let metadata = fs::metadata(fs::canonicalize(&root.0).unwrap()).unwrap();
+        FileWriteMode::CreateNew {
+            expected_parent_identity: FileIdentity {
+                volume_id: metadata.dev(),
+                file_id: metadata.ino(),
             },
         }
     }
@@ -824,11 +874,54 @@ mod tests {
                     path: value(&root.0.join("too-large.bin")),
                     authorized_root: root.value(),
                     bytes: vec![0; MAX_FILE_CONTENT_BYTES + 1],
-                    mode: FileWriteMode::CreateNew,
+                    mode: create_new(&root),
                 },
                 &AcceptAnyFile,
             ),
             Err(FileError::TooLarge)
+        );
+
+        let target = root.0.join("new-target.txt");
+        let inspected = inspect_create_target(
+            &adapter,
+            &FileCreateTargetRequest {
+                path: value(&target),
+                authorized_root: root.value(),
+            },
+        )
+        .unwrap();
+        let canonical_root = fs::canonicalize(&root.0).unwrap();
+        assert_eq!(
+            inspected.canonical_path,
+            value(&canonical_root.join("new-target.txt"))
+        );
+        assert_eq!(
+            inspected.parent_identity,
+            FileIdentity {
+                volume_id: fs::metadata(&canonical_root).unwrap().dev(),
+                file_id: fs::metadata(&canonical_root).unwrap().ino(),
+            }
+        );
+        assert!(!target.exists());
+        assert_eq!(
+            inspect_create_target(
+                &adapter,
+                &FileCreateTargetRequest {
+                    path: value(&escape.join("new.txt")),
+                    authorized_root: root.value(),
+                },
+            ),
+            Err(FileError::OutsideAuthorizedRoot)
+        );
+        assert_eq!(
+            inspect_create_target(
+                &adapter,
+                &FileCreateTargetRequest {
+                    path: value(&source),
+                    authorized_root: root.value(),
+                },
+            ),
+            Err(FileError::AlreadyExists)
         );
     }
 
@@ -841,11 +934,32 @@ mod tests {
             path: value(&target),
             authorized_root: root.value(),
             bytes: b"first".to_vec(),
-            mode: FileWriteMode::CreateNew,
+            mode: create_new(&root),
         };
         let receipt = write_atomic(&adapter, &create, &AcceptAnyFile).unwrap();
         assert_eq!(receipt.bytes_written, 5);
         assert_eq!(fs::read(&target).unwrap(), b"first");
+
+        let wrong_parent_target = root.0.join("wrong-parent.txt");
+        assert_eq!(
+            write_atomic(
+                &adapter,
+                &FileWriteRequest {
+                    path: value(&wrong_parent_target),
+                    authorized_root: root.value(),
+                    bytes: b"must not be written".to_vec(),
+                    mode: FileWriteMode::CreateNew {
+                        expected_parent_identity: FileIdentity {
+                            volume_id: 0,
+                            file_id: 0,
+                        },
+                    },
+                },
+                &AcceptAnyFile,
+            ),
+            Err(FileError::IdentityChanged)
+        );
+        assert!(!wrong_parent_target.exists());
         assert_eq!(
             write_atomic(&adapter, &create, &AcceptAnyFile),
             Err(FileError::AlreadyExists)
@@ -896,7 +1010,7 @@ mod tests {
             path: value(&raced),
             authorized_root: root.value(),
             bytes: b"ours".to_vec(),
-            mode: FileWriteMode::CreateNew,
+            mode: create_new(&root),
         };
         assert_eq!(
             write_atomic(&adapter, &request, &CreateRace(raced.clone())),
@@ -933,7 +1047,7 @@ mod tests {
                     path: value(&identity_target),
                     authorized_root: root.value(),
                     bytes: b"output".to_vec(),
-                    mode: FileWriteMode::CreateNew,
+                    mode: create_new(&root),
                 },
                 &AcceptAnyFile,
             ),
@@ -958,7 +1072,7 @@ mod tests {
             path: value(&target),
             authorized_root: root.value(),
             bytes: b"output".to_vec(),
-            mode: FileWriteMode::CreateNew,
+            mode: create_new(&root),
         };
         assert_eq!(
             write_atomic_guarded(
@@ -1042,7 +1156,7 @@ mod tests {
             path: value(&target),
             authorized_root: root.value(),
             bytes: b"possibly-committed".to_vec(),
-            mode: FileWriteMode::CreateNew,
+            mode: create_new(&root),
         };
         assert_eq!(
             write_atomic(&failing, &request, &AcceptAnyFile),

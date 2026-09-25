@@ -153,6 +153,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-25 DO-S2 macOS OOXML文件Runtime子范围PASS：Application组合FI-S1 File Port与Rust Document Port，DOCX/XLSX/PPTX的有界读取、默认另存、源身份+SHA-256保护、暂存同格式复验、LocalUser覆盖、目标竞争及宿主锁拒绝均通过；提交前冲突不产生正式输出。全仓127项Rust、70个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway、任务步骤/Observe/完成链路及Windows仍未开放，完整DO-S2保持verifying。
 
+2026-09-25 FI-S1临时文件授权核心PASS：Accepted AD-FI-02建立仅内存、最长15分钟、最多256项的任务绑定授权；只有LocalUser可签发，Agent解析重新校验任务/归属/用途/期限，读取可复用，create/replace/trash首次解析即消费。新目标预检及原子写入绑定规范父目录身份，目录身份不符不创建文件。全仓131项Rust、71个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。原生选择器、Gateway、任务事件、可信覆盖/删除确认UI与Windows仍未开放，完整FI-S1保持implementing。
+
 2026-09-18 AG-S5 Codex当前turn投递Goal FAIL：Codex CLI 0.154的`codex queue`仅确认持久排队，活动turn没有收到steer，现有桥接不能据此返回`accepted`。不使用内部数据库轮询或第二Agent绕过；等待受支持的当前会话`turn/start|turn/steer`连接入口后返回实施。
 
 2026-09-18 AG-S5失败关闭修复：排队探针仅在前一turn结束后作为下一turn到达；`yonder agent-bridge`已删除`codex queue`误报路径，不支持当前会话直接提交时明确退出，桌宠保持Agent未连接。

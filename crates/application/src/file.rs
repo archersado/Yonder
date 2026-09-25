@@ -24,8 +24,22 @@ pub struct FileSnapshot {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileCreateTargetRequest {
+    pub path: String,
+    pub authorized_root: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileCreateTarget {
+    pub canonical_path: String,
+    pub parent_identity: FileIdentity,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FileWriteMode {
-    CreateNew,
+    CreateNew {
+        expected_parent_identity: FileIdentity,
+    },
     Replace {
         expected_identity: FileIdentity,
         expected_sha256: String,
@@ -104,6 +118,11 @@ impl FileValidator for AcceptAnyFile {
 pub trait FilePort {
     fn read(&self, request: &FileReadRequest) -> Result<FileSnapshot, FileError>;
 
+    fn inspect_create_target(
+        &self,
+        request: &FileCreateTargetRequest,
+    ) -> Result<FileCreateTarget, FileError>;
+
     fn write_atomic(
         &self,
         request: &FileWriteRequest,
@@ -148,6 +167,14 @@ fn validate_location(path: &str, authorized_root: &str) -> Result<(), FileError>
 pub fn read(port: &dyn FilePort, request: &FileReadRequest) -> Result<FileSnapshot, FileError> {
     validate_location(&request.path, &request.authorized_root)?;
     port.read(request)
+}
+
+pub fn inspect_create_target(
+    port: &dyn FilePort,
+    request: &FileCreateTargetRequest,
+) -> Result<FileCreateTarget, FileError> {
+    validate_location(&request.path, &request.authorized_root)?;
+    port.inspect_create_target(request)
 }
 
 pub fn write_atomic(
@@ -220,6 +247,20 @@ mod tests {
                 },
                 sha256: "0".repeat(64),
                 bytes: Vec::new(),
+            })
+        }
+
+        fn inspect_create_target(
+            &self,
+            request: &FileCreateTargetRequest,
+        ) -> Result<FileCreateTarget, FileError> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Ok(FileCreateTarget {
+                canonical_path: request.path.clone(),
+                parent_identity: FileIdentity {
+                    volume_id: 1,
+                    file_id: 4,
+                },
             })
         }
 
