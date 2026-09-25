@@ -1,0 +1,14 @@
+{
+  "platform": "macOS",
+  "date": "2026-09-25",
+  "scope": "native_drag_verification_harness",
+  "negative_coordinate_display_selected": true,
+  "target_within_actual_display": true,
+  "uses_hid_system_event_source": true,
+  "uses_left_mouse_dragged_events": true,
+  "restores_original_window_position": true,
+  "live_yonder_attempt": "blocked_before_input",
+  "blocked_by": "screen_locked",
+  "native_drag_passed": false,
+  "windows_deferred": true
+}

@@ -33,3 +33,9 @@ OpenSpec: e0-validate-desktop-foundation
 ## 剩余门禁
 
 解锁后重新启动新的 Yonda 进程并运行同一脚本，保存前后截图和通过 JSON；只有 `native_drag_moved_window`、`window_within_screen`、`task_menu_not_opened`、`pet_window_visible` 同时为真才关闭本项。Windows 证据继续保留。
+
+## 2026-09-25 验证工具修订与复验
+
+复核发现旧脚本无条件使用 `NSScreen.main.visibleFrame` 计算目标；当 Yonda 位于副屏或负坐标显示器时，会把跨屏移动误当成同屏拖动验证，而且验证结束后不会恢复用户窗口。工具现改为从 `CGGetActiveDisplayList` 取得与原窗口交叠面积最大的实际显示器，在同一 Quartz 坐标系内选择安全目标；拖动序列使用 `.leftMouseDragged` 和 HID system event source，取证后执行第二次真实拖动恢复原位，并要求窗口 ID 不变且原点误差不超过 2 点。
+
+`--self-test` 的负坐标双屏样本通过，证明选择左侧实际显示器且目标仍在该显示器安全区内。本机随后对正式 Yonder PID 执行复验时，`CGSSessionScreenIsLocked` 仍为 1；脚本在构造事件源和发送任何输入前以 9 退出。当前结果只证明验证工具正确拒绝锁屏环境，不构成原生拖动通过证据。结构化记录见 `apps/desktop/evidence/dragon-native-drag-harness-20260925/result.json`。

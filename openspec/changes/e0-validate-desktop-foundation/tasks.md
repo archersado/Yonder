@@ -25,9 +25,11 @@
 - [ ] 透明小龙双平台视觉、尺寸及拖动验证（verification-dragon.md）
   - [x] macOS 透明、200×200、原生完整形象与尺寸证据
   - [ ] macOS 人工原生拖动验证
+    - [x] 验证工具按窗口实际显示器选择目标并在取证后恢复原位；负坐标双屏自测通过
+    - [ ] 解锁桌面后的真实拖动样本
   - [ ] Windows 视觉、尺寸与拖动验证
 - [x] 补充桌宠原生拖动与最小权限，配置检查和 Windows Release 编译/启动通过
-- [ ] Windows 人工拖动验证；macOS 按用户要求暂缓，不据此通过双平台门禁（见 verification-drag.md）
+- [ ] Windows 人工拖动验证（按用户要求暂缓，不据此通过双平台门禁；见 verification-drag.md）
 - [x] 创建 Local Socket echo 与 CLI 探针
 - [x] macOS同进程宿主echo接线、宿主UDS所有权、错误请求后可用、退出端点清理及重启（verification-host-ipc-macos.md）
 - [x] 新增IPC验证线程后的新版全应用资源读数复测（CPU0.170%、均值122.24MiB、峰值135.55MiB；同期视觉限制见verification-host-ipc-budget-macos.md）

@@ -31,6 +31,8 @@ openspec/changes/e0-validate-desktop-foundation/
 
 2026-09-23 [原生拖动验证环境记录](../../../../openspec/changes/e0-validate-desktop-foundation/verification-native-drag-macos.md)：当前 macOS 锁屏导致验证工具按 `screen_locked` 阻断，旧 `movement_points:0` 结果不计为产品失败；解锁后需用同一脚本复验。
 
+2026-09-25 原生拖动工具已修复副屏/负坐标时错误使用主屏边界的问题，并在取证后以第二次真实拖动恢复原位；负坐标双屏自测通过。正式Yonder复验仍被当前锁屏状态在输入前阻断，因此不关闭macOS拖动门禁。
+
 [原 Story 正文与历史验证](legacy-record.md)。旧编号仅作追溯，不用于新 PR。
 
 2026-09-12 [真实原生菜单与窗口验证](../../../../openspec/changes/e0-validate-desktop-foundation/verification-tray-macos-20260912.md)：菜单项唤醒尺寸恢复、主进程退出和重启已验证；唤醒截图裁切尚待定位，继续 design-review，不解除基础栈门禁。
