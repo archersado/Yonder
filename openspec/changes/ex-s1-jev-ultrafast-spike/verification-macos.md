@@ -3,7 +3,7 @@
 Story：EX-S1  
 OpenSpec：ex-s1-jev-ultrafast-spike  
 日期：2026-09-22  
-结论：macOS 隔离子目标 **PASS**；Windows 未验证，`AD-EX-02` 保持 Proposed。
+结论：macOS 隔离子目标 **PASS**；Windows 未验证。验证当日（2026-09-22）`AD-EX-02` 保持 Proposed；2026-09-24 后续用户变更仅接受 macOS-only 缩范围结论，不改变本记录的双平台未通过事实。
 
 ## 验证目标
 
@@ -36,8 +36,10 @@ TYPESAFE_API_KEY=<key> npm --prefix spikes/jev-ultrafast run probe -- --repeat 3
 | 成功路径交回率 | ≤20% | 0% | PASS |
 | 取消至停止新动作 | ≤500ms | 1.101ms | PASS |
 
-失败样本按设计必须交回，因此整体交回率为 50%；≤20% 门槛只适用于成功路径，结果为 0%。费用字段为 `null`：官方公开文档未提供可用单价，未虚构费用。Jev 请求与 token 已完整记录。
+失败样本按设计必须交回，因此整体交回率为 50%；≤20% 门槛只适用于成功路径，结果为 0%。验证当日费用字段为 `null`：当时官方公开材料未提供可用单价，未虚构费用。Jev 请求与 token 已完整记录。
+
+2026-09-24 补证：TypeSafe 官方首页现已公开 `$42 / 10 亿 input tokens`，FAQ 说明当前价格可盈利而非临时亏损补贴；官方文档索引仍未发现 output token 计费规则。保持原始证据文件不变，另以 [价格结构化证据](verification-pricing-20260924.json) 回算：Jev 路径 8088 个 input tokens 为 `$0.000339696`，完整状态基线 17061 个 input tokens 为 `$0.000716562`，已知 input 费用下降 52.594%。该数值不包含任何未公开的 output 费用，不等同最终账单。
 
 ## 结论与限制
 
-macOS 隔离样本显示官方 `systemOne` 选择题接口可以在有界候选上稳定选择，且压缩候选摘要达到冻结 token、质量、时延与取消门槛。该结论只覆盖本 Spike 的固定样本，不证明真实 CUA/BUA/Document/Command Observe 质量，不接产品 Gateway，也不改变 `AD-EX-02` 状态。Windows 证据与费用单价仍缺失；两者补齐前不得进入 EX-S2 实施。
+macOS 隔离样本显示官方 `systemOne` 选择题接口可以在有界候选上稳定选择，且压缩候选摘要达到冻结 token、质量、时延与取消门槛。该结论只覆盖本 Spike 的固定样本，不证明真实 CUA/BUA/Document/Command Observe 质量，也不接产品 Gateway。2026-09-24 后续用户变更据此接受了 macOS-only 产品决策接线；Windows 证据与完整账单规则仍缺失，完整计划片段执行和双平台终局结论仍不得据此解锁。

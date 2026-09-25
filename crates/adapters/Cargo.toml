@@ -15,5 +15,8 @@ quick-xml = "=0.42.0"
 sha2 = "=0.10.9"
 zip = { version = "=6.0.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "=3.7.0"
+
 [dev-dependencies]
 yonder-protocol = { path = "../protocol" }

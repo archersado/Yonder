@@ -100,7 +100,7 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureConfirmRequests=[];
+    window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureConfirmRequests=[];
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
     tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
@@ -132,7 +132,7 @@ export async function checkTaskSpace(page) {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
       if (method === 'task.events' && window.fixtureTimelineError) throw new Error('测试时间线失败');
-      if (method === 'task.events' && params.after_sequence !== '0' && window.fixtureTimelinePageError) throw new Error('测试后续页失败');
+      if (method === 'task.events' && params.after_sequence !== '0' && window.fixtureTimelinePageError) throw new Error('任务历史不完整，请刷新后重试');
       if (method === 'task.events') window.fixtureEventRequests.push(params);
       if (method === 'task.browser.get' && window.fixtureBrowserError) throw new Error('测试浏览器引用失败');
       const listed = method === 'task.list' && params.running_only ? tasks.filter(task => task.status === 'running') : tasks;
@@ -140,6 +140,12 @@ export async function checkTaskSpace(page) {
       const result = method === 'task.control' ? (window.fixtureControlRequests.push(params),{kind:'control',task:{...tasks.find(task=>task.task_id===params.task_id),sequence:'3'},control:{attempt_id:'attempt-1',control_id:'control_2',kind:params.kind,phase:'pending',accepted_sequence:'3',stopped_sequence:null}})
         : method === 'task.step.get' ? {kind:'step',task:tasks.find(task => task.task_id === params.task_id),step:{step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'}}
         : method === 'task.browser.get' ? {kind:'browser-state',task:tasks.find(task => task.task_id === params.task_id),reference:{external_task_ref:'ego:49',ownership:'agent',managed_pages:1,finished:false,updated_sequence:'3'}}
+        : method === 'task.events' && window.fixtureCreationHistory ? {kind:'events',task_id:params.task_id,events:params.after_sequence === '0' ? [
+          {previous:'created',status:'created',sequence:'1',creation_event:{owner_agent_id:'test-agent',source:'cloud-agent'}}] : []}
+        : method === 'task.events' && window.fixtureObserveHistory ? {kind:'events',task_id:params.task_id,events:params.after_sequence === '0' ? [
+          {previous:'created',status:'created',sequence:'1',observation:{step_id:'first',result:'matched',summary:'已打开 <img src=x>'}},
+          {previous:'running',status:'running',sequence:'2',observation:{step_id:'second',result:'not-matched',summary:'未找到目标'}},
+          {previous:'running',status:'running',sequence:'3',observation:{step_id:'second',result:'unknown',summary:'观察中断'}}] : []}
         : method === 'task.events' ? {kind:'events',task_id:params.task_id,events:params.after_sequence === '0' ? [
           {previous:'created',status:'created',sequence:'1',step_declaration:{step_id:'open-document',label:'打开目标文档',accepted_sequence:'1'}},
           {previous:'running',status:'running',sequence:'2',attempt_result:{step_id:'open-document',attempt_id:'attempt-1',worker_instance_id:'worker-1',host_session_id:'host-1',phase:'observed',action_succeeded:true,observe_valid:true}},
@@ -161,7 +167,7 @@ export async function checkTaskSpace(page) {
   await page.click('#next');
   await page.waitForFunction(() => document.querySelectorAll('.task').length === 1);
   assert.equal(await page.evaluate(() => document.querySelector('.task strong').textContent), 'test-task-20');
-  await page.click('.task');
+  await page.click('.task >> nth=0');
   await page.waitForFunction(() => document.querySelector('#detail h2'));
   const detailText=await page.evaluate(() => document.getElementById('detail').textContent);
   assert.ok(detailText.includes('打开目标文档') && detailText.includes('open-document · 接受序号 2'));
@@ -180,6 +186,7 @@ export async function checkTaskSpace(page) {
   await page.click('.timeline-more button');
   await page.waitForFunction(() => document.querySelector('.timeline-more .timeline-error'));
   assert.equal(await page.evaluate(() => document.querySelectorAll('.timeline li').length),3);
+  assert.ok((await page.evaluate(() => document.querySelector('.timeline-more .timeline-error').textContent)).includes('任务历史不完整'));
   assert.equal(await page.evaluate(() => document.querySelector('.timeline-more button').textContent),'重试加载时间线');
   await page.evaluate(() => { window.fixtureTimelinePageError=false; });
   await page.click('.timeline-more button');
@@ -241,5 +248,18 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelectorAll('.task').length), 20);
   assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
   assert.equal(await page.evaluate(() => window.nativeCalls.some(call => call.startsWith('jev_'))), false);
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  await page.evaluate(() => { window.fixtureObserveHistory = true; });
+  await page.click('.task >> nth=0');
+  await page.waitForFunction(() => document.querySelector('.timeline')?.textContent.includes('Observe（步骤 first）'));
+  const observedHistory = await page.evaluate(() => ({text:document.querySelector('.timeline').textContent, imageCount:document.querySelector('.timeline').querySelectorAll('img').length}));
+  assert.ok(observedHistory.text.includes('Observe（步骤 first）：已匹配 · 已打开 <img src=x>'));
+  assert.ok(observedHistory.text.includes('Observe（步骤 second）：未匹配 · 未找到目标'));
+  assert.ok(observedHistory.text.includes('Observe（步骤 second）：未知 · 观察中断'));
+  assert.equal(observedHistory.imageCount,0);
+  await page.evaluate(() => { window.fixtureObserveHistory = false; window.fixtureCreationHistory = true; });
+  await page.click('.task >> nth=0');
+  await page.waitForFunction(() => document.querySelector('.timeline')?.textContent.includes('任务创建：云端 Agent · Agent test-agent'));
+  assert.ok((await page.evaluate(() => document.querySelector('.timeline').textContent)).includes('任务创建：云端 Agent · Agent test-agent'));
+  await page.evaluate(() => { window.fixtureCreationHistory = false; });
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

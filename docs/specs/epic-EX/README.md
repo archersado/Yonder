@@ -2,7 +2,7 @@
 
 Epic: EX
 
-状态：draft（系统边界 [AD-EX-01](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-01-BOUNDED-FAST-BRAIN.md) Accepted；技术路线 [AD-EX-02](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-02-JEV-INTEGRATION-ROUTE.md) Proposed）  
+状态：implementing（系统边界 [AD-EX-01](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-01-BOUNDED-FAST-BRAIN.md) Accepted；技术路线 [AD-EX-02](../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-02-JEV-INTEGRATION-ROUTE.md) Accepted（macOS-only，Windows 后补））
 Epic 分支：`epic/ex`  
 来源：产品简报「产品定义」「MVP 主干链路」「两条执行路径」、补充材料「执行原则」「CUA 与 BUA 的 Task Space」、架构主干「产品边界」「任务、状态与恢复」「执行能力」；2026-09-21 用户新增快慢脑分工。
 
@@ -24,8 +24,8 @@ Epic 分支：`epic/ex`
 
 | Story | 交付 | 前置与门禁 |
 |---|---|---|
-| [EX-S1](story-EX-S1/README.md) | Jev 有界动作决策 Spike 与双平台对照 | 限时 2026-10-05；先冻结样本/淘汰门槛，输出 AD-EX-02 证据；Windows 暂缓期间不得接受技术路线 ADR。 |
-| [EX-S2](story-EX-S2/README.md) | 快慢脑计划片段、决策循环、交回契约及最小 Jev 配置界面 | EX-S1 与 AD-EX-02 Accepted；复用 TM-S7 统一执行入口，未就绪时阻塞。 |
+| [EX-S1](story-EX-S1/README.md) | Jev 有界动作决策 Spike 与双平台对照 | 限时 2026-10-05；macOS 子结论已通过，Windows 与费用证据后补。 |
+| [EX-S2](story-EX-S2/README.md) | 快慢脑计划片段、决策循环、交回契约及最小 Jev 配置界面 | macOS-only 决策 Port 已通过并归档；完整计划片段、Windows 与费用证据后补。 |
 | [EX-S3](story-EX-S3/README.md) | CUA 与 BUA 的动态候选动作接线 | EX-S2；CU/BU 既有 Observe、目标新鲜度、租约与 Task Space 门禁。 |
 | [EX-S4](story-EX-S4/README.md) | Document 与 Command 的有界执行接线和端到端对照 | EX-S2；DO/FI/CM 各自产品门禁；结构化写入参数由慢脑提供。 |
 
@@ -41,7 +41,7 @@ Epic 分支：`epic/ex`
 | DO-S2、FI-S1、CM-S1 | 原有 OOXML 文件锁/身份、结构化命令与副作用围栏不变；EX-S4 只选择参数已完整的候选。 | 各自双平台 Spike/验证继续；Document/Command 产品 Gateway 仍受 FI-S1/CM-S1 门禁，EX-S4 未就绪。 |
 | TM-S5、DS-S2、AG-S4 | TM-S5/DS-S2 需展示快脑执行、交回慢脑和结果待核实的最小事件/状态；AG-S4 Skill 在能力齐备后说明快慢脑入口，不建旁路。 | 现有时间线/任务菜单和 Skill 规格可继续，新增快脑展示/Skill 实施等 EX-S2 合约。 |
 
-最先可启动的是 **EX-S1 的限时 Spike**：补齐并审阅统一样本/淘汰数值后创建独立 Spike Change，在 macOS 做隔离技术验证；Windows 暂缓时只形成子结论。与之并行可继续 AG-S1 的现有身份绑定，以及 TM-S7 的共享启动设计与 AD-TM-13 审阅。**EX-S2～S4 目前均不可开始产品实施**；AD-EX-02 双平台通过、TM-S7 与各执行层门禁是必经前置。
+**EX-S2 的 macOS-only 决策接线已通过并归档**：Application 已交付有界候选 Port、Keychain 读取与官方 SDK 调用，未接任务状态/事件/Outbox。计划片段、内部步骤来源、CUA/BUA/Document/Command 派发、Windows 和费用证据仍受前置门禁约束，满足后须另建 Change；**EX-S3/S4 目前不可开始产品实施**。
 
 ## 统一验收口径（待 EX-S1 冻结数值）
 

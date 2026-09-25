@@ -12,6 +12,8 @@
 - 对照组使用完整 Observe 状态逐步决策；Jev 组使用候选摘要。两者共用目标、计划允许动作、候选 ID 和安全闸。
 - 失败样本的正确结果是安全交回，不是自动重试或执行不可派发候选。
 
+2026-09-24 产品接线复验记录：Spike 的 1500ms 仍是 2026-09-22 隔离样本门槛，不回写原始结果；当前 macOS 地域网络无凭据端点探针总耗时约 1795ms，因此产品 Adapter 按 AD-EX-02 使用 3000ms 单次兼容上限且继续关闭重试。该调整不替代后续统一样本复验。
+
 ## 运行
 
 ```bash
@@ -31,7 +33,7 @@ npm run probe -- --repeat 3 --output evidence/windows-r3.json
 
 Windows 暂缓期间不配置远端 CI 或仓库 Secret；恢复后在本地执行上述同构命令。产物只包含结构化指标，不包含密钥、完整状态或模型响应正文。
 
-可选 `TYPESAFE_PRICE_PER_MTOK` 提供每百万 token 价格；未提供时证据中的 `estimated_cost` 为 `null`，不虚构费用。`.env`、`evidence/` 和 `node_modules/` 均不入库。SDK 日志关闭，输出只包含指标、样本 ID、错误分类和 token 用量，不包含 API Key、完整状态或模型响应正文。
+可选 `TYPESAFE_INPUT_PRICE_PER_MTOK` 提供每百万 input token 价格。2026-09-24 官方公开值为 `0.042`；未提供时 `estimated_input_cost` 为 `null`。探针分别记录 input/output token，只对 input 应用该单价，不推断未公开的 output 计费规则。`.env`、`evidence/` 和 `node_modules/` 均不入库。SDK 日志关闭，输出只包含指标、样本 ID、错误分类和 token 用量，不包含 API Key、完整状态或模型响应正文。
 
 ## 指标
 

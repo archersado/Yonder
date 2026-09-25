@@ -15,6 +15,7 @@ use yonder_adapters::task_store::SqliteTaskStore;
 use yonder_adapters::{
     cua::{CuaWorker, MacosFrontmostTarget},
     ego_lite::EgoLiteBridge,
+    jev::MacosJevPort,
     work_focus::MacWorkFocus,
 };
 use yonder_application::{
@@ -24,6 +25,7 @@ use yonder_application::{
     browser_use::BrowserUsePort,
     computer_use::{ComputerUsePort, WorkTarget, WorkTargetPort},
     jev_config::JevConfig,
+    jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
 };
 
@@ -120,6 +122,8 @@ pub struct TaskHost {
     #[cfg(target_os = "macos")]
     computer: Option<CuaWorker>,
     #[cfg(target_os = "macos")]
+    jev: Option<MacosJevPort>,
+    #[cfg(target_os = "macos")]
     targets: MacosFrontmostTarget,
     #[cfg(target_os = "macos")]
     focus: MacWorkFocus,
@@ -189,6 +193,19 @@ impl TaskHost {
                 .ok()
             })
         };
+        #[cfg(target_os = "macos")]
+        let jev = std::env::current_exe().ok().and_then(|exe| {
+            let root = exe.parent()?.parent()?.join("Resources/cua");
+            MacosJevPort::new(
+                &root.join("node"),
+                &root.join("jev_worker.mjs"),
+                &root.join("node_modules/@typesafe-ai/sdk/dist/index.mjs"),
+                "Yonder",
+                "jev",
+                Duration::from_millis(3000),
+            )
+            .ok()
+        });
         Ok(Self {
             store,
             admission,
@@ -198,6 +215,8 @@ impl TaskHost {
             browser,
             #[cfg(target_os = "macos")]
             computer,
+            #[cfg(target_os = "macos")]
+            jev,
             #[cfg(target_os = "macos")]
             targets: MacosFrontmostTarget,
             #[cfg(target_os = "macos")]
@@ -517,6 +536,20 @@ impl TaskHost {
         self.store
             .save_jev_config(&config)
             .map_err(|_| HostError::StorageUnavailable)
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn jev_decision(
+        &mut self,
+        request: JevDecisionRequest,
+    ) -> Result<JevDecision, JevDecisionError> {
+        let config = self
+            .jev_config()
+            .map_err(|_| JevDecisionError::InvalidConfig)?;
+        let Some(port) = self.jev.as_ref() else {
+            return Err(JevDecisionError::DependencyUnavailable);
+        };
+        yonder_application::jev_runtime::decide(&config, port, &request)
     }
 }
 

@@ -17,9 +17,11 @@ OpenSpec: tm-s5-audit-completeness
 
 历史待定项中的分页、用户确认、清单版本、审计配额、协议版本和迁移门禁已由后续设计、AD-TM-22 与关联 OpenSpec 收敛；取消任务继续按 AD-TM-06 保留数据，不在本 Story 引入自动清理或删除。
 
+2026-09-24 的事件响应预算、缺口检测、历史 Observe、控制、定位与创建来源增量已有独立 macOS 验证；合并后协议扩展至 1.24、SQLite schema 19。AD-TM-22 的产物清单确认继续作为唯一确认语义，早期 AD-TM-14 实现不进入主干。
+
 已完成与 TM-S1 的当前值/历史职责及事务边界设计复核，见 [联合复核](../TM-S1-TM-S5-DESIGN-REVIEW.md)。不代表字段契约已全部定案，也不是实施验证。
 
-已补执行标识、可信作者/状态矩阵和重投递/迟到结果规则，并向 TM-S2/S3/S4 同步约束。2026-09-12 补齐事件最小事实、受控引用、Observe 轮次和双重分页预算，提出 8 KiB 事件/256 KiB 整响应的工程限额；文档边界检查通过，不代表序列化实现已验证。
+已补执行标识、可信作者/状态矩阵和重投递/迟到结果规则，并向 TM-S2/S3/S4 同步约束。2026-09-12 补齐事件最小事实、受控引用、Observe 轮次和双重分页预算，提出 8 KiB 事件/256 KiB 整响应的工程限额；2026-09-24 仅将该限额落实到既有 `task.events` 查询投影，其他产物与详情预算尚未定案。
 
 已补保留/删除范围、去重随任务保留、产物版本和清单分页方案；任务审计不擅用上下文/附件 TTL，未同步/固定内容保持保护。尚未实施清理或删除。
 
@@ -32,6 +34,28 @@ AC11 全量忙碌/未知归 TM-S1/TM-S6，不属于本 Story。TM-S5 当前只�
 ## OpenSpec 与验证
 
 三份设计和相关 ADR 明确后创建独立 Change。验证必须包含多步骤历史、终态/用户确认分离、失效产物、审计权限与回滚；真实 UI/Driver 证据不能由合成事件替代。
+
+2026-09-24 建立 [tm-s5-result-confirmation](../../../../openspec/changes/tm-s5-result-confirmation/proposal.md)：只关闭 TM5-AC04 的本机终态结果审阅确认，不声称完成产物或保留策略。
+
+2026-09-24 macOS 独立验证 PASS，见 [Verification Goal](../../../../openspec/changes/tm-s5-result-confirmation/verification-goal.md)：协议/SQLite/Outbox/幂等和原生待确认入口均通过，真实任务未被代替用户确认。Windows 按用户决定暂缓，完整 Story 保持 implementing。
+
+2026-09-24 依据 Accepted AD-TM-15 建立 [tm-s5-event-response-budget](../../../../openspec/changes/tm-s5-event-response-budget/proposal.md)，推进 TM5-AC08 的编码字节上限及稳定续读；完整 Story 的产物与保留门禁继续开放。
+
+2026-09-24 事件响应预算独立 [Verification Goal](../../../../openspec/changes/tm-s5-event-response-budget/verification-goal.md) macOS 本机 PASS：合成临界值、全仓测试、规格与架构门禁通过。Windows 原生证据仍暂缓；完整 Story 不 Archive/Done。
+
+2026-09-24 依据 Accepted AD-TM-16 建立 [tm-s5-timeline-gap-detection](../../../../openspec/changes/tm-s5-timeline-gap-detection/proposal.md)：当前未裁剪历史若有首项、中间或尾部缺失，查询明确报错，不再伪装为完整页；完整产物与清理门禁不变。
+
+2026-09-24 历史序号缺口检测独立 [Verification Goal](../../../../openspec/changes/tm-s5-timeline-gap-detection/verification-goal.md) macOS 本机 PASS：SQLite 故障注入、全仓 90 项测试与界面局部错误夹具通过。Windows 暂缓，完整 Story 仍为 implementing。
+
+2026-09-24 依据 Accepted AD-TM-17 建立 [tm-s5-historical-observation](../../../../openspec/changes/tm-s5-historical-observation/proposal.md)：只读投影已持久化的可信观察事件，协议 1.21 与旧版隔离；不推断未发生的观察或产物。
+
+2026-09-24 历史 Observe 增量已有 [独立 Verification Goal](../../../../openspec/changes/tm-s5-historical-observation/verification-goal.md)：SQLite/Gateway、全仓测试、macOS 原生 WebKit 隔离夹具及正式 Tauri 宿主原生可见 E2E 均通过。Windows 暂缓，完整 Story 仍为 implementing。
+
+2026-09-24 依据 Accepted AD-TM-18 实施 [tm-s5-historical-control](../../../../openspec/changes/tm-s5-historical-control/proposal.md)：协议 1.22 将已提交控制请求和步骤边界停止按原事件序号只读投影；[独立 Verification Goal](../../../../openspec/changes/tm-s5-historical-control/verification-goal.md) 的 macOS Gateway 与正式 Tauri 宿主可见 E2E 通过。Windows 暂缓，定位/交回/录制和完整 TM-S5 仍不 Archive。
+
+2026-09-24 依据 Accepted AD-TM-19 实施 [tm-s5-historical-focus](../../../../openspec/changes/tm-s5-historical-focus/proposal.md)：schema 19 与协议 1.23 将已提交定位中、成功或失败按原事件序号保存并只读投影；[独立 Verification Goal](../../../../openspec/changes/tm-s5-historical-focus/verification-goal.md) 的事务回滚、零回填迁移、macOS Gateway 与正式 Tauri 宿主 E2E 通过。Windows 暂缓，完整 TM-S5 的产物、保留、录制和交回仍不 Archive。
+
+2026-09-24 依据 Accepted AD-TM-20 实施 [tm-s5-historical-creation](../../../../openspec/changes/tm-s5-historical-creation/proposal.md)：协议 1.24 将创建事务已保存的来源与归属 Agent 按 `#1` 事件只读投影；[独立 Verification Goal](../../../../openspec/changes/tm-s5-historical-creation/verification-goal.md) 的旧版隔离、越权拒绝、零回填、macOS Gateway 与正式 Tauri 宿主 E2E 通过。Windows 暂缓，完整 TM-S5 仍不 Archive。
 
 首批删除按Accepted AD-TM-05，openspec/changes/tm-s5-terminal-delete/；完整时间线/产物/确认原需求仍联审，不以删除关闭全部Story。
 

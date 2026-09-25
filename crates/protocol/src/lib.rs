@@ -4,6 +4,12 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
+pub const MAX_TASK_EVENT_BYTES: usize = 8 * 1024;
+pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
+
+pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
+    serde_json::to_vec(event).map(|bytes| bytes.len())
+}
 pub const MAX_AGENT_ATTACHMENT_BYTES: u32 = 4 * 1024 * 1024;
 pub const MAX_AGENT_ATTACHMENT_CHUNK_BASE64_BYTES: usize = 64_256;
 
@@ -644,10 +650,22 @@ pub struct TaskEvent {
     pub sequence: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
+    pub creation_event: Option<TaskCreationEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub step_declaration: Option<StepDeclaration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub attempt_result: Option<AttemptResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub observation: Option<TaskObservation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub control_event: Option<ControlEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub focus_event: Option<FocusEvent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub wait_reason: Option<String>,
@@ -669,6 +687,13 @@ pub struct TaskArtifactManifest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
+pub struct TaskCreationEvent {
+    pub owner_agent_id: String,
+    pub source: TaskSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
 pub struct TaskUserConfirmation {
     pub task_id: String,
     pub confirmation_id: String,
@@ -678,6 +703,25 @@ pub struct TaskUserConfirmation {
     #[ts(optional)]
     pub comment: Option<String>,
     pub confirmed_by: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ControlEvent {
+    pub attempt_id: String,
+    pub control_id: String,
+    pub kind: ControlKind,
+    pub phase: ControlPhase,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct FocusEvent {
+    pub control_id: String,
+    pub phase: FocusPhase,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub failure: Option<FocusFailure>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1336,6 +1380,9 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         FocusPhase::decl(&config),
         FocusFailure::decl(&config),
         ControlRecord::decl(&config),
+        ControlEvent::decl(&config),
+        FocusEvent::decl(&config),
+        TaskCreationEvent::decl(&config),
         BrowserReference::decl(&config),
         ComputerObservation::decl(&config),
         TaskEvent::decl(&config),

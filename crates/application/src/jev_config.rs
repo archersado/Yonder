@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub const JEV_REMOTE_ENDPOINT: &str = "https://api.typesafe.ai";
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JevServiceMode { Local, Remote }
@@ -50,6 +52,8 @@ impl JevConfig {
         let contains_fragment = rest.contains('#');
         let contains_whitespace = self.endpoint.chars().any(char::is_whitespace);
         let remote_requires_https = self.service_mode == JevServiceMode::Remote && scheme != "https";
+        let unsupported_remote = self.service_mode == JevServiceMode::Remote
+            && !matches!(self.endpoint.as_str(), JEV_REMOTE_ENDPOINT | "https://api.typesafe.ai/");
         if !matches!(scheme, "http" | "https")
             || authority.is_empty()
             || contains_credentials
@@ -57,6 +61,7 @@ impl JevConfig {
             || contains_whitespace
             || rest.contains('?')
             || remote_requires_https
+            || unsupported_remote
         {
             return Err(JevConfigError::InvalidEndpoint);
         }
@@ -111,6 +116,16 @@ mod tests {
     }
 
     #[test]
+    fn rejects_unapproved_remote_endpoint() {
+        let config = JevConfig {
+            service_mode: JevServiceMode::Remote,
+            endpoint: "https://example.com".into(),
+            ..JevConfig::default()
+        };
+        assert_eq!(config.validate(), Err(JevConfigError::InvalidEndpoint));
+    }
+
+    #[test]
     fn rejects_endpoint_credentials_and_remote_http() {
         let local_with_credentials = JevConfig {
             endpoint: "http://user:pass@localhost".into(),
@@ -127,7 +142,7 @@ mod tests {
 
         let remote_https = JevConfig {
             service_mode: JevServiceMode::Remote,
-            endpoint: "https://localhost".into(),
+            endpoint: JEV_REMOTE_ENDPOINT.into(),
             ..JevConfig::default()
         };
         assert_eq!(remote_https.validate(), Ok(()));

@@ -1,7 +1,9 @@
 {
   "sdk_version": "0.25.0",
+  "jev_sdk_version": "0.6.0",
   "node_present": true,
   "worker_matches": true,
+  "jev_worker_matches": true,
   "qwen_absent": true,
   "passed": true
 }

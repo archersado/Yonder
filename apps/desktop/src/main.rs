@@ -593,6 +593,28 @@ async fn jev_config_save(
 }
 
 #[tauri::command]
+async fn jev_credential_status(
+    window: WebviewWindow,
+) -> Result<bool, String> {
+    if window.label() != "jev-settings" {
+        return Err("不允许的窗口".into());
+    }
+    Ok(yonder_adapters::jev::jev_credential_configured("Yonder", "jev"))
+}
+
+#[tauri::command]
+async fn jev_credential_save(
+    window: WebviewWindow,
+    api_key: String,
+) -> Result<(), String> {
+    if window.label() != "jev-settings" {
+        return Err("不允许的窗口".into());
+    }
+    yonder_adapters::jev::set_jev_credential("Yonder", "jev", &api_key)
+        .map_err(|_| "API Key 未能写入 macOS Keychain".to_owned())
+}
+
+#[tauri::command]
 fn jev_settings_close(window: WebviewWindow) -> Result<(), String> {
     if window.label() != "jev-settings" {
         return Err("不允许的窗口".into());
@@ -688,7 +710,7 @@ fn agent_settings_close(window: WebviewWindow) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, browser_task_space_open, jev_config_get, jev_config_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             release_contract::validate()?;
             #[cfg(target_os = "macos")]
@@ -715,7 +737,13 @@ fn main() {
             }
             pet.center()?;
             pet.show()?;
-            let host = app.path().app_data_dir().ok().and_then(|path| TaskHost::open(&path).ok());
+            let host = app.path().app_data_dir().ok().and_then(|path| match TaskHost::open(&path) {
+                Ok(host) => Some(host),
+                Err(error) => {
+                    eprintln!("Yonder TaskHost 初始化失败：{error:?}");
+                    None
+                }
+            });
             let host = Arc::new(Mutex::new(host));
             app.manage(TaskState(Arc::clone(&host)));
             app.manage(PreviewState(Mutex::new(yonder_application::region_preview::Session::default())));

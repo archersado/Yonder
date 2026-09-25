@@ -25,7 +25,7 @@
 
 ## 当前研发顺序
 
-2026-09-21 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 调整：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。先完成双平台 Spike 与 Proposed AD-EX-02 技术选型，再审阅快慢脑交接、最小 Jev 配置界面和四类执行层接线。Windows 仍按用户既有决定暂缓，故目前不生成产品实施 Proposal，也不改变运行时代码。
+2026-09-24 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 保持：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。用户变更将 EX-S2 接线限定 macOS-only，Windows 与费用证据后补；`AD-EX-02` 仅接受 macOS 子路线，`ex-s2-macos-only-jev-wiring` 已通过并归档，Windows 路径仍不编译、不注册、不验证。
 
 2026-09-23 新增 [Proposed AD-AG-09 计划片段 Gateway 契约](_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md)：定义有界声明式计划片段、Observe 异常升级和快慢脑安全边界，作为当前逐步决策架构的候选优化方向；该 ADR 未授权实施，也未替代既有逐步决策模式。
 
@@ -216,3 +216,9 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-22 E0/DS-S1证据完成分层复核并产出[Proposed AD-E0-01](../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-E0-01-DESKTOP-FOUNDATION.md)：macOS子范围按证据保留阶段事实，四边完整休眠、跨用户拒绝、完整延迟、生命周期与Windows当前版本证据仍缺；ADR未Accepted，Story不Done/Archive。
 
 2026-09-22 DS-S2人工接管/Recording设计已按AD-RC-01回写为“受控会话输入”：不再宣称物理用户来源，DS只展示Application已提交事实。Recording继续默认关闭，产品协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。
+
+2026-09-24 TM-S5 继续按 Accepted AD-TM-18 推进控制历史只读投影：协议 1.22 区分已登记请求与已确认步骤边界停止，macOS 正式 Tauri 宿主与 Gateway 隔离验证通过；Windows 按用户决定暂缓，完整 TM-S5 的产物、保留及交回仍未完成。
+
+2026-09-24 TM-S5 继续按 Accepted AD-TM-19 推进接管定位历史事实：schema 19 与协议 1.23 保留 `locating → focused/failed` 不可变序列，事务回滚、零回填迁移和 macOS 正式 Tauri 宿主/Gateway/UI 证据通过；Windows 按用户决定暂缓，完整 TM-S5 仍未 Archive。
+
+2026-09-24 TM-S5 继续按 Accepted AD-TM-20 推进任务创建来源历史：协议 1.24 只读投影创建事务已提交的来源与归属 Agent，1.23 隔离、越权拒绝、损坏数据与零回填测试及 macOS 正式 Tauri 宿主证据通过；Windows 按用户决定暂缓，完整 TM-S5 仍未 Archive。

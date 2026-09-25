@@ -28,6 +28,9 @@
         <label><input class="jev-capability" type="checkbox" value="COMMAND" /> Command</label>
       </fieldset>
       <p class="readonly">置信阈值 0.75、动作后强制 Observe、敏感操作须确认；这些安全闸不可降低。</p>
+      <label>API Key <input id="jev-api-key" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" /></label>
+      <p class="readonly">留空会保留已配置的 API Key；填写后仅直接写入 macOS Keychain（服务：Yonder，账号：jev），不能查看或导出。</p>
+      <p id="jev-credential-status" class="readonly">API Key 状态未知</p>
       <button id="jev-save" type="submit">保存 Jev 配置</button>
       <p id="jev-status" role="status" aria-live="polite">正在读取 Jev 配置…</p>
     </form>

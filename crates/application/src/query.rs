@@ -12,6 +12,78 @@ use yonder_protocol::{
     TaskUserConfirmation as ProtocolConfirmation, Version,
 };
 
+fn bounded_events_result(
+    request_id: &str,
+    task_id: String,
+    events: Vec<TaskEvent>,
+) -> Result<QueryResult, RpcError> {
+    let empty = Response::Success {
+        jsonrpc: Version::V2,
+        id: request_id.to_owned(),
+        result: QueryResult::Events {
+            task_id: task_id.clone(),
+            events: Vec::new(),
+        },
+    };
+    let mut response_bytes = yonder_protocol::encode(&empty)
+        .map_err(|_| RpcError::new(-32603, "事件响应编码失败"))?
+        .len();
+    if response_bytes > yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES {
+        return Err(RpcError::new(-32015, "事件响应超过编码预算"));
+    }
+    let mut selected = Vec::new();
+    for event in events {
+        let event_bytes = yonder_protocol::encoded_task_event_len(&event)
+            .map_err(|_| RpcError::new(-32603, "事件响应编码失败"))?;
+        if event_bytes > yonder_protocol::MAX_TASK_EVENT_BYTES {
+            return Err(RpcError::new(-32015, "历史事件超过单项编码预算"));
+        }
+        let next_bytes = response_bytes + event_bytes + usize::from(!selected.is_empty());
+        if next_bytes > yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES {
+            if selected.is_empty() {
+                return Err(RpcError::new(-32015, "首条历史事件无法放入响应预算"));
+            }
+            break;
+        }
+        response_bytes = next_bytes;
+        selected.push(event);
+    }
+    Ok(QueryResult::Events { task_id, events: selected })
+}
+
+fn check_event_continuity(
+    after: u64,
+    task_sequence: u64,
+    limit: usize,
+    records: &[crate::TaskEventRecord],
+) -> Result<(), RpcError> {
+    let incomplete = || RpcError::new(-32016, "任务历史不完整，请刷新后重试");
+    let mut last = after;
+    for record in records {
+        let expected = last.checked_add(1).ok_or_else(incomplete)?;
+        if record.transition.sequence != expected {
+            return Err(incomplete());
+        }
+        last = expected;
+    }
+    if records.len() < limit && last < task_sequence {
+        return Err(incomplete());
+    }
+    Ok(())
+}
+
+fn observation(value: crate::TaskObservation) -> ProtocolObservation {
+    ProtocolObservation {
+        step_id: value.step_id,
+        result: match value.result {
+            crate::TaskObservationResult::Matched => ProtocolObservationResult::Matched,
+            crate::TaskObservationResult::NotMatched => ProtocolObservationResult::NotMatched,
+            crate::TaskObservationResult::Unknown => ProtocolObservationResult::Unknown,
+        },
+        summary: value.summary,
+    }
+}
+
 pub(crate) fn status(value: Status) -> TaskStatus {
     match value {
         Status::Created => TaskStatus::Created,
@@ -66,19 +138,7 @@ pub(crate) fn full_with_audit(
             label: step.label,
             accepted_sequence: step.accepted_sequence.to_string(),
         }),
-        observation: presentation
-            .observation
-            .map(|observation| ProtocolObservation {
-                step_id: observation.step_id,
-                result: match observation.result {
-                    crate::TaskObservationResult::Matched => ProtocolObservationResult::Matched,
-                    crate::TaskObservationResult::NotMatched => {
-                        ProtocolObservationResult::NotMatched
-                    }
-                    crate::TaskObservationResult::Unknown => ProtocolObservationResult::Unknown,
-                },
-                summary: observation.summary,
-            }),
+        observation: presentation.observation.map(observation),
         next_intent: presentation.next_intent,
         artifact_manifest: audit.manifest.map(|manifest| ProtocolManifest {
             task_id: manifest.task_id,
@@ -158,6 +218,10 @@ pub fn handle_encoded_current(
             true,
             true,
             store.supports_audit(),
+            true,
+            true,
+            true,
+            true,
         ),
         Err(error) => Response::Failure {
             jsonrpc: Version::V2,
@@ -212,7 +276,7 @@ pub(crate) fn handle_request(
     request: Request,
     now_ms: u64,
 ) -> Response {
-    handle_request_versioned(store, auth, request, now_ms, false, false, false, false)
+    handle_request_versioned(store, auth, request, now_ms, false, false, false, false, false, false, false, false)
 }
 
 pub(crate) fn handle_request_versioned(
@@ -224,6 +288,10 @@ pub(crate) fn handle_request_versioned(
     include_attempt_results: bool,
     include_wait_reason: bool,
     include_audit: bool,
+    include_observation_history: bool,
+    include_control_history: bool,
+    include_focus_history: bool,
+    include_creation_history: bool,
 ) -> Response {
     let id = request.request_id().to_owned();
     let result = validate(&request, auth, now_ms).and_then(|()| {
@@ -270,12 +338,13 @@ pub(crate) fn handle_request_versioned(
             Ok(QueryResult::Snapshot { task: full_with_audit(task, presentation, audit) })
         }
         Request::Events { params, .. } => {
-            readable(store, auth, &params.task_id)?;
+            let task = readable(store, auth, &params.task_id)?;
             let after = yonder_protocol::sequence(&params.after_sequence)?;
             let records = if include_steps { store.events_with_steps(&params.task_id, after, usize::from(params.limit)).map_err(error)? } else {
-                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, step_declaration: None, attempt_result: None, wait_reason: None, artifact_manifest: None, user_confirmation: None }).collect()
+                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, creation_event: None, step_declaration: None, attempt_result: None, observation: None, control_event: None, focus_event: None, wait_reason: None, artifact_manifest: None, user_confirmation: None }).collect()
             };
-            Ok(QueryResult::Events { task_id: params.task_id, events: records.into_iter().map(|e| {
+            check_event_continuity(after, task.sequence, usize::from(params.limit), &records)?;
+            let projected = records.into_iter().map(|e| {
                 let attempt_result = if include_attempt_results { e.attempt_result.map(|result| {
                     let (phase,action_succeeded,observe_valid,unknown_reason) = match result.conclusion {
                         crate::AttemptConclusion::Observed { action_succeeded } => (ProtocolAttemptPhase::Observed,Some(action_succeeded),true,None),
@@ -292,12 +361,31 @@ pub(crate) fn handle_request_versioned(
                     };
                     ProtocolAttemptResult { step_id:result.step_id, attempt_id:result.attempt_id, worker_instance_id:result.worker_instance_id, host_session_id:result.host_session_id, phase, action_succeeded, observe_valid, unknown_reason }
                 }) } else { None };
+                let control_event = include_control_history.then(|| e.control_event).flatten().map(|control| yonder_protocol::ControlEvent {
+                    attempt_id: control.attempt_id,
+                    control_id: control.control_id,
+                    kind: match control.kind { crate::ControlKind::Pause => ProtocolControlKind::Pause, crate::ControlKind::Cancel => ProtocolControlKind::Cancel, crate::ControlKind::Takeover => ProtocolControlKind::Takeover },
+                    phase: match control.phase { crate::ControlPhase::Pending => ProtocolControlPhase::Pending, crate::ControlPhase::Stopped => ProtocolControlPhase::Stopped },
+                });
+                let focus_event = include_focus_history.then(|| e.focus_event).flatten().map(|focus| yonder_protocol::FocusEvent {
+                    control_id: focus.control_id,
+                    phase: match focus.phase { crate::FocusPhase::Locating => ProtocolFocusPhase::Locating, crate::FocusPhase::Focused => ProtocolFocusPhase::Focused, crate::FocusPhase::Failed => ProtocolFocusPhase::Failed },
+                    failure: focus.failure.map(|value| match value { crate::work_focus::FocusFailure::PermissionUnavailable=>ProtocolFocusFailure::PermissionUnavailable,crate::work_focus::FocusFailure::ProcessChanged=>ProtocolFocusFailure::ProcessChanged,crate::work_focus::FocusFailure::WindowMissing=>ProtocolFocusFailure::WindowMissing,crate::work_focus::FocusFailure::MappingNotUnique=>ProtocolFocusFailure::MappingNotUnique,crate::work_focus::FocusFailure::ActivationFailed=>ProtocolFocusFailure::ActivationFailed,crate::work_focus::FocusFailure::VerificationFailed=>ProtocolFocusFailure::VerificationFailed,crate::work_focus::FocusFailure::GeometryChanged=>ProtocolFocusFailure::GeometryChanged,crate::work_focus::FocusFailure::ReferenceUnavailable=>ProtocolFocusFailure::ReferenceUnavailable }),
+                });
+                let creation_event = include_creation_history.then(|| e.creation_event).flatten().map(|creation| yonder_protocol::TaskCreationEvent {
+                    owner_agent_id: creation.owner_agent_id,
+                    source: source(creation.source),
+                });
                 TaskEvent {
                     previous: status(e.transition.previous),
                     status: status(e.transition.next),
                     sequence: e.transition.sequence.to_string(),
+                    creation_event,
                     step_declaration: e.step_declaration.map(|step| ProtocolStep { step_id: step.step_id, label: step.label, accepted_sequence: step.accepted_sequence.to_string() }),
                     attempt_result,
+                    observation: include_observation_history.then(|| e.observation).flatten().map(observation),
+                    control_event,
+                    focus_event,
                     wait_reason: include_wait_reason.then_some(e.wait_reason).flatten(),
                     artifact_manifest: include_audit.then_some(e.artifact_manifest).flatten().map(|manifest| ProtocolManifest {
                         task_id: manifest.task_id,
@@ -313,7 +401,8 @@ pub(crate) fn handle_request_versioned(
                         confirmed_by: confirmation.confirmed_by,
                     }),
                 }
-            }).collect() })
+            }).collect();
+            bounded_events_result(&id, params.task_id, projected)
         },
         Request::StepGet { params, .. } => {
             let (task, presentation) = store.get_presentation(&params.task_id).map_err(error)?;
@@ -337,11 +426,113 @@ pub(crate) fn handle_request_versioned(
             jsonrpc: Version::V2,
             id,
             result,
-        },
         Err(error) => Response::Failure {
             jsonrpc: Version::V2,
             id: Some(id),
             error,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(sequence: usize, label: String) -> TaskEvent {
+        TaskEvent {
+            previous: TaskStatus::Running,
+            status: TaskStatus::Running,
+            sequence: sequence.to_string(),
+            creation_event: None,
+            step_declaration: Some(ProtocolStep {
+                step_id: format!("step-{sequence}"),
+                label,
+                accepted_sequence: sequence.to_string(),
+            }),
+            attempt_result: None,
+            observation: None,
+            control_event: None,
+            focus_event: None,
+            wait_reason: None,
+            artifact_manifest: None,
+            user_confirmation: None,
+        }
+    }
+
+    #[test]
+    fn event_continuity_allows_a_concurrent_newer_commit() {
+        let record = crate::TaskEventRecord {
+            transition: yonder_domain::Transition {
+                previous: crate::Status::Running,
+                next: crate::Status::Running,
+                sequence: 3,
+            },
+            creation_event: None,
+            step_declaration: None,
+            attempt_result: None,
+            observation: None,
+            control_event: None,
+            focus_event: None,
+            wait_reason: None,
+            artifact_manifest: None,
+            user_confirmation: None,
+        };
+        assert!(check_event_continuity(2, 2, 10, &[record]).is_ok());
+        assert!(check_event_continuity(2, 2, 10, &[]).is_ok());
+    }
+
+    #[test]
+    fn events_budget_keeps_a_complete_prefix_and_continuation() {
+        let page = bounded_events_result(
+            "request-1",
+            "task-1".into(),
+            (1..=100).map(|sequence| event(sequence, "\"".repeat(3_000))).collect(),
+        ).unwrap();
+        let QueryResult::Events { events, .. } = page else { panic!("expected events") };
+        let last = events.last().unwrap().sequence.parse::<usize>().unwrap();
+        assert!(last < 100);
+        assert!(last > 1);
+        assert_eq!(events.len(), last);
+        let encoded = yonder_protocol::encode(&Response::Success {
+            jsonrpc: Version::V2,
+            id: "request-1".into(),
+            result: QueryResult::Events { task_id: "task-1".into(), events },
+        }).unwrap();
+        assert!(encoded.len() <= yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES);
+
+        let next = bounded_events_result(
+            "request-2",
+            "task-1".into(),
+            ((last + 1)..=100).map(|sequence| event(sequence, "\"".repeat(3_000))).collect(),
+        ).unwrap();
+        let QueryResult::Events { events, .. } = next else { panic!("expected events") };
+        assert_eq!(events[0].sequence, (last + 1).to_string());
+    }
+
+    #[test]
+    fn events_budget_rejects_escaped_oversize_event_and_unfittable_first_item() {
+        let oversized = bounded_events_result(
+            "request-1", "task-1".into(), vec![event(1, "\"".repeat(4_100))],
+        );
+        assert!(oversized.is_err());
+
+        let single = event(1, "a".into());
+        let empty_bytes = yonder_protocol::encode(&Response::Success {
+            jsonrpc: Version::V2,
+            id: String::new(),
+            result: QueryResult::Events { task_id: "task-1".into(), events: vec![] },
+        }).unwrap().len();
+        let event_bytes = yonder_protocol::encoded_task_event_len(&single).unwrap();
+        let exact_id = "a".repeat(yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES - empty_bytes - event_bytes);
+        let exact = bounded_events_result(&exact_id, "task-1".into(), vec![single]);
+        let encoded = yonder_protocol::encode(&Response::Success {
+            jsonrpc: Version::V2,
+            id: exact_id.clone(),
+            result: exact.unwrap(),
+        }).unwrap();
+        assert_eq!(encoded.len(), yonder_protocol::MAX_TASK_EVENTS_RESPONSE_BYTES);
+        let first_unfittable = bounded_events_result(&(exact_id + "a"), "task-1".into(), vec![event(1, "a".into())]);
+        assert!(first_unfittable.is_err());
+        assert!(matches!(bounded_events_result("request-1", "task-1".into(), vec![]), Ok(QueryResult::Events { events, .. }) if events.is_empty()));
     }
 }

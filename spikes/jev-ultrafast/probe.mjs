@@ -211,14 +211,14 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function price() {
-  const value = Number(process.env.TYPESAFE_PRICE_PER_MTOK);
+function inputPrice() {
+  const value = Number(process.env.TYPESAFE_INPUT_PRICE_PER_MTOK);
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function cost(usage, pricePerMTok) {
+function inputCost(inputTokens, pricePerMTok) {
   if (pricePerMTok === null) return null;
-  return ((usage.input_tokens + usage.output_tokens) / 1_000_000) * pricePerMTok;
+  return (inputTokens / 1_000_000) * pricePerMTok;
 }
 
 async function ask(client, state, sample, mode, signal) {
@@ -282,9 +282,13 @@ function summarize(results, expectedDecisions, failures) {
     0,
   );
   const jevTokens = paired.reduce((total, [jev]) => total + jev.usage.input_tokens + jev.usage.output_tokens, 0);
+  const baselineInputTokens = paired.reduce((total, [, baseline]) => total + baseline.usage.input_tokens, 0);
+  const baselineOutputTokens = paired.reduce((total, [, baseline]) => total + baseline.usage.output_tokens, 0);
+  const jevInputTokens = paired.reduce((total, [jev]) => total + jev.usage.input_tokens, 0);
+  const jevOutputTokens = paired.reduce((total, [jev]) => total + jev.usage.output_tokens, 0);
   const jevFailures = failures.filter((failure) => failure.mode === "jev").length;
   const successPaths = jevResults.filter((result) => result.outcome === "success");
-  const pricePerMTok = price();
+  const inputPricePerMTok = inputPrice();
   return {
     decisions: expectedDecisions,
     baseline_requests: baselineResults.length + failures.filter((failure) => failure.mode === "baseline").length,
@@ -295,6 +299,10 @@ function summarize(results, expectedDecisions, failures) {
     misactions: jevResults.filter((result) => result.misaction).length,
     baseline_tokens: baselineTokens,
     jev_tokens: jevTokens,
+    baseline_input_tokens: baselineInputTokens,
+    baseline_output_tokens: baselineOutputTokens,
+    jev_input_tokens: jevInputTokens,
+    jev_output_tokens: jevOutputTokens,
     token_reduction_rate: baselineTokens ? 1 - jevTokens / baselineTokens : null,
     jev_latency_p95_ms: percentile(jevResults.map((result) => result.latency_ms), 95),
     jev_latency_max_ms: jevResults.length ? Math.max(...jevResults.map((result) => result.latency_ms)) : null,
@@ -308,8 +316,10 @@ function summarize(results, expectedDecisions, failures) {
     success_path_handback_rate: successPaths.length
       ? successPaths.filter((result) => result.handed_back).length / successPaths.length
       : null,
-    estimated_cost: pricePerMTok === null ? null : cost({ input_tokens: jevTokens, output_tokens: 0 }, pricePerMTok),
-    cost_available: pricePerMTok !== null,
+    input_price_per_million_tokens: inputPricePerMTok,
+    estimated_input_cost: inputCost(jevInputTokens, inputPricePerMTok),
+    input_cost_available: inputPricePerMTok !== null,
+    output_cost_available: false,
   };
 }
 
@@ -332,6 +342,45 @@ function selfTest() {
   if (!success.executed || !success.correct || success.misaction) throw new Error("success-evaluation");
   if (!lowConfidence.handed_back || lowConfidence.misaction) throw new Error("confidence-evaluation");
   if (!invalid.handed_back || invalid.misaction) throw new Error("guard-evaluation");
+  if (inputCost(1_000_000, 0.042) !== 0.042 || inputCost(1_000_000, null) !== null) {
+    throw new Error("input-cost-evaluation");
+  }
+  const usageSummary = summarize(
+    [
+      {
+        repeat: 1,
+        sample_id: "cost-check",
+        mode: "baseline",
+        outcome: "success",
+        correct: true,
+        misaction: false,
+        handed_back: false,
+        latency_ms: 1,
+        usage: { input_tokens: 100, output_tokens: 10 },
+      },
+      {
+        repeat: 1,
+        sample_id: "cost-check",
+        mode: "jev",
+        outcome: "success",
+        correct: true,
+        misaction: false,
+        handed_back: false,
+        latency_ms: 1,
+        usage: { input_tokens: 40, output_tokens: 10 },
+      },
+    ],
+    1,
+    [],
+  );
+  if (
+    usageSummary.baseline_input_tokens !== 100 ||
+    usageSummary.baseline_output_tokens !== 10 ||
+    usageSummary.jev_input_tokens !== 40 ||
+    usageSummary.jev_output_tokens !== 10
+  ) {
+    throw new Error("usage-summary-evaluation");
+  }
   console.log("EX-S1 probe self-test PASS");
 }
 

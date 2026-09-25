@@ -163,6 +163,31 @@
         },
         "method": {
           "type": "string",
+          "const": "task.result.confirm"
+        },
+        "params": {
+          "$ref": "#/$defs/ResultConfirmParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
           "const": "task.complete"
         },
         "params": {
@@ -514,6 +539,7 @@
         "task.complete",
         "task.fail",
         "task.control",
+        "task.result.confirm",
         "task.wait-for-user",
         "task.step.declare",
         "task.step.advance",
@@ -893,6 +919,45 @@
       "required": [
         "major",
         "minor"
+      ]
+    },
+    "ResultConfirmParams": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "confirmation_id": {
+          "type": "string"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "reviewed_sequence": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "reviewed_sequence",
+        "confirmation_id"
       ]
     },
     "StepAdvanceParams": {

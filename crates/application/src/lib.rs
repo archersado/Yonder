@@ -9,6 +9,7 @@ pub mod computer_use;
 pub mod document;
 pub mod gateway;
 pub mod jev_config;
+pub mod jev_runtime;
 pub mod query;
 pub mod work_focus;
 
@@ -174,11 +175,36 @@ pub struct StepBoundaryRecord {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TaskEventRecord {
     pub transition: Transition,
+    pub creation_event: Option<CreationEventRecord>,
     pub step_declaration: Option<StepDeclaration>,
     pub attempt_result: Option<AttemptResultRecord>,
+    pub observation: Option<TaskObservation>,
+    pub control_event: Option<ControlEventRecord>,
+    pub focus_event: Option<FocusEventRecord>,
     pub wait_reason: Option<String>,
     pub artifact_manifest: Option<TaskArtifactManifest>,
     pub user_confirmation: Option<TaskUserConfirmation>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreationEventRecord {
+    pub owner_agent_id: String,
+    pub source: TaskSource,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ControlEventRecord {
+    pub attempt_id: String,
+    pub control_id: String,
+    pub kind: ControlKind,
+    pub phase: ControlPhase,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FocusEventRecord {
+    pub control_id: String,
+    pub phase: FocusPhase,
+    pub failure: Option<work_focus::FocusFailure>,
 }
 
 /// 由完成认证的组合根提供，不能从请求 JSON 反序列化或按请求 agent_id 构造。
@@ -268,8 +294,12 @@ pub trait TaskStore {
                 .into_iter()
                 .map(|transition| TaskEventRecord {
                     transition,
+                    creation_event: None,
                     step_declaration: None,
                     attempt_result: None,
+                    observation: None,
+                    control_event: None,
+                    focus_event: None,
                     wait_reason: None,
                     artifact_manifest: None,
                     user_confirmation: None,

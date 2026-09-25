@@ -53,6 +53,7 @@ Jev 只能在固定 Observe 候选集中选择下一步操作；输入 MUST 来�
 #### Scenario: 证据未齐
 
 - WHEN Spike 仅完成 macOS 子范围
-- THEN AD-EX-02 保持 Proposed
+- THEN AD-EX-02 只可形成明确标注的 macOS-only 缩范围结论
+- AND 不得宣称双平台路线或完整 EX-S1 已通过
 - AND 不开放 Jev 执行接线
 - AND 不引入第二执行栈或新通用 Agent

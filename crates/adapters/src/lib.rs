@@ -1,4 +1,6 @@
 pub mod task_store;
+#[cfg(target_os = "macos")]
+pub mod jev;
 pub mod cua;
 pub mod document;
 pub mod pet_pack;

@@ -6,6 +6,10 @@ Application 定义历史/产物查询与事实提交用例，Adapter 持久化�
 
 ## 状态与契约
 
+终态结果确认采用 Accepted AD-TM-14：`task.result.confirm` 仅允许可信 LocalUser，绑定终态 `reviewed_sequence`。首次确认同事务递增任务序号、追加终态自迁移事件、写确认记录与 Outbox；重复确认返回原事实，不改执行状态、不触发 Driver。schema 17→18 只新增确认表，旧任务不推断已确认。Agent Gateway 不宣告或接受该本机控制能力。
+
+`reviewed_sequence` 只能指向从非终态进入终态的那条事件。详情从事件事实读取 `terminal_result_sequence`，不能用当前任务 `sequence` 代替，因为终态后仍可能追加合法审计事实。该只读字段与确认投影均只在协议 1.20 提供。
+
 保留设计遵循 AD-TM-01：任务证据附件到就绪后 7 天仅成为清理候选，未同步/固定/活动引用仍保护；用户文件/外部对象不归该清理器。任务结构化历史不自动过期，受总配额和显式删除约束。附件过期只改变引用可用性，不覆写旧事件正文；整任务删除返回不可访问，不伪装完整空历史。
 
 清理先事务标记不可解析并登记持久化工作，物理清理确认后才完成；用户删除已同步历史还需要独立远端删除记录与确认，不继续投递旧正文。新清理/投递实现、容量和防重放标记格式须 ST/AG 定案，本 Story 不自建密钥或云端服务。
@@ -17,6 +21,20 @@ AD-TM-01 的 2026-09-12 补充列出各类最小历史事实；本 Story 复用�
 引用由任务库分配 reference_id 并绑定任务、类别、来源与版本依据；路径只用于可信 Adapter 定位，不由事件接收者直接执行。哈希/对象版本须来自实际验证，否则明确 unknown。记录时版本与解析时可用性分离，文件变化不能改写产出时引用。
 
 预算设计：编码后单事件 ≤8 KiB、完整响应 ≤256 KiB；每事件直接引用 ≤16，文本还有各自限额。历史页最多 100 条且按字节提前结束，预留包络/游标空间；next cursor 只基于实际返回项，有界探针确认 has_more。首项超限报错，不跳过或空页循环。全部为工程设计建议，当前协议未实现。
+
+2026-09-24 AD-TM-15 先对既有 `task.events` 查询投影定案单事件与整响应预算：Application 在版本投影后测量 JSON 字节，返回可容纳的完整前缀；沿用现有 `after_sequence`，不新增 `has_more` 或显式游标字段。上段产物清单、详情预算和探针设计仍未定案。
+
+2026-09-24 Accepted AD-TM-16 定案当前未裁剪历史的连续性保护：Application 先按当前授权读取任务快照，再检查最多 `limit` 条已提交事件是否从 `after_sequence + 1` 连续；不足 `limit` 时以任务当前 `sequence` 判断尾部是否缺失。缺口返回局部查询错误，不返回不完整成功页、不触碰 SQLite/Outbox。未来合法部分裁剪须先增加显式范围协议，不复用本错误作为清理许可。
+
+2026-09-24 Accepted AD-TM-17 定案历史 Observe 投影：Adapter 按 `(task_id, sequence, kind='observation')` 关联既有 `task_presentation_events` 并严格解析有界 payload；Application 只在协商协议 1.21 或可信同版本查询中输出 `TaskEvent.observation`。旧版本字段缺省，事件仍按原序号和字节预算分页。UI 将结果和获准摘要以纯文本标为 Observe，不把动作成功当观察匹配，也不从最新快照补旧事件。此增量不加表、不改变写入方或补造缺失事实。
+
+2026-09-24 Accepted AD-TM-18 定案控制历史投影：Adapter 仅把 `task_controls.accepted_sequence` 和 `stopped_sequence` 关联到相同序号的已提交事件。不同序号的接受事件固定展示 pending、停止事件固定展示 stopped；直接停止同序号仅展示 stopped，不从当前控制阶段反推过去。Application 仅在协议 1.22 投影可选 `TaskEvent.control_event`，旧会话字段缺省；沿用授权、连续性检查及 8 KiB/256 KiB 预算。定位/交回/录制另议，不新增表或写入者。
+
+2026-09-24 Accepted AD-TM-19 定案接管定位历史：schema 19 新增 `task_focus_events`，定位开始和最终成功/失败与既有任务事件、Outbox及当前控制投影同事务追加。迁移不从 `task_controls` 当前值回填旧历史。Application 仅在协议 1.23 投影可选 `TaskEvent.focus_event`；Adapter 按任务与事件序号读取，不从最后阶段反推。定位事实不代表录制或交回完成。
+
+2026-09-24 Accepted AD-TM-20 定案创建来源历史投影：Adapter 只把既有 `task_presentation_events(kind='source')` 关联到同一 `#1` 创建事件，并结合任务不可变归属列形成 `owner_agent_id + source`；没有 source 历史的旧任务不从当前 `legacy` 快照回填。Application 仅在协议 1.24 投影可选 `TaskEvent.creation_event`，旧会话字段缺省；沿用实时授权、连续性检查及编码预算，不输出描述、幂等键或凭据。
+
+2026-09-24 Accepted AD-TM-21 定案执行尝试开始历史投影：Adapter 仅把 `task_attempts.accepted_sequence` 关联到同序号 Start 事件，读取不可变 step/attempt/worker/host 身份并固定表达 prepared 接受事实；不从当前 attempt phase 或任务 running 状态反推。Application 仅在协议 1.25 投影可选 `TaskEvent.attempt_started`，旧会话字段缺省。Task Space 只显示步骤与尝试标识，不显示内部 Worker/宿主身份，且不把 prepared 写成已派发或已观察。
 
 标识与作者规则引用 AD-TM-01 的联合契约：历史步骤/动作按 task_id/step_id/attempt_id 关联，request_id 只负责提交去重，sequence 负责已提交顺序。终态后的用户确认和合法迟到事实可追加序号，但不能重新执行任务或覆盖当前步骤。unknown 后证据作为新关联事实保留，不改写原结论。
 

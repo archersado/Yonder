@@ -1,6 +1,6 @@
 # AD-TM-01 任务当前信息与历史事实联合契约
 
-状态：Partially Accepted（2026-09-22：AC10 任务展示元数据与 AC11 全量忙碌语义已定案；完整历史保留、去重、迁移与产物版本仍为 Proposed，未实现）。关联 TM-S1 / TM-S5、AG-S1、DS-S2。Architecture Impact：architecture-change；不改当前数据库和协议产物。
+状态：Partially Accepted（2026-09-24：AC10/AC11 已定案；TM5-AC04 终态结果确认由 Accepted AD-TM-14 定案；完整产物版本、总配额与清理仍为 Proposed）。关联 TM-S1 / TM-S5、AG-S1、DS-S2。Architecture Impact：architecture-change。
 
 ## 2026-09-22 AC10/AC11 子范围定案
 

@@ -8,6 +8,7 @@ const labels = { created: '已创建', running: '执行中', 'waiting-for-user':
 const sourceLabels = { 'local-agent': '本地 Agent', 'cloud-agent': '云端 Agent' };
 const observationLabels = { matched: '已匹配', 'not-matched': '未匹配', unknown: '未知' };
 const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable': '依赖不可用', 'worker-failed': '执行器失败', 'timed-out': '执行超时', 'invalid-response': '响应无效', 'identity-mismatch': '执行身份不匹配', 'observe-failed': '观察失败', 'user-input': '用户已接管输入' };
+const focusFailureLabels = { 'permission-unavailable':'缺少辅助功能权限', 'process-changed':'目标进程已变化', 'window-missing':'目标窗口不存在', 'mapping-not-unique':'无法唯一识别目标窗口', 'activation-failed':'窗口前置失败', 'verification-failed':'前置结果未通过核验', 'geometry-changed':'窗口身份已变化', 'reference-unavailable':'工作引用不可用' };
 let includeFinished = false, cursor = null, nextCursor = null, pageNumber = 1;
 let round = 0, selection = 0;
 const pendingControls = new Map();
@@ -17,7 +18,7 @@ async function query(method, params) {
   const invoke = window.__TAURI_INTERNALS__?.invoke;
   if (!invoke) throw new Error('任务查询能力未提供');
   const request = JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method,
-    params: { agent_id: 'desktop', capability: method === 'task.cancel' ? 'task.cancel' : method === 'task.control' ? 'task.control' : 'task.read', deadline: Date.now() + 10000, ...params } });
+    params: { agent_id: 'desktop', capability: method === 'task.cancel' ? 'task.cancel' : method === 'task.control' ? 'task.control' : method === 'task.result.confirm' ? 'task.result.confirm' : 'task.read', deadline: Date.now() + 10000, ...params } });
   const response = JSON.parse(await invoke('task_query', { request }));
   if (response.error) throw new Error(response.error.message);
   return response.result;
@@ -100,7 +101,22 @@ async function confirmResult(task, button, textarea) {
   }
 }
 function timelineText(event) {
+  if (event.creation_event) return `任务创建：${sourceLabels[event.creation_event.source] ?? '来源未知'} · Agent ${event.creation_event.owner_agent_id}`;
+  if (event.focus_event) {
+    if (event.focus_event.phase === 'locating') return '接管：正在定位任务工作';
+    if (event.focus_event.phase === 'focused') return '接管：任务工作定位成功';
+    return `接管：定位失败 · ${focusFailureLabels[event.focus_event.failure] ?? '原因未提供'}`;
+  }
+  if (event.control_event) {
+    const kind = {pause:'暂停',cancel:'取消',takeover:'接管'}[event.control_event.kind] ?? '控制';
+    const phase = event.control_event.phase === 'stopped' ? '步骤边界停止已确认' : '停止请求已登记';
+    return `${kind}：${phase}（尝试 ${event.control_event.attempt_id}）`;
+  }
   if (event.step_declaration) return `Agent 声明步骤：${event.step_declaration.label}`;
+  if (event.observation) {
+    const result = {'matched':'已匹配','not-matched':'未匹配','unknown':'未知'}[event.observation.result] ?? '未知';
+    return `Observe（步骤 ${event.observation.step_id}）：${result} · ${event.observation.summary}`;
+  }
   if (event.attempt_result?.phase === 'unknown') return `执行结果未知：${unknownLabels[event.attempt_result.unknown_reason] ?? '原因未提供'}`;
   if (event.attempt_result?.phase === 'observed') return event.attempt_result.action_succeeded ? '动作已观察：成功' : '动作已观察：未达成';
   if (event.wait_reason) return `等待用户：${event.wait_reason}`;
