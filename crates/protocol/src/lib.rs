@@ -43,6 +43,8 @@ pub enum Capability {
     BrowserExecute,
     #[serde(rename = "computer.execute")]
     ComputerExecute,
+    #[serde(rename = "file.grant.read")]
+    FileGrantRead,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -471,6 +473,25 @@ pub struct ComputerStepParams {
     pub arguments: serde_json::Value,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum FileGrantPurpose {
+    Read,
+    CreateNew,
+    Replace,
+    Trash,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct FileGrantSummary {
+    pub grant_id: String,
+    pub purpose: FileGrantPurpose,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub expires_at_ms: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct CompleteParams {
@@ -600,6 +621,13 @@ pub enum Request {
     },
     #[serde(rename = "task.browser.get")]
     BrowserGet {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: GetParams,
+    },
+    #[serde(rename = "task.file.grants")]
+    FileGrants {
         jsonrpc: Version,
         #[serde(rename = "id")]
         request_id: String,
@@ -948,6 +976,10 @@ pub enum QueryResult {
         #[ts(optional)]
         next_after_ordinal: Option<u16>,
     },
+    FileGrants {
+        task_id: String,
+        grants: Vec<FileGrantSummary>,
+    },
     Step {
         task: TaskSnapshot,
         step: Option<StepDeclaration>,
@@ -1046,7 +1078,8 @@ impl Request {
             Self::Create { params, .. } => &params.agent_id,
             Self::Get { params, .. }
             | Self::StepGet { params, .. }
-            | Self::BrowserGet { params, .. } => &params.agent_id,
+            | Self::BrowserGet { params, .. }
+            | Self::FileGrants { params, .. } => &params.agent_id,
             Self::Events { params, .. } => &params.agent_id,
             Self::Artifacts { params, .. } => &params.agent_id,
             Self::List { params, .. } => &params.agent_id,
@@ -1073,7 +1106,8 @@ impl Request {
             | Self::Hello { request_id, .. }
             | Self::StepDeclare { request_id, .. }
             | Self::StepGet { request_id, .. }
-            | Self::BrowserGet { request_id, .. } => request_id,
+            | Self::BrowserGet { request_id, .. }
+            | Self::FileGrants { request_id, .. } => request_id,
         }
     }
 
@@ -1097,6 +1131,7 @@ impl Request {
             Self::StepDeclare { params, .. } => params.capability,
             Self::StepGet { params, .. } => params.capability,
             Self::BrowserGet { params, .. } => params.capability,
+            Self::FileGrants { params, .. } => params.capability,
         };
         if capability
             != if matches!(self, Self::WaitForUser { .. }) {
@@ -1122,6 +1157,8 @@ impl Request {
                 Capability::TaskControl
             } else if matches!(self, Self::StepDeclare { .. }) {
                 Capability::TaskStepDeclare
+            } else if matches!(self, Self::FileGrants { .. }) {
+                Capability::FileGrantRead
             } else {
                 Capability::TaskRead
             }
@@ -1329,6 +1366,11 @@ impl Request {
                 Some(params.task_id.as_str()),
                 params.deadline,
             ),
+            Self::FileGrants { params, .. } => (
+                &params.agent_id,
+                Some(params.task_id.as_str()),
+                params.deadline,
+            ),
         };
         if !valid_id(self.request_id())
             || !valid_id(agent_id)
@@ -1473,6 +1515,8 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         BrowserExecuteParams::decl(&config),
         ComputerExecuteParams::decl(&config),
         ComputerStepParams::decl(&config),
+        FileGrantPurpose::decl(&config),
+        FileGrantSummary::decl(&config),
         GetParams::decl(&config),
         EventsParams::decl(&config),
         ArtifactParams::decl(&config),
@@ -1943,6 +1987,38 @@ mod tests {
         let mut extra = value;
         extra["params"]["action"] = serde_json::json!("click");
         assert!(decode(&serde_json::to_vec(&extra).unwrap()).is_err());
+    }
+
+    #[test]
+    fn file_grant_query_contract_is_typed_and_has_no_location_fields() {
+        let value = serde_json::json!({"jsonrpc":"2.0","id":"g1","method":"task.file.grants","params":{"agent_id":"agent-a","capability":"file.grant.read","deadline":2000,"task_id":"task-1"}});
+        let request = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(request.validate(1000).is_ok());
+        assert!(matches!(request, Request::FileGrants { .. }));
+        let mut wrong_capability = value.clone();
+        wrong_capability["params"]["capability"] = serde_json::json!("task.read");
+        assert!(decode(&serde_json::to_vec(&wrong_capability).unwrap())
+            .unwrap()
+            .validate(1000)
+            .is_err());
+        let mut location = value;
+        location["params"]["path"] = serde_json::json!("/private/file.docx");
+        assert!(decode(&serde_json::to_vec(&location).unwrap()).is_err());
+
+        let response = Response::Success {
+            jsonrpc: Version::V2,
+            id: "g1".into(),
+            result: QueryResult::FileGrants {
+                task_id: "task-1".into(),
+                grants: vec![FileGrantSummary {
+                    grant_id: "file_grant_1".into(),
+                    purpose: FileGrantPurpose::Replace,
+                    expires_at_ms: 2000,
+                }],
+            },
+        };
+        let encoded = serde_json::to_string(&response).unwrap();
+        assert!(!encoded.contains("path") && !encoded.contains("authorized_root"));
     }
 
     #[test]

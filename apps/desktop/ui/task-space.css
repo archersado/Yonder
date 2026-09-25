@@ -63,6 +63,12 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .artifact-empty, .artifact-more { color: #8a8496; font-size: 12px; }
 .artifact-more p { margin: 8px 0; }
 .artifact-error { color: #9f483a; }
+.file-grant-note, .file-grant-empty { color: #8a8496; font-size: 12px; }
+.file-grant-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.file-grant-actions button, .file-grants button { font-size: 11px; }
+.file-grants { display: grid; gap: 6px; }
+.file-grants li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border: 1px solid #e9e7ef; border-radius: 8px; font-size: 12px; }
+.file-grant-error { color: #9f483a; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: #8a8496; font-size: 11px; }
 @media (prefers-color-scheme: dark) {
   :root { color: #ebe7f1; }

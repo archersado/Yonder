@@ -224,7 +224,8 @@
         "task.step.declare",
         "task.step.advance",
         "browser.execute",
-        "computer.execute"
+        "computer.execute",
+        "file.grant.read"
       ]
     },
     "CapabilityInfo": {
@@ -382,6 +383,38 @@
         "phase",
         "accepted_sequence",
         "stopped_sequence"
+      ]
+    },
+    "FileGrantPurpose": {
+      "type": "string",
+      "enum": [
+        "read",
+        "create-new",
+        "replace",
+        "trash"
+      ]
+    },
+    "FileGrantSummary": {
+      "type": "object",
+      "properties": {
+        "expires_at_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "purpose": {
+          "$ref": "#/$defs/FileGrantPurpose"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "grant_id",
+        "purpose",
+        "expires_at_ms"
       ]
     },
     "FocusEvent": {
@@ -593,6 +626,30 @@
             "task_id",
             "manifest_version",
             "items"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "grants": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/FileGrantSummary"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "file-grants"
+            },
+            "task_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task_id",
+            "grants"
           ]
         },
         {

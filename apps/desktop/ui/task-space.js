@@ -10,6 +10,7 @@ const observationLabels = { matched: '已匹配', 'not-matched': '未匹配', un
 const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable': '依赖不可用', 'worker-failed': '执行器失败', 'timed-out': '执行超时', 'invalid-response': '响应无效', 'identity-mismatch': '执行身份不匹配', 'observe-failed': '观察失败', 'user-input': '用户已接管输入' };
 const focusFailureLabels = { 'permission-unavailable':'缺少辅助功能权限', 'process-changed':'目标进程已变化', 'window-missing':'目标窗口不存在', 'mapping-not-unique':'无法唯一识别目标窗口', 'activation-failed':'窗口前置失败', 'verification-failed':'前置结果未通过核验', 'geometry-changed':'窗口身份已变化', 'reference-unavailable':'工作引用不可用' };
 const artifactAvailabilityLabels = { available:'可用', missing:'缺失', changed:'已变化', unverified:'未验证' };
+const fileGrantPurposeLabels = { read:'读取', 'create-new':'新建', replace:'替换', trash:'移至回收站' };
 let includeFinished = false, cursor = null, nextCursor = null, pageNumber = 1;
 let round = 0, selection = 0;
 const pendingControls = new Map();
@@ -100,6 +101,66 @@ async function confirmResult(task, button, textarea) {
     message(`结果确认失败：${error.message ?? '请刷新后重试'}`, true);
     button.disabled = false; button.textContent = '确认结果';
   }
+}
+async function chooseFileGrant(task, purpose, button) {
+  button.disabled = true; button.textContent = '正在选择…';
+  try {
+    const result = await window.__TAURI_INTERNALS__.invoke('file_grant_choose', { taskId: task.task_id, purpose });
+    if (result == null) {
+      message('未签发文件授权');
+    } else if (!fileGrantPurposeLabels[result.purpose] || !Number.isSafeInteger(result.expiresAtMs)) {
+      throw new Error('文件授权响应不可用');
+    } else {
+      message('文件授权已签发，归属 Agent 可读取授权引用');
+    }
+    await select(task, document.querySelector(`button.task[data-task-id="${CSS.escape(task.task_id)}"]`));
+  } catch (error) {
+    message(`文件授权失败：${error.message ?? '请重试'}`, true);
+    button.disabled = false; button.textContent = `授权${fileGrantPurposeLabels[purpose] ?? '文件'}`;
+  }
+}
+async function revokeFileGrant(task, grant, button) {
+  button.disabled = true; button.textContent = '正在撤销…';
+  try {
+    await window.__TAURI_INTERNALS__.invoke('file_grant_revoke', { taskId: task.task_id, grantId: grant.grantId });
+    message('文件授权已撤销');
+    await select(task, document.querySelector(`button.task[data-task-id="${CSS.escape(task.task_id)}"]`));
+  } catch (error) {
+    message(`撤销失败：${error.message ?? '请重试'}`, true);
+    button.disabled = false; button.textContent = '撤销';
+  }
+}
+function renderFileGrants(container, task, result) {
+  const heading = document.createElement('h3'); heading.textContent = '文件授权'; container.append(heading);
+  const description = document.createElement('p'); description.className = 'file-grant-note';
+  description.textContent = '授权有效期最长 15 分钟。选择的文件位置不会显示在此处。'; container.append(description);
+  const terminal = ['completed', 'failed', 'cancelled'].includes(task.status);
+  if (terminal) {
+    const unavailable = document.createElement('p'); unavailable.className = 'file-grant-empty'; unavailable.textContent = '终态任务不能新增或查看文件授权'; container.append(unavailable); return;
+  }
+  const actions = document.createElement('div'); actions.className = 'file-grant-actions';
+  for (const [purpose, text] of [['read','授权读取'], ['create-new','授权新建'], ['replace','授权替换'], ['trash','授权移至回收站']]) {
+    const button = document.createElement('button'); button.textContent = text;
+    button.addEventListener('click', () => chooseFileGrant(task, purpose, button)); actions.append(button);
+  }
+  container.append(actions);
+  if (result.status === 'rejected') {
+    const failure = document.createElement('p'); failure.className = 'file-grant-error'; failure.textContent = `文件授权读取失败：${result.reason?.message ?? '请刷新后重试'}`; container.append(failure); return;
+  }
+  const grants = result.value;
+  if (!Array.isArray(grants) || grants.some(grant => !grant || typeof grant.grantId !== 'string' || !fileGrantPurposeLabels[grant.purpose] || !Number.isSafeInteger(grant.expiresAtMs))) {
+    const failure = document.createElement('p'); failure.className = 'file-grant-error'; failure.textContent = '文件授权响应不可用'; container.append(failure); return;
+  }
+  if (!grants.length) {
+    const empty = document.createElement('p'); empty.className = 'file-grant-empty'; empty.textContent = '暂无有效文件授权'; container.append(empty); return;
+  }
+  const list = document.createElement('ul'); list.className = 'file-grants';
+  for (const grant of grants) {
+    const item = document.createElement('li'), text = document.createElement('span'), revoke = document.createElement('button');
+    text.textContent = `${fileGrantPurposeLabels[grant.purpose]} · 至 ${new Date(grant.expiresAtMs).toLocaleTimeString()}`;
+    revoke.textContent = '撤销'; revoke.addEventListener('click', () => revokeFileGrant(task, grant, revoke)); item.append(text, revoke); list.append(item);
+  }
+  container.append(list);
 }
 function timelineText(event) {
   if (event.creation_event) return `任务创建：${sourceLabels[event.creation_event.source] ?? '来源未知'} · Agent ${event.creation_event.owner_agent_id}`;
@@ -224,11 +285,14 @@ async function select(task, button) {
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
   placeholder('正在读取详情…');
   const recentAfter = (BigInt(task.sequence) > 20n ? BigInt(task.sequence) - 20n : 0n).toString();
-  const [detailResult, timelineResult, recentResult, browserResult] = await Promise.allSettled([
+  const [detailResult, timelineResult, recentResult, browserResult, grantsResult] = await Promise.allSettled([
     query('task.step.get', { task_id: task.task_id }),
     query('task.events', { task_id: task.task_id, after_sequence: '0', limit: 20 }),
     query('task.events', { task_id: task.task_id, after_sequence: recentAfter, limit: 20 }),
-    query('task.browser.get', { task_id: task.task_id })
+    query('task.browser.get', { task_id: task.task_id }),
+    ['completed', 'failed', 'cancelled'].includes(task.status)
+      ? Promise.resolve([])
+      : window.__TAURI_INTERNALS__.invoke('file_grant_list', { taskId: task.task_id })
   ]);
   if (current !== selection || currentRound !== round) return;
   try {
@@ -278,6 +342,7 @@ async function select(task, button) {
       }
     }
     detail.append(dl);
+    renderFileGrants(detail, result.task, grantsResult);
     if (terminal && !confirmation) {
       const area = document.createElement('div'); area.className = 'confirm';
       const label = document.createElement('label'); label.textContent = '确认意见（可选）';

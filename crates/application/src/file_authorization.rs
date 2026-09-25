@@ -49,6 +49,14 @@ pub struct FileGrant {
     pub location: FileGrantLocation,
 }
 
+/// 可跨 Gateway/UI 传递的授权摘要；不包含任何文件位置或内容事实。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileGrantSummary {
+    pub grant_id: String,
+    pub purpose: FileGrantPurpose,
+    pub expires_at_ms: u64,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FileGrantError {
     InvalidInput,
@@ -184,6 +192,67 @@ impl FileAuthorizationRegistry {
             grants.remove(grant_id);
         }
         Ok(grant)
+    }
+
+    /// 已认证归属 Agent 的只读视图；不会解析或消费一次性授权。
+    pub fn list_for_task(
+        &self,
+        auth: AuthContext<'_>,
+        task: &Task,
+        now_ms: u64,
+    ) -> Result<Vec<FileGrantSummary>, FileGrantError> {
+        if !matches!(auth, AuthContext::Agent(_))
+            || !crate::valid_id(auth.agent_id())
+            || !active_task(task)
+            || auth.agent_id() != task.owner_agent_id
+        {
+            return Err(FileGrantError::PermissionDenied);
+        }
+        let mut grants = self
+            .grants
+            .lock()
+            .map_err(|_| FileGrantError::Unavailable)?;
+        grants.retain(|_, grant| grant.expires_at_ms > now_ms);
+        Ok(grants
+            .values()
+            .filter(|grant| {
+                grant.task_id == task.id && grant.owner_agent_id == task.owner_agent_id
+            })
+            .map(|grant| FileGrantSummary {
+                grant_id: grant.grant_id.clone(),
+                purpose: grant.purpose,
+                expires_at_ms: grant.expires_at_ms,
+            })
+            .collect())
+    }
+
+    /// 可信本机界面的当前任务视图；同样不包含位置或内容事实。
+    pub fn list_for_local(
+        &self,
+        auth: AuthContext<'_>,
+        task: &Task,
+        now_ms: u64,
+    ) -> Result<Vec<FileGrantSummary>, FileGrantError> {
+        require_local(auth)?;
+        if !active_task(task) {
+            return Err(FileGrantError::PermissionDenied);
+        }
+        let mut grants = self
+            .grants
+            .lock()
+            .map_err(|_| FileGrantError::Unavailable)?;
+        grants.retain(|_, grant| grant.expires_at_ms > now_ms);
+        Ok(grants
+            .values()
+            .filter(|grant| {
+                grant.task_id == task.id && grant.owner_agent_id == task.owner_agent_id
+            })
+            .map(|grant| FileGrantSummary {
+                grant_id: grant.grant_id.clone(),
+                purpose: grant.purpose,
+                expires_at_ms: grant.expires_at_ms,
+            })
+            .collect())
     }
 
     pub fn revoke(
@@ -490,6 +559,51 @@ mod tests {
                 200,
             ),
             Err(FileGrantError::Expired)
+        );
+    }
+
+    #[test]
+    fn safe_lists_expose_no_location_and_do_not_consume_write_grants() {
+        let port = Port(AtomicUsize::new(0));
+        let registry = FileAuthorizationRegistry::default();
+        let task = task("task-a", "agent-a");
+        registry
+            .issue_create_target(
+                &port,
+                AuthContext::LocalUser("desktop"),
+                &task,
+                "grant-create",
+                &FileCreateTargetRequest {
+                    path: "/tmp/root/output.docx".into(),
+                    authorized_root: "/tmp/root".into(),
+                },
+                100,
+                200,
+            )
+            .unwrap();
+        let summaries = registry
+            .list_for_task(AuthContext::Agent("agent-a"), &task, 150)
+            .unwrap();
+        assert_eq!(
+            summaries,
+            vec![FileGrantSummary {
+                grant_id: "grant-create".into(),
+                purpose: FileGrantPurpose::CreateNew,
+                expires_at_ms: 200,
+            }]
+        );
+        assert!(registry
+            .resolve(
+                AuthContext::Agent("agent-a"),
+                &task,
+                "grant-create",
+                FileGrantPurpose::CreateNew,
+                150,
+            )
+            .is_ok());
+        assert_eq!(
+            registry.list_for_task(AuthContext::Agent("agent-b"), &task, 150),
+            Err(FileGrantError::PermissionDenied)
         );
     }
 

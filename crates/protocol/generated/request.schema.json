@@ -438,6 +438,31 @@
         },
         "method": {
           "type": "string",
+          "const": "task.file.grants"
+        },
+        "params": {
+          "$ref": "#/$defs/GetParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
           "const": "task.step.advance"
         },
         "params": {
@@ -589,7 +614,8 @@
         "task.step.declare",
         "task.step.advance",
         "browser.execute",
-        "computer.execute"
+        "computer.execute",
+        "file.grant.read"
       ]
     },
     "CompleteParams": {

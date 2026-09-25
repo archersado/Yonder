@@ -100,7 +100,7 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[];
+    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[];
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
     tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
@@ -125,6 +125,13 @@ export async function checkTaskSpace(page) {
         return JSON.stringify({jsonrpc:'2.0',id:'local-takeover',result:{kind:'control',task:{...task,sequence:'3'},control:{attempt_id:'attempt-1',control_id:'control_2',kind:'takeover',phase:'pending',accepted_sequence:'3',stopped_sequence:null}}});
       }
       if (command === 'browser_task_space_open') { window.fixtureBrowserOpenRequests.push(input); return; }
+      if (command === 'file_grant_list') return window.fixtureFileGrants;
+      if (command === 'file_grant_choose') {
+        window.fixtureFileGrantRequests.push(input);
+        const grant={grantId:'file_grant_fixture_'+window.fixtureFileGrantRequests.length,purpose:input.purpose,expiresAtMs:Date.now()+60000};
+        window.fixtureFileGrants.push(grant); return grant;
+      }
+      if (command === 'file_grant_revoke') { window.fixtureFileGrants=window.fixtureFileGrants.filter(grant=>grant.grantId!==input.grantId); return; }
       if (command !== 'task_query') return;
       if (window.fixtureError) throw new Error('测试读取失败');
       const {method,params} = JSON.parse(input.request);
@@ -191,6 +198,14 @@ export async function checkTaskSpace(page) {
   assert.ok(detailText.includes('Agent 声明步骤：打开目标文档') && detailText.includes('动作已观察：成功') && detailText.includes('执行结果未知：执行超时'));
   assert.ok(detailText.includes('状态说明') && detailText.includes('执行结果未知：执行超时'));
   assert.ok(detailText.includes('ego:49 · Agent控制 · 1个托管页面 · 活动 · 更新序号 3'));
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.file-grant-actions button').length), 4);
+  await page.click('.file-grant-actions button >> nth=0');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('文件授权已签发'));
+  assert.deepEqual(await page.evaluate(() => window.fixtureFileGrantRequests), [{taskId:'test-task-20',purpose:'read'}]);
+  assert.ok(await page.evaluate(() => document.querySelector('.file-grants').textContent.includes('读取')));
+  await page.click('.file-grants button');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('文件授权已撤销'));
+  assert.equal(await page.evaluate(() => document.querySelector('.file-grant-note').textContent.includes('文件位置不会显示')), true);
   await page.click('.browser-open');
   assert.deepEqual(await page.evaluate(() => window.fixtureBrowserOpenRequests),[{taskId:'test-task-20',expectedSequence:'5'}]);
   assert.ok(detailText.includes('仍有记录未加载'));

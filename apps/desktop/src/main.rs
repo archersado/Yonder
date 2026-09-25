@@ -1,5 +1,5 @@
-use std::{ffi::{c_char, CStr}, sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
-use serde::Deserialize;
+use std::{ffi::{c_char, CStr}, path::PathBuf, sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
 use yonder_desktop::TaskHost;
 use yonder_adapters::pet_pack;
@@ -10,6 +10,76 @@ mod voice_input;
 struct TaskState(Arc<Mutex<Option<TaskHost>>>);
 struct PreviewState(Mutex<yonder_application::region_preview::Session>);
 const REGION_PREVIEW_TITLE: &str = "Yonda · 圈选提问";
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FileGrantView {
+    grant_id: String,
+    purpose: &'static str,
+    expires_at_ms: u64,
+}
+
+fn file_grant_purpose(value: &str) -> Result<yonder_application::file_authorization::FileGrantPurpose, String> {
+    use yonder_application::file_authorization::FileGrantPurpose;
+    match value {
+        "read" => Ok(FileGrantPurpose::Read),
+        "create-new" => Ok(FileGrantPurpose::CreateNew),
+        "replace" => Ok(FileGrantPurpose::Replace),
+        "trash" => Ok(FileGrantPurpose::Trash),
+        _ => Err("文件授权用途无效".into()),
+    }
+}
+
+fn file_grant_view(value: yonder_application::file_authorization::FileGrantSummary) -> FileGrantView {
+    use yonder_application::file_authorization::FileGrantPurpose;
+    FileGrantView {
+        grant_id: value.grant_id,
+        purpose: match value.purpose {
+            FileGrantPurpose::Read => "read",
+            FileGrantPurpose::CreateNew => "create-new",
+            FileGrantPurpose::Replace => "replace",
+            FileGrantPurpose::Trash => "trash",
+        },
+        expires_at_ms: value.expires_at_ms,
+    }
+}
+
+fn choose_file_for_grant(purpose: yonder_application::file_authorization::FileGrantPurpose) -> Result<Option<PathBuf>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use yonder_application::file_authorization::FileGrantPurpose;
+        let selected = match purpose {
+            FileGrantPurpose::CreateNew => rfd::FileDialog::new().set_title("选择新建文件的位置").save_file(),
+            FileGrantPurpose::Read => rfd::FileDialog::new().set_title("选择要授权读取的文件").pick_file(),
+            FileGrantPurpose::Replace => rfd::FileDialog::new().set_title("选择要授权替换的文件").pick_file(),
+            FileGrantPurpose::Trash => rfd::FileDialog::new().set_title("选择要移入回收站的文件").pick_file(),
+        };
+        let Some(selected) = selected else { return Ok(None); };
+        if matches!(purpose, FileGrantPurpose::Replace | FileGrantPurpose::Trash) {
+            let description = if purpose == FileGrantPurpose::Replace {
+                "允许 Agent 后续替换该文件吗？"
+            } else {
+                "允许 Agent 后续将该文件移入回收站吗？"
+            };
+            let confirmed = matches!(
+                rfd::MessageDialog::new()
+                    .set_title("确认文件授权")
+                    .set_description(description)
+                    .set_level(rfd::MessageLevel::Warning)
+                    .set_buttons(rfd::MessageButtons::OkCancel)
+                    .show(),
+                rfd::MessageDialogResult::Ok | rfd::MessageDialogResult::Yes
+            );
+            if !confirmed { return Ok(None); }
+        }
+        Ok(Some(selected))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = purpose;
+        Err("Windows 文件授权入口仍在验证中".into())
+    }
+}
 
 fn region_preview_clean_title(reason: Option<&str>, event_at_ms: Option<u64>) -> String {
     let reason = match reason {
@@ -538,6 +608,84 @@ async fn task_confirm(
 }
 
 #[tauri::command]
+async fn file_grant_choose(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    purpose: String,
+) -> Result<Option<FileGrantView>, String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let purpose = file_grant_purpose(&purpose)?;
+    let selected = tauri::async_runtime::spawn_blocking(move || choose_file_for_grant(purpose))
+        .await
+        .map_err(|_| "文件选择中断".to_owned())??;
+    let Some(selected) = selected else { return Ok(None); };
+    let host = Arc::clone(&state.0);
+    let grant = tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        host.lock()
+            .map_err(|_| "任务存储不可用")?
+            .as_mut()
+            .ok_or("任务存储未就绪，请退出后重试")?
+            .issue_file_grant(&task_id, purpose, &selected, now)
+            .map(file_grant_view)
+            .map_err(|error| error.message().to_owned())
+    })
+    .await
+    .map_err(|_| "文件授权中断".to_owned())??;
+    Ok(Some(grant))
+}
+
+#[tauri::command]
+async fn file_grant_list(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+) -> Result<Vec<FileGrantView>, String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        host.lock()
+            .map_err(|_| "任务存储不可用")?
+            .as_mut()
+            .ok_or("任务存储未就绪，请退出后重试")?
+            .list_file_grants(&task_id, now)
+            .map(|grants| grants.into_iter().map(file_grant_view).collect())
+            .map_err(|error| error.message().to_owned())
+    })
+    .await
+    .map_err(|_| "文件授权查询中断".to_owned())?
+}
+
+#[tauri::command]
+async fn file_grant_revoke(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    grant_id: String,
+) -> Result<(), String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        host.lock()
+            .map_err(|_| "任务存储不可用")?
+            .as_mut()
+            .ok_or("任务存储未就绪，请退出后重试")?
+            .revoke_file_grant(&task_id, &grant_id)
+            .map_err(|error| error.message().to_owned())
+    })
+    .await
+    .map_err(|_| "文件授权撤销中断".to_owned())?
+}
+
+#[tauri::command]
 async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,expected_sequence:String)->Result<(),String>{
     if window.label()!="task-space"{return Err("不允许的窗口".into())}
     let expected=expected_sequence.parse::<u64>().map_err(|_|"任务序号不可用")?;
@@ -720,7 +868,7 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             release_contract::validate()?;
             #[cfg(target_os = "macos")]

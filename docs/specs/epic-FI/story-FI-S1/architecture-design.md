@@ -6,9 +6,11 @@
 
 Accepted AD-FI-02 新增 Application 内存授权 Registry：LocalUser 为当前非终态任务签发绑定归属 Agent、用途、文件身份/目标父目录和有效期的引用。既有文件签发复用 File Port 快照但丢弃正文；新目标通过 File Port `inspect_create_target` 规范化父目录并确认目标不存在。Registry 不访问文件系统，Adapter 不访问任务或授权状态。
 
+Accepted AD-FI-03 将该核心接入桌面组合根：`TaskHost` 持有 Registry 与 `ControlledFileAdapter`，Tauri 只从 `task-space` 窗口接收任务和用途，路径来自命令内部原生选择器，父目录由 Rust 派生。替换/回收站经原生二次确认。Agent 禁用或撤权先按 owner 清空引用，再更新登记状态并断开会话。
+
 ## 状态与契约
 
-MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，SQLCipher 延期至 ST-S2；UI 仅持展示快照。传输类型从 Rust 派生。改变协议/持久化/边界前先补 ADR，不为本 Story 另建状态系统。
+MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，SQLCipher 延期至 ST-S2；UI 仅持展示快照。协议 1.27 从 Rust 派生 `file.grant.read`、`task.file.grants` 与安全摘要，只返回引用、用途和到期时间。Gateway 先验证握手、当前登记状态、会话 Agent 与任务归属，再查询内存 Registry；协议读取不消费引用且不写 SQLite、事件或 Outbox。
 
 ## 失败与验证
 
@@ -19,6 +21,8 @@ Application 定义 `FilePort`、平台无关 `FileIdentity`、有界读取快照
 
 ## 架构影响
 
-本增量新增 Application File Port 和 macOS Adapter，依赖方向保持 adapters→application；不变更协议、SQLite、任务状态所有者或 Gateway。Windows 编译路径稳定返回 unavailable。
+Runtime 增量新增 Application File Port 和 macOS Adapter，依赖方向保持 adapters→application；Windows 编译路径稳定返回 unavailable。
 
 临时授权核心只新增 Application 内存状态及 File Port 新建目标预检，不修改 SQLite、协议或 Gateway。写用途引用解析时原子消费；实际文件操作继续使用身份/hash/父目录重新校验，授权不能代替并发保护。
+
+原生入口增量按 AD-FI-03 将协议升至 1.27，并由 desktop→adapters/application 的既有组合根持有 Adapter 与 Registry；不改变 SQLite schema、任务状态所有者或依赖方向，不新增第二条 Agent 通道。文件执行仍未开放。

@@ -5298,6 +5298,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tokio",
+ "uuid",
  "yonder-adapters",
  "yonder-application",
 ]

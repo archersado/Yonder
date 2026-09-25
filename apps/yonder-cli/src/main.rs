@@ -48,7 +48,7 @@ async fn gateway(agent_id: &str, request: Request) -> io::Result<Response> {
         .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "Yonder未运行"))?;
     let hello = Request::Hello { jsonrpc: Version::V2, request_id: "hello".into(), params: HelloParams {
         agent_id: agent_id.into(), capability: Capability::TaskRead, deadline: now_ms()? + 60_000,
-        protocol_version: ProtocolVersion { major: 1, minor: 26 },
+        protocol_version: ProtocolVersion { major: 1, minor: 27 },
         session_id: None, offered_capabilities: None,
     }};
     match send(&stream, &hello).await? {
@@ -71,6 +71,7 @@ fn request(name: &str, args: &Value, id: String, deadline: u64, agent_id: &str) 
         "task_create" => { let (jsonrpc, request_id) = base(); Ok(Request::Create { jsonrpc, request_id, params: CreateParams { agent_id: agent_id.into(), capability: Capability::TaskCreate, deadline, idempotency_key: field(args,"idempotency_key")?.into(), description: field(args,"description")?.into(), name: Some(field(args,"name")?.into()) } }) },
         "task_list" => { let (jsonrpc, request_id) = base(); Ok(Request::List { jsonrpc, request_id, params: ListParams { agent_id: agent_id.into(), capability: Capability::TaskRead, deadline, after_task_id: args.get("after_task_id").and_then(Value::as_str).map(str::to_owned), include_finished: args.get("include_finished").and_then(Value::as_bool).unwrap_or(false), running_only: args.get("running_only").and_then(Value::as_bool).unwrap_or(false), limit: args.get("limit").and_then(Value::as_u64).unwrap_or(100).try_into().map_err(|_| "limit无效")? } }) },
         "task_get" | "task_step_get" => { let (jsonrpc, request_id) = base(); let params = GetParams { agent_id: agent_id.into(), capability: Capability::TaskRead, deadline, task_id: field(args,"task_id")?.into() }; Ok(if name == "task_get" { Request::Get { jsonrpc, request_id, params } } else { Request::StepGet { jsonrpc, request_id, params } }) },
+        "task_file_grants" => { let (jsonrpc, request_id) = base(); Ok(Request::FileGrants { jsonrpc, request_id, params: GetParams { agent_id: agent_id.into(), capability: Capability::FileGrantRead, deadline, task_id: field(args,"task_id")?.into() } }) },
         "task_cancel" => { let (jsonrpc, request_id) = base(); Ok(Request::Cancel { jsonrpc, request_id, params: CancelParams { agent_id: agent_id.into(), capability: Capability::TaskCancel, deadline, task_id: field(args,"task_id")?.into(), expected_sequence: field(args,"expected_sequence")?.into() } }) },
         "task_control" => { let (jsonrpc, request_id) = base(); let kind=match field(args,"kind")? { "pause"=>ControlKind::Pause,"cancel"=>ControlKind::Cancel,"takeover"=>ControlKind::Takeover,_=>return Err("kind须为pause、cancel或takeover".into()) }; Ok(Request::Control { jsonrpc,request_id,params:ControlParams { agent_id:agent_id.into(),capability:Capability::TaskControl,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),kind } }) },
         "task_events" => { let (jsonrpc, request_id) = base(); Ok(Request::Events { jsonrpc, request_id, params: EventsParams { agent_id: agent_id.into(), capability: Capability::TaskRead, deadline, task_id: field(args,"task_id")?.into(), after_sequence: args.get("after_sequence").and_then(Value::as_str).unwrap_or("0").into(), limit: args.get("limit").and_then(Value::as_u64).unwrap_or(100).try_into().map_err(|_| "limit无效")? } }) },
@@ -93,6 +94,7 @@ fn tools() -> Value {
         {"name":"task_create","description":"登记一个由Agent创建的Yonder任务","inputSchema":object(vec!["idempotency_key","name","description"],json!({"idempotency_key":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"}}))},
         {"name":"task_list","description":"列出当前Agent的Yonder任务","inputSchema":object(vec![],json!({"after_task_id":{"type":"string"},"include_finished":{"type":"boolean"},"running_only":{"type":"boolean"},"limit":{"type":"integer","minimum":1,"maximum":100}}))},
         {"name":"task_get","description":"读取Yonder任务快照","inputSchema":object(vec!["task_id"],json!({"task_id":{"type":"string"}}))},
+        {"name":"task_file_grants","description":"读取当前任务由本机用户授予的文件引用；只返回引用、用途和到期时间","inputSchema":object(vec!["task_id"],json!({"task_id":{"type":"string"}}))},
         {"name":"task_cancel","description":"取消尚未开始的Yonder任务并保留数据","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))},
         {"name":"task_control","description":"请求在步骤边界暂停、取消或接管执行中的Yonder任务","inputSchema":object(vec!["task_id","expected_sequence","kind"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"kind":{"type":"string","enum":["pause","cancel","takeover"]}}))},
         {"name":"task_events","description":"读取Yonder任务增量事件","inputSchema":object(vec!["task_id"],json!({"task_id":{"type":"string"},"after_sequence":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":100}}))},
@@ -206,6 +208,7 @@ mod tests {
         assert!(matches!(request("computer_step",&json!({"task_id":"task-1","expected_sequence":"4","step_id":"type","label":"输入文本","tool_name":"type_text","arguments":{"text":"hello"}}),"r4".into(),2000,"agent-a").unwrap(),Request::ComputerStep { .. }));
         let tools=tools();let names=tools.as_array().unwrap().iter().filter_map(|tool|tool["name"].as_str()).collect::<Vec<_>>();
         assert!(matches!(request("task_artifacts",&json!({"task_id":"task-1","manifest_version":"2","after_ordinal":1,"limit":20}),"r5".into(),2000,"agent-a").unwrap(),Request::Artifacts { params:ArtifactParams { after_ordinal:1,limit:20,.. },.. }));
-        assert_eq!(names.len(),15);assert!(names.contains(&"computer_step"));assert!(names.contains(&"task_fail"));assert!(names.contains(&"task_wait_for_user"));assert!(names.contains(&"task_artifacts"));assert!(!names.contains(&"computer_execute"));
+        assert!(matches!(request("task_file_grants",&json!({"task_id":"task-1"}),"r6".into(),2000,"agent-a").unwrap(),Request::FileGrants { params:GetParams { capability:Capability::FileGrantRead,.. },.. }));
+        assert_eq!(names.len(),16);assert!(names.contains(&"computer_step"));assert!(names.contains(&"task_fail"));assert!(names.contains(&"task_wait_for_user"));assert!(names.contains(&"task_artifacts"));assert!(names.contains(&"task_file_grants"));assert!(!names.contains(&"computer_execute"));
     }
 }

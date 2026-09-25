@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::WebviewWindow;
-use yonder_adapters::task_store::SqliteTaskStore;
+use yonder_adapters::{file::ControlledFileAdapter, task_store::SqliteTaskStore};
 #[cfg(target_os = "macos")]
 use yonder_adapters::{
     cua::{CuaWorker, MacosFrontmostTarget},
@@ -28,6 +28,11 @@ use yonder_application::{
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
 };
+use yonder_application::{
+    file::{FileCreateTargetRequest, FileReadRequest},
+    file_authorization::{FileAuthorizationRegistry, FileGrantError, FileGrantPurpose, FileGrantSummary},
+};
+use uuid::Uuid;
 
 struct FixedTarget(WorkTarget);
 impl WorkTargetPort for FixedTarget {
@@ -53,6 +58,51 @@ pub enum ConfirmError {
     Conflict,
     QuotaExceeded,
     StorageUnavailable,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FileGrantHostError {
+    InvalidInput,
+    NotFound,
+    TaskUnavailable,
+    TargetUnavailable,
+    TargetExists,
+    TargetLocked,
+    Capacity,
+    PermissionDenied,
+}
+
+impl FileGrantHostError {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Self::InvalidInput => "文件授权参数无效",
+            Self::NotFound => "任务不存在",
+            Self::TaskUnavailable => "任务当前不能授予文件权限",
+            Self::TargetUnavailable => "无法读取所选文件或目录",
+            Self::TargetExists => "新建目标已存在，请选择新的文件名",
+            Self::TargetLocked => "所选文件正被其他应用使用",
+            Self::Capacity => "文件授权数量已满，请先撤销不再需要的授权",
+            Self::PermissionDenied => "当前操作没有文件授权权限",
+        }
+    }
+}
+
+fn file_grant_host_error(error: FileGrantError) -> FileGrantHostError {
+    match error {
+        FileGrantError::InvalidInput => FileGrantHostError::InvalidInput,
+        FileGrantError::PermissionDenied => FileGrantHostError::PermissionDenied,
+        FileGrantError::NotFound => FileGrantHostError::NotFound,
+        FileGrantError::Capacity => FileGrantHostError::Capacity,
+        FileGrantError::File(yonder_application::file::FileError::AlreadyExists) => {
+            FileGrantHostError::TargetExists
+        }
+        FileGrantError::File(yonder_application::file::FileError::HostLocked) => {
+            FileGrantHostError::TargetLocked
+        }
+        FileGrantError::File(_) | FileGrantError::Expired | FileGrantError::Unavailable => {
+            FileGrantHostError::TargetUnavailable
+        }
+    }
 }
 
 impl ConfirmError {
@@ -115,6 +165,8 @@ pub fn emit_pet_agent_connection(window: &WebviewWindow, connected: bool) {
 pub struct TaskHost {
     store: SqliteTaskStore,
     admission: Admission,
+    files: ControlledFileAdapter,
+    file_grants: FileAuthorizationRegistry,
     listening_pending: bool,
     listening_until: Option<Instant>,
     #[cfg(target_os = "macos")]
@@ -209,6 +261,8 @@ impl TaskHost {
         Ok(Self {
             store,
             admission,
+            files: ControlledFileAdapter::default(),
+            file_grants: FileAuthorizationRegistry::default(),
             listening_pending: false,
             listening_until: None,
             #[cfg(target_os = "macos")]
@@ -253,8 +307,114 @@ impl TaskHost {
         status: AgentRegistrationStatus,
         now_ms: u64,
     ) -> Result<AgentRegistration, HostError> {
+        if status != AgentRegistrationStatus::Enabled {
+            self.file_grants
+                .revoke_owner(AuthContext::LocalUser("desktop"), agent_id)
+                .map_err(|_| HostError::StorageUnavailable)?;
+        }
         AgentRegistry::set_agent_status(&mut self.store, agent_id, status, now_ms)
             .map_err(|_| HostError::StorageUnavailable)
+    }
+
+    /// 原生选择器的结果只在此处转成受控引用，路径不会返回给 WebView 或 Agent。
+    pub fn issue_file_grant(
+        &mut self,
+        task_id: &str,
+        purpose: FileGrantPurpose,
+        selected_path: &Path,
+        now_ms: u64,
+    ) -> Result<FileGrantSummary, FileGrantHostError> {
+        if !yonder_application::valid_id(task_id) || !selected_path.is_absolute() {
+            return Err(FileGrantHostError::InvalidInput);
+        }
+        let path = selected_path
+            .to_str()
+            .filter(|value| !value.is_empty())
+            .ok_or(FileGrantHostError::InvalidInput)?;
+        let authorized_root = selected_path
+            .parent()
+            .and_then(|parent| parent.to_str())
+            .filter(|value| !value.is_empty())
+            .ok_or(FileGrantHostError::InvalidInput)?;
+        let task = self.store.get(task_id).map_err(|error| match error {
+            yonder_application::Error::NotFound => FileGrantHostError::NotFound,
+            _ => FileGrantHostError::TaskUnavailable,
+        })?;
+        if matches!(
+            task.status,
+            yonder_application::Status::Completed
+                | yonder_application::Status::Failed
+                | yonder_application::Status::Cancelled
+        ) {
+            return Err(FileGrantHostError::TaskUnavailable);
+        }
+        let grant_id = format!("file_grant_{}", Uuid::new_v4().simple());
+        let expires_at_ms = now_ms
+            .checked_add(yonder_application::file_authorization::MAX_FILE_GRANT_LIFETIME_MS)
+            .ok_or(FileGrantHostError::InvalidInput)?;
+        let grant = match purpose {
+            FileGrantPurpose::CreateNew => self.file_grants.issue_create_target(
+                &self.files,
+                AuthContext::LocalUser("desktop"),
+                &task,
+                &grant_id,
+                &FileCreateTargetRequest {
+                    path: path.into(),
+                    authorized_root: authorized_root.into(),
+                },
+                now_ms,
+                expires_at_ms,
+            ),
+            FileGrantPurpose::Read | FileGrantPurpose::Replace | FileGrantPurpose::Trash => {
+                self.file_grants.issue_existing(
+                    &self.files,
+                    AuthContext::LocalUser("desktop"),
+                    &task,
+                    &grant_id,
+                    purpose,
+                    &FileReadRequest {
+                        path: path.into(),
+                        authorized_root: authorized_root.into(),
+                    },
+                    now_ms,
+                    expires_at_ms,
+                )
+            }
+        }
+        .map_err(file_grant_host_error)?;
+        Ok(FileGrantSummary {
+            grant_id: grant.grant_id,
+            purpose: grant.purpose,
+            expires_at_ms: grant.expires_at_ms,
+        })
+    }
+
+    pub fn list_file_grants(
+        &mut self,
+        task_id: &str,
+        now_ms: u64,
+    ) -> Result<Vec<FileGrantSummary>, FileGrantHostError> {
+        let task = self.store.get(task_id).map_err(|error| match error {
+            yonder_application::Error::NotFound => FileGrantHostError::NotFound,
+            _ => FileGrantHostError::TaskUnavailable,
+        })?;
+        self.file_grants
+            .list_for_local(AuthContext::LocalUser("desktop"), &task, now_ms)
+            .map_err(file_grant_host_error)
+    }
+
+    pub fn revoke_file_grant(
+        &mut self,
+        task_id: &str,
+        grant_id: &str,
+    ) -> Result<(), FileGrantHostError> {
+        let task = self.store.get(task_id).map_err(|error| match error {
+            yonder_application::Error::NotFound => FileGrantHostError::NotFound,
+            _ => FileGrantHostError::TaskUnavailable,
+        })?;
+        self.file_grants
+            .revoke(AuthContext::LocalUser("desktop"), &task, grant_id)
+            .map_err(file_grant_host_error)
     }
 
     pub fn pause_desktop_for_user(&mut self) -> Result<bool, HostError> {
@@ -445,9 +605,10 @@ impl TaskHost {
         #[cfg(not(target_os = "macos"))]
         let computer_permission_required = false;
         let (response, accepted_create) = session
-            .handle_encoded_with_runtimes(
+            .handle_encoded_with_runtimes_and_file_grants(
                 &mut self.store,
                 &self.admission,
+                Some(&self.file_grants),
                 browser,
                 computer,
                 targets,
@@ -621,6 +782,70 @@ mod tests {
             for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}
             std::fs::remove_dir(directory.join("observations")).unwrap();std::fs::remove_dir(directory).unwrap();
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn file_grants_are_task_bound_and_agent_revocation_clears_them() {
+        let directory = std::env::temp_dir().join(format!(
+            "yonda-file-grant-host-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let selected = directory.join("selected.docx");
+        std::fs::write(&selected, b"not a real document").unwrap();
+        let mut host = TaskHost::open(&directory).unwrap();
+        let now = 1_000_000_000_000;
+        host.register_agent("agent-a", now).unwrap();
+        let task = host
+            .store
+            .register(
+                "agent-a",
+                "file-grant-test",
+                "授权测试",
+                Some("测试"),
+                yonder_application::TaskSource::LocalAgent,
+            )
+            .unwrap();
+        let granted = host
+            .issue_file_grant(&task.id, FileGrantPurpose::Read, &selected, now + 10)
+            .unwrap();
+        assert!(granted.grant_id.starts_with("file_grant_"));
+        assert_eq!(
+            host.list_file_grants(&task.id, now + 11).unwrap().len(),
+            1,
+            "本机视图只列出安全摘要"
+        );
+        let mut session = yonder_application::gateway::GatewaySession::new(
+            AuthContext::Agent("agent-a"),
+            yonder_application::gateway::Platform::Macos,
+        );
+        let hello = format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"agent-a","capability":"task.read","deadline":{},"protocol_version":{{"major":1,"minor":27}}}}}}"#, now + 2_000);
+        let response = String::from_utf8(host.query_session(&mut session, hello.as_bytes(), now + 100).unwrap()).unwrap();
+        assert!(response.contains("file.grant.read"));
+        let query = format!(
+            r#"{{"jsonrpc":"2.0","id":"grants","method":"task.file.grants","params":{{"agent_id":"agent-a","capability":"file.grant.read","deadline":{},"task_id":"{}"}}}}"#,
+            now + 2_000, task.id
+        );
+        let response = String::from_utf8(host.query_session(&mut session, query.as_bytes(), now + 101).unwrap()).unwrap();
+        assert!(response.contains(&granted.grant_id));
+        assert!(!response.contains("selected.docx") && !response.contains("authorized_root"));
+        host.set_agent_status("agent-a", AgentRegistrationStatus::Disabled, now + 12)
+            .unwrap();
+        assert!(host.list_file_grants(&task.id, now + 13).unwrap().is_empty());
+        assert!(String::from_utf8(host.query_session(&mut session, query.as_bytes(), now + 102).unwrap())
+            .unwrap()
+            .contains("-32003"));
+        drop(host);
+        for name in ["selected.docx", "tasks.db", "host.lock"] {
+            std::fs::remove_file(directory.join(name)).unwrap();
+        }
+        std::fs::remove_dir(directory.join("observations")).unwrap();
+        std::fs::remove_dir(directory).unwrap();
     }
 
     #[test]
