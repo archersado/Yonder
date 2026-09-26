@@ -2,7 +2,7 @@
 
 ## 边界与依赖
 
-Application定义Document Port、语义请求及文件组合用例；Rust OOXML Adapter位于`crates/adapters`，依赖Application，不访问任务SQLite。文件路径规范化、文件身份、源快照保护、同文件写租约与宿主锁检测由FI-S1 File Port提供，Document Adapter不得自行建立第二套身份规则。Desktop组合根与Gateway仍不接线。
+Application定义Document Port、语义请求及文件组合用例；Rust OOXML Adapter位于`crates/adapters`，依赖Application，不访问任务SQLite。文件路径规范化、文件身份、源快照保护、同文件写租约与宿主锁检测由FI-S1 File Port提供，Document Adapter不得自行建立第二套身份规则。Desktop组合根将Document Port注入统一Agent Gateway；不新增本地HTTP/TCP或第二条Agent通道。
 
 ## 状态与契约
 
@@ -10,13 +10,15 @@ Application定义Document Port、语义请求及文件组合用例；Rust OOXML 
 
 File Port 的 guarded write 在源身份租约与共享宿主锁下写目标暂存文件，并通过组合校验器在提交前复核源哈希和OOXML格式。覆盖源文件复用 File Port 的独占目标锁及 `expected identity + expected hash`，不再额外取得同一身份租约造成自锁。
 
+Agent文档执行协议为`task.document.execute`（协议1.29）。请求仅含同任务的源`read`授权、输出`create-new`授权、源`expected_hash`与有界的唯一语义替换文本；不含路径、授权根、OOXML、ZIP或覆盖标志。Gateway在TM-S7启动事务后解析两份授权，调用默认另存的Document Port；输出授权仅可消费一次。响应、任务事件、Outbox和日志只返回格式、hash、字节数等安全摘要，不返回文件路径或正文。Agent不能覆盖或删除原件；可信LocalUser覆盖路径保持原有受控用例。
+
 ## 失败与验证
 
 区分非法路径、格式不支持、hash冲突、目标存在、文件锁、语义目标不存在/不唯一、结构校验失败和I/O失败。提交前失败不得留下正式输出；提交结果不明时标为unknown且不自动重试。
 
 ### 验证
 
-复用DO-S1统一合成与Microsoft Transitional样本；新增File Port身份/锁夹具、原文件并发变化、目标存在、临时文件清理与可信覆盖拒绝。真实Gateway任务另建 Change。Windows/macOS分别提供结构化日志或Office/WPS打开证据；Windows当前暂缓但门禁保留。
+复用DO-S1统一合成与Microsoft Transitional样本；新增File Port身份/锁夹具、原文件并发变化、目标存在、临时文件清理与可信覆盖拒绝。Gateway覆盖协议字段边界、未协商拒绝、同任务双授权、默认另存、失败/unknown不重试与安全摘要。macOS提供结构化单元/集成日志；Windows当前暂缓但门禁保留。
 
 ## 架构影响
 

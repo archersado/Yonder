@@ -113,6 +113,31 @@
         },
         "method": {
           "type": "string",
+          "const": "task.document.execute"
+        },
+        "params": {
+          "$ref": "#/$defs/DocumentExecuteParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
           "const": "task.cancel"
         },
         "params": {
@@ -641,7 +666,8 @@
         "browser.execute",
         "computer.execute",
         "file.grant.read",
-        "file.execute"
+        "file.execute",
+        "document.execute"
       ]
     },
     "CompleteParams": {
@@ -835,6 +861,57 @@
         "deadline",
         "idempotency_key",
         "description"
+      ]
+    },
+    "DocumentExecuteParams": {
+      "type": "object",
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "before": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "expected_hash": {
+          "type": "string"
+        },
+        "expected_sequence": {
+          "type": "string"
+        },
+        "output_grant_id": {
+          "type": "string"
+        },
+        "source_grant_id": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "expected_sequence",
+        "source_grant_id",
+        "output_grant_id",
+        "expected_hash",
+        "before",
+        "after"
       ]
     },
     "EventsParams": {

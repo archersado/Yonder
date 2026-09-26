@@ -90,6 +90,7 @@ pub struct DocumentFileReceipt {
     pub canonical_path: String,
     pub identity: FileIdentity,
     pub sha256: String,
+    pub bytes_written: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -250,5 +251,6 @@ fn receipt_from_transform(
         canonical_path: receipt.canonical_path,
         identity: receipt.identity,
         sha256: receipt.sha256,
+        bytes_written: receipt.bytes_written,
     })
 }

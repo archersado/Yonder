@@ -99,6 +99,8 @@ File Tools 提供打开、定位、元数据、列表、读、复制、移动、
 
 2026-09-26 按 Accepted [AD-FI-04](AD-FI-04-AGENT-FILE-EXECUTION.md) 在既有 Gateway 内增加受授权引用的 macOS 文件执行：协议 1.28 `task.file.execute` 不接收路径、授权根或确认字段，复用 TM-S7 启动事务与 FI File Port 复核。Gateway 传输正文硬限 48 KiB；大文件不截断、不分片，待后续独立路线。一次性引用在解析时消费，未知副作用不重试；Windows 继续 unavailable。
 
+2026-09-26 按 Accepted [AD-DO-02](AD-DO-02-AGENT-DOCUMENT-GATEWAY.md) 增加受双文件授权约束的 macOS OOXML Gateway：`task.document.execute` 只允许 `read + create-new` 授权及唯一文本替换，默认另存且不接收路径/XML/覆盖标记。复用 TM-S7、FI-S1 与 Document Port 的身份、哈希、锁和原子提交；Windows 延期。
+
 Document Port 不暴露 XML。OOXML Adapter 处理 docx/xlsx/pptx 的结构读取与局部修改，写请求携带 expected_hash，多操作原子提交。默认另存；覆盖须显式要求；临时写入并校验后原子替换。不得绕过 Office/WPS 文件锁；复杂排版、图表、宏、旧格式和宿主 UI 操作降级 CUA。Rust 进程内与按需 Node Worker 经 Spike 选出唯一实现，达到保真门槛时优先 Rust。
 
 ## Recording 与桌宠

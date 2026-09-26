@@ -226,7 +226,8 @@
         "browser.execute",
         "computer.execute",
         "file.grant.read",
-        "file.execute"
+        "file.execute",
+        "document.execute"
       ]
     },
     "CapabilityInfo": {
@@ -384,6 +385,57 @@
         "phase",
         "accepted_sequence",
         "stopped_sequence"
+      ]
+    },
+    "DocumentExecutionResult": {
+      "type": "object",
+      "properties": {
+        "attempt_result": {
+          "$ref": "#/$defs/AttemptResult"
+        },
+        "bytes_written": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentFormat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task": {
+          "$ref": "#/$defs/TaskSnapshot"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "task",
+        "attempt_result",
+        "format",
+        "sha256",
+        "bytes_written"
+      ]
+    },
+    "DocumentFormat": {
+      "type": "string",
+      "enum": [
+        "docx",
+        "xlsx",
+        "pptx"
       ]
     },
     "FileExecutionResult": {
@@ -698,6 +750,23 @@
             "kind": {
               "type": "string",
               "const": "file-execution"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "execution"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "execution": {
+              "$ref": "#/$defs/DocumentExecutionResult"
+            },
+            "kind": {
+              "type": "string",
+              "const": "document-execution"
             }
           },
           "additionalProperties": false,

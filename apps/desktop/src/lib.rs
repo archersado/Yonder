@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::WebviewWindow;
-use yonder_adapters::{file::ControlledFileAdapter, task_store::SqliteTaskStore};
+use yonder_adapters::{document::OoxmlDocumentAdapter, file::ControlledFileAdapter, task_store::SqliteTaskStore};
 #[cfg(target_os = "macos")]
 use yonder_adapters::{
     cua::{CuaWorker, MacosFrontmostTarget},
@@ -166,6 +166,7 @@ pub struct TaskHost {
     store: SqliteTaskStore,
     admission: Admission,
     files: ControlledFileAdapter,
+    documents: OoxmlDocumentAdapter,
     file_grants: FileAuthorizationRegistry,
     listening_pending: bool,
     listening_until: Option<Instant>,
@@ -262,6 +263,7 @@ impl TaskHost {
             store,
             admission,
             files: ControlledFileAdapter::default(),
+            documents: OoxmlDocumentAdapter,
             file_grants: FileAuthorizationRegistry::default(),
             listening_pending: false,
             listening_until: None,
@@ -610,6 +612,7 @@ impl TaskHost {
                 &self.admission,
                 Some(&self.file_grants),
                 Some(&self.files),
+                Some(&self.documents),
                 browser,
                 computer,
                 targets,
@@ -870,6 +873,35 @@ mod tests {
         assert!(host.list_file_grants(&task.id, now + 22).unwrap().is_empty(), "一次性替换授权必须已消费");
         drop(host);
         for name in ["secret.txt", "tasks.db", "host.lock"] { std::fs::remove_file(directory.join(name)).unwrap(); }
+        std::fs::remove_dir(directory.join("observations")).unwrap(); std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn document_execute_uses_dual_grants_and_default_save_as_without_paths() {
+        let directory = std::env::temp_dir().join(format!("yonda-document-exec-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&directory).unwrap();
+        let source = directory.join("source.docx");
+        let output = directory.join("output.docx");
+        std::fs::write(&source, include_bytes!("../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.docx")).unwrap();
+        let mut host = TaskHost::open(&directory).unwrap(); let now = 1_000_000_000_000;
+        host.register_agent("agent-a", now).unwrap();
+        let task = host.store.register("agent-a", "document-exec-test", "文档执行测试", Some("测试"), yonder_application::TaskSource::LocalAgent).unwrap();
+        let (task, _) = host.store.declare_step("agent-a", &task.id, task.sequence, "edit", "替换文档文本").unwrap();
+        let expected_hash = yonder_application::file::read(&host.files, &FileReadRequest { path: source.to_str().unwrap().into(), authorized_root: directory.to_str().unwrap().into() }).unwrap().sha256;
+        let source_grant = host.issue_file_grant(&task.id, FileGrantPurpose::Read, &source, now + 10).unwrap();
+        let output_grant = host.issue_file_grant(&task.id, FileGrantPurpose::CreateNew, &output, now + 10).unwrap();
+        let mut session = yonder_application::gateway::GatewaySession::new(AuthContext::Agent("agent-a"), yonder_application::gateway::Platform::Macos);
+        let hello = format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"agent-a","capability":"task.read","deadline":{},"protocol_version":{{"major":1,"minor":29}}}}}}"#, now + 2_000);
+        assert!(String::from_utf8(host.query_session(&mut session, hello.as_bytes(), now + 20).unwrap()).unwrap().contains("document.execute"));
+        let execute = format!(r#"{{"jsonrpc":"2.0","id":"execute","method":"task.document.execute","params":{{"agent_id":"agent-a","capability":"document.execute","deadline":{},"task_id":"{}","expected_sequence":"{}","source_grant_id":"{}","output_grant_id":"{}","expected_hash":"{}","before":"YONDER_DOCX_BEFORE","after":"YONDER_DOCX_AFTER"}}}}"#, now + 2_000, task.id, task.sequence, source_grant.grant_id, output_grant.grant_id, expected_hash);
+        let response = String::from_utf8(host.query_session(&mut session, execute.as_bytes(), now + 21).unwrap()).unwrap();
+        assert!(response.contains("document-execution") && response.contains("bytes_written"));
+        assert!(!response.contains("source.docx") && !response.contains("output.docx") && !response.contains(directory.to_str().unwrap()));
+        assert!(output.is_file() && std::fs::read(&source).unwrap() == include_bytes!("../../../spikes/ooxml-adapter-comparison/fixtures/synthetic/sample.docx"));
+        assert!(host.list_file_grants(&task.id, now + 22).unwrap().iter().all(|grant| grant.grant_id != output_grant.grant_id), "输出新建授权必须已消费");
+        drop(host);
+        for name in ["source.docx", "output.docx", "tasks.db", "host.lock"] { std::fs::remove_file(directory.join(name)).unwrap(); }
         std::fs::remove_dir(directory.join("observations")).unwrap(); std::fs::remove_dir(directory).unwrap();
     }
 

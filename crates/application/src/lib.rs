@@ -8,6 +8,7 @@ pub mod browser_use;
 pub mod command;
 pub mod computer_use;
 pub mod document;
+pub mod document_execution;
 pub mod file;
 pub mod file_authorization;
 pub mod file_execution;

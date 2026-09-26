@@ -21,4 +21,8 @@ DO-S1与Accepted AD-E0-04已确定Rust进程内实现。Accepted AD-DO-01的内�
 
 macOS 文件组合增量：[do-s2-macos-file-runtime](../../../../openspec/changes/do-s2-macos-file-runtime/proposal.md)。该增量不代替后续 Gateway/任务闭环或 Windows 验证。
 
-2026-09-25：macOS 文件组合增量及其[独立 Verification Goal](../../../../openspec/changes/do-s2-macos-file-runtime/verification-goal.md)已通过。Application 已组合受控 File Port 与 OOXML Document Port，覆盖三格式读取、默认另存、源快照保护、暂存结构复验、可信本机覆盖和宿主锁拒绝；全仓 127 项 Rust、70 个活动 OpenSpec、33 项 Python 测试及架构/协议门禁通过。Agent Gateway、任务步骤/Observe/完成链路和 Windows 仍未接通，完整 Story 保持 `verifying`，不 Archive/Done。
+Agent 文档 Gateway 增量：[do-s2-agent-gateway](../../../../openspec/changes/do-s2-agent-gateway/proposal.md)。
+
+2026-09-25：macOS 文件组合增量及其[独立 Verification Goal](../../../../openspec/changes/do-s2-macos-file-runtime/verification-goal.md)已通过。Application 已组合受控 File Port 与 OOXML Document Port，覆盖三格式读取、默认另存、源快照保护、暂存结构复验、可信本机覆盖和宿主锁拒绝。
+
+2026-09-26：macOS Agent 文档 Gateway 增量及其[独立 Verification Goal](../../../../openspec/changes/do-s2-agent-gateway/verification-goal.md)已通过。归属 Agent 可经统一 Gateway 使用同任务 `read` + `create-new` 文件授权执行唯一文本替换与默认另存；协议、CLI/MCP、TaskHost、TM-S7 attempt 和无路径安全响应已接通。任务的后续 Observe/推进/完成继续使用既有 Gateway 方法。Windows 原生验证仍未接通，完整 Story 保持 `verifying`，不 Archive/Done。

@@ -47,6 +47,8 @@ pub enum Capability {
     FileGrantRead,
     #[serde(rename = "file.execute")]
     FileExecute,
+    #[serde(rename = "document.execute")]
+    DocumentExecute,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -505,6 +507,27 @@ pub struct FileExecuteParams {
     pub data_base64: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentFormat { Docx, Xlsx, Pptx }
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentExecuteParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub expected_sequence: String,
+    pub source_grant_id: String,
+    pub output_grant_id: String,
+    pub expected_hash: String,
+    pub before: String,
+    pub after: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct FileGrantSummary {
@@ -557,6 +580,13 @@ pub enum Request {
         #[serde(rename = "id")]
         request_id: String,
         params: FileExecuteParams,
+    },
+    #[serde(rename = "task.document.execute")]
+    DocumentExecute {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: DocumentExecuteParams,
     },
     #[serde(rename = "task.cancel")]
     Cancel {
@@ -996,6 +1026,16 @@ pub struct FileExecutionResult {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentExecutionResult {
+    pub task: TaskSnapshot,
+    pub attempt_result: AttemptResult,
+    pub format: Option<DocumentFormat>,
+    pub sha256: Option<String>,
+    pub bytes_written: Option<u64>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum QueryResult {
     Hello {
@@ -1027,6 +1067,7 @@ pub enum QueryResult {
         grants: Vec<FileGrantSummary>,
     },
     FileExecution { execution: FileExecutionResult },
+    DocumentExecution { execution: DocumentExecutionResult },
     Step {
         task: TaskSnapshot,
         step: Option<StepDeclaration>,
@@ -1118,6 +1159,7 @@ impl Request {
             Self::ComputerStep { params, .. } => &params.agent_id,
             Self::ComputerExecute { params, .. } => &params.agent_id,
             Self::FileExecute { params, .. } => &params.agent_id,
+            Self::DocumentExecute { params, .. } => &params.agent_id,
             Self::Complete { params, .. } | Self::Fail { params, .. } => &params.agent_id,
             Self::BrowserExecute { params, .. } => &params.agent_id,
             Self::StepAdvance { params, .. } => &params.agent_id,
@@ -1141,6 +1183,7 @@ impl Request {
             | Self::ComputerStep { request_id, .. }
             | Self::ComputerExecute { request_id, .. }
             | Self::FileExecute { request_id, .. }
+            | Self::DocumentExecute { request_id, .. }
             | Self::Complete { request_id, .. }
             | Self::Fail { request_id, .. }
             | Self::BrowserExecute { request_id, .. }
@@ -1166,6 +1209,7 @@ impl Request {
             Self::ComputerStep { params, .. } => params.capability,
             Self::ComputerExecute { params, .. } => params.capability,
             Self::FileExecute { params, .. } => params.capability,
+            Self::DocumentExecute { params, .. } => params.capability,
             Self::Complete { params, .. } => params.capability,
             Self::Fail { params, .. } => params.capability,
             Self::BrowserExecute { params, .. } => params.capability,
@@ -1193,6 +1237,8 @@ impl Request {
                 Capability::ComputerExecute
             } else if matches!(self, Self::FileExecute { .. }) {
                 Capability::FileExecute
+            } else if matches!(self, Self::DocumentExecute { .. }) {
+                Capability::DocumentExecute
             } else if matches!(self, Self::Complete { .. }) {
                 Capability::TaskComplete
             } else if matches!(self, Self::Fail { .. }) {
@@ -1275,6 +1321,14 @@ impl Request {
                     || (matches!(params.operation, FileOperation::Read | FileOperation::Trash) && has_data)
                     || (matches!(params.operation, FileOperation::CreateNew | FileOperation::Replace) && !has_data)
                 { return Err(RpcError::new(-32602, "非法文件执行参数")); }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+            }
+            Self::DocumentExecute { params, .. } => {
+                if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.source_grant_id)
+                    || !valid_id(&params.output_grant_id) || params.source_grant_id == params.output_grant_id
+                    || !valid_hash(&params.expected_hash) || !valid_document_text(&params.before)
+                    || !valid_document_text(&params.after)
+                { return Err(RpcError::new(-32602, "非法文档执行参数")); }
                 (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
             }
             Self::Complete { params, .. } => {
@@ -1552,6 +1606,14 @@ pub fn valid_file_base64(value: &str) -> bool {
     })
 }
 
+fn valid_hash(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn valid_document_text(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 16 * 1024 && !value.contains('\0')
+}
+
 pub fn sdk_arguments_json(value: &serde_json::Value) -> Result<String, RpcError> {
     serde_json::to_string(value).map_err(|_| RpcError::new(-32602, "非法桌面工具参数"))
 }
@@ -1592,6 +1654,8 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         FileGrantSummary::decl(&config),
         FileOperation::decl(&config),
         FileExecuteParams::decl(&config),
+        DocumentFormat::decl(&config),
+        DocumentExecuteParams::decl(&config),
         GetParams::decl(&config),
         EventsParams::decl(&config),
         ArtifactParams::decl(&config),
@@ -1616,6 +1680,7 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         BrowserReference::decl(&config),
         ComputerObservation::decl(&config),
         FileExecutionResult::decl(&config),
+        DocumentExecutionResult::decl(&config),
         TaskEvent::decl(&config),
         ArtifactAvailability::decl(&config),
         ArtifactManifestItem::decl(&config),
@@ -2108,6 +2173,23 @@ mod tests {
         let mut invalid = value; invalid["params"]["data_base64"] = serde_json::json!("not base64!");
         assert!(decode(&serde_json::to_vec(&invalid).unwrap()).unwrap().validate(1000).is_err());
         assert!(!valid_file_base64(&"A".repeat(((MAX_FILE_EXECUTE_BYTES + 2) / 3) * 4 + 4)));
+    }
+
+    #[test]
+    fn document_execute_contract_requires_dual_grants_and_has_no_location_fields() {
+        let value = serde_json::json!({"jsonrpc":"2.0","id":"d1","method":"task.document.execute","params":{"agent_id":"agent-a","capability":"document.execute","deadline":2000,"task_id":"task-1","expected_sequence":"4","source_grant_id":"file_grant_1","output_grant_id":"file_grant_2","expected_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","before":"旧文本","after":"新文本"}});
+        let request = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(request.validate(1000).is_ok());
+        assert!(matches!(request, Request::DocumentExecute { .. }));
+        let mut location = value.clone();
+        location["params"]["path"] = serde_json::json!("/private/source.docx");
+        assert!(decode(&serde_json::to_vec(&location).unwrap()).is_err());
+        let mut same_grant = value.clone();
+        same_grant["params"]["output_grant_id"] = serde_json::json!("file_grant_1");
+        assert!(decode(&serde_json::to_vec(&same_grant).unwrap()).unwrap().validate(1000).is_err());
+        let mut uppercase_hash = value;
+        uppercase_hash["params"]["expected_hash"] = serde_json::json!("A".repeat(64));
+        assert!(decode(&serde_json::to_vec(&uppercase_hash).unwrap()).unwrap().validate(1000).is_err());
     }
 
     #[test]
