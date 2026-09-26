@@ -328,6 +328,7 @@ pub(crate) fn handle_request_versioned(
         Request::Fail { .. } => Err(RpcError::new(-32002, "任务失败终结须通过Gateway会话")),
         Request::WaitForUser { .. } => Err(RpcError::new(-32002, "等待用户须通过Gateway会话")),
         Request::FileGrants { .. } => Err(RpcError::new(-32002, "文件授权读取须通过Gateway会话")),
+        Request::FileExecute { .. } => Err(RpcError::new(-32002, "文件执行须通过Gateway会话")),
         Request::Hello { .. } => Err(RpcError::new(-32002, "握手须通过 Gateway 会话")),
         Request::List { params, .. } => {
             let page = if params.running_only {

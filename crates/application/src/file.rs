@@ -229,6 +229,16 @@ pub fn trash(
     port.trash(request, &LocalTrashAuthorization { _private: () })
 }
 
+/// 仅供已经由 `FileAuthorizationRegistry` 验证并消费回收站授权的 Application 用例。
+/// 不接受调用方提供的确认字段，Adapter 仍会重新校验路径与文件身份。
+pub fn trash_granted(
+    port: &dyn FilePort,
+    request: &FileTrashRequest,
+) -> Result<FileTrashReceipt, FileError> {
+    validate_location(&request.path, &request.authorized_root)?;
+    port.trash(request, &LocalTrashAuthorization { _private: () })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

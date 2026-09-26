@@ -10,7 +10,7 @@ class ReleaseManifestTest(unittest.TestCase):
     def test_repository_freezes_current_release_versions(self):
         manifest = collect_manifest(Path(__file__).resolve().parents[1], include_artifacts=False)
         self.assertEqual(manifest["version"], "0.1.0")
-        self.assertEqual(manifest["protocol"], {"major": 1, "minor": 27})
+        self.assertEqual(manifest["protocol"], {"major": 1, "minor": 28})
         self.assertEqual(manifest["sqlite_schema"], 19)
         self.assertEqual({driver["kind"] for driver in manifest["drivers"]}, {"cua", "bua"})
         self.assertIn("release_contract", manifest["sources"])

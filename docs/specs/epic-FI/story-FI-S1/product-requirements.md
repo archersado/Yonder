@@ -31,6 +31,15 @@
 
 Windows 文件身份、Office/WPS 锁与原生选择器实机证据，以及使用授权引用的 Agent 文件执行和任务事件接线仍待后续增量。
 
+## Agent 受控执行（2026-09-26）
+
+- FI-EXEC-01：已认证归属 Agent 只能以当前任务已签发的 `grant_id` 发起同用途文件操作；请求不得携带路径、授权根、文件身份、哈希、确认字段或 Shell。
+- FI-EXEC-02：读、创建、替换、回收站操作分别只接受同用途授权；读可复用，后三者首次解析即消费，unknown 不自动重试。
+- FI-EXEC-03：首次副作用前必须由 TM-S7 同事务登记执行中的任务、步骤、attempt、事件和 Outbox；Adapter 不得自行推进任务状态。
+- FI-EXEC-04：Agent Gateway 正文传输上限为 48 KiB 原始字节，超限明确失败且不截断；读取/写入结果不得把路径或正文写入日志、事件、Outbox、Task Space 或错误文本。
+- FI-EXEC-05：File Port 仍复核身份、哈希、父目录、竞争、写租约和宿主锁；回收站仍依赖签发阶段原生二次确认，永久删除与批量目录操作不开放。
+- FI-EXEC-06：Windows 执行保持 unavailable 并明确延期；本增量必须提供 macOS Gateway/TaskHost 结构化证据。
+
 ## 临时文件授权引用核心（2026-09-25）
 
 - FI-GRANT-01：文件路径、授权根或 Agent 自报确认不能直接取得文件能力；只有可信 LocalUser 入口可为当前任务签发引用。

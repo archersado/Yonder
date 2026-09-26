@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+base64 = "=0.22.1"
 yonder-domain = { path = "../domain" }
 yonder-protocol = { path = "../protocol" }
 serde = { version = "1", features = ["derive"] }

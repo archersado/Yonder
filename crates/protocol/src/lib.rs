@@ -45,6 +45,8 @@ pub enum Capability {
     ComputerExecute,
     #[serde(rename = "file.grant.read")]
     FileGrantRead,
+    #[serde(rename = "file.execute")]
+    FileExecute,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -482,6 +484,27 @@ pub enum FileGrantPurpose {
     Trash,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum FileOperation { Read, CreateNew, Replace, Trash }
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct FileExecuteParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub expected_sequence: String,
+    pub grant_id: String,
+    pub operation: FileOperation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub data_base64: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct FileGrantSummary {
@@ -527,6 +550,13 @@ pub enum Request {
         #[serde(rename = "id")]
         request_id: String,
         params: ComputerStepParams,
+    },
+    #[serde(rename = "task.file.execute")]
+    FileExecute {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: FileExecuteParams,
     },
     #[serde(rename = "task.cancel")]
     Cancel {
@@ -950,6 +980,22 @@ pub struct ComputerObservation {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct FileExecutionResult {
+    pub task: TaskSnapshot,
+    pub attempt_result: AttemptResult,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub data_base64: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bytes_written: Option<u64>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum QueryResult {
     Hello {
@@ -980,6 +1026,7 @@ pub enum QueryResult {
         task_id: String,
         grants: Vec<FileGrantSummary>,
     },
+    FileExecution { execution: FileExecutionResult },
     Step {
         task: TaskSnapshot,
         step: Option<StepDeclaration>,
@@ -1070,6 +1117,7 @@ impl Request {
             Self::WaitForUser { params, .. } => &params.agent_id,
             Self::ComputerStep { params, .. } => &params.agent_id,
             Self::ComputerExecute { params, .. } => &params.agent_id,
+            Self::FileExecute { params, .. } => &params.agent_id,
             Self::Complete { params, .. } | Self::Fail { params, .. } => &params.agent_id,
             Self::BrowserExecute { params, .. } => &params.agent_id,
             Self::StepAdvance { params, .. } => &params.agent_id,
@@ -1092,6 +1140,7 @@ impl Request {
             Self::WaitForUser { request_id, .. }
             | Self::ComputerStep { request_id, .. }
             | Self::ComputerExecute { request_id, .. }
+            | Self::FileExecute { request_id, .. }
             | Self::Complete { request_id, .. }
             | Self::Fail { request_id, .. }
             | Self::BrowserExecute { request_id, .. }
@@ -1116,6 +1165,7 @@ impl Request {
             Self::WaitForUser { params, .. } => params.capability,
             Self::ComputerStep { params, .. } => params.capability,
             Self::ComputerExecute { params, .. } => params.capability,
+            Self::FileExecute { params, .. } => params.capability,
             Self::Complete { params, .. } => params.capability,
             Self::Fail { params, .. } => params.capability,
             Self::BrowserExecute { params, .. } => params.capability,
@@ -1141,6 +1191,8 @@ impl Request {
                 Self::ComputerExecute { .. } | Self::ComputerStep { .. }
             ) {
                 Capability::ComputerExecute
+            } else if matches!(self, Self::FileExecute { .. }) {
+                Capability::FileExecute
             } else if matches!(self, Self::Complete { .. }) {
                 Capability::TaskComplete
             } else if matches!(self, Self::Fail { .. }) {
@@ -1213,6 +1265,17 @@ impl Request {
                     Some(params.task_id.as_str()),
                     params.deadline,
                 )
+            }
+            Self::FileExecute { params, .. } => {
+                let valid_data = params.data_base64.as_deref().is_none_or(valid_file_base64);
+                let has_data = params.data_base64.is_some();
+                if sequence(&params.expected_sequence)? == 0
+                    || !valid_id(&params.grant_id)
+                    || !valid_data
+                    || (matches!(params.operation, FileOperation::Read | FileOperation::Trash) && has_data)
+                    || (matches!(params.operation, FileOperation::CreateNew | FileOperation::Replace) && !has_data)
+                { return Err(RpcError::new(-32602, "非法文件执行参数")); }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
             }
             Self::Complete { params, .. } => {
                 if sequence(&params.expected_sequence)? == 0 {
@@ -1479,6 +1542,16 @@ fn safe_sdk_arguments(value: &serde_json::Value) -> bool {
     }
 }
 
+pub const MAX_FILE_EXECUTE_BYTES: usize = 48 * 1024;
+
+pub fn valid_file_base64(value: &str) -> bool {
+    if value.is_empty() || value.len() > ((MAX_FILE_EXECUTE_BYTES + 2) / 3) * 4 || value.len() % 4 != 0 { return false; }
+    let pad = value.bytes().rev().take_while(|byte| *byte == b'=').count();
+    pad <= 2 && value.bytes().enumerate().all(|(index, byte)| {
+        byte.is_ascii_alphanumeric() || byte == b'+' || byte == b'/' || (byte == b'=' && index >= value.len() - pad)
+    })
+}
+
 pub fn sdk_arguments_json(value: &serde_json::Value) -> Result<String, RpcError> {
     serde_json::to_string(value).map_err(|_| RpcError::new(-32602, "非法桌面工具参数"))
 }
@@ -1517,6 +1590,8 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         ComputerStepParams::decl(&config),
         FileGrantPurpose::decl(&config),
         FileGrantSummary::decl(&config),
+        FileOperation::decl(&config),
+        FileExecuteParams::decl(&config),
         GetParams::decl(&config),
         EventsParams::decl(&config),
         ArtifactParams::decl(&config),
@@ -1540,6 +1615,7 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         TaskCreationEvent::decl(&config),
         BrowserReference::decl(&config),
         ComputerObservation::decl(&config),
+        FileExecutionResult::decl(&config),
         TaskEvent::decl(&config),
         ArtifactAvailability::decl(&config),
         ArtifactManifestItem::decl(&config),
@@ -2019,6 +2095,19 @@ mod tests {
         };
         let encoded = serde_json::to_string(&response).unwrap();
         assert!(!encoded.contains("path") && !encoded.contains("authorized_root"));
+    }
+
+    #[test]
+    fn file_execute_contract_is_bounded_and_has_no_location_fields() {
+        let value = serde_json::json!({"jsonrpc":"2.0","id":"f1","method":"task.file.execute","params":{"agent_id":"agent-a","capability":"file.execute","deadline":2000,"task_id":"task-1","expected_sequence":"4","grant_id":"file_grant_1","operation":"replace","data_base64":"aGVsbG8="}});
+        let request = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(request.validate(1000).is_ok());
+        assert!(matches!(request, Request::FileExecute { .. }));
+        let mut location = value.clone(); location["params"]["path"] = serde_json::json!("/private/file.docx");
+        assert!(decode(&serde_json::to_vec(&location).unwrap()).is_err());
+        let mut invalid = value; invalid["params"]["data_base64"] = serde_json::json!("not base64!");
+        assert!(decode(&serde_json::to_vec(&invalid).unwrap()).unwrap().validate(1000).is_err());
+        assert!(!valid_file_base64(&"A".repeat(((MAX_FILE_EXECUTE_BYTES + 2) / 3) * 4 + 4)));
     }
 
     #[test]

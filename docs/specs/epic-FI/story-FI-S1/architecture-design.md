@@ -26,3 +26,5 @@ Runtime 增量新增 Application File Port 和 macOS Adapter，依赖方向保�
 临时授权核心只新增 Application 内存状态及 File Port 新建目标预检，不修改 SQLite、协议或 Gateway。写用途引用解析时原子消费；实际文件操作继续使用身份/hash/父目录重新校验，授权不能代替并发保护。
 
 原生入口增量按 AD-FI-03 将协议升至 1.27，并由 desktop→adapters/application 的既有组合根持有 Adapter 与 Registry；不改变 SQLite schema、任务状态所有者或依赖方向，不新增第二条 Agent 通道。文件执行仍未开放。
+
+Accepted AD-FI-04 将受控执行接入同一 Gateway 与 TaskHost：协议 1.28 的 `task.file.execute` 只引用 `grant_id` 和有界 Base64 正文，Gateway 不接受路径或确认字段。Application 用例先复用 TM-S7 `start_execution` 事实，再解析 Registry 并调用 File Port；读取结果与写入正文均受 48 KiB Gateway 原始字节上限，路径/正文不进入任务事实。File Port 继续负责精确身份、SHA、父目录、临时文件、锁与原子提交；终态/撤权/到期均拒绝。Windows 不注册执行能力。

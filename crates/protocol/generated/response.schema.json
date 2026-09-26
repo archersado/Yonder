@@ -225,7 +225,8 @@
         "task.step.advance",
         "browser.execute",
         "computer.execute",
-        "file.grant.read"
+        "file.grant.read",
+        "file.execute"
       ]
     },
     "CapabilityInfo": {
@@ -383,6 +384,42 @@
         "phase",
         "accepted_sequence",
         "stopped_sequence"
+      ]
+    },
+    "FileExecutionResult": {
+      "type": "object",
+      "properties": {
+        "attempt_result": {
+          "$ref": "#/$defs/AttemptResult"
+        },
+        "bytes_written": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "data_base64": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task": {
+          "$ref": "#/$defs/TaskSnapshot"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "task",
+        "attempt_result"
       ]
     },
     "FileGrantPurpose": {
@@ -650,6 +687,23 @@
             "kind",
             "task_id",
             "grants"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "execution": {
+              "$ref": "#/$defs/FileExecutionResult"
+            },
+            "kind": {
+              "type": "string",
+              "const": "file-execution"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "execution"
           ]
         },
         {

@@ -10,6 +10,7 @@ pub mod computer_use;
 pub mod document;
 pub mod file;
 pub mod file_authorization;
+pub mod file_execution;
 pub mod gateway;
 pub mod jev_config;
 pub mod jev_runtime;

@@ -609,6 +609,7 @@ impl TaskHost {
                 &mut self.store,
                 &self.admission,
                 Some(&self.file_grants),
+                Some(&self.files),
                 browser,
                 computer,
                 targets,
@@ -846,6 +847,30 @@ mod tests {
         }
         std::fs::remove_dir(directory.join("observations")).unwrap();
         std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn file_execute_consumes_replace_grant_without_returning_a_path() {
+        let directory = std::env::temp_dir().join(format!("yonda-file-exec-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&directory).unwrap();
+        let selected = directory.join("secret.txt"); std::fs::write(&selected, b"first").unwrap();
+        let mut host = TaskHost::open(&directory).unwrap(); let now = 1_000_000_000_000;
+        host.register_agent("agent-a", now).unwrap();
+        let task = host.store.register("agent-a", "file-exec-test", "文件执行测试", Some("测试"), yonder_application::TaskSource::LocalAgent).unwrap();
+        let (task, _) = host.store.declare_step("agent-a", &task.id, task.sequence, "edit", "替换文本").unwrap();
+        let grant = host.issue_file_grant(&task.id, FileGrantPurpose::Replace, &selected, now + 10).unwrap();
+        let mut session = yonder_application::gateway::GatewaySession::new(AuthContext::Agent("agent-a"), yonder_application::gateway::Platform::Macos);
+        let hello = format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"agent-a","capability":"task.read","deadline":{},"protocol_version":{{"major":1,"minor":28}}}}}}"#, now + 2_000);
+        assert!(String::from_utf8(host.query_session(&mut session, hello.as_bytes(), now + 20).unwrap()).unwrap().contains("file.execute"));
+        let execute = format!(r#"{{"jsonrpc":"2.0","id":"execute","method":"task.file.execute","params":{{"agent_id":"agent-a","capability":"file.execute","deadline":{},"task_id":"{}","expected_sequence":"{}","grant_id":"{}","operation":"replace","data_base64":"c2Vjb25k"}}}}"#, now + 2_000, task.id, task.sequence, grant.grant_id);
+        let response = String::from_utf8(host.query_session(&mut session, execute.as_bytes(), now + 21).unwrap()).unwrap();
+        assert!(response.contains("bytes_written") && !response.contains("secret.txt") && !response.contains(directory.to_str().unwrap()));
+        assert_eq!(std::fs::read(&selected).unwrap(), b"second");
+        assert!(host.list_file_grants(&task.id, now + 22).unwrap().is_empty(), "一次性替换授权必须已消费");
+        drop(host);
+        for name in ["secret.txt", "tasks.db", "host.lock"] { std::fs::remove_file(directory.join(name)).unwrap(); }
+        std::fs::remove_dir(directory.join("observations")).unwrap(); std::fs::remove_dir(directory).unwrap();
     }
 
     #[test]

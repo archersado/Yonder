@@ -5,13 +5,16 @@ use crate::{
     agent_registry::AgentRegistry,
     browser_use::{BrowserReferenceRecord, BrowserUsePort},
     computer_use::{ComputerUsePort, WorkTargetPort},
+    file::FilePort,
+    file_execution::{self, FileOperation},
     file_authorization::{FileAuthorizationRegistry, FileGrantPurpose},
     query,
 };
 use yonder_protocol::{
     AttemptResult as ProtocolAttemptResult, AttemptResultPhase, AttemptUnknownReason, Availability,
     BrowserOperation, BrowserReference, Capability, CapabilityInfo,
-    ComputerObservation as ProtocolComputerObservation, FileGrantPurpose as ProtocolFileGrantPurpose,
+    ComputerObservation as ProtocolComputerObservation, FileExecutionResult as ProtocolFileExecutionResult,
+    FileGrantPurpose as ProtocolFileGrantPurpose, FileOperation as ProtocolFileOperation,
     FileGrantSummary as ProtocolFileGrantSummary, ProtocolVersion, QueryResult, Request, Response,
     RpcError, TaskSnapshot, Version,
 };
@@ -19,7 +22,7 @@ use yonder_protocol::{
 pub use yonder_protocol::Platform;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 27 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 28 };
 const PROTOCOL: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
 
 pub fn is_execution_request(bytes: &[u8]) -> bool {
@@ -27,7 +30,8 @@ pub fn is_execution_request(bytes: &[u8]) -> bool {
         yonder_protocol::decode(bytes),
         Ok(Request::BrowserExecute { .. }
             | Request::ComputerExecute { .. }
-            | Request::ComputerStep { .. })
+            | Request::ComputerStep { .. }
+            | Request::FileExecute { .. })
     )
 }
 
@@ -37,6 +41,7 @@ fn is_agent_write_request(request: &Request) -> bool {
         Request::BrowserExecute { .. }
             | Request::ComputerExecute { .. }
             | Request::ComputerStep { .. }
+            | Request::FileExecute { .. }
             | Request::Cancel { .. }
             | Request::Create { .. }
             | Request::Control { .. }
@@ -168,6 +173,7 @@ pub struct GatewaySession<'a> {
     can_attempt_start_history: bool,
     can_artifact_items: bool,
     can_file_grants: bool,
+    can_file_execute: bool,
     browser_available: bool,
     can_computer: bool,
     can_computer_step: bool,
@@ -176,6 +182,7 @@ pub struct GatewaySession<'a> {
     computer_available: bool,
     computer_permission_required: bool,
     file_grants_available: bool,
+    file_execution_available: bool,
     /// 仅在一次同步 `handle` 调用期间传递给桌面组合根，不是协议或核心状态。
     last_create_was_new: bool,
 }
@@ -419,6 +426,7 @@ impl<'a> GatewaySession<'a> {
             store,
             admission,
             None,
+            None,
             port,
             computer,
             targets,
@@ -435,6 +443,7 @@ impl<'a> GatewaySession<'a> {
         store: &mut T,
         admission: &Admission,
         file_grants: Option<&FileAuthorizationRegistry>,
+        file_port: Option<&dyn FilePort>,
         port: Option<&dyn BrowserUsePort>,
         computer: Option<&dyn ComputerUsePort>,
         targets: Option<&dyn WorkTargetPort>,
@@ -450,11 +459,12 @@ impl<'a> GatewaySession<'a> {
         self.computer_available = computer.is_some() && targets.is_some();
         self.computer_permission_required = computer_permission_required;
         self.file_grants_available = file_grants.is_some();
+        self.file_execution_available = file_grants.is_some() && file_port.is_some();
         let request = match yonder_protocol::decode(bytes) {
             Ok(request) => request,
             Err(_) => return self.handle_encoded_with_create_signal(store, bytes, now_ms),
         };
-        if is_agent_write_request(&request) || matches!(request, Request::FileGrants { .. }) {
+        if is_agent_write_request(&request) || matches!(request, Request::FileGrants { .. } | Request::FileExecute { .. }) {
             let id = request.request_id().to_owned();
             if store
                 .authorize_agent_write(self.auth.agent_id(), now_ms)
@@ -477,6 +487,7 @@ impl<'a> GatewaySession<'a> {
                 | Request::BrowserExecute { .. }
                 | Request::ComputerExecute { .. }
                 | Request::ComputerStep { .. }
+                | Request::FileExecute { .. }
                 | Request::Complete { .. }
                 | Request::Fail { .. }
                 | Request::WaitForUser { .. }
@@ -508,6 +519,30 @@ impl<'a> GatewaySession<'a> {
                     task_id: task.id,
                     grants,
                 })
+            }
+            Request::FileExecute { params, .. } => {
+                if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
+                if !self.can_file_execute { return Err(RpcError::new(-32010, "文件执行需要协议1.28及macOS文件运行时")); }
+                let operation = match params.operation {
+                    ProtocolFileOperation::Read => FileOperation::Read,
+                    ProtocolFileOperation::CreateNew => FileOperation::CreateNew,
+                    ProtocolFileOperation::Replace => FileOperation::Replace,
+                    ProtocolFileOperation::Trash => FileOperation::Trash,
+                };
+                use base64::{Engine as _, engine::general_purpose::STANDARD};
+                let body = params.data_base64.as_deref().map(|value| STANDARD.decode(value).map_err(|_| RpcError::new(-32602, "非法文件正文编码"))).transpose()?;
+                let result = file_execution::execute_agent_file(
+                    store, admission,
+                    file_grants.ok_or_else(|| RpcError::new(-32020, "本机文件授权入口不可用"))?,
+                    file_port.ok_or_else(|| RpcError::new(-32020, "macOS文件运行时不可用"))?,
+                    self.auth, &params.task_id, yonder_protocol::sequence(&params.expected_sequence)?,
+                    &params.grant_id, operation, body.as_deref(), host_session_id, now_ms,
+                ).map_err(query::error)?;
+                let data_base64 = result.read_bytes.as_deref().map(|value| STANDARD.encode(value));
+                Ok(QueryResult::FileExecution { execution: ProtocolFileExecutionResult {
+                    task: snapshot(result.task), attempt_result: attempt_result(result.attempt_result),
+                    data_base64, sha256: result.sha256, bytes_written: result.bytes_written,
+                }})
             }
             Request::WaitForUser { params, .. } => {
                 if !self.negotiated {
@@ -753,6 +788,7 @@ impl<'a> GatewaySession<'a> {
             can_attempt_start_history: false,
             can_artifact_items: false,
             can_file_grants: false,
+            can_file_execute: false,
             browser_available: false,
             can_computer: false,
             can_computer_step: false,
@@ -761,6 +797,7 @@ impl<'a> GatewaySession<'a> {
             computer_available: false,
             computer_permission_required: false,
             file_grants_available: false,
+            file_execution_available: false,
             last_create_was_new: false,
         }
     }
@@ -1090,13 +1127,16 @@ impl<'a> GatewaySession<'a> {
                 self.can_file_grants = self.negotiated
                     && params.protocol_version.minor >= 27
                     && self.file_grants_available;
+                self.can_file_execute = self.negotiated
+                    && params.protocol_version.minor >= 28
+                    && self.file_execution_available;
                 self.can_computer=self.can_advance&&params.protocol_version.minor>=11&&self.computer_available&&!self.computer_permission_required;
                 self.can_computer_step=self.can_computer&&params.protocol_version.minor>=12;
                 self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
                 self.can_fail=self.can_complete&&params.protocol_version.minor>=18;
                 if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("仅支持未开始任务取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
@@ -1108,6 +1148,7 @@ impl<'a> GatewaySession<'a> {
                 if self.can_fail{capabilities.push(CapabilityInfo{name:Capability::TaskFail,version:ProtocolVersion{major:1,minor:18},availability:Availability::Available,reason:Some("仅终结已Observe失败并推进边界的CUA任务".into())});}
                 if self.can_wait_for_user{capabilities.push(CapabilityInfo{name:Capability::TaskWaitForUser,version:ProtocolVersion{major:1,minor:17},availability:Availability::Available,reason:Some("仅在已Observe并推进的步骤边界等待".into())});}
                 if params.protocol_version.minor >= 27 && self.file_grants_available { capabilities.push(CapabilityInfo{name:Capability::FileGrantRead,version:ProtocolVersion{major:1,minor:27},availability:Availability::Available,reason:None}); }
+                if params.protocol_version.minor >= 28 && self.file_execution_available { capabilities.push(CapabilityInfo{name:Capability::FileExecute,version:ProtocolVersion{major:1,minor:28},availability:Availability::Available,reason:None}); }
                 return Ok(QueryResult::Hello { protocol_version: version, platform: self.platform, capabilities });
             }
             Err(RpcError::new(-32002, "请先完成 Gateway 握手"))
