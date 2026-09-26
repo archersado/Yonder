@@ -6,6 +6,12 @@
 swift macos-capability-probe.swift
 ```
 
+真实设备切换或运行中撤权前，先运行只读前置探针。它只输出设备数量和权限状态，不请求权限、不打开麦克风，也不输出设备名称或标识：
+
+```bash
+swift macos-readiness-probe.swift
+```
+
 真实收音探针必须由用户在窗口内点击“开始测试”，最多20秒且不落盘：
 
 ```bash

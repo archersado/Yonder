@@ -27,6 +27,8 @@ macOS无录音能力清单已通过：`zh-CN`识别器可用并支持本机识�
 
 2026-09-23：macOS语音错误提示已按Speech框架错误域和错误码分类，能区分权限撤销、服务中断、组件缺失、服务关闭与无语音；该项仍需真实运行中撤权证据，不能视为完整验收通过。
 
+2026-09-26：只读前置探针确认当前机器未取得麦克风/语音识别授权且只有一个输入设备，因此不能产生首次允许/拒绝、运行中撤权或真实设备切换证据。探针不请求权限、不打开麦克风、不输出设备身份；确定性 VAD/单终态回归仍通过。见[前置检查记录](../../../../openspec/changes/vi-s1-voice-input-spike/verification-macos-readiness-20260926.md)。完整 Story 保持 `implementing`。
+
 2026-09-23：OpenSpec Delta已补齐Requirement语句与Scenario块，`openspec validate vi-s1-voice-input-spike`当前通过；这不改变真实硬件与Windows证据缺口。
 
 ## OpenSpec 与验证
