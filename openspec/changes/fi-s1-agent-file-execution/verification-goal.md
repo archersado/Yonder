@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `cargo test -p yonder-desktop --lib tests::file_execute_consumes_replace_grant_without_returning_a_path -- --exact` | 1 通过 | macOS TaskHost/Gateway 使用替换授权修改测试文件；响应不含文件名或父目录；授权执行后不再可列出。 |
 | `cargo test -p yonder-protocol tests::file_execute_contract_is_bounded_and_has_no_location_fields -- --exact` | 1 通过 | 严格拒绝位置字段、非法 Base64 与超过 48 KiB 的编码。 |
-| `cargo test -p yonder-protocol -p yonder-application -p yonder-desktop -p yonder-cli` | 71 通过 | 协议、Application、桌面宿主与 MCP 类型请求回归。 |
+| `cargo test -p yonder-protocol -p yonder-application -p yonder-desktop -p yonder-cli` | 61 通过 | 协议、Application、桌面宿主与 MCP 类型请求回归。 |
 | 协议生成、OpenSpec、架构及发布契约门禁 | 通过 | Rust 唯一协议源生成物、Change、架构关联与发布版本一致。 |
 
 测试数据仅在临时目录创建，正文和路径均未记录到证据。真实文件副作用仍使用现有 File Port 的身份、哈希、锁和原子提交保护；unknown 不会自动重试。
