@@ -721,7 +721,9 @@ impl TaskStore for SqliteTaskStore {
         let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
         let row: Option<(String,i64,String,Option<String>,String)>=tx.query_row("SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(storage)?;
         let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
-        if state!="running" || u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?!=expected { return Err(Error::Conflict); }
+        // Jev 可在第一个 CUA 动作启动前交回；交回没有副作用，因此 created 与
+        // running 均是合法边界，仍须同事务追加任务序列、事件和 Outbox。
+        if !matches!(state.as_str(), "created" | "running") || u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?!=expected { return Err(Error::Conflict); }
         let exists:i64=tx.query_row("SELECT count(*) FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",params![task_id,plan_id,plan_version as i64],|r|r.get(0)).map_err(storage)?;
         if exists!=1{return Err(Error::NotFound);}
         let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
@@ -729,7 +731,7 @@ impl TaskStore for SqliteTaskStore {
         tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",params![task_id,next as i64,state]).map_err(storage)?;
         tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
         tx.commit().map_err(storage)?;
-        Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next})
+        Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:status(&state)?,sequence:next})
     }
     fn supports_execution_attempts(&self) -> bool {
         true
@@ -3308,6 +3310,19 @@ mod tests {
         assert_eq!(store.get_plan_fragment("plan-task", "plan-1", 1).unwrap().unwrap().current_slot, 1);
         let handed_back = store.hand_back_plan_fragment("plan-task", "plan-1", 1, advanced.sequence).unwrap();
         assert_eq!(handed_back.sequence, 5);
+        let created_task = create(&mut store, "created-plan-task").unwrap();
+        let created_fragment = PlanFragment {
+            task_id: created_task.id.clone(),
+            plan_id: "created-plan".into(),
+            expected_sequence: created_task.sequence,
+            ..fragment.clone()
+        };
+        let submitted_created = store.submit_plan_fragment("a1", &created_fragment).unwrap();
+        let created_handback = store
+            .hand_back_plan_fragment("created-plan-task", "created-plan", 1, submitted_created.sequence)
+            .unwrap();
+        assert_eq!(created_handback.status, Status::Created);
+        assert_eq!(created_handback.sequence, 3);
         let facts: (i64, i64) = store
             .0
             .query_row(

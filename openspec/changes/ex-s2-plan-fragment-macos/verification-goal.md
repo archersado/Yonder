@@ -22,4 +22,4 @@
 
 需在用户主动提供的可控测试窗口中，以无敏感正文的 `computer_click` 候选运行一次。输出仅保留 task/plan/sequence、选择类别、Observe 成败、Outbox 数量与权限状态；若缺少 Keychain API Key、辅助功能权限、网络或测试窗口，应记录为环境阻塞，不将 EX-S2 标为 PASS。Windows 仍按用户决定暂缓。
 
-2026-09-27 已以 `apps/desktop/check-plan-fragment-execute-macos.py` 尝试运行固定输入的隔离窗口样本。正式 Gateway 1.31 握手、Jev 配置和 `task.plan.execute` 能力均已确认可用，且仓库既有 `MacWorkFocus` 独立对照验证通过；但本验证进程中的 fixture AX 映射被拒绝为 `MappingNotUnique`。脚本在任何 Gateway 执行请求前结束；没有调用 Jev、没有派发 CUA、没有记录敏感数据。按照前台目标身份保护，该失败是原生证据夹具的身份解析阻塞，不可用其他前台窗口替代。待修复夹具映射后重跑。
+2026-09-27 已以 `apps/desktop/check-plan-fragment-execute-macos.py` 运行固定输入的隔离窗口样本。新增单窗口、每进程唯一标题的 EX-S2 fixture；正式 `MacWorkFocus` 仅去重同一 AX 引用，仍拒绝不同窗口的同标题同几何歧义。Gateway 1.31 握手、Jev 配置和 `task.plan.execute` 能力均已确认可用，执行请求已到达 Jev 并以 `handback` 成功返回；没有 CUA 派发。该结果证明 created 边界交回会持久化，而不把模型低置信交回伪装成执行成功。真实 CUA 派发仍需要语义信息充分、能使 Jev 高置信选择已提交候选的样本；Windows 仍按用户决定暂缓。

@@ -66,11 +66,13 @@ static int same(CGRect a, CGRect b) {return fabs(a.origin.x-b.origin.x)<1&&fabs(
 
 static int mapping(AXUIElementRef app, CFStringRef title, CGRect bounds, AXUIElementRef retained, int *retained_present) {
   CFArrayRef windows=(CFArrayRef)attribute(app,kAXWindowsAttribute);if(!windows||CFGetTypeID(windows)!=CFArrayGetTypeID()){if(windows)CFRelease(windows);return 0;}
-  int matches=0;*retained_present=0;
+  // AppKit 偶尔会在 AXWindows 中重复同一个 AXUIElement；只按不同元素计数。
+  // 两个不同窗口仍会保守地构成映射歧义。
+  int matches=0;AXUIElementRef first_match=NULL;*retained_present=0;
   for(CFIndex i=0;i<CFArrayGetCount(windows);i++){
     AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);if(retained&&CFEqual(item,retained))*retained_present=1;
     CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CGRect frame;
-    if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds))matches++;
+    if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;}
     if(item_title)CFRelease(item_title);
   }
   CFRelease(windows);return matches;
@@ -82,10 +84,10 @@ int yonda_work_ref_capture(int32_t pid, uint32_t window_id, void **output, uint6
   CFStringRef title=NULL;CGRect bounds;if(!window_info(pid,window_id,&title,&bounds))return 3;
   AXUIElementRef app=AXUIElementCreateApplication(pid),target=NULL;double end=CFAbsoluteTimeGetCurrent()+2;
   do {
-    CFArrayRef windows=(CFArrayRef)attribute(app,kAXWindowsAttribute);int matches=0;
+    CFArrayRef windows=(CFArrayRef)attribute(app,kAXWindowsAttribute);int matches=0;AXUIElementRef first_match=NULL;
     if(windows&&CFGetTypeID(windows)==CFArrayGetTypeID())for(CFIndex i=0;i<CFArrayGetCount(windows);i++){
       AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CGRect frame;
-      if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)){matches++;target=item;}
+      if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;target=item;}
       if(item_title)CFRelease(item_title);
     }
     if(matches==1){CFRetain(target);if(windows)CFRelease(windows);break;} target=NULL;if(windows)CFRelease(windows);usleep(50000);

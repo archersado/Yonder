@@ -3,7 +3,6 @@
 import json
 import pathlib
 import queue
-import select
 import subprocess
 import sys
 import threading
@@ -12,16 +11,11 @@ import time
 root = pathlib.Path(__file__).resolve().parents[2]
 binary = root / "target/debug/Yonda.app/Contents/MacOS/yonder-desktop"
 fixture_bin = pathlib.Path("/private/tmp/yonder-ex2-plan-fixture")
-fixture_src = root / "apps/desktop/tests/input-fixture-macos.swift"
+fixture_src = root / "apps/desktop/tests/plan-fragment-fixture-macos.swift"
 result = {"platform": "macos", "recording_started": False}
 fixture = None
 agent = None
 fixture_state = {}
-
-def read_json(stream, timeout):
-    if not select.select([stream], [], [], timeout)[0]:
-        raise RuntimeError("timeout")
-    return json.loads(stream.readline())
 
 try:
     subprocess.run(["swiftc", str(fixture_src), "-o", str(fixture_bin)], check=True)
@@ -47,10 +41,16 @@ try:
         [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
     )
-    focus_ready = json.loads(focus_process.stdout.readline())
+    focus_ready_line = focus_process.stdout.readline()
+    if not focus_ready_line:
+        raise RuntimeError("fixture-focus-helper-closed")
+    focus_ready = json.loads(focus_ready_line)
     focus_process.stdin.write("focus\n")
     focus_process.stdin.flush()
-    focus_result = json.loads(focus_process.stdout.readline())
+    focus_result_line = focus_process.stdout.readline()
+    if not focus_result_line:
+        raise RuntimeError("fixture-focus-helper-closed")
+    focus_result = json.loads(focus_result_line)
     focus_process.stdin.write("release\nquit\n")
     focus_process.stdin.flush()
     focus_process.wait(timeout=5)
@@ -87,8 +87,10 @@ try:
             response = agent_responses.get(timeout=45)
         except queue.Empty:
             raise RuntimeError("gateway-timeout")
-        if response is None or response.get("id") != request["id"] or "error" in response:
-            raise RuntimeError("gateway-failure")
+        if response is None or response.get("id") != request["id"]:
+            raise RuntimeError(f"gateway-{method}")
+        if "error" in response:
+            raise RuntimeError(f"gateway-{method}-{response['error'].get('code', 'unknown')}")
         return response["result"]
 
     hello = call("gateway.hello", "task.read", protocol_version={"major": 1, "minor": 31})
