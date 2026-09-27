@@ -192,8 +192,9 @@ try:
             # 不应耗尽整条原生验证的总时限。
             response = agent_responses.get(timeout=10)
         except queue.Empty:
-            if agent.poll() is not None:
-                raise RuntimeError("gateway-host-exited")
+            exit_code = agent.poll()
+            if exit_code is not None:
+                raise RuntimeError(f"gateway-host-exited-{exit_code}")
             raise RuntimeError("gateway-timeout")
         if response is None or response.get("id") != request["id"]:
             raise RuntimeError(f"gateway-{method}")
