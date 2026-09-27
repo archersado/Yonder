@@ -21,7 +21,7 @@ agent = None
 fixture_state = {}
 test_home = None
 
-def read_line_with_timeout(stream, timeout=5):
+def read_line_with_timeout(stream, timeout=2):
     """子进程意外保留 stdout 时也必须让验证器进入 finally 清理。"""
     lines = queue.Queue(maxsize=1)
     threading.Thread(target=lambda: lines.put(stream.readline()), daemon=True).start()
