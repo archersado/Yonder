@@ -2,11 +2,11 @@
 
 ## 入口与流程
 
-Agent调用通过结构化响应观察`starting/running/stopping/exited/unknown`；权限和高风险确认显式，停止中和unknown区分。正文输出只在获准响应中有界返回，不进入日志。首批无独立窗口，Task Space仅展示真实任务状态。
+Agent 先提议，Task Space 显示本机批准卡，再由同一 Agent 用批准引用执行。批准卡展示 program、字面 args、cwd、显式环境、超时和风险提示，并提供“批准执行”与“拒绝”；不得把完整命令显示在桌宠、任务标题或远端 Agent。Agent调用通过结构化响应观察`awaiting_user/running/stopping/exited/unknown`；停止中和unknown区分。正文输出只在获准响应中有界返回，不进入日志。
 
 ## 状态与错误反馈
 
-呈现真实可观察状态；加载、等待、失败和未提供能力不能伪装为完成。无独立界面时由调用方界面或结构化响应承载，不额外建立窗口。
+批准前显示“等待你的批准”，关闭、拒绝、到期或撤权显示稳定原因且不得触发 Runtime。批准只对当前一项命令有效，参数或任务变化后提示需重新提议。加载、等待、失败和未提供能力不能伪装为完成。
 
 ## 无障碍与平台验证
 
@@ -14,7 +14,7 @@ Agent调用通过结构化响应观察`starting/running/stopping/exited/unknown`
 
 ## 待决事项
 
-本增量没有用户入口：调用方只获得结构化状态与有界输出。Agent Gateway 风险确认和 Task Space 事件接线后，才显示命令步骤。Windows 显示“当前平台暂不支持”，不得显示可执行按钮。
+批准入口只在受信任的本机 Task Space，Agent Gateway、CLI/MCP 只可看到不透明引用和状态。Windows 显示“当前平台暂不支持”，不得显示可执行按钮。Shell、提权、安装、删除、支付和发送不提供此入口。
 
 ## macOS Runtime 调用反馈
 
