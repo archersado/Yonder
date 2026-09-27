@@ -62,17 +62,27 @@ static int ax_frame(AXUIElementRef element, CGRect *frame) {
   if(p)CFRelease(p);if(s)CFRelease(s);if(ok)*frame=(CGRect){point,size};return ok;
 }
 
+static int ax_window_number(AXUIElementRef element, uint32_t *value) {
+  CFTypeRef raw=attribute(element,CFSTR("AXWindowNumber"));int64_t number=0;
+  int ok=raw&&CFGetTypeID(raw)==CFNumberGetTypeID()&&CFNumberGetValue((CFNumberRef)raw,kCFNumberSInt64Type,&number)&&number>0&&number<=UINT32_MAX;
+  if(raw)CFRelease(raw);if(ok)*value=(uint32_t)number;return ok;
+}
+
 static int same(CGRect a, CGRect b) {return fabs(a.origin.x-b.origin.x)<1&&fabs(a.origin.y-b.origin.y)<1&&fabs(a.size.width-b.size.width)<1&&fabs(a.size.height-b.size.height)<1;}
 
-static int mapping(AXUIElementRef app, CFStringRef title, CGRect bounds, AXUIElementRef retained, int *retained_present) {
+static int mapping(AXUIElementRef app, CFStringRef title, CGRect bounds, uint32_t window_id, AXUIElementRef retained, int *retained_present) {
   CFArrayRef windows=(CFArrayRef)attribute(app,kAXWindowsAttribute);if(!windows||CFGetTypeID(windows)!=CFArrayGetTypeID()){if(windows)CFRelease(windows);return 0;}
   // AppKit 偶尔会在 AXWindows 中重复同一个 AXUIElement；只按不同元素计数。
   // 两个不同窗口仍会保守地构成映射歧义。
-  int matches=0;AXUIElementRef first_match=NULL;*retained_present=0;
+  int matches=0;AXUIElementRef first_match=NULL;int matched_window_number=0;*retained_present=0;
   for(CFIndex i=0;i<CFArrayGetCount(windows);i++){
     AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);if(retained&&CFEqual(item,retained))*retained_present=1;
     CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CGRect frame;
-    if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;}
+    uint32_t actual_window_id=0;int has_window_number=ax_window_number(item,&actual_window_id);
+    if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!has_window_number||actual_window_id==window_id)){
+      if(has_window_number&&actual_window_id==window_id){matched_window_number=1;matches=1;}
+      else if(!matched_window_number&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;}
+    }
     if(item_title)CFRelease(item_title);
   }
   CFRelease(windows);return matches;
@@ -84,10 +94,13 @@ int yonda_work_ref_capture(int32_t pid, uint32_t window_id, void **output, uint6
   CFStringRef title=NULL;CGRect bounds;if(!window_info(pid,window_id,&title,&bounds))return 3;
   AXUIElementRef app=AXUIElementCreateApplication(pid),target=NULL;double end=CFAbsoluteTimeGetCurrent()+2;
   do {
-    CFArrayRef windows=(CFArrayRef)attribute(app,kAXWindowsAttribute);int matches=0;AXUIElementRef first_match=NULL;
+    CFArrayRef windows=(CFArrayRef)attribute(app,kAXWindowsAttribute);int matches=0;AXUIElementRef first_match=NULL;int matched_window_number=0;
     if(windows&&CFGetTypeID(windows)==CFArrayGetTypeID())for(CFIndex i=0;i<CFArrayGetCount(windows);i++){
-      AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CGRect frame;
-      if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;target=item;}
+      AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CGRect frame;uint32_t actual_window_id=0;int has_window_number=ax_window_number(item,&actual_window_id);
+      if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!has_window_number||actual_window_id==window_id)){
+        if(has_window_number&&actual_window_id==window_id&&!matched_window_number){matched_window_number=1;matches=1;target=item;}
+        else if(!has_window_number&&!matched_window_number&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;target=item;}
+      }
       if(item_title)CFRelease(item_title);
     }
     if(matches==1){CFRetain(target);if(windows)CFRelease(windows);break;} target=NULL;if(windows)CFRelease(windows);usleep(50000);
@@ -102,7 +115,7 @@ int yonda_work_ref_focus(void *raw) {
   YondaWorkRef *ref=raw;if(!ref)return 8;if(!AXIsProcessTrusted())return 1;
   uint64_t sec=0,usec=0;if(!process_start(ref->pid,&sec,&usec)||sec!=ref->start_sec||usec!=ref->start_usec)return 2;
   CFStringRef title=NULL;CGRect before;if(!window_info(ref->pid,ref->window_id,&title,&before))return 3;
-  int present=0,matches=mapping(ref->app,title,before,ref->target,&present);CFRelease(title);if(!present||matches!=1)return 4;
+  int present=0,matches=mapping(ref->app,title,before,ref->window_id,ref->target,&present);CFRelease(title);if(!present||matches!=1)return 4;
   CFBooleanRef minimized=(CFBooleanRef)attribute(ref->target,kAXMinimizedAttribute);int was_minimized=minimized&&CFGetTypeID(minimized)==CFBooleanGetTypeID()&&CFBooleanGetValue(minimized);if(minimized)CFRelease(minimized);
   if(was_minimized&&AXUIElementSetAttributeValue(ref->target,kAXMinimizedAttribute,kCFBooleanFalse)!=kAXErrorSuccess)return 5;
   if(AXUIElementSetAttributeValue(ref->target,kAXMainAttribute,kCFBooleanTrue)!=kAXErrorSuccess||AXUIElementPerformAction(ref->target,kAXRaiseAction)!=kAXErrorSuccess||AXUIElementSetAttributeValue(ref->app,kAXFrontmostAttribute,kCFBooleanTrue)!=kAXErrorSuccess)return 5;
