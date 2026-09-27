@@ -25,6 +25,8 @@ Accepted AD-TM-13 定义共享启动边界。CM-S1 的双平台进程树 Spike�
 
 2026-09-23：启动事务已与 AG-S1/EX-S2 计划片段候选对齐，见[架构设计](architecture-design.md)。该对齐不改变现有 `start_execution` 契约，也不授权新增协议字段。
 
+2026-09-27：Document 子范围已随 DO-S2 的 `task.document.execute` 接线进入统一启动事务：副作用前以同一 `start_execution` 写入 `created→running`、步骤、attempt、事件及 Outbox，随后才解析双授权并执行默认另存；macOS 宿主目标用例复验通过。Command 仍受 Accepted AD-CM-01 的风险确认协议门禁，未开放 Gateway；本 Story 保持 `verifying`，不 Archive。
+
 ## OpenSpec 与验证
 
 [统一启动 Change](../../../../openspec/changes/tm-s7-unified-execution-start/proposal.md)。该 Change 只建立 Application 级共享契约、现有 CUA/BUA 回归与 Document/Command 接线门禁；不提前实现尚未获准的 Command 或文件写入能力。
