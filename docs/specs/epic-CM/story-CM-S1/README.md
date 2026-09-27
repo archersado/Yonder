@@ -17,6 +17,8 @@ AD-CM-01 已接受 macOS-only Runtime：标准库结构化参数、stdout/stderr
 
 复用 TM-S7 启动事务的一次性 Command 执行用例、Gateway 执行接线及真实 macOS Command Adapter 已实施；协议替换、重放、撤权、超时、unknown 不重试与无命令正文边界已有自动化回归。独立 macOS 原生批准界面证据与 Verification Goal 已通过；Windows Job Object 与 Windows 原生 E2E 按用户决定延期，因此完整 Story 保持 `verifying`，不标记 Done。
 
+2026-09-27 TM-S7 交叉审阅修正了批准与启动顺序：未批准、过期或失效引用现在于 `start_execution` 前失败，任务保持 `created` 且不创建 attempt；已批准引用仍在启动事务提交后一次性消费，再调用 Command Adapter，避免启动失败时提前丢失批准。
+
 ## OpenSpec 与验证
 
 [Spike Change](../../../../openspec/changes/cm-s1-command-executor-spike/proposal.md)。该Change只验证技术路线，不代替后续产品实施Proposal。

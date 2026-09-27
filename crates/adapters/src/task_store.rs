@@ -8028,7 +8028,8 @@ mod tests {
         let pending=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),100).unwrap();
         assert_eq!(execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Exited{exit_code:0}},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&pending.command_id,"host",101),Err(Error::StopRequired));
         assert_eq!(calls.load(Ordering::Relaxed),0);
-        assert_eq!(store.get(&task.id).unwrap().status,Status::Running);
+        assert_eq!(store.get(&task.id).unwrap().status,Status::Created);
+        assert!(store.get_attempt(&task.id).unwrap().is_none());
 
         let task=prepared(&mut store,"command-success");
         let approved=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),200).unwrap();

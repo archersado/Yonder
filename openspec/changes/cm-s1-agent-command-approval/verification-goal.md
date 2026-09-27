@@ -17,6 +17,8 @@ Result: PASS
 - `cargo test -p yonder-cli`：5/5 通过；CLI/MCP 只暴露提议与引用执行参数。
 - `cargo run -p yonder-protocol --example generate --locked -- --check`、`python3 scripts/check_architecture.py`、`openspec validate cm-s1-agent-command-approval --strict`：通过。
 
+2026-09-27 TM-S7 交叉审阅发现批准顺序缺口：旧实现虽不会在未批准时调用 Command Adapter，却会先提交 `created→running` 和失败 attempt。现已在 `start_execution` 前增加不返回正文、不消费引用的批准预检；只有已批准且任务、归属 Agent、sequence、摘要和期限仍匹配的引用才能进入启动事务。启动提交后仍原子消费一次，随后才派发。Application、SQLite Adapter 与真实 desktop Gateway 定向回归通过；未批准样本保持 `created` 且没有 attempt。
+
 ## macOS 原生界面证据
 
 - 隔离验证器：[`check-command-approval-macos.swift`](../../../apps/desktop/check-command-approval-macos.swift)。

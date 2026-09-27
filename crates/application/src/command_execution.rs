@@ -15,7 +15,7 @@ pub struct AgentCommandExecution {
     pub execution: CommandExecution,
 }
 
-/// 先提交 TM-S7 启动事实，再消费批准并派发一次；任何结果都不会自动重试。
+/// 先确认本机批准，再提交 TM-S7 启动事实、消费批准并派发一次；任何结果都不会自动重试。
 pub fn execute_agent_command(
     store: &mut impl TaskStore,
     admission: &Admission,
@@ -35,6 +35,7 @@ pub fn execute_agent_command(
     let (task, step) = crate::get_with_step(store, auth, task_id)?;
     let step = step.ok_or(Error::StopRequired)?;
     if task.sequence != expected_sequence { return Err(Error::Conflict); }
+    approvals.verify_for_execution(auth, &task, expected_sequence, command_id, now_ms).map_err(approval_error)?;
     let attempt = ExecutionAttempt {
         task_id: task_id.into(),
         step_id: step.step_id,
