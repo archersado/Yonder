@@ -21,3 +21,5 @@
 ## 待运行原生样本
 
 需在用户主动提供的可控测试窗口中，以无敏感正文的 `computer_click` 候选运行一次。输出仅保留 task/plan/sequence、选择类别、Observe 成败、Outbox 数量与权限状态；若缺少 Keychain API Key、辅助功能权限、网络或测试窗口，应记录为环境阻塞，不将 EX-S2 标为 PASS。Windows 仍按用户决定暂缓。
+
+2026-09-27 已以 `apps/desktop/check-plan-fragment-execute-macos.py` 尝试运行固定输入的隔离窗口样本。fixture 可创建，但系统窗口聚焦校验未通过，脚本在任何 Gateway 执行请求前以 `fixture-focus-failed` 结束；没有调用 Jev、没有派发 CUA、没有记录敏感数据。按照前台目标身份保护，该失败是原生环境证据阻塞，不可用其他前台窗口替代。待 macOS 窗口聚焦能力恢复后重跑。
