@@ -6,13 +6,31 @@ func emit(_ value: [String: Any]) {
   FileHandle.standardOutput.write(data + Data([10]))
 }
 
-final class FixtureField: NSTextField {
-  override var stringValue: String {
-    get { super.stringValue }
-    set {
-      super.stringValue = newValue
-      emit(["input_matches": newValue == "YONDER_SDK_INPUT_A"])
-    }
+final class FixtureField: NSView {
+  var value = ""
+  let label = NSTextField(labelWithString: "")
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    setAccessibilityElement(true)
+    setAccessibilityRole(.textField)
+    setAccessibilityEnabled(true)
+    setAccessibilityIdentifier("yonder-ex-s2-plan-input")
+    label.frame = bounds
+    addSubview(label)
+  }
+  required init?(coder: NSCoder) { fatalError("仅程序构造") }
+  override func isAccessibilityElement() -> Bool { true }
+  override func accessibilityRole() -> NSAccessibility.Role? { .textField }
+  override func accessibilityLabel() -> String? { "Yonder EX-S2 隔离输入" }
+  override func accessibilityValue() -> Any? { value }
+  override func accessibilityChildren() -> [Any]? { [] }
+  override func isAccessibilityEnabled() -> Bool { true }
+  override func isAccessibilitySelectorAllowed(_ selector: Selector) -> Bool { true }
+  override func setAccessibilityValue(_ input: Any?) {
+    guard let text = input as? String, text == "YONDER_SDK_INPUT_A" else { return }
+    value = text
+    label.stringValue = text
+    emit(["input_matches": true])
   }
 }
 
@@ -28,8 +46,6 @@ let window = NSWindow(
 window.title = "Yonder EX-S2 Fixture \(processID)"
 window.isReleasedWhenClosed = false
 let field = FixtureField(frame: NSRect(x: 24, y: 50, width: 390, height: 32))
-field.setAccessibilityLabel("Yonder EX-S2 隔离输入")
-field.setAccessibilityIdentifier("yonder-ex-s2-plan-input")
 window.contentView!.addSubview(field)
 window.makeKeyAndOrderFront(nil)
 
@@ -51,7 +67,7 @@ func report() {
     "window_id": window.windowNumber,
     "target_key": window.isKeyWindow,
     "target_on_active_space": window.isOnActiveSpace,
-    "input_matches": field.stringValue == "YONDER_SDK_INPUT_A",
+    "input_matches": field.value == "YONDER_SDK_INPUT_A",
   ])
 }
 
