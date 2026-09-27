@@ -7994,4 +7994,58 @@ mod tests {
         std::fs::remove_file(path).unwrap();
         std::fs::remove_dir_all(directory).unwrap();
     }
+
+    #[test]
+    fn approved_command_starts_once_and_records_unknown_without_retry() {
+        use std::{collections::BTreeMap, sync::atomic::{AtomicUsize, Ordering}};
+        use yonder_application::{
+            TaskSource,
+            admission::Admission,
+            command::{CommandCancellation, CommandError, CommandExecution, CommandOutcome, CommandPort, CommandRequest, NeverCancel},
+            command_approval::{CommandApprovalError, CommandApprovalRegistry},
+            command_execution::execute_agent_command,
+        };
+
+        struct Port<'a> { calls: &'a AtomicUsize, outcome: CommandOutcome }
+        impl CommandPort for Port<'_> {
+            fn execute(&self, _: &CommandRequest, _: &dyn CommandCancellation) -> Result<CommandExecution, CommandError> {
+                self.calls.fetch_add(1, Ordering::Relaxed);
+                Ok(CommandExecution { outcome:self.outcome, stdout:b"safe".to_vec(), stderr:Vec::new(), stdout_truncated:false, stderr_truncated:false })
+            }
+        }
+        fn request() -> CommandRequest { CommandRequest { program:"/usr/bin/printf".into(), args:vec!["safe".into()], cwd:"/tmp".into(), env:BTreeMap::new(), timeout_ms:1000 } }
+        fn prepared(store:&mut SqliteTaskStore, key:&str)->Task {
+            let task=store.register("agent-a",key,key,Some("命令"),TaskSource::LocalAgent).unwrap();
+            store.declare_step("agent-a",&task.id,task.sequence,"run-command","执行已批准命令").unwrap().0
+        }
+
+        let mut store=SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(),true).unwrap();
+        let approvals=CommandApprovalRegistry::default();
+        let gate=Admission::new(4).unwrap();
+        let calls=AtomicUsize::new(0);
+
+        let task=prepared(&mut store,"command-before-approval");
+        let pending=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),100).unwrap();
+        assert_eq!(execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Exited{exit_code:0}},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&pending.command_id,"host",101),Err(Error::StopRequired));
+        assert_eq!(calls.load(Ordering::Relaxed),0);
+        assert_eq!(store.get(&task.id).unwrap().status,Status::Running);
+
+        let task=prepared(&mut store,"command-success");
+        let approved=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),200).unwrap();
+        approvals.approve(AuthContext::LocalUser("desktop"),&task,&approved.command_id,201).unwrap();
+        assert_eq!(execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Exited{exit_code:0}},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence+1,&approved.command_id,"host",202),Err(Error::Conflict));
+        assert!(approvals.preview_for_local(AuthContext::LocalUser("desktop"),&task,&approved.command_id,202).is_ok());
+        let executed=execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Exited{exit_code:0}},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&approved.command_id,"host",202).unwrap();
+        assert_eq!(executed.execution.stdout,b"safe");
+        assert_eq!(executed.attempt_result.conclusion,AttemptConclusion::Observed{action_succeeded:true});
+        assert_eq!(calls.load(Ordering::Relaxed),1);
+        assert_eq!(approvals.preview_for_local(AuthContext::LocalUser("desktop"),&task,&approved.command_id,203),Err(CommandApprovalError::NotFound));
+
+        let task=prepared(&mut store,"command-unknown");
+        let approved=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),300).unwrap();
+        approvals.approve(AuthContext::LocalUser("desktop"),&task,&approved.command_id,301).unwrap();
+        let unknown=execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Unknown},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&approved.command_id,"host",302).unwrap();
+        assert_eq!(unknown.attempt_result.conclusion,AttemptConclusion::Unknown{reason:yonder_application::computer_use::UnknownReason::WorkerFailed});
+        assert_eq!(calls.load(Ordering::Relaxed),2);
+    }
 }
