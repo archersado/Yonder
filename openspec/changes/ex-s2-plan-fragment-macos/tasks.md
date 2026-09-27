@@ -1,7 +1,7 @@
 # 任务
 
 - [x] 将 AD-AG-09 收敛为受限 macOS CUA 基线并更新 EX-S2 设计
-- [ ] 从 Rust 协议生成计划片段请求、响应、Schema 与 TypeScript
+- [x] 从 Rust 协议生成计划片段请求、响应、Schema 与 TypeScript
 - [x] 实现 Application 受限片段候选校验与 Jev 选择器
 - [ ] 实现 SQLite 不可变片段、CAS、事件与 Outbox 原子持久化
 - [ ] 实现 Gateway 提交/单槽位执行、Jev 候选选择与交回
