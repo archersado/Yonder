@@ -3258,6 +3258,55 @@ mod tests {
     }
 
     #[test]
+    fn plan_fragment_is_immutable_and_advances_with_events_and_outbox() {
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let created = create(&mut store, "plan-task").unwrap();
+        let fragment = PlanFragment {
+            plan_id: "plan-1".into(),
+            plan_version: 1,
+            task_id: created.id.clone(),
+            expected_sequence: created.sequence,
+            deadline_ms: 2_000,
+            token_budget: 100,
+            slots: vec![yonder_application::plan_fragment::PlanSlot {
+                step_id: "step-1".into(),
+                label: "输入测试标记".into(),
+                candidates: vec![yonder_application::plan_fragment::CandidateAction {
+                    candidate_id: "candidate-1".into(),
+                    tool_name: "type_text".into(),
+                    arguments_json: r#"{"text":"test"}"#.into(),
+                }],
+            }],
+        };
+        let submitted = store.submit_plan_fragment("a1", &fragment).unwrap();
+        assert_eq!(submitted.sequence, 2);
+        assert_eq!(store.submit_plan_fragment("a1", &fragment).unwrap().sequence, 2);
+        let mut changed = fragment.clone();
+        changed.token_budget = 101;
+        assert_eq!(store.submit_plan_fragment("a1", &changed), Err(Error::Conflict));
+        let stored = store.get_plan_fragment("plan-task", "plan-1", 1).unwrap().unwrap();
+        assert_eq!(stored.current_slot, 0);
+        assert_eq!(stored.accepted_sequence, 2);
+
+        transition(&mut store, "plan-task", submitted.sequence, Action::Start).unwrap();
+        let advanced = store.advance_plan_fragment("plan-task", "plan-1", 1, 0, 3).unwrap();
+        assert_eq!(advanced.sequence, 4);
+        assert_eq!(store.get_plan_fragment("plan-task", "plan-1", 1).unwrap().unwrap().current_slot, 1);
+        let handed_back = store.hand_back_plan_fragment("plan-task", "plan-1", 1, advanced.sequence).unwrap();
+        assert_eq!(handed_back.sequence, 5);
+        let facts: (i64, i64) = store
+            .0
+            .query_row(
+                "SELECT (SELECT count(*) FROM events WHERE task_id='plan-task'), (SELECT count(*) FROM outbox WHERE task_id='plan-task')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(facts, (5, 5));
+    }
+
+    #[test]
     fn agent_names_are_versioned_persistent_idempotent_and_bounded() {
         use yonder_application::gateway::{GatewaySession, Platform};
         use yonder_protocol::{QueryResult, Response};
