@@ -36,6 +36,9 @@ try:
     if not (fixture_state.get("ready") and fixture_state.get("launched")
             and fixture_state.get("pid") and fixture_state.get("window_id")):
         raise RuntimeError("fixture-not-ready")
+    # `windowNumber` 已分配并不表示 WindowServer/AX 树已经同时可查询；等待
+    # 一个短暂稳定窗口只影响无副作用的夹具预检。
+    time.sleep(0.3)
     # AppKit 在首次激活期间可能重排标题栏。该循环只重新捕获 fixture 的
     # 焦点引用，尚未创建任务或派发 CUA，不能掩盖实际执行时的几何变化拒绝。
     focus_adapter = root / "target/debug/examples/work_focus_check"
