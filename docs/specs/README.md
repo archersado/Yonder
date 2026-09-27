@@ -153,6 +153,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-27 CM-S1批准顺序复核修复：未批准、过期或失效的`command_id`在TM-S7启动事务前失败，保持任务`created`且不创建attempt；已批准引用仍在启动提交后一次性消费、再派发，避免启动失败提前耗尽批准。Application、SQLite Adapter与真实desktop Gateway定向回归通过。
 
+2026-09-27 TM-S7四能力macOS启动语义收口：CUA、BUA、Document与Command均复用Application `start_execution`；Command增加启动前批准预检，未批准不产生running事实或attempt，批准后提交启动、一次消费并派发。DO-S2/CM-S1独立Gateway验证与统一启动回归共同PASS；Windows仍延期，完整TM-S7保持verifying且不Archive。
+
 2026-09-25 FI-S1 macOS受控文件Runtime子范围PASS：Accepted AD-FI-01仅授权内部Application Port与macOS Adapter；软/硬链接身份归并、授权根、16 MiB读取、身份+SHA-256抗陈旧替换、同目录原子提交、双层锁、失败清理、提交unknown及系统回收站均通过。回收站仅操作并清理自建临时夹具。全仓123项Rust、69个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway、任务接线、覆盖/删除确认UI与Windows仍未开放，完整FI-S1保持implementing。
 
 2026-09-25 DO-S2 macOS OOXML文件Runtime子范围PASS：Application组合FI-S1 File Port与Rust Document Port，DOCX/XLSX/PPTX的有界读取、默认另存、源身份+SHA-256保护、暂存同格式复验、LocalUser覆盖、目标竞争及宿主锁拒绝均通过；提交前冲突不产生正式输出。全仓127项Rust、70个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway、任务步骤/Observe/完成链路及Windows仍未开放，完整DO-S2保持verifying。

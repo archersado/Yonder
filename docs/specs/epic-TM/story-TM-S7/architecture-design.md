@@ -22,7 +22,7 @@ Application 是唯一启动协调者，SQLite Store 是唯一任务事实源。C
 
 ## Gateway 与可观察性
 
-Gateway 在执行请求受理后只返回已提交的任务快照；UI 仅消费该快照及事件。Document/Command 尚未具备正式 Gateway 契约时返回 `capability_unavailable`，不得先走通用 shell 或直接文件写入。日志不记录正文、截图、命令完整输出或完整 Agent Payload。
+Gateway 在执行请求受理后只返回已提交的任务快照；UI 仅消费该快照及事件。Document/Command 只在协议协商、平台 Runtime 与各自授权入口同时可用时注册能力，否则返回 `capability_unavailable`。macOS Document 使用任务绑定双文件授权；macOS Command 在启动事务前预检本机批准，提交后一次性消费引用再派发。不得走通用 shell 或直接文件写入；日志不记录正文、截图、命令完整输出或完整 Agent Payload。
 
 ## 状态与契约
 
@@ -30,8 +30,8 @@ Gateway 在执行请求受理后只返回已提交的任务快照；UI 仅消费
 
 ## 失败与验证
 
-启动事务失败不派发；准入失败、缺少占用、非边界运行、断连和 Observe 失败分别返回可区分错误。Application/SQLite 回归覆盖 created/running 双分支、Outbox 原子性和失败回滚；真实 Document/Command 与双平台证据待门禁。
+启动事务失败不派发；准入失败、未批准、缺少占用、非边界运行、断连和 Observe 失败分别返回可区分错误。Application/SQLite 回归覆盖 created/running 双分支、Outbox 原子性和失败回滚；真实 macOS Document/Command 已有各自 Gateway 目标回归，Windows 证据仍待平台门禁。
 
 ## 验证
 
-Application/SQLite 集成验证四类能力的首次启动均先产生 `running` 事实，再允许可控副作用；故障注入验证无半提交。CUA/BUA 复用现有 Windows/macOS 原生证据；Document 与 Command 在各自 Spike、FI-S1、协议和双平台证据完成后补验证。独立 Verification Goal 不得在这些前置完成前 Archive。
+Application/SQLite 集成验证四类能力的首次启动均先产生 `running` 事实，再允许可控副作用；Command 额外验证未批准时不产生启动事实。故障注入验证无半提交。macOS CUA/BUA/Document/Command 复用各能力独立证据；Windows 保持延期，因此完整 Verification Goal 不得据此 Archive。

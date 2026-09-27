@@ -1,6 +1,6 @@
 # AD-TM-13 统一执行启动状态
 
-状态：Accepted（Application 统一启动边界；Document/Command 接线仍受 FI-S1、CM-S1 与协议门禁）  
+状态：Accepted（Application 统一启动边界；macOS Document/Command 已接线，Windows 仍受平台门禁）
 日期：2026-09-21  
 Architecture Impact：architecture-change（新增跨能力 Application 用例与资源声明；协议/持久化字段待后续设计确认）
 
@@ -16,6 +16,10 @@ CUA 与 BUA 已分别在首次 attempt 前调用准入/启动逻辑；Document �
 
 ## 后果与门禁
 
-Application 成为唯一跨能力启动协调者；能力 Adapter 仅声明受监管资源并派发/Observe。Document 写入继续依赖 FI-S1；Command 继续依赖 CM-S1 的双平台 Spike；新增 Gateway 请求、资源持久化或协议类型必须从 Rust 唯一模型生成并先更新本 ADR。
+Application 成为唯一跨能力启动协调者；能力 Adapter 仅声明受监管资源并派发/Observe。Document 写入继续依赖 FI-S1；Command 依赖 Accepted AD-CM-01/02、本机一次性批准和对应产品 Proposal。非 macOS 平台保持 unavailable；新增 Gateway 请求、资源持久化或协议类型必须从 Rust 唯一模型生成并先更新本 ADR。
 
 本 ADR 不授权 Document/Command Gateway、通用 shell、直接 OOXML 文件写入或自动 Resume。实现前需由 TM-S7 三份设计及 OpenSpec 明确具体用例、资源和迁移影响。
+
+## 2026-09-27 接线状态同步
+
+DO-S2 `task.document.execute` 与 CM-S1 `task.command.execute` 已分别通过获准产品 Change 接入同一 `start_execution`。Command 在启动事务前只校验本机批准引用，不读取或返回命令正文；事务提交后一次性消费引用，再调用 macOS Command Adapter。未批准、过期或失效引用保持任务 `created` 且不创建 attempt。该同步不授权 Windows、Shell 或绕过用户批准。
