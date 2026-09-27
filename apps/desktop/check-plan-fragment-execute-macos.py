@@ -52,7 +52,18 @@ def isolated_agent_environment():
         env=environment,
     )
     until = time.monotonic() + 10
-    while time.monotonic() < until and not database.exists():
+    schema_ready = False
+    while time.monotonic() < until:
+        if database.exists():
+            try:
+                with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as check_db:
+                    schema_ready = check_db.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='jev_config'"
+                    ).fetchone() is not None
+            except sqlite3.Error:
+                pass
+        if schema_ready:
+            break
         time.sleep(0.05)
     initializer.terminate()
     try:
@@ -60,7 +71,7 @@ def isolated_agent_environment():
     except subprocess.TimeoutExpired:
         initializer.kill()
         initializer.wait()
-    if not database.exists():
+    if not schema_ready:
         raise RuntimeError("isolated-store-not-created")
     source = pathlib.Path.home() / "Library/Application Support/com.yonder.desktop/tasks.db"
     try:
