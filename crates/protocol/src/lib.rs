@@ -43,6 +43,10 @@ pub enum Capability {
     BrowserExecute,
     #[serde(rename = "computer.execute")]
     ComputerExecute,
+    #[serde(rename = "task.plan.submit")]
+    TaskPlanSubmit,
+    #[serde(rename = "task.plan.execute")]
+    TaskPlanExecute,
     #[serde(rename = "file.grant.read")]
     FileGrantRead,
     #[serde(rename = "file.execute")]
@@ -479,6 +483,58 @@ pub struct ComputerStepParams {
     pub tool_name: String,
     #[ts(type = "Record<string, unknown>")]
     pub arguments: serde_json::Value,
+}
+
+/// 一个候选只描述既有 CUA Driver 可接受的动作；`handback` 不是可提交动作，
+/// 而是 Application 自动附加的唯一安全出口。
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct PlanCandidateParams {
+    pub candidate_id: String,
+    pub tool_name: String,
+    #[ts(type = "Record<string, unknown>")]
+    pub arguments: serde_json::Value,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct PlanSlotParams {
+    pub step_id: String,
+    pub label: String,
+    pub candidates: Vec<PlanCandidateParams>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct PlanSubmitParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub expected_sequence: String,
+    pub plan_id: String,
+    #[ts(type = "number")]
+    pub plan_version: u64,
+    #[ts(type = "number")]
+    pub token_budget: u32,
+    pub slots: Vec<PlanSlotParams>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct PlanExecuteParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub expected_sequence: String,
+    pub plan_id: String,
+    #[ts(type = "number")]
+    pub plan_version: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1723,6 +1779,10 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         BrowserExecuteParams::decl(&config),
         ComputerExecuteParams::decl(&config),
         ComputerStepParams::decl(&config),
+        PlanCandidateParams::decl(&config),
+        PlanSlotParams::decl(&config),
+        PlanSubmitParams::decl(&config),
+        PlanExecuteParams::decl(&config),
         FileGrantPurpose::decl(&config),
         FileGrantSummary::decl(&config),
         FileOperation::decl(&config),

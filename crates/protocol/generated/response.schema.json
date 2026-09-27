@@ -225,6 +225,8 @@
         "task.step.advance",
         "browser.execute",
         "computer.execute",
+        "task.plan.submit",
+        "task.plan.execute",
         "file.grant.read",
         "file.execute",
         "document.execute",

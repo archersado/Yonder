@@ -1,6 +1,6 @@
 // 从 Rust 自动生成，请勿手改。
 export type Version = "2.0";
-export type Capability = "task.read" | "task.create" | "task.cancel" | "task.complete" | "task.fail" | "task.control" | "task.wait-for-user" | "task.step.declare" | "task.step.advance" | "browser.execute" | "computer.execute" | "file.grant.read" | "file.execute" | "document.execute" | "command.propose" | "command.execute";
+export type Capability = "task.read" | "task.create" | "task.cancel" | "task.complete" | "task.fail" | "task.control" | "task.wait-for-user" | "task.step.declare" | "task.step.advance" | "browser.execute" | "computer.execute" | "task.plan.submit" | "task.plan.execute" | "file.grant.read" | "file.execute" | "document.execute" | "command.propose" | "command.execute";
 export type OfferedCapability = "user_input" | "user_input_attachment";
 export type AgentInputSource = "voice" | "selection";
 export type AgentAttachmentMime = "image/png" | "image/jpeg" | "image/webp";
@@ -28,6 +28,10 @@ export type BrowserOperation = "create" | "observe" | "hand-off" | "take-over" |
 export type BrowserExecuteParams = { agent_id: string, capability: Capability, deadline: number, task_id: string, expected_sequence: string, operation: BrowserOperation, };
 export type ComputerExecuteParams = { agent_id: string, capability: Capability, deadline: number, task_id: string, expected_sequence: string, tool_name: string, arguments: Record<string, unknown>, };
 export type ComputerStepParams = { agent_id: string, capability: Capability, deadline: number, task_id: string, expected_sequence: string, step_id: string, label: string, tool_name: string, arguments: Record<string, unknown>, };
+export type PlanCandidateParams = { candidate_id: string, tool_name: string, arguments: Record<string, unknown>, };
+export type PlanSlotParams = { step_id: string, label: string, candidates: Array<PlanCandidateParams>, };
+export type PlanSubmitParams = { agent_id: string, capability: Capability, deadline: number, task_id: string, expected_sequence: string, plan_id: string, plan_version: number, token_budget: number, slots: Array<PlanSlotParams>, };
+export type PlanExecuteParams = { agent_id: string, capability: Capability, deadline: number, task_id: string, expected_sequence: string, plan_id: string, plan_version: number, };
 export type FileGrantPurpose = "read" | "create-new" | "replace" | "trash";
 export type FileGrantSummary = { grant_id: string, purpose: FileGrantPurpose, expires_at_ms: number, };
 export type FileOperation = "read" | "create-new" | "replace" | "trash";
