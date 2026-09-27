@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """EX-S2 的受控 macOS 原生单槽位验证；输出不含模型、窗口或输入正文。"""
 import json
+import os
 import pathlib
 import queue
+import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -16,6 +19,83 @@ result = {"platform": "macos", "recording_started": False}
 fixture = None
 agent = None
 fixture_state = {}
+test_home = None
+
+def read_line_with_timeout(stream, timeout=5):
+    """子进程意外保留 stdout 时也必须让验证器进入 finally 清理。"""
+    lines = queue.Queue(maxsize=1)
+    threading.Thread(target=lambda: lines.put(stream.readline()), daemon=True).start()
+    try:
+        return lines.get(timeout=timeout)
+    except queue.Empty:
+        return ""
+
+def isolated_agent_environment():
+    """创建全新任务库，只导入 Jev 非秘密配置；凭据始终由 Keychain 提供。"""
+    global test_home
+    test_home = tempfile.TemporaryDirectory(prefix="yonder-ex2-home-")
+    home = pathlib.Path(test_home.name)
+    environment = os.environ.copy()
+    environment["HOME"] = str(home)
+    database = home / "Library/Application Support/com.yonder.desktop/tasks.db"
+    # 首次运行由正式组合根创建 schema，之后再关闭；不能手写任务库结构。
+    initializer = subprocess.Popen(
+        [str(binary), "--local-agent-stdio"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        env=environment,
+    )
+    until = time.monotonic() + 10
+    while time.monotonic() < until and not database.exists():
+        time.sleep(0.05)
+    initializer.terminate()
+    try:
+        initializer.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        initializer.kill()
+        initializer.wait()
+    if not database.exists():
+        raise RuntimeError("isolated-store-not-created")
+    source = pathlib.Path.home() / "Library/Application Support/com.yonder.desktop/tasks.db"
+    try:
+        with sqlite3.connect(f"file:{source}?mode=ro", uri=True) as source_db:
+            row = source_db.execute("SELECT config_json FROM jev_config WHERE id=1").fetchone()
+        if row is None:
+            raise RuntimeError("jev-config-unavailable")
+        with sqlite3.connect(database) as isolated_db:
+            isolated_db.execute(
+                "INSERT INTO jev_config(id, config_json) VALUES (1, ?1) "
+                "ON CONFLICT(id) DO UPDATE SET config_json=excluded.config_json",
+                row,
+            )
+    except sqlite3.Error as error:
+        raise RuntimeError("isolated-jev-config-unavailable") from error
+    return environment
+
+def refocus_fixture():
+    """宿主启动可能成为前台窗口；在派发前恢复唯一 fixture 为受控目标。"""
+    focus_adapter = root / "target/debug/examples/work_focus_check"
+    last_failure = "capture-failed"
+    for _ in range(3):
+        focus_process = subprocess.Popen(
+            [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
+        )
+        ready_line = read_line_with_timeout(focus_process.stdout)
+        ready = json.loads(ready_line) if ready_line else {"ready": False}
+        outcome = {}
+        if ready.get("ready"):
+            focus_process.stdin.write("focus\n")
+            focus_process.stdin.flush()
+            outcome_line = read_line_with_timeout(focus_process.stdout)
+            outcome = json.loads(outcome_line) if outcome_line else {}
+        focus_process.stdin.write("release\nquit\n")
+        focus_process.stdin.flush()
+        focus_process.wait(timeout=5)
+        if outcome.get("outcome") == "focused":
+            return
+        last_failure = outcome.get("outcome", "capture-failed")
+        time.sleep(0.2)
+    raise RuntimeError(f"fixture-refocus-{last_failure}")
 
 try:
     subprocess.run(["swiftc", str(fixture_src), "-o", str(fixture_bin)], check=True)
@@ -48,13 +128,13 @@ try:
             [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
         )
-        focus_ready_line = focus_process.stdout.readline()
+        focus_ready_line = read_line_with_timeout(focus_process.stdout)
         focus_ready = json.loads(focus_ready_line) if focus_ready_line else {"ready": False}
         focus_result = {}
         if focus_ready.get("ready"):
             focus_process.stdin.write("focus\n")
             focus_process.stdin.flush()
-            focus_result_line = focus_process.stdout.readline()
+            focus_result_line = read_line_with_timeout(focus_process.stdout)
             focus_result = json.loads(focus_result_line) if focus_result_line else {}
         focus_process.stdin.write("release\nquit\n")
         focus_process.stdin.flush()
@@ -71,7 +151,12 @@ try:
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
+        env=isolated_agent_environment(),
     )
+    # 先启动正式宿主并完成其数据目录初始化，再恢复 fixture；保证 CUA 捕获的
+    # frontmost target 就是这一个隔离窗口，而非 Yonder 自身的辅助窗口。
+    time.sleep(0.3)
+    refocus_fixture()
     agent_responses = queue.Queue()
     def read_agent():
         for line in agent.stdout:
@@ -160,6 +245,8 @@ finally:
         except subprocess.TimeoutExpired:
             fixture.kill()
             fixture.wait()
+    if test_home is not None:
+        test_home.cleanup()
 
 print(json.dumps(result, ensure_ascii=False))
 sys.exit(0 if result.get("passed") else 1)
