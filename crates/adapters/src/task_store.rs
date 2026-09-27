@@ -382,6 +382,19 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_plan_fragment_schema.sql"))
                 .map_err(storage)?;
         }
+        // 旧发布曾可能在完成版本号写入后中断，留下标称 v20 但缺少该无业务
+        // 数据的单例配额表。只补建可推导的配额状态；任务、事件和 Outbox 一律
+        // 不在这里猜测或重建。
+        tx.execute_batch(
+            "CREATE TABLE IF NOT EXISTS task_audit_quota_state (\
+                id INTEGER PRIMARY KEY CHECK(id = 1),\
+                max_bytes INTEGER NOT NULL CHECK(max_bytes > 0),\
+                reserve_bytes INTEGER NOT NULL CHECK(reserve_bytes > 0)\
+            );\
+            INSERT INTO task_audit_quota_state(id, max_bytes, reserve_bytes)\
+            VALUES (1, 2147483648, 1073741824) ON CONFLICT(id) DO NOTHING;",
+        )
+        .map_err(storage)?;
         tx.commit().map_err(storage)?;
         Ok(Self(db))
     }
@@ -3727,6 +3740,36 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, 20);
+    }
+
+    #[test]
+    fn current_schema_recovers_only_the_missing_audit_quota_singleton() {
+        let store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        store
+            .0
+            .execute_batch("DROP TABLE task_audit_quota_state; PRAGMA user_version=20;")
+            .unwrap();
+        let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
+        assert_eq!(
+            recovered
+                .0
+                .query_row(
+                    "SELECT max_bytes, reserve_bytes FROM task_audit_quota_state WHERE id=1",
+                    [],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+                )
+                .unwrap(),
+            (2_147_483_648, 1_073_741_824)
+        );
+        assert_eq!(
+            recovered
+                .0
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            20
+        );
+        assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
     }
 
     #[test]
