@@ -6,6 +6,7 @@ pub mod agent_input;
 pub mod region_preview;
 pub mod browser_use;
 pub mod command;
+pub mod command_approval;
 pub mod computer_use;
 pub mod document;
 pub mod document_execution;

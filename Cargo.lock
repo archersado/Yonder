@@ -5266,6 +5266,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "serde",
+ "sha2",
  "yonder-domain",
  "yonder-protocol",
 ]
