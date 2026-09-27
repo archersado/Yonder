@@ -149,6 +149,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-09-25 CM-S1 macOS结构化命令Runtime子范围PASS：Accepted AD-CM-01仅授权内部Application Port与macOS Adapter；字面参数、清空继承环境、正常/非零退出、启动失败、超时/取消、stdout/stderr各64 KiB及意外后台后代清理均通过。全仓117项Rust、68个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway/CLI/MCP、Shell、风险确认与Windows仍未开放，完整CM-S1保持implementing。
 
+2026-09-27 CM-S1 macOS Agent Command本机批准增量PASS：协议1.30、CLI/MCP、Gateway无副作用提议、Task Space完整预览与批准/拒绝、TM-S7启动事务、一次性引用执行及真实macOS Command Adapter均已接通；协议替换、重放、撤权、超时、unknown不重试和无正文边界通过回归。原生WKWebView界面证据与真实TaskHost/SQLite/Gateway集成证据分开记录，未把隔离夹具误报为正式宿主E2E。Windows按用户决定延期，完整CM-S1进入verifying且不Archive。
+
 2026-09-25 FI-S1 macOS受控文件Runtime子范围PASS：Accepted AD-FI-01仅授权内部Application Port与macOS Adapter；软/硬链接身份归并、授权根、16 MiB读取、身份+SHA-256抗陈旧替换、同目录原子提交、双层锁、失败清理、提交unknown及系统回收站均通过。回收站仅操作并清理自建临时夹具。全仓123项Rust、69个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway、任务接线、覆盖/删除确认UI与Windows仍未开放，完整FI-S1保持implementing。
 
 2026-09-25 DO-S2 macOS OOXML文件Runtime子范围PASS：Application组合FI-S1 File Port与Rust Document Port，DOCX/XLSX/PPTX的有界读取、默认另存、源身份+SHA-256保护、暂存同格式复验、LocalUser覆盖、目标竞争及宿主锁拒绝均通过；提交前冲突不产生正式输出。全仓127项Rust、70个活动OpenSpec、33项Python测试、协议生成物和架构门禁通过。Agent Gateway、任务步骤/Observe/完成链路及Windows仍未开放，完整DO-S2保持verifying。

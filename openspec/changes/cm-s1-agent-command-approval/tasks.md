@@ -13,5 +13,5 @@
 - [x] 实现复用 TM-S7 启动事务的受控 Command 执行用例
 - [x] 接入 macOS TaskHost、Gateway 与 Task Space 批准卡
 - [x] 覆盖替换、重放、撤权、超时、unknown 不重试及无正文边界
-- [ ] 创建独立 Verification Goal 与 macOS 原生证据
+- [x] 创建独立 Verification Goal 与 macOS 原生证据
 - [ ] Windows 按用户决定延期；完整 Story 暂不 Archive

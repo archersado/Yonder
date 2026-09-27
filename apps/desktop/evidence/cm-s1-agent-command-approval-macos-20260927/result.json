@@ -1,0 +1,15 @@
+{
+  "approval_calls" : [
+    "command_approval_approve",
+    "command_approval_reject"
+  ],
+  "approve_once_visible" : true,
+  "approved_state_visible" : true,
+  "full_preview_visible" : true,
+  "passed" : true,
+  "platform" : "macOS WKWebView fixture",
+  "real_command_runtime_used" : false,
+  "real_task_database_used" : false,
+  "revoke_visible" : true,
+  "risk_notice_visible" : true
+}
