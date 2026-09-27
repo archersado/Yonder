@@ -105,7 +105,9 @@ def refocus_fixture():
     raise RuntimeError(f"fixture-refocus-{last_failure}")
 
 try:
+    result["phase"] = "fixture-compile"
     subprocess.run(["swiftc", str(fixture_src), "-o", str(fixture_bin)], check=True)
+    result["phase"] = "fixture-ready"
     fixture = subprocess.Popen([str(fixture_bin)], stdout=subprocess.PIPE, text=True)
     def read_fixture():
         for line in fixture.stdout:
@@ -126,6 +128,7 @@ try:
     # `windowNumber` 已分配并不表示 WindowServer/AX 树已经同时可查询；等待
     # 一个短暂稳定窗口只影响无副作用的夹具预检。
     time.sleep(0.3)
+    result["phase"] = "fixture-focus-precheck"
     # AppKit 在首次激活期间可能重排标题栏。该循环只重新捕获 fixture 的
     # 焦点引用，尚未创建任务或派发 CUA，不能掩盖实际执行时的几何变化拒绝。
     focus_adapter = root / "target/debug/examples/work_focus_check"
@@ -153,6 +156,7 @@ try:
     else:
         raise RuntimeError(f"fixture-focus-{focus_failure}")
 
+    result["phase"] = "isolated-host-initialization"
     agent = subprocess.Popen(
         [str(binary), "--local-agent-stdio"],
         stdin=subprocess.PIPE,
@@ -162,6 +166,7 @@ try:
     )
     # 先启动正式宿主并完成其数据目录初始化，再恢复 fixture；保证 CUA 捕获的
     # frontmost target 就是这一个隔离窗口，而非 Yonder 自身的辅助窗口。
+    result["phase"] = "fixture-refocus"
     time.sleep(0.3)
     refocus_fixture()
     agent_responses = queue.Queue()
@@ -192,11 +197,13 @@ try:
             raise RuntimeError(f"gateway-{method}-{response['error'].get('code', 'unknown')}")
         return response["result"]
 
+    result["phase"] = "gateway-handshake"
     hello = call("gateway.hello", "task.read", protocol_version={"major": 1, "minor": 31})
     capabilities = {entry.get("name"): entry.get("availability") for entry in hello.get("capabilities", [])}
     result["plan_execute_capability"] = capabilities.get("task.plan.execute") == "available"
     if not result["plan_execute_capability"]:
         raise RuntimeError("plan-execute-unavailable")
+    result["phase"] = "plan-submit"
     task = call(
         "task.create", "task.create", idempotency_key=f"ex2-native-{time.time_ns()}",
         description="EX-S2隔离原生计划片段验证", name="EX-S2 原生验证",
@@ -208,6 +215,7 @@ try:
         "candidates": [{"candidate_id": "type_text", "tool_name": "type_text",
                         "arguments": {"text": "YONDER_SDK_INPUT_A", "delivery_mode": "background"}}]}],
     )
+    result["phase"] = "plan-execute"
     executed = call(
         "task.plan.execute", "task.plan.execute", task_id=task["task_id"],
         expected_sequence=submitted["sequence"], plan_id="native-plan", plan_version=1,
@@ -225,9 +233,11 @@ try:
     result["native_target_matches"] = native_match
     if not native_match:
         raise RuntimeError("native-target-mismatch")
+    result["phase"] = "task-complete"
     completed = call("task.complete", "task.complete", task_id=task["task_id"], expected_sequence=executed["sequence"])["task"]
     result["task_completed"] = completed.get("status") == "completed"
     # recording_started 必须为 false，不能把这项安全断言混入正向通过条件。
+    result["phase"] = "completed"
     result["passed"] = all(result.get(key) is True for key in (
         "plan_execute_capability",
         "jev_selected_submitted_candidate",
