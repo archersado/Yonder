@@ -12,7 +12,7 @@ AG-S1 的慢脑接入边界已由 Accepted [AD-AG-07](../../../../_bmad-output/p
 
 ## 跨 Story 联审前置
 
-本 Story 的设计不重排既有 Epic：AG-S1 的传输与身份、AG-S3 的归属 Agent 步骤声明、TM-S2/TM-S7 的任务事实、CU/BU 的模型无关 Driver 与 Bridge、DO/FI/CM 的文件锁与命令围栏都先保持现状。EX-S2 只定稿计划片段、版本/CAS、内部快脑步骤来源、事件/Outbox 交回和可区分错误矩阵。除 AD-EX-02 已接受的 macOS-only 决策子路线外，TM-S7 未定案或任一执行层门禁未通过时，EX-S2/S3/S4 不进入任务执行产品实施。
+本 Story 的设计不重排既有 Epic：AG-S1 的传输与身份、AG-S3 的归属 Agent 步骤声明、TM-S2/TM-S7 的任务事实、CU/BU 的模型无关 Driver 与 Bridge、DO/FI/CM 的文件锁与命令围栏都先保持现状。EX-S2 定稿计划片段、版本/CAS、内部快脑步骤来源、事件/Outbox 交回和可区分错误矩阵。AD-AG-09 已授权 macOS CUA 的受限单槽位消费基线；TM-S7 的统一启动门禁继续适用，其他 Driver、Recipe 与 Windows 不进入本次实施。
 
 慢脑从现有 Agent Gateway 提交首次计划与 replan；本地仍经 MCP stdio/CLI 与 Local Socket，云端仍经单一出站 WSS，两者汇入同一 Application 用例。计划至少绑定 `task_id`、归属 `agent_id`、`request_id`、计划版本、允许能力/资源范围、目标完成判据、截止时间及决策/动作预算。字段以 EX-S1 和 TM-S7 联审为准，最终仅在 Rust 协议类型定义并派生 Schema/TS。Yonder Application 复用统一执行入口，定义一次「从当前 Observe 枚举候选→决策→授权/准入→派发→Observe→提交结果」用例及一个快脑决策 Port。Jev 只由 Adapters 实现此 Port；Adapter 不调用另一 Adapter。快脑需要 replan 时，将有界 Observe/失败依据经既有事件与 Outbox 交给归属 Agent，新计划仍须由 Gateway 进入；不直连慢脑或创建第二会话。
 

@@ -1,6 +1,6 @@
 # AD-AG-09 计划片段 Gateway 契约
 
-状态：Proposed
+状态：Accepted（受限 macOS CUA 基线）
 日期：2026-09-23
 Architecture Impact：architecture-change（Gateway 协议扩展、Application 执行协调、EX/TM 联合设计）
 关联：AG-S1、AG-S5、EX-S2、TM-S7、AD-AG-04、AD-EX-01、AD-TM-08、AD-TM-13
@@ -9,11 +9,11 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。
 
-本决定只定义 Proposed 的计划片段契约，不授权立即替换现有逐步决策实现，也不开放自由代码执行。
+本决定授权一个受限的 macOS CUA 基线：归属 Agent 通过既有 Gateway 提交不可变片段；Application 在每次已验证 Observe 后，只能从片段中已提交的候选动作交由 Jev 选择。它不替换现有逐步决策实现，不开放自由代码执行，也不授权 Recipe、批处理 DSL 或其他 Driver。
 
 ## 决策建议
 
-计划片段是**可被 Driver 执行的有界声明式 DSL**，不是自由代码、不是脚本语言，也不是新的工作流引擎。片段必须：
+计划片段是**可被 Application 消费的有界声明**，不是自由代码、不是脚本语言，也不是新的工作流引擎。受限 macOS CUA 基线仅接受 1～10 个顺序动作槽位；每个槽位只含已验证的 `computer.step` 等价动作候选及唯一交回路径，不接受循环、分支表达式、回退动作或批量执行。后续 DSL 若要引入，仍须另行接受 AD-EX-04。
 
 - 由归属 Agent 通过既有 Agent Gateway 提交，携带可信 `agent_id`、`task_id`、`request_id`、`expected_sequence`、能力范围和 `deadline`；
 - 绑定单一任务、单一步骤上下文和单一版本，不接受模糊引用或全局自由文本；
@@ -35,7 +35,7 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 计划片段不新增第二任务状态机，也不创建第二事实源。Application 仍是唯一执行协调者；SQLite 中的任务状态、步骤、attempt、事件、Outbox 和资源租约保持唯一。片段本身只作为执行授权的一部分持久化，并与现有 `sequence` 严格绑定。
 
-最小协议字段应包含：
+受限基线的最小协议字段为：
 
 - `plan_id`
 - `plan_version`
@@ -43,14 +43,14 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 - `step_id`
 - `expected_sequence`
 - `capability`
-- `resource_scope`
-- `operations`
-- `observe_policy`
-- `budget`
+- `resource_scope`（固定为 Desktop）
+- `operations`（顺序槽位及封闭 CUA 候选）
+- `observe_policy`（固定为每动作后 Observe）
+- `budget`（最多十个动作槽位；每次 Gateway 执行只消费一个槽位）
 - `deadline`
 - `fallback_candidates`
 
-其中 `operations` 是封闭的声明式步骤集合，每个步骤只允许引用已验证的 Driver 能力和预校验参数。`observe_policy` 声明每步的最小观察条件和失败时的升级策略。`budget` 至少包含步数、时间、token 和单步动作数。
+其中 `operations` 是封闭的声明式步骤集合，每个步骤只允许引用已验证的 CUA 能力和预校验参数。`observe_policy` 固定要求每动作后 Observe。执行请求只消费一个已 Observe 边界后的槽位，以便 Gateway 控制、用户输入及停止确认能在槽位之间优先处理；它不是绕开 Gateway 的后台循环。`budget` 至少包含步数、时间、token 和单步动作数。
 
 ## 安全与恢复
 
@@ -72,16 +72,14 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 ## 评估与采纳门槛
 
-本 ADR 维持 Proposed，直到以下证据齐备：
+本 ADR 的受限 macOS CUA 基线已接受；扩大到多 Driver、Recipe/DSL、后台批量循环或 Windows 前，仍须满足以下证据并建立新的架构决定：
 
 1. 在同一任务样本上，计划片段模式相对逐步决策模式显著降低慢脑交互次数、端到端时延和 token 成本；
 2. Observe 异常和 `unknown` 场景能够可靠交回慢脑，且不出现自动重试或状态漂移；
 3. 用户取消、接管和敏感操作确认在任何片段执行阶段都仍然立即生效；
 4. 片段 DSL 的表达能力足够覆盖 CUA/BUA/Document/Command 的最小可执行子集，且不诱导形成通用工作流语言；
 5. 协议、SQLite、事件、Outbox 和 Driver 合约测试证明没有第二状态源或旁路执行；
-6. macOS 与 Windows 的原生证据齐备；用户已明确暂缓 Windows，因此本 ADR 不因 macOS 单平台证据转为 Accepted。
-
-在这些条件未满足前，不得生成实施 OpenSpec，也不得修改协议或数据库。
+6. macOS 与 Windows 的原生证据齐备；用户已明确暂缓 Windows，因此不得将本基线表述为跨平台完成。
 
 ## 非目标
 

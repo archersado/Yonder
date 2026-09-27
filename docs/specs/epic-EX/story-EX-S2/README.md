@@ -3,9 +3,9 @@
 Story: EX-S2  
 Epic: EX  
 Status: implementing
-OpenSpec: ex-s2-macos-only-jev-wiring
+OpenSpec: ex-s2-plan-fragment-macos
 
-完整计划片段执行仍受 EX-S1、TM-S7 与双平台门禁约束；macOS-only 有界 Jev 决策接线已经完成并归档，不派发任务动作。
+本轮实施 Accepted AD-AG-09 的受限 macOS CUA 计划片段基线；macOS-only 有界 Jev 决策接线已经完成并归档。Windows 原生验证及跨 Driver 的 Recipe/DSL 仍不在本轮范围。
 
 设计：[产品需求](product-requirements.md) · [架构设计](architecture-design.md) · [视觉交互设计](visual-interaction-design.md)。
 
@@ -23,6 +23,6 @@ OpenSpec: ex-s2-macos-only-jev-wiring
 
 同日补齐 `JevConfig::validate` 的端点查询串、URL 内嵌凭据与远端 HTTPS 校验回归，防止配置携带 token、用户名/密码或远端明文端点。
  
-2026-09-23：另建立跨 Story 的 [Proposed AD-AG-09 计划片段 Gateway 契约](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md)，用于评估“计划片段 + Driver 本地执行 + Observe 异常升级”能否降低慢脑逐步交互成本。该 ADR 未授权实施，也不替代当前逐步决策架构；执行接线仍等 `AD-EX-02` 双平台通过。
+2026-09-27：用户要求推进计划片段执行后，[AD-AG-09](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md) 已接受受限 macOS CUA 基线：Gateway 提交不可变片段，Application 在每次 Observe 后仅从已提交候选中请求 Jev 决策；每次 Gateway 执行只消费一个槽位，低置信、偏离、取消、接管、用户输入或 `unknown` 一律交回归属 Agent。该增量不实现 Recipe、自由 DSL、后台批量循环或 Windows 支持。
 
 2026-09-24 用户变更：先实施 macOS-only Jev 决策接线，Windows 后补；API Key 只从 macOS 系统凭据入口读取，不进入配置、任务数据或日志。该子范围的真实 Keychain/远端调用、离线回归和独立 Verification Goal 已通过，见[已归档 macOS-only 接线 OpenSpec](../../../../openspec/changes/archive/2026-09-24-ex-s2-macos-only-jev-wiring/proposal.md)。Story 整体仍为 implementing；计划片段执行、Windows 与费用证据须先满足各自门禁并另建 Change。
