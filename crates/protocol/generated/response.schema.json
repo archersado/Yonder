@@ -259,6 +259,29 @@
         "reason"
       ]
     },
+    "CommandApprovalSummary": {
+      "type": "object",
+      "properties": {
+        "command_id": {
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "command_id",
+        "state",
+        "expires_at_ms"
+      ]
+    },
     "ComputerObservation": {
       "type": "object",
       "properties": {
@@ -775,6 +798,23 @@
           "required": [
             "kind",
             "execution"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "approval": {
+              "$ref": "#/$defs/CommandApprovalSummary"
+            },
+            "kind": {
+              "type": "string",
+              "const": "command-approval"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "approval"
           ]
         },
         {

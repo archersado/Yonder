@@ -1051,6 +1051,16 @@ pub struct DocumentExecutionResult {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct CommandApprovalSummary {
+    pub command_id: String,
+    pub state: String,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub expires_at_ms: u64,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum QueryResult {
     Hello {
@@ -1083,6 +1093,7 @@ pub enum QueryResult {
     },
     FileExecution { execution: FileExecutionResult },
     DocumentExecution { execution: DocumentExecutionResult },
+    CommandApproval { approval: CommandApprovalSummary },
     Step {
         task: TaskSnapshot,
         step: Option<StepDeclaration>,
@@ -1716,6 +1727,7 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         ComputerObservation::decl(&config),
         FileExecutionResult::decl(&config),
         DocumentExecutionResult::decl(&config),
+        CommandApprovalSummary::decl(&config),
         TaskEvent::decl(&config),
         ArtifactAvailability::decl(&config),
         ArtifactManifestItem::decl(&config),
