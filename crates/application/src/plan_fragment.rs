@@ -47,6 +47,24 @@ pub enum Selection {
     HandBack { reason: &'static str },
 }
 
+pub fn submit(
+    store: &mut impl crate::TaskStore,
+    auth: crate::AuthContext<'_>,
+    params: &yonder_protocol::PlanSubmitParams,
+) -> Result<crate::Task, crate::Error> {
+    if !matches!(auth, crate::AuthContext::Agent(_)) || auth.agent_id() != params.agent_id {
+        return Err(crate::Error::PermissionDenied);
+    }
+    let fragment = PlanFragment {
+        plan_id: params.plan_id.clone(), plan_version: params.plan_version, task_id: params.task_id.clone(),
+        expected_sequence: yonder_protocol::sequence(&params.expected_sequence).map_err(|_| crate::Error::InvalidInput)?,
+        deadline_ms: params.deadline, token_budget: params.token_budget,
+        slots: params.slots.iter().map(|slot| PlanSlot { step_id:slot.step_id.clone(), label:slot.label.clone(), candidates:slot.candidates.iter().map(|candidate| CandidateAction { candidate_id:candidate.candidate_id.clone(), tool_name:candidate.tool_name.clone(), arguments_json:serde_json::to_string(&candidate.arguments).expect("protocol JSON value serializes") }).collect() }).collect(),
+    };
+    validate(&fragment)?;
+    store.submit_plan_fragment(auth.agent_id(), &fragment)
+}
+
 pub fn validate(fragment: &PlanFragment) -> Result<(), crate::Error> {
     if !valid_id(&fragment.plan_id) || !valid_id(&fragment.task_id)
         || fragment.plan_version == 0 || fragment.expected_sequence == 0

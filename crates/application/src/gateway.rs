@@ -38,6 +38,7 @@ pub fn is_execution_request(bytes: &[u8]) -> bool {
         Ok(Request::BrowserExecute { .. }
             | Request::ComputerExecute { .. }
             | Request::ComputerStep { .. }
+            | Request::PlanExecute { .. }
             | Request::FileExecute { .. }
             | Request::DocumentExecute { .. }
             | Request::CommandExecute { .. })
@@ -50,6 +51,8 @@ fn is_agent_write_request(request: &Request) -> bool {
         Request::BrowserExecute { .. }
             | Request::ComputerExecute { .. }
             | Request::ComputerStep { .. }
+            | Request::PlanSubmit { .. }
+            | Request::PlanExecute { .. }
             | Request::FileExecute { .. }
             | Request::DocumentExecute { .. }
             | Request::CommandPropose { .. }
@@ -118,6 +121,7 @@ pub fn computer_request_task(bytes: &[u8]) -> Option<String> {
     match yonder_protocol::decode(bytes).ok()? {
         Request::ComputerExecute { params, .. } => Some(params.task_id),
         Request::ComputerStep { params, .. } => Some(params.task_id),
+        Request::PlanExecute { params, .. } => Some(params.task_id),
         _ => None,
     }
 }
@@ -514,6 +518,8 @@ impl<'a> GatewaySession<'a> {
                 | Request::BrowserExecute { .. }
                 | Request::ComputerExecute { .. }
                 | Request::ComputerStep { .. }
+                | Request::PlanSubmit { .. }
+                | Request::PlanExecute { .. }
                 | Request::FileExecute { .. }
                 | Request::DocumentExecute { .. }
                 | Request::CommandPropose { .. }
@@ -527,6 +533,12 @@ impl<'a> GatewaySession<'a> {
         }
         let id = request.request_id().to_owned();
         let result = query::validate(&request, self.auth, now_ms).and_then(|()| match request {
+            Request::PlanSubmit { params, .. } => {
+                if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
+                let task = crate::plan_fragment::submit(store, self.auth, &params).map_err(query::error)?;
+                Ok(QueryResult::Plan { task_id: task.id, plan_id: params.plan_id, plan_version: params.plan_version, sequence: task.sequence.to_string(), disposition: "accepted".into() })
+            }
+            Request::PlanExecute { .. } => Err(RpcError::new(-32020, "Jev计划执行组合根不可用")),
             Request::FileGrants { params, .. } => {
                 if !self.negotiated {
                     return Err(RpcError::new(-32002, "请先完成Gateway握手"));
