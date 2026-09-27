@@ -2,6 +2,7 @@
 """EX-S2 的受控 macOS 原生单槽位验证；输出不含模型、窗口或输入正文。"""
 import json
 import pathlib
+import queue
 import select
 import subprocess
 import sys
@@ -41,12 +42,22 @@ try:
     if not (fixture_state.get("ready") and fixture_state.get("launched")
             and fixture_state.get("pid") and fixture_state.get("window_id")):
         raise RuntimeError("fixture-not-ready")
-    focused = subprocess.run(
-        ["/private/tmp/yonda-focus-target", str(fixture_state["pid"]), str(fixture_state["window_id"])],
-        capture_output=True, text=True, timeout=10,
+    focus_adapter = root / "target/debug/examples/work_focus_check"
+    focus_process = subprocess.Popen(
+        [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
     )
-    if focused.returncode != 0:
-        raise RuntimeError("fixture-focus-failed")
+    focus_ready = json.loads(focus_process.stdout.readline())
+    focus_process.stdin.write("focus\n")
+    focus_process.stdin.flush()
+    focus_result = json.loads(focus_process.stdout.readline())
+    focus_process.stdin.write("release\nquit\n")
+    focus_process.stdin.flush()
+    focus_process.wait(timeout=5)
+    if not focus_ready.get("ready"):
+        raise RuntimeError("fixture-focus-capture-failed")
+    if focus_result.get("outcome") != "focused":
+        raise RuntimeError(f"fixture-focus-{focus_result.get('outcome', 'unknown')}")
 
     agent = subprocess.Popen(
         [str(binary), "--local-agent-stdio"],
@@ -54,6 +65,14 @@ try:
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
+    agent_responses = queue.Queue()
+    def read_agent():
+        for line in agent.stdout:
+            try:
+                agent_responses.put(json.loads(line))
+            except json.JSONDecodeError:
+                agent_responses.put(None)
+    threading.Thread(target=read_agent, daemon=True).start()
     counter = [0]
     def call(method, capability, **params):
         counter[0] += 1
@@ -64,8 +83,11 @@ try:
         }
         agent.stdin.write(json.dumps(request).encode() + b"\n")
         agent.stdin.flush()
-        response = read_json(agent.stdout, 45)
-        if response.get("id") != request["id"] or "error" in response:
+        try:
+            response = agent_responses.get(timeout=45)
+        except queue.Empty:
+            raise RuntimeError("gateway-timeout")
+        if response is None or response.get("id") != request["id"] or "error" in response:
             raise RuntimeError("gateway-failure")
         return response["result"]
 
