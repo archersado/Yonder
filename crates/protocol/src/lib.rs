@@ -1630,7 +1630,9 @@ pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool)> {
     }
 }
 
-fn valid_sdk_tool_name(value: &str) -> bool {
+/// CUA 动作名的封闭校验，供 Application 的受限计划片段复用；协议请求和
+/// 内部片段必须遵循同一白名单，不能各自实现一份规则。
+pub fn valid_sdk_tool_name(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 64
         && value
@@ -1638,7 +1640,8 @@ fn valid_sdk_tool_name(value: &str) -> bool {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
-fn safe_sdk_arguments(value: &serde_json::Value) -> bool {
+/// CUA 参数的安全边界，供 Application 的受限计划片段复用。
+pub fn safe_sdk_arguments(value: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::Object(fields) => fields.iter().all(|(key, value)| {
             let normalized = key

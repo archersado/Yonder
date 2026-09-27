@@ -17,6 +17,7 @@ pub mod file_execution;
 pub mod gateway;
 pub mod jev_config;
 pub mod jev_runtime;
+pub mod plan_fragment;
 pub mod query;
 pub mod work_focus;
 
