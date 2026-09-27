@@ -188,8 +188,12 @@ try:
         agent.stdin.write(json.dumps(request).encode() + b"\n")
         agent.stdin.flush()
         try:
-            response = agent_responses.get(timeout=45)
+            # Gateway hello 不依赖远端模型；十秒未响应应作为宿主/stdio 故障，
+            # 不应耗尽整条原生验证的总时限。
+            response = agent_responses.get(timeout=10)
         except queue.Empty:
+            if agent.poll() is not None:
+                raise RuntimeError("gateway-host-exited")
             raise RuntimeError("gateway-timeout")
         if response is None or response.get("id") != request["id"]:
             raise RuntimeError(f"gateway-{method}")
