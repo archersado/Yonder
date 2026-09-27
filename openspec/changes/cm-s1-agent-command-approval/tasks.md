@@ -2,7 +2,8 @@
 
 - [x] 建立 AD-CM-02 并同步 CM-S1 三份设计与来源映射
 - [x] 建立本 Change 的 Proposal 与设计
-- [ ] 从 Rust 协议唯一来源派生命令提议/执行、CLI/MCP 与类型生成物
+- [x] 从 Rust 协议唯一来源派生命令提议/执行类型与生成物
+- [ ] 接入 CLI/MCP 映射与 Gateway 能力协商
 - [x] 实现有界内存批准 Registry：LocalUser-only 预览/批准/拒绝、摘要绑定、一次消费与过期
 - [x] 接入 TaskHost 的本机预览、批准与拒绝入口
 - [ ] 接入 Task Space 本机批准卡

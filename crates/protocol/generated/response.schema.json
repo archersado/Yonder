@@ -227,7 +227,9 @@
         "computer.execute",
         "file.grant.read",
         "file.execute",
-        "document.execute"
+        "document.execute",
+        "command.propose",
+        "command.execute"
       ]
     },
     "CapabilityInfo": {

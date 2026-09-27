@@ -49,6 +49,10 @@ pub enum Capability {
     FileExecute,
     #[serde(rename = "document.execute")]
     DocumentExecute,
+    #[serde(rename = "command.propose")]
+    CommandPropose,
+    #[serde(rename = "command.execute")]
+    CommandExecute,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -528,6 +532,13 @@ pub struct DocumentExecuteParams {
     pub after: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct CommandProposeParams { pub agent_id:String, pub capability:Capability, #[ts(type="number")] #[schemars(range(min=0,max=9007199254740991_u64))] pub deadline:u64, pub task_id:String, pub program:String, pub args:Vec<String>, pub cwd:String, pub env:std::collections::BTreeMap<String,String>, pub timeout_ms:u64 }
+#[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct CommandExecuteParams { pub agent_id:String, pub capability:Capability, #[ts(type="number")] #[schemars(range(min=0,max=9007199254740991_u64))] pub deadline:u64, pub task_id:String, pub expected_sequence:String, pub command_id:String }
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct FileGrantSummary {
@@ -588,6 +599,10 @@ pub enum Request {
         request_id: String,
         params: DocumentExecuteParams,
     },
+    #[serde(rename = "task.command.propose")]
+    CommandPropose { jsonrpc:Version, #[serde(rename="id")] request_id:String, params:CommandProposeParams },
+    #[serde(rename = "task.command.execute")]
+    CommandExecute { jsonrpc:Version, #[serde(rename="id")] request_id:String, params:CommandExecuteParams },
     #[serde(rename = "task.cancel")]
     Cancel {
         jsonrpc: Version,
@@ -1160,6 +1175,8 @@ impl Request {
             Self::ComputerExecute { params, .. } => &params.agent_id,
             Self::FileExecute { params, .. } => &params.agent_id,
             Self::DocumentExecute { params, .. } => &params.agent_id,
+            Self::CommandPropose { params, .. } => &params.agent_id,
+            Self::CommandExecute { params, .. } => &params.agent_id,
             Self::Complete { params, .. } | Self::Fail { params, .. } => &params.agent_id,
             Self::BrowserExecute { params, .. } => &params.agent_id,
             Self::StepAdvance { params, .. } => &params.agent_id,
@@ -1184,6 +1201,8 @@ impl Request {
             | Self::ComputerExecute { request_id, .. }
             | Self::FileExecute { request_id, .. }
             | Self::DocumentExecute { request_id, .. }
+            | Self::CommandPropose { request_id, .. }
+            | Self::CommandExecute { request_id, .. }
             | Self::Complete { request_id, .. }
             | Self::Fail { request_id, .. }
             | Self::BrowserExecute { request_id, .. }
@@ -1210,6 +1229,8 @@ impl Request {
             Self::ComputerExecute { params, .. } => params.capability,
             Self::FileExecute { params, .. } => params.capability,
             Self::DocumentExecute { params, .. } => params.capability,
+            Self::CommandPropose { params, .. } => params.capability,
+            Self::CommandExecute { params, .. } => params.capability,
             Self::Complete { params, .. } => params.capability,
             Self::Fail { params, .. } => params.capability,
             Self::BrowserExecute { params, .. } => params.capability,
@@ -1239,6 +1260,10 @@ impl Request {
                 Capability::FileExecute
             } else if matches!(self, Self::DocumentExecute { .. }) {
                 Capability::DocumentExecute
+            } else if matches!(self, Self::CommandPropose { .. }) {
+                Capability::CommandPropose
+            } else if matches!(self, Self::CommandExecute { .. }) {
+                Capability::CommandExecute
             } else if matches!(self, Self::Complete { .. }) {
                 Capability::TaskComplete
             } else if matches!(self, Self::Fail { .. }) {
@@ -1329,6 +1354,14 @@ impl Request {
                     || !valid_hash(&params.expected_hash) || !valid_document_text(&params.before)
                     || !valid_document_text(&params.after)
                 { return Err(RpcError::new(-32602, "非法文档执行参数")); }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+            }
+            Self::CommandPropose { params, .. } => {
+                if !valid_id(&params.task_id) || params.program.is_empty() || !params.program.starts_with('/') || !params.cwd.starts_with('/') || params.args.len()>128 || params.env.len()>64 || !(100..=300_000).contains(&params.timeout_ms) { return Err(RpcError::new(-32602,"非法命令提议参数")); }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+            }
+            Self::CommandExecute { params, .. } => {
+                if sequence(&params.expected_sequence)?==0 || !valid_id(&params.command_id) { return Err(RpcError::new(-32602,"非法命令执行参数")); }
                 (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
             }
             Self::Complete { params, .. } => {
@@ -1656,6 +1689,8 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         FileExecuteParams::decl(&config),
         DocumentFormat::decl(&config),
         DocumentExecuteParams::decl(&config),
+        CommandProposeParams::decl(&config),
+        CommandExecuteParams::decl(&config),
         GetParams::decl(&config),
         EventsParams::decl(&config),
         ArtifactParams::decl(&config),
