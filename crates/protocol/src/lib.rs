@@ -641,6 +641,10 @@ pub enum Request {
         request_id: String,
         params: ComputerStepParams,
     },
+    #[serde(rename = "task.plan.submit")]
+    PlanSubmit { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: PlanSubmitParams },
+    #[serde(rename = "task.plan.execute")]
+    PlanExecute { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: PlanExecuteParams },
     #[serde(rename = "task.file.execute")]
     FileExecute {
         jsonrpc: Version,
@@ -1204,6 +1208,13 @@ pub enum QueryResult {
         unknown_reason: Option<AttemptUnknownReason>,
         observation: Option<ComputerObservation>,
     },
+    Plan {
+        task_id: String,
+        plan_id: String,
+        plan_version: u64,
+        sequence: String,
+        disposition: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1266,6 +1277,8 @@ impl Request {
             Self::WaitForUser { params, .. } => &params.agent_id,
             Self::ComputerStep { params, .. } => &params.agent_id,
             Self::ComputerExecute { params, .. } => &params.agent_id,
+            Self::PlanSubmit { params, .. } => &params.agent_id,
+            Self::PlanExecute { params, .. } => &params.agent_id,
             Self::FileExecute { params, .. } => &params.agent_id,
             Self::DocumentExecute { params, .. } => &params.agent_id,
             Self::CommandPropose { params, .. } => &params.agent_id,
@@ -1292,6 +1305,8 @@ impl Request {
             Self::WaitForUser { request_id, .. }
             | Self::ComputerStep { request_id, .. }
             | Self::ComputerExecute { request_id, .. }
+            | Self::PlanSubmit { request_id, .. }
+            | Self::PlanExecute { request_id, .. }
             | Self::FileExecute { request_id, .. }
             | Self::DocumentExecute { request_id, .. }
             | Self::CommandPropose { request_id, .. }
@@ -1320,6 +1335,8 @@ impl Request {
             Self::WaitForUser { params, .. } => params.capability,
             Self::ComputerStep { params, .. } => params.capability,
             Self::ComputerExecute { params, .. } => params.capability,
+            Self::PlanSubmit { params, .. } => params.capability,
+            Self::PlanExecute { params, .. } => params.capability,
             Self::FileExecute { params, .. } => params.capability,
             Self::DocumentExecute { params, .. } => params.capability,
             Self::CommandPropose { params, .. } => params.capability,
@@ -1349,6 +1366,10 @@ impl Request {
                 Self::ComputerExecute { .. } | Self::ComputerStep { .. }
             ) {
                 Capability::ComputerExecute
+            } else if matches!(self, Self::PlanSubmit { .. }) {
+                Capability::TaskPlanSubmit
+            } else if matches!(self, Self::PlanExecute { .. }) {
+                Capability::TaskPlanExecute
             } else if matches!(self, Self::FileExecute { .. }) {
                 Capability::FileExecute
             } else if matches!(self, Self::DocumentExecute { .. }) {
@@ -1429,6 +1450,20 @@ impl Request {
                     Some(params.task_id.as_str()),
                     params.deadline,
                 )
+            }
+            Self::PlanSubmit { params, .. } => {
+                if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.plan_id)
+                    || params.plan_version == 0 || params.token_budget == 0 || params.token_budget > 10_000
+                    || params.slots.is_empty() || params.slots.len() > 10 || !valid_plan_slots(&params.slots) {
+                    return Err(RpcError::new(-32602, "非法计划片段参数"));
+                }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+            }
+            Self::PlanExecute { params, .. } => {
+                if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.plan_id) || params.plan_version == 0 {
+                    return Err(RpcError::new(-32602, "非法计划片段执行参数"));
+                }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
             }
             Self::FileExecute { params, .. } => {
                 let valid_data = params.data_base64.as_deref().is_none_or(valid_file_base64);
@@ -1723,6 +1758,27 @@ pub fn safe_sdk_arguments(value: &serde_json::Value) -> bool {
         serde_json::Value::String(value) => !value.contains('\0'),
         _ => true,
     }
+}
+
+fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
+    let mut steps = std::collections::HashSet::new();
+    slots.iter().all(|slot| {
+        valid_id(&slot.step_id) && valid_step_label(&slot.label)
+            && steps.insert(slot.step_id.as_str())
+            && (1..=9).contains(&slot.candidates.len())
+            && {
+                let mut candidates = std::collections::HashSet::new();
+                slot.candidates.iter().all(|candidate| {
+                    valid_id(&candidate.candidate_id)
+                        && candidate.candidate_id != "handback"
+                        && candidates.insert(candidate.candidate_id.as_str())
+                        && valid_sdk_tool_name(&candidate.tool_name)
+                        && candidate.arguments.is_object()
+                        && serde_json::to_vec(&candidate.arguments).is_ok_and(|bytes| bytes.len() <= 16 * 1024)
+                        && safe_sdk_arguments(&candidate.arguments)
+                })
+            }
+    })
 }
 
 pub const MAX_FILE_EXECUTE_BYTES: usize = 48 * 1024;

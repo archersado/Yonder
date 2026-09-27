@@ -1061,6 +1061,41 @@
             "unknown_reason",
             "observation"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "disposition": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "plan"
+            },
+            "plan_id": {
+              "type": "string"
+            },
+            "plan_version": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "sequence": {
+              "type": "string"
+            },
+            "task_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task_id",
+            "plan_id",
+            "plan_version",
+            "sequence",
+            "disposition"
+          ]
         }
       ]
     },

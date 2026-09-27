@@ -325,6 +325,7 @@ pub(crate) fn handle_request_versioned(
         Request::BrowserExecute { .. } => Err(RpcError::new(-32002, "浏览器执行须通过Gateway会话")),
         Request::ComputerExecute { .. } => Err(RpcError::new(-32002, "桌面执行须通过Gateway会话")),
         Request::ComputerStep { .. } => Err(RpcError::new(-32002, "桌面步骤须通过Gateway会话")),
+        Request::PlanSubmit { .. } | Request::PlanExecute { .. } => Err(RpcError::new(-32002, "计划片段须通过Gateway会话")),
         Request::Complete { .. } => Err(RpcError::new(-32002, "任务完成须通过Gateway会话")),
         Request::Fail { .. } => Err(RpcError::new(-32002, "任务失败终结须通过Gateway会话")),
         Request::WaitForUser { .. } => Err(RpcError::new(-32002, "等待用户须通过Gateway会话")),
