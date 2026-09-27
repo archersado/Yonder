@@ -30,7 +30,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       model: 'jev-latest',
       state: { candidates: state },
       questions: {
-        next: choice('选择数组第二值为 true 的候选；没有 true 候选时选择 handback。', criteria),
+        next: choice('优先选择值为 true 且不是 handback 的候选；只有不存在这类候选时才选择 handback。', criteria),
       },
     });
     const answer = result.answers.next;

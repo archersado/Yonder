@@ -86,6 +86,11 @@ pub fn execute_one(
     let slot=&stored.fragment.slots[index];
     let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
+        // user-input 会把任务原子地转为 interrupted，并已写入事件/Outbox；此时
+        // 不得再把片段交回写成第二次状态迁移，否则会掩盖中断事实并触发 CAS 冲突。
+        if !matches!(task.status, crate::Status::Created | crate::Status::Running) {
+            return Ok((task, "handback"));
+        }
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence)?;
         return Ok((task,"handback"));
     }

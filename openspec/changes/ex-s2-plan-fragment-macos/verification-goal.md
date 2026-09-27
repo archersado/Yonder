@@ -22,4 +22,4 @@
 
 需在用户主动提供的可控测试窗口中，以无敏感正文的 `computer_click` 候选运行一次。输出仅保留 task/plan/sequence、选择类别、Observe 成败、Outbox 数量与权限状态；若缺少 Keychain API Key、辅助功能权限、网络或测试窗口，应记录为环境阻塞，不将 EX-S2 标为 PASS。Windows 仍按用户决定暂缓。
 
-2026-09-27 已以 `apps/desktop/check-plan-fragment-execute-macos.py` 运行固定输入的隔离窗口样本。新增单窗口、每进程唯一标题的 EX-S2 fixture；正式 `MacWorkFocus` 仅去重同一 AX 引用，仍拒绝不同窗口的同标题同几何歧义。Gateway 1.31 握手、Jev 配置和 `task.plan.execute` 能力均已确认可用，执行请求已到达 Jev 并以 `handback` 成功返回；没有 CUA 派发。该结果证明 created 边界交回会持久化，而不把模型低置信交回伪装成执行成功。真实 CUA 派发仍需要语义信息充分、能使 Jev 高置信选择已提交候选的样本；Windows 仍按用户决定暂缓。
+2026-09-27 已以 `apps/desktop/check-plan-fragment-execute-macos.py` 运行固定输入的隔离窗口样本。新增单窗口、每进程唯一标题的 EX-S2 fixture；正式 `MacWorkFocus` 仅去重同一 AX 引用，仍拒绝不同窗口的同标题同几何歧义。Gateway 1.31 握手、Jev 配置和 `task.plan.execute` 能力均已确认可用。修复 worker 错误地偏向 `handback` 的提示词后，Jev 已选择唯一已提交候选并进入 CUA；本机随后记录 `unknown → interrupted(user-input)`。中断事件已写入 Outbox，Application 不再对已中断任务追加第二次片段交回。该样本不宣称 CUA 成功推进；待排除原生输入监控将测试窗口事件误归类为用户输入后重跑。Windows 仍按用户决定暂缓。
