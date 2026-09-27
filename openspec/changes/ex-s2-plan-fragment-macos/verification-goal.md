@@ -25,3 +25,5 @@
 2026-09-27 已以 `apps/desktop/check-plan-fragment-execute-macos.py` 运行固定输入的隔离窗口样本。新增单窗口、每进程唯一标题的 EX-S2 fixture；正式 `MacWorkFocus` 优先将 AX `AXWindowNumber` 与已捕获的 WindowServer `window_id` 绑定，只在属性缺失时回退至同一 AX 引用去重，仍拒绝不同物理窗口的歧义。Gateway 1.31 握手、Jev 配置和 `task.plan.execute` 能力均已确认可用。修复 worker 错误地偏向 `handback` 的提示词后，Jev 已选择唯一已提交候选；HID 监控不再把窗口激活产生的鼠标移动归类为用户接管，样本已取得一次 CUA 已观察并推进片段槽位的 `advanced` 结果。标准 AppKit 文本字段不能稳定反映 AX 写入，验证 fixture 已改用显式 `setAccessibilityValue` 控件。夹具现在在未创建任务、未派发 CUA 前有限次重捕获 AppKit 首次激活的瞬态几何变化，并以 `input_matches` 作为唯一写入断言；修复后焦点预检通过，实际远端调用仍可合法地选择 `handback`。尚未取得包含新控件匹配断言的一条完整 PASS；Windows 仍按用户决定暂缓。
 
 本轮原生样本还复现了 `unknown` 结果落库后用户输入中断与片段交回之间的 CAS 竞争。Application 现会在交回 CAS 冲突时重新读取任务；若任务已离开 `created/running`，返回该中断事实而不追加交回事件，其他冲突仍按失败处理。
+
+2026-09-27 验证器已改为临时 HOME 的全新任务库，仅在迁移完成后复制 Jev 的非秘密配置，凭据仍只由 Keychain 提供；并为 fixture、AX 辅助进程和全流程加入有界读取、25 秒总时限与进程清理。该隔离组合根在 `gateway.hello` 前以 `SIGABRT` 退出；macOS 崩溃报告定位为 Tauri/tao 的 `did_finish_launching` 回调 panic。该问题发生在 Gateway、Jev、任务创建和 CUA 之前，不能作为 EX-S2 失败证据，也不能以回退到主任务库的方式绕过。待桌面启动隔离问题另行修复后，重跑此独立 Goal；Windows 仍按用户决定暂缓。
