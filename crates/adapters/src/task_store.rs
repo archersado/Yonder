@@ -8047,5 +8047,12 @@ mod tests {
         let unknown=execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Unknown},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&approved.command_id,"host",302).unwrap();
         assert_eq!(unknown.attempt_result.conclusion,AttemptConclusion::Unknown{reason:yonder_application::computer_use::UnknownReason::WorkerFailed});
         assert_eq!(calls.load(Ordering::Relaxed),2);
+
+        let task=prepared(&mut store,"command-timeout");
+        let approved=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),400).unwrap();
+        approvals.approve(AuthContext::LocalUser("desktop"),&task,&approved.command_id,401).unwrap();
+        let timed_out=execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::TimedOut},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&approved.command_id,"host",402).unwrap();
+        assert_eq!(timed_out.attempt_result.conclusion,AttemptConclusion::Observed{action_succeeded:false});
+        assert_eq!(calls.load(Ordering::Relaxed),3);
     }
 }

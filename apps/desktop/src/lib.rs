@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::WebviewWindow;
-use yonder_adapters::{document::OoxmlDocumentAdapter, file::ControlledFileAdapter, task_store::SqliteTaskStore};
+use yonder_adapters::{command::StructuredCommandAdapter, document::OoxmlDocumentAdapter, file::ControlledFileAdapter, task_store::SqliteTaskStore};
 #[cfg(target_os = "macos")]
 use yonder_adapters::{
     cua::{CuaWorker, MacosFrontmostTarget},
@@ -180,6 +180,7 @@ pub struct TaskHost {
     admission: Admission,
     files: ControlledFileAdapter,
     documents: OoxmlDocumentAdapter,
+    commands: StructuredCommandAdapter,
     file_grants: FileAuthorizationRegistry,
     command_approvals: CommandApprovalRegistry,
     listening_pending: bool,
@@ -278,6 +279,7 @@ impl TaskHost {
             admission,
             files: ControlledFileAdapter::default(),
             documents: OoxmlDocumentAdapter,
+            commands: StructuredCommandAdapter,
             file_grants: FileAuthorizationRegistry::default(),
             command_approvals: CommandApprovalRegistry::default(),
             listening_pending: false,
@@ -326,6 +328,9 @@ impl TaskHost {
     ) -> Result<AgentRegistration, HostError> {
         if status != AgentRegistrationStatus::Enabled {
             self.file_grants
+                .revoke_owner(AuthContext::LocalUser("desktop"), agent_id)
+                .map_err(|_| HostError::StorageUnavailable)?;
+            self.command_approvals
                 .revoke_owner(AuthContext::LocalUser("desktop"), agent_id)
                 .map_err(|_| HostError::StorageUnavailable)?;
         }
@@ -644,6 +649,10 @@ impl TaskHost {
         let targets: Option<&dyn WorkTargetPort> = None;
         #[cfg(not(target_os = "macos"))]
         let computer_permission_required = false;
+        #[cfg(target_os = "macos")]
+        let commands = Some(&self.commands as &dyn yonder_application::command::CommandPort);
+        #[cfg(not(target_os = "macos"))]
+        let commands: Option<&dyn yonder_application::command::CommandPort> = None;
         let (response, accepted_create) = session
             .handle_encoded_with_runtimes_and_file_grants(
                 &mut self.store,
@@ -652,6 +661,7 @@ impl TaskHost {
                 Some(&self.command_approvals),
                 Some(&self.files),
                 Some(&self.documents),
+                commands,
                 browser,
                 computer,
                 targets,
@@ -857,6 +867,8 @@ mod tests {
         let granted = host
             .issue_file_grant(&task.id, FileGrantPurpose::Read, &selected, now + 10)
             .unwrap();
+        let command=host.command_approvals.propose(AuthContext::Agent("agent-a"),&task,yonder_application::command::CommandRequest{program:"/usr/bin/printf".into(),args:vec!["safe".into()],cwd:directory.to_str().unwrap().into(),env:std::collections::BTreeMap::new(),timeout_ms:1000},now+10).unwrap();
+        host.approve_command(&task.id,&command.command_id,now+11).unwrap();
         assert!(granted.grant_id.starts_with("file_grant_"));
         assert_eq!(
             host.list_file_grants(&task.id, now + 11).unwrap().len(),
@@ -880,6 +892,7 @@ mod tests {
         host.set_agent_status("agent-a", AgentRegistrationStatus::Disabled, now + 12)
             .unwrap();
         assert!(host.list_file_grants(&task.id, now + 13).unwrap().is_empty());
+        assert!(host.list_command_approvals(&task.id,now+13).unwrap().is_empty());
         assert!(String::from_utf8(host.query_session(&mut session, query.as_bytes(), now + 102).unwrap())
             .unwrap()
             .contains("-32003"));
@@ -912,6 +925,44 @@ mod tests {
         assert!(host.list_file_grants(&task.id, now + 22).unwrap().is_empty(), "一次性替换授权必须已消费");
         drop(host);
         for name in ["secret.txt", "tasks.db", "host.lock"] { std::fs::remove_file(directory.join(name)).unwrap(); }
+        std::fs::remove_dir(directory.join("observations")).unwrap(); std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn command_gateway_requires_local_approval_and_executes_reference_once() {
+        let directory=std::env::temp_dir().join(format!("yonda-command-exec-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host=TaskHost::open(&directory).unwrap(); let now=1_000_000_000_000;
+        host.register_agent("agent-a",now).unwrap();
+        let task=host.store.register("agent-a","command-gateway","命令执行测试",Some("测试"),yonder_application::TaskSource::LocalAgent).unwrap();
+        let (task,_)=host.store.declare_step("agent-a",&task.id,task.sequence,"run-command","执行命令").unwrap();
+        let mut session=yonder_application::gateway::GatewaySession::new(AuthContext::Agent("agent-a"),yonder_application::gateway::Platform::Macos);
+        let hello=format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"agent-a","capability":"task.read","deadline":{},"protocol_version":{{"major":1,"minor":30}}}}}}"#,now+2_000);
+        let response=String::from_utf8(host.query_session(&mut session,hello.as_bytes(),now+10).unwrap()).unwrap();
+        assert!(response.contains("command.propose")&&response.contains("command.execute"));
+        let propose=format!(r#"{{"jsonrpc":"2.0","id":"propose","method":"task.command.propose","params":{{"agent_id":"agent-a","capability":"command.propose","deadline":{},"task_id":"{}","program":"/usr/bin/printf","args":["%s","gateway-ok"],"cwd":"{}","env":{{}},"timeout_ms":1000}}}}"#,now+2_000,task.id,directory.to_str().unwrap());
+        let response:serde_json::Value=serde_json::from_slice(&host.query_session(&mut session,propose.as_bytes(),now+11).unwrap()).unwrap();
+        let command_id=response["result"]["approval"]["command_id"].as_str().expect("命令提议响应").to_owned();
+        assert_eq!(host.store.get(&task.id).unwrap().status,yonder_application::Status::Created);
+        assert!(host.store.get_attempt(&task.id).unwrap().is_none());
+        host.approve_command(&task.id,&command_id,now+12).unwrap();
+        let execute=format!(r#"{{"jsonrpc":"2.0","id":"execute","method":"task.command.execute","params":{{"agent_id":"agent-a","capability":"command.execute","deadline":{},"task_id":"{}","expected_sequence":"{}","command_id":"{}"}}}}"#,now+2_000,task.id,task.sequence,command_id);
+        let response_bytes=host.query_session(&mut session,execute.as_bytes(),now+13).unwrap();
+        let response_text=String::from_utf8(response_bytes.clone()).unwrap();
+        assert!(!response_text.contains("/usr/bin/printf")&&!response_text.contains(directory.to_str().unwrap())&&!response_text.contains("gateway-ok"));
+        let response:serde_json::Value=serde_json::from_slice(&response_bytes).unwrap();
+        let execution=&response["result"]["execution"];
+        assert_eq!(execution["outcome"],"exited");
+        assert_eq!(execution["exit_code"],0);
+        assert_eq!(execution["stdout_base64"],"Z2F0ZXdheS1vaw==");
+        assert_eq!(execution["attempt_result"]["action_succeeded"],true);
+        assert!(host.list_command_approvals(&task.id,now+14).unwrap().is_empty());
+        let replay=String::from_utf8(host.query_session(&mut session,execute.as_bytes(),now+15).unwrap()).unwrap();
+        assert!(replay.contains("-32011")||replay.contains("-32012"));
+        assert!(!replay.contains("gateway-ok")&&!replay.contains("/usr/bin/printf"));
+        drop(host);
+        for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}
         std::fs::remove_dir(directory.join("observations")).unwrap(); std::fs::remove_dir(directory).unwrap();
     }
 

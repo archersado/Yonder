@@ -282,6 +282,59 @@
         "expires_at_ms"
       ]
     },
+    "CommandExecutionOutcome": {
+      "type": "string",
+      "enum": [
+        "exited",
+        "timed-out",
+        "cancelled",
+        "output-limit-exceeded",
+        "unknown"
+      ]
+    },
+    "CommandExecutionResult": {
+      "type": "object",
+      "properties": {
+        "attempt_result": {
+          "$ref": "#/$defs/AttemptResult"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
+        "outcome": {
+          "$ref": "#/$defs/CommandExecutionOutcome"
+        },
+        "stderr_base64": {
+          "type": "string"
+        },
+        "stderr_truncated": {
+          "type": "boolean"
+        },
+        "stdout_base64": {
+          "type": "string"
+        },
+        "stdout_truncated": {
+          "type": "boolean"
+        },
+        "task": {
+          "$ref": "#/$defs/TaskSnapshot"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "task",
+        "attempt_result",
+        "outcome",
+        "stdout_base64",
+        "stderr_base64",
+        "stdout_truncated",
+        "stderr_truncated"
+      ]
+    },
     "ComputerObservation": {
       "type": "object",
       "properties": {
@@ -815,6 +868,23 @@
           "required": [
             "kind",
             "approval"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "execution": {
+              "$ref": "#/$defs/CommandExecutionResult"
+            },
+            "kind": {
+              "type": "string",
+              "const": "command-execution"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "execution"
           ]
         },
         {

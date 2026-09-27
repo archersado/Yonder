@@ -1060,6 +1060,31 @@ pub struct CommandApprovalSummary {
     pub expires_at_ms: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum CommandExecutionOutcome {
+    Exited,
+    TimedOut,
+    Cancelled,
+    OutputLimitExceeded,
+    Unknown,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct CommandExecutionResult {
+    pub task: TaskSnapshot,
+    pub attempt_result: AttemptResult,
+    pub outcome: CommandExecutionOutcome,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub exit_code: Option<i32>,
+    pub stdout_base64: String,
+    pub stderr_base64: String,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum QueryResult {
@@ -1094,6 +1119,7 @@ pub enum QueryResult {
     FileExecution { execution: FileExecutionResult },
     DocumentExecution { execution: DocumentExecutionResult },
     CommandApproval { approval: CommandApprovalSummary },
+    CommandExecution { execution: CommandExecutionResult },
     Step {
         task: TaskSnapshot,
         step: Option<StepDeclaration>,
@@ -1728,6 +1754,8 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         FileExecutionResult::decl(&config),
         DocumentExecutionResult::decl(&config),
         CommandApprovalSummary::decl(&config),
+        CommandExecutionOutcome::decl(&config),
+        CommandExecutionResult::decl(&config),
         TaskEvent::decl(&config),
         ArtifactAvailability::decl(&config),
         ArtifactManifestItem::decl(&config),
@@ -2237,6 +2265,20 @@ mod tests {
         let mut uppercase_hash = value;
         uppercase_hash["params"]["expected_hash"] = serde_json::json!("A".repeat(64));
         assert!(decode(&serde_json::to_vec(&uppercase_hash).unwrap()).unwrap().validate(1000).is_err());
+    }
+
+    #[test]
+    fn command_execute_contract_only_accepts_the_approved_reference() {
+        let execute=serde_json::json!({"jsonrpc":"2.0","id":"c1","method":"task.command.execute","params":{"agent_id":"agent-a","capability":"command.execute","deadline":2000,"task_id":"task-1","expected_sequence":"4","command_id":"command_1"}});
+        let request=decode(&serde_json::to_vec(&execute).unwrap()).unwrap();
+        assert!(request.validate(1000).is_ok());
+        assert!(matches!(request,Request::CommandExecute{..}));
+        for field in ["program","args","cwd","env","timeout_ms","confirmed"] {
+            let mut replaced=execute.clone(); replaced["params"][field]=serde_json::json!("forged");
+            assert!(decode(&serde_json::to_vec(&replaced).unwrap()).is_err(),"执行请求不得接受 {field}");
+        }
+        let mut wrong=execute; wrong["params"]["capability"]=serde_json::json!("command.propose");
+        assert!(decode(&serde_json::to_vec(&wrong).unwrap()).unwrap().validate(1000).is_err());
     }
 
     #[test]
