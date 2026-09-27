@@ -36,28 +36,32 @@ try:
     if not (fixture_state.get("ready") and fixture_state.get("launched")
             and fixture_state.get("pid") and fixture_state.get("window_id")):
         raise RuntimeError("fixture-not-ready")
+    # AppKit 在首次激活期间可能重排标题栏。该循环只重新捕获 fixture 的
+    # 焦点引用，尚未创建任务或派发 CUA，不能掩盖实际执行时的几何变化拒绝。
     focus_adapter = root / "target/debug/examples/work_focus_check"
-    focus_process = subprocess.Popen(
-        [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
-    )
-    focus_ready_line = focus_process.stdout.readline()
-    if not focus_ready_line:
-        raise RuntimeError("fixture-focus-helper-closed")
-    focus_ready = json.loads(focus_ready_line)
-    focus_process.stdin.write("focus\n")
-    focus_process.stdin.flush()
-    focus_result_line = focus_process.stdout.readline()
-    if not focus_result_line:
-        raise RuntimeError("fixture-focus-helper-closed")
-    focus_result = json.loads(focus_result_line)
-    focus_process.stdin.write("release\nquit\n")
-    focus_process.stdin.flush()
-    focus_process.wait(timeout=5)
-    if not focus_ready.get("ready"):
-        raise RuntimeError("fixture-focus-capture-failed")
-    if focus_result.get("outcome") != "focused":
-        raise RuntimeError(f"fixture-focus-{focus_result.get('outcome', 'unknown')}")
+    focus_failure = "unknown"
+    for _ in range(3):
+        focus_process = subprocess.Popen(
+            [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
+        )
+        focus_ready_line = focus_process.stdout.readline()
+        focus_ready = json.loads(focus_ready_line) if focus_ready_line else {"ready": False}
+        focus_result = {}
+        if focus_ready.get("ready"):
+            focus_process.stdin.write("focus\n")
+            focus_process.stdin.flush()
+            focus_result_line = focus_process.stdout.readline()
+            focus_result = json.loads(focus_result_line) if focus_result_line else {}
+        focus_process.stdin.write("release\nquit\n")
+        focus_process.stdin.flush()
+        focus_process.wait(timeout=5)
+        if focus_result.get("outcome") == "focused":
+            break
+        focus_failure = focus_result.get("outcome", "capture-failed")
+        time.sleep(0.2)
+    else:
+        raise RuntimeError(f"fixture-focus-{focus_failure}")
 
     agent = subprocess.Popen(
         [str(binary), "--local-agent-stdio"],
@@ -119,7 +123,7 @@ try:
     until = time.monotonic() + 8
     native_match = False
     while time.monotonic() < until:
-        if fixture_state.get("matches"):
+        if fixture_state.get("input_matches"):
             native_match = True
             break
         time.sleep(0.05)
