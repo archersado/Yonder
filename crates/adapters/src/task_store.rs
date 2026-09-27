@@ -681,6 +681,21 @@ impl TaskStore for SqliteTaskStore {
         ).optional().map_err(storage)?;
         row.map(|(owner,accepted,current,json)| Ok(StoredPlanFragment { owner_agent_id:owner, accepted_sequence:u64::try_from(accepted).map_err(|_|Error::StorageUnavailable)?, current_slot:u16::try_from(current).map_err(|_|Error::StorageUnavailable)?, fragment:serde_json::from_str(&json).map_err(|_|Error::StorageUnavailable)? })).transpose()
     }
+    fn advance_plan_fragment(&mut self, task_id: &str, plan_id: &str, plan_version: u64, slot: u16, expected: u64) -> Result<Task, Error> {
+        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
+        let row: Option<(String,i64,String,Option<String>,String)>=tx.query_row("SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(storage)?;
+        let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
+        let current=u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?;
+        if current!=expected || state!="running" { return Err(Error::Conflict); }
+        let changed=tx.execute("UPDATE task_plan_fragments SET current_slot=current_slot+1 WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3 AND current_slot=?4",params![task_id,plan_id,plan_version as i64,slot as i64]).map_err(storage)?;
+        if changed!=1{return Err(Error::Conflict);}
+        let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx.execute("UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",params![next as i64,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
+        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",params![task_id,next as i64,state]).map_err(storage)?;
+        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next})
+    }
     fn supports_execution_attempts(&self) -> bool {
         true
     }

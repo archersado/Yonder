@@ -348,6 +348,10 @@ pub trait TaskStore {
     fn get_plan_fragment(&mut self, _: &str, _: &str, _: u64) -> Result<Option<plan_fragment::StoredPlanFragment>, Error> {
         Err(Error::StorageUnavailable)
     }
+    /// 仅在已有动作已 Observe 的边界推进片段游标；同事务追加任务事件和 Outbox。
+    fn advance_plan_fragment(&mut self, _: &str, _: &str, _: u64, _: u16, _: u64) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
+    }
     fn declare_step(
         &mut self,
         _: &str,

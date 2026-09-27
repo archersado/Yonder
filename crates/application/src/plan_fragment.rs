@@ -65,6 +65,28 @@ pub fn submit(
     store.submit_plan_fragment(auth.agent_id(), &fragment)
 }
 
+/// 可信 Gateway 会话在单一槽位内编排 Jev 与既有 CUA 用例。它不循环：每次
+/// 调用至多派发一次动作，随后强制 Observe；调用方据 disposition 把交回依据送往 Outbox。
+pub fn execute_one(
+    store: &mut impl crate::TaskStore, admission: &crate::admission::Admission,
+    computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
+    config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized),
+    auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str,
+) -> Result<(crate::Task, &'static str), crate::Error> {
+    if !matches!(auth, crate::AuthContext::Agent(_)) { return Err(crate::Error::PermissionDenied); }
+    let stored=store.get_plan_fragment(task_id,plan_id,plan_version)?.ok_or(crate::Error::NotFound)?;
+    if stored.owner_agent_id != auth.agent_id() || stored.fragment.deadline_ms <= now_ms || expected != store.get(task_id)?.sequence { return Err(crate::Error::Conflict); }
+    let index=usize::from(stored.current_slot);
+    if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete")); }
+    let choice=select(config,jev,&stored.fragment,index).map_err(|_|crate::Error::StopRequired)?;
+    let Selection::Dispatch(action)=choice else { return Ok((store.get(task_id)?, "handback")); };
+    let slot=&stored.fragment.slots[index];
+    let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
+    if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) { return Ok((task,"handback")); }
+    let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
+    Ok((task,"advanced"))
+}
+
 pub fn validate(fragment: &PlanFragment) -> Result<(), crate::Error> {
     if !valid_id(&fragment.plan_id) || !valid_id(&fragment.task_id)
         || fragment.plan_version == 0 || fragment.expected_sequence == 0
@@ -96,7 +118,7 @@ fn valid_candidate(candidate: &CandidateAction) -> bool {
 /// 当前 Observe 检查后调用；返回 HandBack 不会产生副作用。
 pub fn select(
     config: &crate::jev_config::JevConfig,
-    port: &impl JevDecisionPort,
+    port: &(impl JevDecisionPort + ?Sized),
     fragment: &PlanFragment,
     slot_index: usize,
 ) -> Result<Selection, JevDecisionError> {

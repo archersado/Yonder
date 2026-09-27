@@ -13,6 +13,8 @@ use crate::{
     command_approval::CommandApprovalRegistry,
     command::{CommandOutcome, CommandPort, NeverCancel},
     command_execution,
+    jev_config::JevConfig,
+    jev_runtime::JevDecisionPort,
     query,
 };
 use yonder_protocol::{
@@ -452,6 +454,8 @@ impl<'a> GatewaySession<'a> {
             None,
             None,
             None,
+            None,
+            None,
             port,
             computer,
             targets,
@@ -472,6 +476,8 @@ impl<'a> GatewaySession<'a> {
         file_port: Option<&dyn FilePort>,
         documents: Option<&dyn DocumentPort>,
         command_port: Option<&dyn CommandPort>,
+        jev_config: Option<&JevConfig>,
+        jev: Option<&dyn JevDecisionPort>,
         port: Option<&dyn BrowserUsePort>,
         computer: Option<&dyn ComputerUsePort>,
         targets: Option<&dyn WorkTargetPort>,
@@ -538,7 +544,14 @@ impl<'a> GatewaySession<'a> {
                 let task = crate::plan_fragment::submit(store, self.auth, &params).map_err(query::error)?;
                 Ok(QueryResult::Plan { task_id: task.id, plan_id: params.plan_id, plan_version: params.plan_version, sequence: task.sequence.to_string(), disposition: "accepted".into() })
             }
-            Request::PlanExecute { .. } => Err(RpcError::new(-32020, "Jev计划执行组合根不可用")),
+            Request::PlanExecute { params, .. } => {
+                if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
+                let config=jev_config.ok_or_else(||RpcError::new(-32020,"Jev计划执行组合根不可用"))?;
+                let jev=jev.ok_or_else(||RpcError::new(-32020,"Jev计划执行组合根不可用"))?;
+                let (computer,targets)=(computer.ok_or_else(||RpcError::new(-32020,"CUA Runtime不可用"))?,targets.ok_or_else(||RpcError::new(-32020,"桌面目标解析不可用"))?);
+                let (task,disposition)=crate::plan_fragment::execute_one(store,admission,computer,targets,config,jev,self.auth,&params.task_id,&params.plan_id,params.plan_version,yonder_protocol::sequence(&params.expected_sequence)?,now_ms,host_session_id).map_err(query::error)?;
+                Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into() })
+            },
             Request::FileGrants { params, .. } => {
                 if !self.negotiated {
                     return Err(RpcError::new(-32002, "请先完成Gateway握手"));

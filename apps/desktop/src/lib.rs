@@ -651,8 +651,16 @@ impl TaskHost {
         let computer_permission_required = false;
         #[cfg(target_os = "macos")]
         let commands = Some(&self.commands as &dyn yonder_application::command::CommandPort);
+        #[cfg(target_os = "macos")]
+        let jev_config = self.store.get_jev_config().map_err(|_| HostError::StorageUnavailable)?.unwrap_or_default();
+        #[cfg(target_os = "macos")]
+        let jev = self.jev.as_ref().map(|port| port as &dyn yonder_application::jev_runtime::JevDecisionPort);
         #[cfg(not(target_os = "macos"))]
         let commands: Option<&dyn yonder_application::command::CommandPort> = None;
+        #[cfg(not(target_os = "macos"))]
+        let jev_config: Option<&yonder_application::jev_config::JevConfig> = None;
+        #[cfg(not(target_os = "macos"))]
+        let jev: Option<&dyn yonder_application::jev_runtime::JevDecisionPort> = None;
         let (response, accepted_create) = session
             .handle_encoded_with_runtimes_and_file_grants(
                 &mut self.store,
@@ -662,6 +670,11 @@ impl TaskHost {
                 Some(&self.files),
                 Some(&self.documents),
                 commands,
+                #[cfg(target_os = "macos")]
+                Some(&jev_config),
+                #[cfg(not(target_os = "macos"))]
+                jev_config,
+                jev,
                 browser,
                 computer,
                 targets,

@@ -58,7 +58,7 @@ pub trait JevDecisionPort {
 
 pub fn decide(
     config: &JevConfig,
-    port: &impl JevDecisionPort,
+    port: &(impl JevDecisionPort + ?Sized),
     request: &JevDecisionRequest,
 ) -> Result<JevDecision, JevDecisionError> {
     if !config.enabled {
