@@ -24,6 +24,7 @@ use yonder_application::{
     admission::Admission,
     browser_use::BrowserUsePort,
     computer_use::{ComputerUsePort, WorkTarget, WorkTargetPort},
+    command_approval::{CommandApprovalError, CommandApprovalPreview, CommandApprovalRegistry, CommandApprovalSummary},
     jev_config::JevConfig,
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
@@ -58,6 +59,18 @@ pub enum ConfirmError {
     Conflict,
     QuotaExceeded,
     StorageUnavailable,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CommandApprovalHostError { InvalidInput, NotFound, PermissionDenied, Expired, Rejected, Capacity, StorageUnavailable }
+
+impl From<CommandApprovalError> for CommandApprovalHostError {
+    fn from(value: CommandApprovalError) -> Self { match value {
+        CommandApprovalError::InvalidInput => Self::InvalidInput, CommandApprovalError::NotFound => Self::NotFound,
+        CommandApprovalError::PermissionDenied => Self::PermissionDenied, CommandApprovalError::Expired => Self::Expired,
+        CommandApprovalError::Rejected => Self::Rejected, CommandApprovalError::Capacity => Self::Capacity,
+        CommandApprovalError::Unavailable => Self::StorageUnavailable,
+    }}
 }
 
 #[derive(Debug, PartialEq)]
@@ -168,6 +181,7 @@ pub struct TaskHost {
     files: ControlledFileAdapter,
     documents: OoxmlDocumentAdapter,
     file_grants: FileAuthorizationRegistry,
+    command_approvals: CommandApprovalRegistry,
     listening_pending: bool,
     listening_until: Option<Instant>,
     #[cfg(target_os = "macos")]
@@ -265,6 +279,7 @@ impl TaskHost {
             files: ControlledFileAdapter::default(),
             documents: OoxmlDocumentAdapter,
             file_grants: FileAuthorizationRegistry::default(),
+            command_approvals: CommandApprovalRegistry::default(),
             listening_pending: false,
             listening_until: None,
             #[cfg(target_os = "macos")]
@@ -526,6 +541,23 @@ impl TaskHost {
             yonder_application::Error::QuotaExceeded => ConfirmError::QuotaExceeded,
             _ => ConfirmError::StorageUnavailable,
         })
+    }
+
+    /// 仅由打包 Task Space 的本机用户入口调用；预览完整命令不会经 Gateway 返回。
+    pub fn preview_command_approval(&mut self, task_id: &str, command_id: &str, now_ms: u64) -> Result<CommandApprovalPreview, CommandApprovalHostError> {
+        let task=self.store.get(task_id).map_err(|_|CommandApprovalHostError::NotFound)?;
+        self.command_approvals.preview_for_local(AuthContext::LocalUser("desktop"),&task,command_id,now_ms).map_err(Into::into)
+    }
+
+    /// 仅由打包 Task Space 的显式“批准执行”按钮调用；Agent 没有等价入口。
+    pub fn approve_command(&mut self, task_id: &str, command_id: &str, now_ms: u64) -> Result<CommandApprovalSummary, CommandApprovalHostError> {
+        let task=self.store.get(task_id).map_err(|_|CommandApprovalHostError::NotFound)?;
+        self.command_approvals.approve(AuthContext::LocalUser("desktop"),&task,command_id,now_ms).map_err(Into::into)
+    }
+
+    pub fn reject_command(&mut self, task_id: &str, command_id: &str, now_ms: u64) -> Result<(), CommandApprovalHostError> {
+        let task=self.store.get(task_id).map_err(|_|CommandApprovalHostError::NotFound)?;
+        self.command_approvals.reject(AuthContext::LocalUser("desktop"),&task,command_id,now_ms).map_err(Into::into)
     }
 
     /// Task Space中的显式用户操作；引用、序号和所有权均从可信存储复核。
