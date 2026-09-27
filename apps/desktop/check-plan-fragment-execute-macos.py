@@ -132,7 +132,13 @@ try:
         raise RuntimeError("native-target-mismatch")
     completed = call("task.complete", "task.complete", task_id=task["task_id"], expected_sequence=executed["sequence"])["task"]
     result["task_completed"] = completed.get("status") == "completed"
-    result["passed"] = all(result.values())
+    # recording_started 必须为 false，不能把这项安全断言混入正向通过条件。
+    result["passed"] = all(result.get(key) is True for key in (
+        "plan_execute_capability",
+        "jev_selected_submitted_candidate",
+        "native_target_matches",
+        "task_completed",
+    ))
 except Exception as error:
     result["failure_class"] = str(error)
     result["passed"] = False
