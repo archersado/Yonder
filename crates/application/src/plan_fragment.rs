@@ -91,8 +91,19 @@ pub fn execute_one(
         if !matches!(task.status, crate::Status::Created | crate::Status::Running) {
             return Ok((task, "handback"));
         }
-        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence)?;
-        return Ok((task,"handback"));
+        match store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence) {
+            Ok(task) => return Ok((task,"handback")),
+            // 用户输入可在 unknown 结果落库后、交回事件写入前原子地中断任务。
+            // 此时保留已写入的 interrupted 事实，不能用过期 CAS 再写第二个交回。
+            Err(crate::Error::Conflict) => {
+                let current=store.get(task_id)?;
+                if !matches!(current.status, crate::Status::Created | crate::Status::Running) {
+                    return Ok((current,"handback"));
+                }
+                return Err(crate::Error::Conflict);
+            }
+            Err(error) => return Err(error),
+        }
     }
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
     Ok((task,"advanced"))
