@@ -10,6 +10,7 @@ use crate::{
     document::DocumentPort,
     document_execution,
     file_authorization::{FileAuthorizationRegistry, FileGrantPurpose},
+    command_approval::CommandApprovalRegistry,
     query,
 };
 use yonder_protocol::{
@@ -25,7 +26,7 @@ use yonder_protocol::{
 pub use yonder_protocol::Platform;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 29 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 30 };
 const PROTOCOL: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
 
 pub fn is_execution_request(bytes: &[u8]) -> bool {
@@ -180,6 +181,7 @@ pub struct GatewaySession<'a> {
     can_file_grants: bool,
     can_file_execute: bool,
     can_document_execute: bool,
+    can_command_propose: bool,
     browser_available: bool,
     can_computer: bool,
     can_computer_step: bool,
@@ -190,6 +192,7 @@ pub struct GatewaySession<'a> {
     file_grants_available: bool,
     file_execution_available: bool,
     document_execution_available: bool,
+    command_approval_available: bool,
     /// 仅在一次同步 `handle` 调用期间传递给桌面组合根，不是协议或核心状态。
     last_create_was_new: bool,
 }
@@ -435,6 +438,7 @@ impl<'a> GatewaySession<'a> {
             None,
             None,
             None,
+            None,
             port,
             computer,
             targets,
@@ -451,6 +455,7 @@ impl<'a> GatewaySession<'a> {
         store: &mut T,
         admission: &Admission,
         file_grants: Option<&FileAuthorizationRegistry>,
+        command_approvals: Option<&CommandApprovalRegistry>,
         file_port: Option<&dyn FilePort>,
         documents: Option<&dyn DocumentPort>,
         port: Option<&dyn BrowserUsePort>,
@@ -470,11 +475,12 @@ impl<'a> GatewaySession<'a> {
         self.file_grants_available = file_grants.is_some();
         self.file_execution_available = file_grants.is_some() && file_port.is_some();
         self.document_execution_available = file_grants.is_some() && file_port.is_some() && documents.is_some();
+        self.command_approval_available = command_approvals.is_some();
         let request = match yonder_protocol::decode(bytes) {
             Ok(request) => request,
             Err(_) => return self.handle_encoded_with_create_signal(store, bytes, now_ms),
         };
-        if is_agent_write_request(&request) || matches!(request, Request::FileGrants { .. } | Request::FileExecute { .. } | Request::DocumentExecute { .. }) {
+        if is_agent_write_request(&request) || matches!(request, Request::FileGrants { .. } | Request::FileExecute { .. } | Request::DocumentExecute { .. } | Request::CommandPropose { .. } | Request::CommandExecute { .. }) {
             let id = request.request_id().to_owned();
             if store
                 .authorize_agent_write(self.auth.agent_id(), now_ms)
@@ -499,6 +505,7 @@ impl<'a> GatewaySession<'a> {
                 | Request::ComputerStep { .. }
                 | Request::FileExecute { .. }
                 | Request::DocumentExecute { .. }
+                | Request::CommandPropose { .. }
                 | Request::Complete { .. }
                 | Request::Fail { .. }
                 | Request::WaitForUser { .. }
@@ -574,6 +581,12 @@ impl<'a> GatewaySession<'a> {
                 Ok(QueryResult::DocumentExecution { execution: ProtocolDocumentExecutionResult {
                     task:snapshot(result.task), attempt_result:attempt_result(result.attempt_result), format, sha256, bytes_written,
                 }})
+            }
+            Request::CommandPropose { params, .. } => {
+                if !self.negotiated || !self.can_command_propose { return Err(RpcError::new(-32010, "命令提议需要协议1.30及本机批准入口")); }
+                let task=crate::get(store,&params.task_id).map_err(query::error)?;
+                let approval=command_approvals.ok_or_else(||RpcError::new(-32020,"本机命令批准入口不可用"))?.propose(self.auth,&task,crate::command::CommandRequest{program:params.program,args:params.args,cwd:params.cwd,env:params.env,timeout_ms:params.timeout_ms},now_ms).map_err(|_|RpcError::new(-32003,"命令提议被拒绝"))?;
+                Ok(QueryResult::CommandApproval{approval:yonder_protocol::CommandApprovalSummary{command_id:approval.command_id,state:"awaiting_user".into(),expires_at_ms:approval.expires_at_ms}})
             }
             Request::WaitForUser { params, .. } => {
                 if !self.negotiated {
@@ -821,6 +834,7 @@ impl<'a> GatewaySession<'a> {
             can_file_grants: false,
             can_file_execute: false,
             can_document_execute: false,
+            can_command_propose: false,
             browser_available: false,
             can_computer: false,
             can_computer_step: false,
@@ -831,6 +845,7 @@ impl<'a> GatewaySession<'a> {
             file_grants_available: false,
             file_execution_available: false,
             document_execution_available: false,
+            command_approval_available: false,
             last_create_was_new: false,
         }
     }
@@ -1166,6 +1181,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_document_execute = self.negotiated
                     && params.protocol_version.minor >= 29
                     && self.document_execution_available;
+                self.can_command_propose=self.negotiated&&params.protocol_version.minor>=30&&self.command_approval_available&&matches!(self.platform,Platform::Macos);
                 self.can_computer=self.can_advance&&params.protocol_version.minor>=11&&self.computer_available&&!self.computer_permission_required;
                 self.can_computer_step=self.can_computer&&params.protocol_version.minor>=12;
                 self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
@@ -1186,6 +1202,7 @@ impl<'a> GatewaySession<'a> {
                 if params.protocol_version.minor >= 27 && self.file_grants_available { capabilities.push(CapabilityInfo{name:Capability::FileGrantRead,version:ProtocolVersion{major:1,minor:27},availability:Availability::Available,reason:None}); }
                 if params.protocol_version.minor >= 28 && self.file_execution_available { capabilities.push(CapabilityInfo{name:Capability::FileExecute,version:ProtocolVersion{major:1,minor:28},availability:Availability::Available,reason:None}); }
                 if params.protocol_version.minor >= 29 && self.document_execution_available { capabilities.push(CapabilityInfo{name:Capability::DocumentExecute,version:ProtocolVersion{major:1,minor:29},availability:Availability::Available,reason:None}); }
+                if params.protocol_version.minor>=30 && self.command_approval_available { capabilities.push(CapabilityInfo{name:Capability::CommandPropose,version:ProtocolVersion{major:1,minor:30},availability:if self.can_command_propose{Availability::Available}else{Availability::TemporarilyUnavailable},reason:(!self.can_command_propose).then(||"本机命令批准入口不可用".into())}); }
                 return Ok(QueryResult::Hello { protocol_version: version, platform: self.platform, capabilities });
             }
             Err(RpcError::new(-32002, "请先完成 Gateway 握手"))

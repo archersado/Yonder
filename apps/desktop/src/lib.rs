@@ -643,6 +643,7 @@ impl TaskHost {
                 &mut self.store,
                 &self.admission,
                 Some(&self.file_grants),
+                Some(&self.command_approvals),
                 Some(&self.files),
                 Some(&self.documents),
                 browser,

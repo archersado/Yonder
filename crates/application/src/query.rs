@@ -308,6 +308,7 @@ pub(crate) fn handle_request_versioned(
     let id = request.request_id().to_owned();
     let result = validate(&request, auth, now_ms).and_then(|()| {
         match request {
+        Request::CommandPropose { .. } | Request::CommandExecute { .. } => Err(RpcError::new(-32002, "命令请求须通过Gateway会话")),
         Request::Cancel { params, .. } => {
             let task = crate::cancel_pending(store, auth, &params.task_id, yonder_protocol::sequence(&params.expected_sequence)?).map_err(error)?;
             Ok(QueryResult::Snapshot { task: summary(task) })
