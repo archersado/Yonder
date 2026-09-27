@@ -352,6 +352,10 @@ pub trait TaskStore {
     fn advance_plan_fragment(&mut self, _: &str, _: &str, _: u64, _: u16, _: u64) -> Result<Task, Error> {
         Err(Error::StorageUnavailable)
     }
+    /// 片段交回也必须作为任务序列、事件和 Outbox 的同事务事实，不能只停在内存返回值。
+    fn hand_back_plan_fragment(&mut self, _: &str, _: &str, _: u64, _: u64) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
+    }
     fn declare_step(
         &mut self,
         _: &str,

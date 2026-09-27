@@ -79,10 +79,16 @@ pub fn execute_one(
     let index=usize::from(stored.current_slot);
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete")); }
     let choice=select(config,jev,&stored.fragment,index).map_err(|_|crate::Error::StopRequired)?;
-    let Selection::Dispatch(action)=choice else { return Ok((store.get(task_id)?, "handback")); };
+    let Selection::Dispatch(action)=choice else {
+        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected)?;
+        return Ok((task, "handback"));
+    };
     let slot=&stored.fragment.slots[index];
     let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
-    if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) { return Ok((task,"handback")); }
+    if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
+        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence)?;
+        return Ok((task,"handback"));
+    }
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
     Ok((task,"advanced"))
 }
