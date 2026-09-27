@@ -8,21 +8,21 @@ use crate::{jev_config::JevCapability, jev_runtime::{self, JevCandidate, JevDeci
 pub const MAX_SLOTS: usize = 10;
 pub const MAX_TOKEN_BUDGET: u32 = 10_000;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct CandidateAction {
     pub candidate_id: String,
     pub tool_name: String,
     pub arguments_json: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PlanSlot {
     pub step_id: String,
     pub label: String,
     pub candidates: Vec<CandidateAction>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PlanFragment {
     pub plan_id: String,
     pub plan_version: u64,
@@ -31,6 +31,14 @@ pub struct PlanFragment {
     pub deadline_ms: u64,
     pub token_budget: u32,
     pub slots: Vec<PlanSlot>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StoredPlanFragment {
+    pub owner_agent_id: String,
+    pub accepted_sequence: u64,
+    pub current_slot: u16,
+    pub fragment: PlanFragment,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

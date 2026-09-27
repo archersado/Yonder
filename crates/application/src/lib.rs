@@ -340,6 +340,14 @@ pub trait TaskStore {
     fn supports_step_declarations(&self) -> bool {
         false
     }
+    fn supports_plan_fragments(&self) -> bool { false }
+    /// 片段是不可变任务事实。实现必须在同一事务中完成 CAS、任务序号、事件与 Outbox。
+    fn submit_plan_fragment(&mut self, _: &str, _: &plan_fragment::PlanFragment) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn get_plan_fragment(&mut self, _: &str, _: &str, _: u64) -> Result<Option<plan_fragment::StoredPlanFragment>, Error> {
+        Err(Error::StorageUnavailable)
+    }
     fn declare_step(
         &mut self,
         _: &str,

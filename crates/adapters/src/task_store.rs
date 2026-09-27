@@ -10,13 +10,14 @@ use yonder_application::{
     browser_use::{BrowserReferenceRecord, valid_ref},
     computer_use::UnknownReason,
     jev_config::JevConfig,
+    plan_fragment::{PlanFragment, StoredPlanFragment},
     work_focus::FocusFailure,
 };
 
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 19;
+pub const SQLITE_SCHEMA_VERSION: i64 = 20;
 
 fn storage(_: rusqlite::Error) -> Error {
     Error::StorageUnavailable
@@ -253,13 +254,13 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
         ]
         .contains(&schema)
         {
             return Err(Error::StorageUnavailable);
         }
-        if schema != 0 && schema != 19 {
+        if schema != 0 && schema != 20 {
             if !migrate_plaintext {
                 return Err(Error::StorageUnavailable);
             }
@@ -299,7 +300,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
         ]
         .contains(&schema)
         {
@@ -375,6 +376,10 @@ impl SqliteTaskStore {
         }
         if schema < 19 {
             tx.execute_batch(include_str!("task_focus_history_schema.sql"))
+                .map_err(storage)?;
+        }
+        if schema < 20 {
+            tx.execute_batch(include_str!("task_plan_fragment_schema.sql"))
                 .map_err(storage)?;
         }
         tx.commit().map_err(storage)?;
@@ -638,6 +643,43 @@ impl TaskStore for SqliteTaskStore {
     }
     fn supports_step_declarations(&self) -> bool {
         true
+    }
+    fn supports_plan_fragments(&self) -> bool { true }
+    fn submit_plan_fragment(&mut self, owner: &str, fragment: &PlanFragment) -> Result<Task, Error> {
+        yonder_application::plan_fragment::validate(fragment)?;
+        if !yonder_application::valid_id(owner) { return Err(Error::InvalidInput); }
+        let json = serde_json::to_string(fragment).map_err(|_| Error::StorageUnavailable)?;
+        let tx = self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
+        let row: Option<(String,i64,String,Option<String>,String)> = tx.query_row(
+            "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1", [&fragment.task_id],
+            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))
+        ).optional().map_err(storage)?;
+        let (state, sequence, actual_owner, name, source) = row.ok_or(Error::NotFound)?;
+        if actual_owner != owner { return Err(Error::NotFound); }
+        let task = Task { id:fragment.task_id.clone(), owner_agent_id:actual_owner.clone(), name, source:task_source(&source)?, status:status(&state)?, sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)? };
+        let existing: Option<String> = tx.query_row(
+            "SELECT fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
+            params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64], |r|r.get(0)
+        ).optional().map_err(storage)?;
+        if let Some(existing) = existing {
+            if existing == json { tx.commit().map_err(storage)?; return Ok(task); }
+            return Err(Error::Conflict);
+        }
+        if !matches!(task.status, Status::Created | Status::Running) || task.sequence != fragment.expected_sequence { return Err(Error::Conflict); }
+        let accepted=task.sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx.execute("UPDATE tasks SET sequence=?1 WHERE id=?2 AND owner_agent_id=?3 AND sequence=?4",params![accepted as i64,fragment.task_id,owner,task.sequence as i64]).map_err(storage)? != 1 { return Err(Error::Conflict); }
+        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",params![fragment.task_id,accepted as i64,state]).map_err(storage)?;
+        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![fragment.task_id,accepted as i64]).map_err(storage)?;
+        tx.execute("INSERT INTO task_plan_fragments(task_id,plan_id,plan_version,owner_agent_id,accepted_sequence,fragment_json) VALUES(?1,?2,?3,?4,?5,?6)",params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64,owner,accepted as i64,json]).map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task { sequence:accepted, ..task })
+    }
+    fn get_plan_fragment(&mut self, task_id: &str, plan_id: &str, plan_version: u64) -> Result<Option<StoredPlanFragment>, Error> {
+        let row: Option<(String,i64,i64,String)> = self.0.query_row(
+            "SELECT owner_agent_id,accepted_sequence,current_slot,fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
+            params![task_id,plan_id,plan_version as i64], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))
+        ).optional().map_err(storage)?;
+        row.map(|(owner,accepted,current,json)| Ok(StoredPlanFragment { owner_agent_id:owner, accepted_sequence:u64::try_from(accepted).map_err(|_|Error::StorageUnavailable)?, current_slot:u16::try_from(current).map_err(|_|Error::StorageUnavailable)?, fragment:serde_json::from_str(&json).map_err(|_|Error::StorageUnavailable)? })).transpose()
     }
     fn supports_execution_attempts(&self) -> bool {
         true
@@ -3552,7 +3594,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            19
+            20
         );
         drop(store);
         for rejected in [
@@ -3598,7 +3640,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 19);
+        assert_eq!(version, 20);
     }
 
     #[test]
@@ -4874,7 +4916,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            19
+            20
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -6773,7 +6815,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            19
+            20
         );
     }
 
@@ -6966,7 +7008,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            19
+            20
         );
     }
 
