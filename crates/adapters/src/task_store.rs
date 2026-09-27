@@ -455,6 +455,14 @@ impl SqliteTaskStore {
 }
 
 impl AgentRegistry for SqliteTaskStore {
+    fn ensure_agent(&mut self, agent_id: &str, now_ms: u64) -> Result<AgentRegistration, Error> {
+        if !yonder_application::valid_id(agent_id) || now_ms >= i64::MAX as u64 || now_ms < 1_000_000_000_000 { return Err(Error::InvalidInput); }
+        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
+        tx.execute("INSERT INTO agent_registry(agent_id,status,registered_at,last_seen_at,updated_at) VALUES(?1,'enabled',?2,NULL,?2) ON CONFLICT(agent_id) DO NOTHING",params![agent_id,now_ms as i64]).map_err(storage)?;
+        let value=Self::get_agent_registration(&tx,agent_id)?.ok_or(Error::StorageUnavailable)?;
+        tx.commit().map_err(storage)?;
+        Ok(value)
+    }
     fn register_agent(&mut self, agent_id: &str, now_ms: u64) -> Result<AgentRegistration, Error> {
         if !yonder_application::valid_id(agent_id)
             || now_ms >= i64::MAX as u64

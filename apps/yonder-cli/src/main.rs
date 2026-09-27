@@ -48,7 +48,7 @@ async fn gateway(agent_id: &str, request: Request) -> io::Result<Response> {
         .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "Yonder未运行"))?;
     let hello = Request::Hello { jsonrpc: Version::V2, request_id: "hello".into(), params: HelloParams {
         agent_id: agent_id.into(), capability: Capability::TaskRead, deadline: now_ms()? + 60_000,
-        protocol_version: ProtocolVersion { major: 1, minor: 30 },
+        protocol_version: ProtocolVersion { major: 1, minor: 31 },
         session_id: None, offered_capabilities: None,
     }};
     match send(&stream, &hello).await? {

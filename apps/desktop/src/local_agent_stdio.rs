@@ -5,6 +5,8 @@ use crate::TaskHost;
 
 pub fn serve(host: Arc<Mutex<Option<TaskHost>>>) -> Result<(), Box<dyn std::error::Error>> {
     // 身份由可信测试组合根绑定；不接受请求内容选择身份。
+    let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis())?;
+    host.lock().map_err(|_| "测试宿主锁不可用")?.as_mut().ok_or("测试宿主不可用")?.ensure_local_agent("local-test-agent", now).map_err(|_| "测试Agent登记失败")?;
     let mut session = GatewaySession::new(AuthContext::Agent("local-test-agent"), Platform::Macos);
     let mut input = io::stdin().lock();
     let mut output = io::stdout().lock();

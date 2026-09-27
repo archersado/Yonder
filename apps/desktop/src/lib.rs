@@ -316,6 +316,11 @@ impl TaskHost {
             .map_err(|_| HostError::StorageUnavailable)
     }
 
+    /// 私有本机认证组合根只确保缺失身份存在；不能重新启用用户禁用/撤权的 Agent。
+    pub fn ensure_local_agent(&mut self, agent_id: &str, now_ms: u64) -> Result<AgentRegistration, HostError> {
+        AgentRegistry::ensure_agent(&mut self.store, agent_id, now_ms).map_err(|_| HostError::StorageUnavailable)
+    }
+
     pub fn list_agents(&mut self) -> Result<Vec<AgentRegistration>, HostError> {
         AgentRegistry::list_agents(&mut self.store).map_err(|_| HostError::StorageUnavailable)
     }
