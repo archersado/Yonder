@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import queue
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -20,6 +21,12 @@ fixture = None
 agent = None
 fixture_state = {}
 test_home = None
+
+def verification_deadline(_signal, _frame):
+    raise TimeoutError("verification-deadline-exceeded")
+
+signal.signal(signal.SIGALRM, verification_deadline)
+signal.alarm(25)
 
 def read_line_with_timeout(stream, timeout=2):
     """子进程意外保留 stdout 时也必须让验证器进入 finally 清理。"""
@@ -247,6 +254,7 @@ finally:
             fixture.wait()
     if test_home is not None:
         test_home.cleanup()
+    signal.alarm(0)
 
 print(json.dumps(result, ensure_ascii=False))
 sys.exit(0 if result.get("passed") else 1)
