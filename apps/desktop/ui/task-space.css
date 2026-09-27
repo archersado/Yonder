@@ -69,12 +69,24 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .file-grants { display: grid; gap: 6px; }
 .file-grants li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border: 1px solid #e9e7ef; border-radius: 8px; font-size: 12px; }
 .file-grant-error { color: #9f483a; }
+.command-approval-note, .command-approval-empty { color: #8a8496; font-size: 12px; }
+.command-approvals { display: grid; gap: 8px; }
+.command-approval-card { padding: 9px; border: 1px solid #d8cdea; border-radius: 9px; background: #faf8ff; }
+.command-approval-state { margin: 0 0 8px; color: #5b468e; font-size: 12px; font-weight: 600; }
+.command-approval-fields { display: grid; gap: 7px; }
+.command-approval-fields div { min-width: 0; }
+.command-approval-fields strong { display: block; margin-bottom: 2px; color: #8a8496; font-size: 10px; font-weight: 500; }
+.command-approval-fields code { display: block; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 11px; }
+.command-approval-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+.command-approval-actions button { font-size: 11px; }
+.command-approval-error { color: #9f483a; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: #8a8496; font-size: 11px; }
 @media (prefers-color-scheme: dark) {
   :root { color: #ebe7f1; }
   .menu { background: #28242ffa; border-color: #45404f; }
   button, #detail, #tasks > li { background: #2e2b37; border-color: #45404f; }
   .confirm textarea { background: #26232d; border-color: #45404f; }
+  .command-approval-card { background: #302a38; border-color: #554764; }
   nav button[aria-pressed="true"], .task[aria-pressed="true"] { background: #403451; color: #e1d1fb; }
   .status { color: #ccb4f0; }
 }

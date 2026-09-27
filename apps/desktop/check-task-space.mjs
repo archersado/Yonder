@@ -100,7 +100,9 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[];
+    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[]; window.fixtureCommandDecisions=[];
+    window.fixtureCommandApprovals=[{taskId:'test-task-20',commandId:'command_fixture_1',state:'awaiting-user',expiresAtMs:Date.now()+60000,preview:{commandId:'command_fixture_1',program:'/usr/bin/printf',args:['%s','hello world'],cwd:'/tmp',env:{LANG:'zh_CN.UTF-8'},timeoutMs:1000,expiresAtMs:0}}];
+    window.fixtureCommandApprovals[0].preview.expiresAtMs=window.fixtureCommandApprovals[0].expiresAtMs;
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
     tasks[20].sequence='5';
     tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
@@ -132,6 +134,14 @@ export async function checkTaskSpace(page) {
         window.fixtureFileGrants.push(grant); return grant;
       }
       if (command === 'file_grant_revoke') { window.fixtureFileGrants=window.fixtureFileGrants.filter(grant=>grant.grantId!==input.grantId); return; }
+      if (command === 'command_approval_list') return window.fixtureCommandApprovals.filter(item=>item.taskId===input.taskId).map(({commandId,state,expiresAtMs})=>({commandId,state,expiresAtMs}));
+      if (command === 'command_approval_preview') return window.fixtureCommandApprovals.find(item=>item.taskId===input.taskId&&item.commandId===input.commandId)?.preview;
+      if (command === 'command_approval_approve') {
+        window.fixtureCommandDecisions.push({decision:'approve',...input});
+        const approval=window.fixtureCommandApprovals.find(item=>item.taskId===input.taskId&&item.commandId===input.commandId); approval.state='approved';
+        return {commandId:approval.commandId,state:approval.state,expiresAtMs:approval.expiresAtMs};
+      }
+      if (command === 'command_approval_reject') { window.fixtureCommandDecisions.push({decision:'reject',...input}); window.fixtureCommandApprovals=window.fixtureCommandApprovals.filter(item=>item.taskId!==input.taskId||item.commandId!==input.commandId); return; }
       if (command !== 'task_query') return;
       if (window.fixtureError) throw new Error('测试读取失败');
       const {method,params} = JSON.parse(input.request);
@@ -198,6 +208,15 @@ export async function checkTaskSpace(page) {
   assert.ok(detailText.includes('Agent 声明步骤：打开目标文档') && detailText.includes('动作已观察：成功') && detailText.includes('执行结果未知：执行超时'));
   assert.ok(detailText.includes('状态说明') && detailText.includes('执行结果未知：执行超时'));
   assert.ok(detailText.includes('ego:49 · Agent控制 · 1个托管页面 · 活动 · 更新序号 3'));
+  assert.ok(detailText.includes('Agent 请求执行结构化命令') && detailText.includes('/usr/bin/printf') && detailText.includes('"hello world"') && detailText.includes('LANG="zh_CN.UTF-8"'));
+  await page.click('.command-approval-actions button:has-text("批准执行一次")');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('仅归属 Agent 可执行一次'));
+  assert.deepEqual(await page.evaluate(() => window.fixtureCommandDecisions[0]),{decision:'approve',taskId:'test-task-20',commandId:'command_fixture_1'});
+  assert.ok(await page.evaluate(() => document.querySelector('.command-approval-state').textContent.includes('已批准')));
+  await page.click('.command-approval-actions button:has-text("撤销批准")');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('命令提议已拒绝'));
+  assert.deepEqual(await page.evaluate(() => window.fixtureCommandDecisions[1]),{decision:'reject',taskId:'test-task-20',commandId:'command_fixture_1'});
+  assert.ok(await page.evaluate(() => document.querySelector('.command-approval-empty').textContent.includes('暂无待处理命令')));
   assert.equal(await page.evaluate(() => document.querySelectorAll('.file-grant-actions button').length), 4);
   await page.click('.file-grant-actions button >> nth=0');
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('文件授权已签发'));
@@ -315,5 +334,5 @@ export async function checkTaskSpace(page) {
   assert.ok(attemptStartText.includes('执行尝试已准备（步骤 step-one · 尝试 attempt-one）'));
   assert.ok(!attemptStartText.includes('worker-secret') && !attemptStartText.includes('host-secret'));
   await page.evaluate(() => { window.fixtureAttemptStartHistory = false; });
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,auditConfirmation:true,auditConfirmedProjection:true,artifactEmpty:true,artifactVersionChange:true,artifactPagination:true,artifactPartialFailure:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,commandApprovalPreview:true,commandApprovalApprove:true,commandApprovalRevoke:true,auditConfirmation:true,auditConfirmedProjection:true,artifactEmpty:true,artifactVersionChange:true,artifactPagination:true,artifactPartialFailure:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

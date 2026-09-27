@@ -1,4 +1,4 @@
-use std::{ffi::{c_char, CStr}, path::PathBuf, sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
+use std::{collections::BTreeMap, ffi::{c_char, CStr}, path::PathBuf, sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
 use yonder_desktop::TaskHost;
@@ -17,6 +17,23 @@ struct FileGrantView {
     grant_id: String,
     purpose: &'static str,
     expires_at_ms: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CommandApprovalSummaryView { command_id: String, state: &'static str, expires_at_ms: u64 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CommandApprovalPreviewView { command_id: String, program: String, args: Vec<String>, cwd: String, env: BTreeMap<String,String>, timeout_ms: u64, expires_at_ms: u64 }
+
+fn command_approval_summary_view(value: yonder_application::command_approval::CommandApprovalSummary) -> CommandApprovalSummaryView {
+    use yonder_application::command_approval::CommandApprovalState;
+    CommandApprovalSummaryView{command_id:value.command_id,state:match value.state{CommandApprovalState::AwaitingUser=>"awaiting-user",CommandApprovalState::Approved=>"approved"},expires_at_ms:value.expires_at_ms}
+}
+
+fn command_approval_preview_view(value: yonder_application::command_approval::CommandApprovalPreview) -> CommandApprovalPreviewView {
+    CommandApprovalPreviewView{command_id:value.command_id,program:value.request.program,args:value.request.args,cwd:value.request.cwd,env:value.request.env,timeout_ms:value.request.timeout_ms,expires_at_ms:value.expires_at_ms}
 }
 
 fn file_grant_purpose(value: &str) -> Result<yonder_application::file_authorization::FileGrantPurpose, String> {
@@ -608,6 +625,34 @@ async fn task_confirm(
 }
 
 #[tauri::command]
+async fn command_approval_list(window: WebviewWindow, state: State<'_, TaskState>, task_id: String) -> Result<Vec<CommandApprovalSummaryView>, String> {
+    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    let host=Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.list_command_approvals(&task_id,now).map(|items|items.into_iter().map(command_approval_summary_view).collect()).map_err(|_|"命令批准列表不可用".to_owned())}).await.map_err(|_|"命令批准列表读取中断".to_owned())?
+}
+
+#[tauri::command]
+async fn command_approval_preview(window: WebviewWindow, state: State<'_, TaskState>, task_id: String, command_id: String) -> Result<CommandApprovalPreviewView, String> {
+    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    let host=Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.preview_command_approval(&task_id,&command_id,now).map(command_approval_preview_view).map_err(|_|"命令批准预览不可用".to_owned())}).await.map_err(|_|"命令预览中断".to_owned())?
+}
+
+#[tauri::command]
+async fn command_approval_approve(window: WebviewWindow, state: State<'_, TaskState>, task_id: String, command_id: String) -> Result<CommandApprovalSummaryView, String> {
+    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    let host=Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.approve_command(&task_id,&command_id,now).map(command_approval_summary_view).map_err(|_|"命令批准失败".to_owned())}).await.map_err(|_|"命令批准中断".to_owned())?
+}
+
+#[tauri::command]
+async fn command_approval_reject(window: WebviewWindow, state: State<'_, TaskState>, task_id: String, command_id: String) -> Result<(), String> {
+    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    let host=Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.reject_command(&task_id,&command_id,now).map_err(|_|"命令拒绝失败".to_owned())}).await.map_err(|_|"命令拒绝中断".to_owned())?
+}
+
+#[tauri::command]
 async fn file_grant_choose(
     window: WebviewWindow,
     state: State<'_, TaskState>,
@@ -868,7 +913,7 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             release_contract::validate()?;
             #[cfg(target_os = "macos")]

@@ -162,6 +162,71 @@ function renderFileGrants(container, task, result) {
   }
   container.append(list);
 }
+async function loadCommandApprovals(task) {
+  const summaries = await window.__TAURI_INTERNALS__.invoke('command_approval_list', { taskId: task.task_id });
+  if (!Array.isArray(summaries) || summaries.some(item => !item || typeof item.commandId !== 'string' || !['awaiting-user', 'approved'].includes(item.state) || !Number.isSafeInteger(item.expiresAtMs))) {
+    throw new Error('命令批准列表响应不可用');
+  }
+  return Promise.all(summaries.map(async summary => {
+    const preview = await window.__TAURI_INTERNALS__.invoke('command_approval_preview', { taskId: task.task_id, commandId: summary.commandId });
+    if (!preview || preview.commandId !== summary.commandId || typeof preview.program !== 'string' || !Array.isArray(preview.args) || preview.args.some(value => typeof value !== 'string') || typeof preview.cwd !== 'string' || !preview.env || Array.isArray(preview.env) || typeof preview.env !== 'object' || !Number.isSafeInteger(preview.timeoutMs) || preview.expiresAtMs !== summary.expiresAtMs) {
+      throw new Error('命令批准预览响应不可用');
+    }
+    return { ...summary, preview };
+  }));
+}
+async function decideCommandApproval(task, approval, decision, button) {
+  button.disabled = true;
+  const approving = decision === 'approve';
+  button.textContent = approving ? '正在批准…' : '正在拒绝…';
+  try {
+    await window.__TAURI_INTERNALS__.invoke(`command_approval_${decision}`, { taskId: task.task_id, commandId: approval.commandId });
+    message(approving ? '命令已批准，仅归属 Agent 可执行一次' : '命令提议已拒绝');
+    await select(task, document.querySelector(`button.task[data-task-id="${CSS.escape(task.task_id)}"]`));
+  } catch (error) {
+    message(`${approving ? '批准' : '拒绝'}失败：${error.message ?? '请刷新后重试'}`, true);
+    button.disabled = false;
+    button.textContent = approving ? '批准执行一次' : approval.state === 'approved' ? '撤销批准' : '拒绝';
+  }
+}
+function appendCommandField(container, label, value) {
+  const row = document.createElement('div'), name = document.createElement('strong'), content = document.createElement('code');
+  name.textContent = label; content.textContent = value; row.append(name, content); container.append(row);
+}
+function renderCommandApprovals(container, task, result) {
+  const heading = document.createElement('h3'); heading.textContent = '命令批准'; container.append(heading);
+  const note = document.createElement('p'); note.className = 'command-approval-note';
+  note.textContent = 'Agent 请求执行结构化命令。请核对程序、参数、目录和环境变量；批准后仅可执行一次。'; container.append(note);
+  if (result.status === 'rejected') {
+    const failure = document.createElement('p'); failure.className = 'command-approval-error'; failure.textContent = `命令批准读取失败：${result.reason?.message ?? '请刷新后重试'}`; container.append(failure); return;
+  }
+  const approvals = result.value;
+  if (!approvals.length) {
+    const empty = document.createElement('p'); empty.className = 'command-approval-empty'; empty.textContent = '暂无待处理命令'; container.append(empty); return;
+  }
+  const list = document.createElement('div'); list.className = 'command-approvals';
+  for (const approval of approvals) {
+    const card = document.createElement('section'); card.className = 'command-approval-card';
+    const state = document.createElement('p'); state.className = 'command-approval-state';
+    state.textContent = approval.state === 'approved' ? '已批准，等待归属 Agent 执行' : '等待本机用户决定'; card.append(state);
+    const fields = document.createElement('div'); fields.className = 'command-approval-fields';
+    appendCommandField(fields, '程序', approval.preview.program);
+    appendCommandField(fields, '参数', approval.preview.args.length ? approval.preview.args.map(value => JSON.stringify(value)).join(' ') : '（无）');
+    appendCommandField(fields, '工作目录', approval.preview.cwd);
+    const environment = Object.entries(approval.preview.env).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join('\n');
+    appendCommandField(fields, '环境变量', environment || '（无）');
+    appendCommandField(fields, '超时', `${approval.preview.timeoutMs} ms`);
+    appendCommandField(fields, '有效期', new Date(approval.expiresAtMs).toLocaleTimeString());
+    card.append(fields);
+    const actions = document.createElement('div'); actions.className = 'command-approval-actions';
+    if (approval.state === 'awaiting-user') {
+      const approve = document.createElement('button'); approve.textContent = '批准执行一次'; approve.addEventListener('click', () => decideCommandApproval(task, approval, 'approve', approve)); actions.append(approve);
+    }
+    const reject = document.createElement('button'); reject.textContent = approval.state === 'approved' ? '撤销批准' : '拒绝'; reject.addEventListener('click', () => decideCommandApproval(task, approval, 'reject', reject)); actions.append(reject);
+    card.append(actions); list.append(card);
+  }
+  container.append(list);
+}
 function timelineText(event) {
   if (event.creation_event) return `任务创建：${sourceLabels[event.creation_event.source] ?? '来源未知'} · Agent ${event.creation_event.owner_agent_id}`;
   if (event.focus_event) {
@@ -285,14 +350,17 @@ async function select(task, button) {
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
   placeholder('正在读取详情…');
   const recentAfter = (BigInt(task.sequence) > 20n ? BigInt(task.sequence) - 20n : 0n).toString();
-  const [detailResult, timelineResult, recentResult, browserResult, grantsResult] = await Promise.allSettled([
+  const [detailResult, timelineResult, recentResult, browserResult, grantsResult, approvalsResult] = await Promise.allSettled([
     query('task.step.get', { task_id: task.task_id }),
     query('task.events', { task_id: task.task_id, after_sequence: '0', limit: 20 }),
     query('task.events', { task_id: task.task_id, after_sequence: recentAfter, limit: 20 }),
     query('task.browser.get', { task_id: task.task_id }),
     ['completed', 'failed', 'cancelled'].includes(task.status)
       ? Promise.resolve([])
-      : window.__TAURI_INTERNALS__.invoke('file_grant_list', { taskId: task.task_id })
+      : window.__TAURI_INTERNALS__.invoke('file_grant_list', { taskId: task.task_id }),
+    ['completed', 'failed', 'cancelled'].includes(task.status)
+      ? Promise.resolve([])
+      : loadCommandApprovals(task)
   ]);
   if (current !== selection || currentRound !== round) return;
   try {
@@ -342,6 +410,7 @@ async function select(task, button) {
       }
     }
     detail.append(dl);
+    renderCommandApprovals(detail, result.task, approvalsResult);
     renderFileGrants(detail, result.task, grantsResult);
     if (terminal && !confirmation) {
       const area = document.createElement('div'); area.className = 'confirm';

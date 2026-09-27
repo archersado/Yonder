@@ -9,9 +9,9 @@
 - [ ] 接入已批准命令的一次性受控执行
 - [x] 实现有界内存批准 Registry：LocalUser-only 预览/批准/拒绝、摘要绑定、一次消费与过期
 - [x] 接入 TaskHost 的本机预览、批准与拒绝入口
-- [ ] 接入 Task Space 本机批准卡
+- [x] 接入 Task Space 本机批准卡
 - [ ] 实现复用 TM-S7 启动事务的受控 Command 执行用例
-- [ ] 接入 macOS TaskHost、Gateway 与 Task Space 批准卡
+- [x] 接入 macOS TaskHost、Gateway 与 Task Space 批准卡
 - [ ] 覆盖替换、重放、撤权、超时、unknown 不重试及无正文边界
 - [ ] 创建独立 Verification Goal 与 macOS 原生证据
 - [ ] Windows 按用户决定延期；完整 Story 暂不 Archive

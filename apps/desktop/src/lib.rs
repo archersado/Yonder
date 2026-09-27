@@ -544,6 +544,12 @@ impl TaskHost {
     }
 
     /// 仅由打包 Task Space 的本机用户入口调用；预览完整命令不会经 Gateway 返回。
+    pub fn list_command_approvals(&mut self, task_id: &str, now_ms: u64) -> Result<Vec<CommandApprovalSummary>, CommandApprovalHostError> {
+        let task=self.store.get(task_id).map_err(|_|CommandApprovalHostError::NotFound)?;
+        self.command_approvals.list_for_local(AuthContext::LocalUser("desktop"),&task,now_ms).map_err(Into::into)
+    }
+
+    /// 仅由打包 Task Space 的本机用户入口调用；预览完整命令不会经 Gateway 返回。
     pub fn preview_command_approval(&mut self, task_id: &str, command_id: &str, now_ms: u64) -> Result<CommandApprovalPreview, CommandApprovalHostError> {
         let task=self.store.get(task_id).map_err(|_|CommandApprovalHostError::NotFound)?;
         self.command_approvals.preview_for_local(AuthContext::LocalUser("desktop"),&task,command_id,now_ms).map_err(Into::into)

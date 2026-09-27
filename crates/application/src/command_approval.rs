@@ -28,7 +28,7 @@ pub struct CommandApprovalRegistry { approvals: Mutex<BTreeMap<String, Approval>
 
 impl CommandApprovalRegistry {
     pub fn propose(&self, auth: AuthContext<'_>, task: &Task, request: CommandRequest, now_ms: u64) -> Result<CommandApprovalSummary, CommandApprovalError> {
-        if !matches!(auth, AuthContext::Agent(_)) || auth.agent_id() != task.owner_agent_id || !active(task) { return Err(CommandApprovalError::PermissionDenied); }
+        if !matches!(auth, AuthContext::Agent(_)) || auth.agent_id() != task.owner_agent_id || task.status != Status::Created { return Err(CommandApprovalError::PermissionDenied); }
         validate_request(&request).map_err(|_| CommandApprovalError::InvalidInput)?;
         if command_bytes(&request) > MAX_COMMAND_APPROVAL_BYTES { return Err(CommandApprovalError::InvalidInput); }
         let mut approvals=self.approvals.lock().map_err(|_| CommandApprovalError::Unavailable)?;
@@ -45,6 +45,15 @@ impl CommandApprovalRegistry {
         require_local(auth)?; let mut approvals=self.approvals.lock().map_err(|_| CommandApprovalError::Unavailable)?;
         let approval=fetch(&mut approvals,task,command_id,now_ms)?;
         Ok(CommandApprovalPreview{command_id:command_id.into(),request:approval.request,expires_at_ms:approval.expires_at_ms})
+    }
+
+    /// 仅向本机可信 UI 返回指定任务的安全摘要；完整命令仍需逐项预览。
+    pub fn list_for_local(&self, auth: AuthContext<'_>, task: &Task, now_ms: u64) -> Result<Vec<CommandApprovalSummary>, CommandApprovalError> {
+        require_local(auth)?;
+        if !active(task) { return Err(CommandApprovalError::PermissionDenied); }
+        let mut approvals=self.approvals.lock().map_err(|_| CommandApprovalError::Unavailable)?;
+        approvals.retain(|_, value| value.expires_at_ms > now_ms);
+        Ok(approvals.iter().filter_map(|(command_id, approval)| (approval.task_id==task.id && approval.owner_agent_id==task.owner_agent_id && approval.sequence==task.sequence).then(|| CommandApprovalSummary{command_id:command_id.clone(),state:approval.state,expires_at_ms:approval.expires_at_ms})).collect())
     }
 
     pub fn approve(&self, auth: AuthContext<'_>, task: &Task, command_id: &str, now_ms: u64) -> Result<CommandApprovalSummary, CommandApprovalError> {
@@ -79,7 +88,7 @@ impl CommandApprovalRegistry {
 fn fetch(approvals:&mut BTreeMap<String,Approval>,task:&Task,id:&str,now_ms:u64)->Result<Approval,CommandApprovalError>{
     let approval=approvals.get(id).cloned().ok_or(CommandApprovalError::NotFound)?;
     if approval.expires_at_ms<=now_ms { approvals.remove(id); return Err(CommandApprovalError::Expired); }
-    if approval.task_id!=task.id || approval.owner_agent_id!=task.owner_agent_id || !active(task) { return Err(CommandApprovalError::PermissionDenied); }
+    if approval.task_id!=task.id || approval.owner_agent_id!=task.owner_agent_id || approval.sequence!=task.sequence || !active(task) { approvals.remove(id); return Err(CommandApprovalError::PermissionDenied); }
     Ok(approval)
 }
 fn require_local(auth:AuthContext<'_>)->Result<(),CommandApprovalError>{if matches!(auth,AuthContext::LocalUser(_)){Ok(())}else{Err(CommandApprovalError::PermissionDenied)}}
@@ -90,5 +99,7 @@ fn command_digest(value:&CommandRequest)->[u8;32]{ let mut digest=Sha256::new();
 #[cfg(test)] mod tests { use super::*; use crate::TaskSource; use std::collections::BTreeMap;
 fn task()->Task{Task{id:"task-a".into(),owner_agent_id:"agent-a".into(),name:None,source:TaskSource::LocalAgent,status:Status::Created,sequence:4}}
 fn request()->CommandRequest{CommandRequest{program:"/usr/bin/printf".into(),args:vec!["%s".into(),"ok".into()],cwd:"/tmp".into(),env:BTreeMap::new(),timeout_ms:1000}}
-#[test] fn approval_is_local_bound_once_and_expires(){let r=CommandApprovalRegistry::default();let t=task();let a=r.propose(AuthContext::Agent("agent-a"),&t,request(),100).unwrap();assert_eq!(a.state,CommandApprovalState::AwaitingUser);assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,4,&a.command_id,101),Err(CommandApprovalError::Rejected));assert_eq!(r.preview_for_local(AuthContext::Agent("agent-a"),&t,&a.command_id,101),Err(CommandApprovalError::PermissionDenied));assert!(r.preview_for_local(AuthContext::LocalUser("desktop"),&t,&a.command_id,101).is_ok());r.approve(AuthContext::LocalUser("desktop"),&t,&a.command_id,101).unwrap();assert_eq!(r.consume(AuthContext::Agent("other"),&t,4,&a.command_id,102),Err(CommandApprovalError::PermissionDenied));assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,5,&a.command_id,102),Err(CommandApprovalError::PermissionDenied));assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,4,&a.command_id,102).unwrap(),request());assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,4,&a.command_id,103),Err(CommandApprovalError::NotFound));let b=r.propose(AuthContext::Agent("agent-a"),&t,request(),200).unwrap();assert_eq!(r.preview_for_local(AuthContext::LocalUser("desktop"),&t,&b.command_id,200+MAX_COMMAND_APPROVAL_LIFETIME_MS),Err(CommandApprovalError::Expired));}
+#[test] fn approval_is_local_bound_once_and_expires(){let r=CommandApprovalRegistry::default();let t=task();let a=r.propose(AuthContext::Agent("agent-a"),&t,request(),100).unwrap();assert_eq!(a.state,CommandApprovalState::AwaitingUser);assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,4,&a.command_id,101),Err(CommandApprovalError::Rejected));assert_eq!(r.preview_for_local(AuthContext::Agent("agent-a"),&t,&a.command_id,101),Err(CommandApprovalError::PermissionDenied));assert_eq!(r.list_for_local(AuthContext::LocalUser("desktop"),&t,101).unwrap(),vec![a.clone()]);assert!(r.preview_for_local(AuthContext::LocalUser("desktop"),&t,&a.command_id,101).is_ok());r.approve(AuthContext::LocalUser("desktop"),&t,&a.command_id,101).unwrap();assert_eq!(r.consume(AuthContext::Agent("other"),&t,4,&a.command_id,102),Err(CommandApprovalError::PermissionDenied));assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,5,&a.command_id,102),Err(CommandApprovalError::PermissionDenied));assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,4,&a.command_id,102).unwrap(),request());assert_eq!(r.consume(AuthContext::Agent("agent-a"),&t,4,&a.command_id,103),Err(CommandApprovalError::NotFound));let b=r.propose(AuthContext::Agent("agent-a"),&t,request(),200).unwrap();assert_eq!(r.preview_for_local(AuthContext::LocalUser("desktop"),&t,&b.command_id,200+MAX_COMMAND_APPROVAL_LIFETIME_MS),Err(CommandApprovalError::Expired));}
+#[test] fn proposal_requires_created_task(){let r=CommandApprovalRegistry::default();let mut t=task();t.status=Status::Running;assert_eq!(r.propose(AuthContext::Agent("agent-a"),&t,request(),100),Err(CommandApprovalError::PermissionDenied));}
+#[test] fn sequence_change_invalidates_preview_and_listing(){let r=CommandApprovalRegistry::default();let mut t=task();let a=r.propose(AuthContext::Agent("agent-a"),&t,request(),100).unwrap();t.sequence+=1;assert!(r.list_for_local(AuthContext::LocalUser("desktop"),&t,101).unwrap().is_empty());assert_eq!(r.preview_for_local(AuthContext::LocalUser("desktop"),&t,&a.command_id,101),Err(CommandApprovalError::PermissionDenied));assert_eq!(r.preview_for_local(AuthContext::LocalUser("desktop"),&task(),&a.command_id,101),Err(CommandApprovalError::NotFound));}
 }
