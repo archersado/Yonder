@@ -6,6 +6,8 @@
 
 系统 MUST 允许真实外部慢脑从产品 MCP 创建并完成 CUA、BUA、Office 与 Command 任务；四类任务 MUST 共用 Agent Gateway、任务事实源、统一启动、Task Space、事件/Outbox 与终态协议。
 
+系统 MUST 由外部 Codex 慢脑拥有首次计划和片段外 replan，由 Yonder/Jev 快脑只在已验证片段内选择并连续执行；多候选验证 MUST 证明 Jev 实际调用、低置信或偏离经同一 Gateway 交回慢脑。
+
 #### Scenario: 正式产品闭环
 
 - **WHEN** Codex 通过安装包内 `yonder mcp` 创建并执行任一能力任务

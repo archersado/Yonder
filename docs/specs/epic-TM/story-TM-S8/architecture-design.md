@@ -2,9 +2,9 @@
 
 ## 唯一产品链路
 
-`Codex → yonder MCP stdio → 当前用户私有 UDS → Agent Gateway → Application 用例 → 统一 start_execution → 能力 Port/Adapter → Observe/结果 → SQLite 事件与 Outbox → Task Space → 归属 Agent complete/fail`。
+`Codex 慢脑 → yonder MCP stdio → 当前用户私有 UDS → Agent Gateway → 已验证计划片段 → Yonder/Jev 快脑有界选择与连续执行 → Application/统一 start_execution → 能力 Port/Adapter → Observe/结果 → SQLite 事件与 Outbox → Task Space → 片段外经同一 Gateway 交回 Codex → 归属 Agent complete/fail`。
 
-CUA 可在已验证计划片段内使用 Jev；片段外 replan 仍由 Codex 经同一 Gateway 提交。BUA 通过 ego-lite 引用；Office 组合 File Authorization、File Port 与 Document Port；Command 组合 propose、本机一次性批准与结构化执行。四类 Adapter 不互调，React 不拥有任务状态。
+Jev 只能看受限候选语义、有界 Observe 摘要与预期条件，不能获得正文、联系人、截图、Driver 参数或自由规划权；单候选可确定性执行，多候选样本必须真实调用 Jev。片段外 replan 仍由 Codex 经同一 Gateway 提交。BUA 通过 ego-lite 引用；Office 组合 File Authorization、File Port 与 Document Port；Command 组合 propose、本机一次性批准与结构化执行。四类 Adapter 不互调，React 不拥有任务状态。
 
 ## 验证约束
 

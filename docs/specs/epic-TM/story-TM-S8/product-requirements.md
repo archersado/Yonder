@@ -17,7 +17,9 @@ Yonder 的验收单位是用户可见、可控、可审计的完整任务，不�
 | TM8-05 | Command 任务采用结构化 program/args/cwd/env，Yonder 本机预览批准后执行，输出有界，Shell、提权或危险操作不得隐式放行。 |
 | TM8-06 | 四类任务共用 task.create、统一 running 启动、步骤/attempt、事件/Outbox、Task Space 与 task.complete/fail；失败不得伪报成功。 |
 | TM8-07 | 验证必须来自 `dev` 构建的正式 GUI 和产品 MCP；证据包含无敏感正文的结构化结果与必要原生截图。 |
+| TM8-08 | Codex 慢脑负责首次计划和片段外语义 replan；Jev 快脑只在慢脑提交的已验证片段内做候选选择并连续执行，低置信、偏离、预算耗尽或敏感动作经同一 Gateway 交回 Codex。 |
+| TM8-09 | 验证至少包含一条多候选步骤，证明 Jev 实际参与选择；同时记录快慢脑分段耗时，与纯 Codex 逐步决策对照，不得用单一路径免 Jev 样本宣称快慢脑链路通过。 |
 
 ## 非目标
 
-Yonder 不内置首次规划慢脑，不新增第二 Gateway、第二任务状态机或通用本地 HTTP 服务。Windows 本轮暂缓；macOS PASS 只代表 macOS 产品闭环。
+Yonder 不内置首次规划慢脑；内置 Jev 仅是受限执行快脑。不得新增第二 Gateway、第二任务状态机或通用本地 HTTP 服务。Windows 本轮暂缓；macOS PASS 只代表 macOS 产品闭环。

@@ -7,7 +7,7 @@ OpenSpec: tm-s8-unified-product-chain
 
 ## 目标
 
-用真实 Codex MCP 慢脑连接正在运行的 Yonder，分别完成 CUA、BUA、Office 与 Command 的产品级任务闭环。不得用测试宿主、直接 Adapter、私有脚本逐步调用或手工改库替代产品入口。
+用真实 Codex MCP 慢脑连接正在运行的 Yonder，由 Codex 提交首次计划/语义 replan，由 Yonder 内置 Jev 快脑在已验证计划片段内选择并连续推进，分别完成 CUA、BUA、Office 与 Command 的产品级任务闭环。不得用测试宿主、直接 Adapter、私有脚本逐步调用或手工改库替代产品入口。
 
 ## 文档
 
