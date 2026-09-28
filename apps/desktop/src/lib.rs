@@ -185,11 +185,20 @@ pub fn show_task_space_near_pet(pet: &WebviewWindow) -> Result<(), String> {
     show_task_space_near_pet_inner(pet, true)
 }
 
-/// 自动展示不应覆盖用户正使用的输入或桌面控制卡。
+fn blocks_task_space_auto_show(label: &str) -> bool {
+    matches!(label, "voice-input" | "region-preview")
+}
+
+/// 自动展示不应覆盖用户正使用的语音或圈选输入。CUA 控制卡位于屏幕顶部，
+/// 必须允许任务空间同时展示并刷新，否则另一任务执行中创建的新任务不可见。
 pub fn show_task_space_after_agent_create(pet: &WebviewWindow) -> Result<bool, String> {
     let app = pet.app_handle();
     for label in ["cua-control", "voice-input", "region-preview"] {
-        if app.get_webview_window(label).is_some_and(|window| window.is_visible().unwrap_or(false)) {
+        if blocks_task_space_auto_show(label)
+            && app
+                .get_webview_window(label)
+                .is_some_and(|window| window.is_visible().unwrap_or(false))
+        {
             return Ok(false);
         }
     }
@@ -1113,6 +1122,13 @@ impl TaskHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cua_control_does_not_hide_a_new_agent_task() {
+        assert!(!blocks_task_space_auto_show("cua-control"));
+        assert!(blocks_task_space_auto_show("voice-input"));
+        assert!(blocks_task_space_auto_show("region-preview"));
+    }
 
     #[test]
     fn cua_control_hub_only_accepts_the_active_task_once() {
