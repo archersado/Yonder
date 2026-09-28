@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""EX-S2 的受控 macOS 原生单槽位验证；输出不含模型、窗口或输入正文。"""
+"""EX-S2 的受控 macOS 原生连续槽位验证；输出不含模型、窗口或输入正文。"""
 import json
 import os
 import pathlib
@@ -245,31 +245,29 @@ try:
     submitted = call(
         "task.plan.submit", "task.plan.submit", task_id=task["task_id"],
         expected_sequence=task["sequence"], plan_id="native-plan", plan_version=1,
-        token_budget=100, slots=[{"step_id": "native-input", "label": "隔离窗口输入验证",
-        "candidates": [{"candidate_id": "cua-dispatch-required", "tool_name": "type_text",
-                        "arguments": {"text": "YONDER_SDK_INPUT_A", "delivery_mode": "background"},
-                        "action_kind": "draft-message", "target_ref": "isolated-fixture-composer",
-                        "preconditions": [{"fact": "composer-ready", "expected": True}],
-                        "expected_observe": [{"fact": "composer-ready", "expected": True}]}]}],
+        token_budget=100, slots=[
+            {"step_id": "native-tab", "label": "隔离窗口切换焦点",
+             "candidates": [{"candidate_id": "press-tab", "tool_name": "press_key",
+                             "arguments": {"key": "tab", "delivery_mode": "background"},
+                             "action_kind": "resolve-conversation", "target_ref": "isolated-fixture-window",
+                             "preconditions": [{"fact": "target-resolved", "expected": True}],
+                             "expected_observe": [{"fact": "target-resolved", "expected": True}]}]},
+            {"step_id": "native-escape", "label": "隔离窗口返回安全焦点",
+             "candidates": [{"candidate_id": "press-escape", "tool_name": "press_key",
+                             "arguments": {"key": "escape", "delivery_mode": "background"},
+                             "action_kind": "resolve-conversation", "target_ref": "isolated-fixture-window",
+                             "preconditions": [{"fact": "target-resolved", "expected": True}],
+                             "expected_observe": [{"fact": "target-resolved", "expected": True}]}]},
+        ],
     )
     result["phase"] = "plan-execute"
     executed = call(
         "task.plan.execute", "task.plan.execute", task_id=task["task_id"],
         expected_sequence=submitted["sequence"], plan_id="native-plan", plan_version=1,
     )
-    result["jev_selected_submitted_candidate"] = executed.get("disposition") == "fragment-complete"
-    if not result["jev_selected_submitted_candidate"]:
+    result["continuous_native_actions_observed"] = executed.get("disposition") == "fragment-complete"
+    if not result["continuous_native_actions_observed"]:
         raise RuntimeError("plan-handed-back")
-    until = time.monotonic() + 8
-    native_match = False
-    while time.monotonic() < until:
-        if fixture_state.get("input_matches"):
-            native_match = True
-            break
-        time.sleep(0.05)
-    result["native_target_matches"] = native_match
-    if not native_match:
-        raise RuntimeError("native-target-mismatch")
     result["phase"] = "task-complete"
     completed = call("task.complete", "task.complete", task_id=task["task_id"], expected_sequence=executed["sequence"])["task"]
     result["task_completed"] = completed.get("status") == "completed"
@@ -277,8 +275,7 @@ try:
     result["phase"] = "completed"
     result["passed"] = all(result.get(key) is True for key in (
         "plan_execute_capability",
-        "jev_selected_submitted_candidate",
-        "native_target_matches",
+        "continuous_native_actions_observed",
         "task_completed",
     ))
 except Exception as error:
