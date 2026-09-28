@@ -9,8 +9,9 @@ pub struct ComputerAction { pub tool_name:String, pub arguments_json:String }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ComputerObservation { pub element_count:u16, pub screenshot_path:Option<String>, pub screenshot_mime:Option<String>, pub target_visible:Option<bool> }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum UnknownReason { InvalidInput, DependencyUnavailable, WorkerFailed, TimedOut, InvalidResponse, IdentityMismatch, ObserveFailed, UserInput }
+/// 执行未知结果的内部有界分类；wire 表达是 protocol 的单一来源枚举，
+/// 经本模块的 `From` 实现映射，不得在 Gateway/Query 内手写第二份映射。
+pub type UnknownReason = crate::unknown_reason::UnknownReason;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DispatchOutcome {
