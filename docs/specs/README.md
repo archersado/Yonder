@@ -25,6 +25,8 @@
 
 ## 当前研发顺序
 
+2026-09-28 新增 [TM-S8 统一产品执行闭环](epic-TM/story-TM-S8/README.md)：用户明确验收目标是可由真实慢脑运行 CUA、BUA、Office、Command 的完整产品，不再用逐步私有脚本或 Driver 探针替代。当前从 `dev` 正式 GUI 与 Codex MCP 开始 macOS 四链路验证，缺口返回所属 Story 修复；Windows继续暂缓。
+
 2026-09-24 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 保持：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。用户变更将 EX-S2 接线限定 macOS-only，Windows 与费用证据后补；`AD-EX-02` 仅接受 macOS 子路线，`ex-s2-macos-only-jev-wiring` 已通过并归档，Windows 路径仍不编译、不注册、不验证。
 
 2026-09-23 新增 [Proposed AD-AG-09 计划片段 Gateway 契约](_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md)：定义有界声明式计划片段、Observe 异常升级和快慢脑安全边界，作为当前逐步决策架构的候选优化方向；该 ADR 未授权实施，也未替代既有逐步决策模式。

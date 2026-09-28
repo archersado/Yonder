@@ -1,0 +1,13 @@
+# TM-S8 架构设计
+
+## 唯一产品链路
+
+`Codex → yonder MCP stdio → 当前用户私有 UDS → Agent Gateway → Application 用例 → 统一 start_execution → 能力 Port/Adapter → Observe/结果 → SQLite 事件与 Outbox → Task Space → 归属 Agent complete/fail`。
+
+CUA 可在已验证计划片段内使用 Jev；片段外 replan 仍由 Codex 经同一 Gateway 提交。BUA 通过 ego-lite 引用；Office 组合 File Authorization、File Port 与 Document Port；Command 组合 propose、本机一次性批准与结构化执行。四类 Adapter 不互调，React 不拥有任务状态。
+
+## 验证约束
+
+验收进程必须连接用户正在看的 Yonder 实例。不得启动隔离 TaskHost、直接调用 Driver、用 Python/Swift 创建或推进任务、直接修改 SQLite，或把原生夹具结果当产品闭环。原生脚本只允许读取窗口/进程和生成证据，不得替代业务动作。
+
+每条任务记录同一链路的可读阶段，不保存正文、截图、完整命令输出、完整 Agent Payload、内部 ID 或本机路径。失败停在真实阶段并进入 Apply；不能为通过验证绕过确认、权限、文件锁、Desktop 租约或 Observe。
