@@ -88,6 +88,13 @@ pub fn execute_one(
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected)?;
         return Ok((task, "handback"));
     };
+    // `SendMessage` 的正文与收件人只能存在于本机一次性确认载荷中；受限
+    // 片段本身刻意没有该载荷。确认组合根尚未交付时必须交回，绝不能把空
+    // 参数派发为一个不可解释的按键操作，更不能猜测或重试发送。
+    if matches!(action.action_kind, yonder_protocol::CuaActionKind::SendMessage) {
+        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected)?;
+        return Ok((task, "confirmation-required"));
+    }
     let slot=&stored.fragment.slots[index];
     let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
