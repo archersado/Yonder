@@ -24,6 +24,7 @@ pub trait ComputerUsePort {
     fn dispatch(&self, attempt: &ExecutionAttempt, target: &WorkTarget, action: &ComputerAction) -> DispatchOutcome;
     fn end_session(&self) {}
     fn explicit_takeover_requested(&self, _task_id: &str) -> bool { false }
+    fn project_decision(&self, _task_id: &str, _step_id: &str, _summary: &str) {}
 }
 
 pub trait WorkTargetPort { fn frontmost(&self) -> Result<WorkTarget, UnknownReason>; }

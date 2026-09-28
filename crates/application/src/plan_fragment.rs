@@ -84,11 +84,20 @@ pub fn execute_one(
     if stored.owner_agent_id != auth.agent_id() || stored.fragment.deadline_ms <= now_ms || expected != store.get(task_id)?.sequence { return Err(crate::Error::Conflict); }
     let index=usize::from(stored.current_slot);
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete")); }
+    let slot=&stored.fragment.slots[index];
+    computer.project_decision(task_id,&slot.step_id,&format!("正在评估 {} 个受支持候选",slot.candidates.len()));
     let choice=select(config,jev,&stored.fragment,index).map_err(|_|crate::Error::StopRequired)?;
     let Selection::Dispatch(action)=choice else {
+        computer.project_decision(task_id,&slot.step_id,"已交回慢脑重新观察或规划");
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑重新 Observe 或规划")?;
         return Ok((task, "handback"));
     };
+    let decision = if slot.candidates.len()==1 {
+        format!("慢脑单候选直接授权：{}",action_kind_label(action.action_kind))
+    } else {
+        format!("Jev 已从 {} 个候选中选择：{}",slot.candidates.len(),action_kind_label(action.action_kind))
+    };
+    computer.project_decision(task_id,&slot.step_id,&decision);
     // `SendMessage` 的正文与收件人只能存在于本机一次性确认载荷中；受限
     // 片段本身刻意没有该载荷。确认组合根尚未交付时必须交回，绝不能把空
     // 参数派发为一个不可解释的按键操作，更不能猜测或重试发送。
@@ -96,7 +105,6 @@ pub fn execute_one(
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑安排本机发送确认")?;
         return Ok((task, "slow-brain-required"));
     }
-    let slot=&stored.fragment.slots[index];
     let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
         // user-input 会把任务原子地转为 interrupted，并已写入事件/Outbox；此时
@@ -121,6 +129,14 @@ pub fn execute_one(
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
     Ok((task,"advanced"))
 }
+
+fn action_kind_label(kind:yonder_protocol::CuaActionKind)->&'static str{match kind{
+    yonder_protocol::CuaActionKind::LaunchApplication=>"打开应用",
+    yonder_protocol::CuaActionKind::BringToFront=>"前置目标窗口",
+    yonder_protocol::CuaActionKind::ResolveConversation=>"定位目标会话",
+    yonder_protocol::CuaActionKind::DraftMessage=>"填写消息草稿",
+    yonder_protocol::CuaActionKind::SendMessage=>"发送消息",
+}}
 
 /// 在一次 Gateway 调用生命周期内同步消费剩余槽位。每轮仍只产生一个副作用，
 /// 且 `execute_one` 已在返回前完成 Observe 与 attempt 停止边界；下一轮因此会

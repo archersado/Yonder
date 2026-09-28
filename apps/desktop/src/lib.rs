@@ -46,6 +46,8 @@ pub struct CuaControlPresentation {
     pub planned_steps: Vec<CuaControlStepPresentation>,
     pub remaining_steps: u16,
     pub plan_status: String,
+    pub slow_brain_summary: String,
+    pub fast_brain_summary: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -86,6 +88,14 @@ impl CuaControlHub {
         if let Some(index) = active.presentation.planned_steps.iter().position(|step| step.step_id == step_id) {
             for step in &mut active.presentation.planned_steps[..index] { step.state = "completed".into(); }
         }
+    }
+
+    pub fn mark_decision(&self,task_id:&str,step_id:&str,summary:&str){
+        if summary.is_empty()||summary.len()>160||summary.contains('\0'){return}
+        let Ok(mut state)=self.0.lock() else{return};
+        let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
+        active.presentation.fast_brain_summary=summary.into();
+        if let Some(step)=active.presentation.planned_steps.iter_mut().find(|step|step.step_id==step_id){if step.state=="pending"{step.state="deciding".into();}}
     }
 
     pub fn presentation(&self) -> Option<CuaControlPresentation> {
@@ -133,6 +143,7 @@ impl ComputerUsePort for CuaControlPort<'_> {
     }
     fn end_session(&self){self.inner.end_session()}
     fn explicit_takeover_requested(&self,task_id:&str)->bool{self.hub.is_some_and(|hub|hub.takeover_requested(task_id))}
+    fn project_decision(&self,task_id:&str,step_id:&str,summary:&str){if let Some(hub)=self.hub{hub.mark_decision(task_id,step_id,summary)}}
 }
 
 /// 与圈选工具条共用 pet 当前显示器、work area 与顶部 16pt 锚点。
@@ -1050,17 +1061,17 @@ impl TaskHost {
                 Some(CuaControlPresentation {
                     task_id: task_id.clone(), desktop_control, current_step, planned_steps,
                     remaining_steps: u16::try_from(stored.fragment.slots.len().saturating_sub(end)).unwrap_or(u16::MAX),
-                    plan_status: "available".into(),
+                    plan_status: "available".into(), slow_brain_summary:format!("慢脑已提交 {} 个受限步骤",stored.fragment.slots.len()), fast_brain_summary:"等待评估当前步骤候选".into(),
                 })
             }
             ExecutionPresentationHint::DeclaredStep { label, .. } => Some(CuaControlPresentation {
-                task_id: task_id.clone(), desktop_control, current_step: label.clone(), planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(),
+                task_id: task_id.clone(), desktop_control, current_step: label.clone(), planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(), slow_brain_summary:"慢脑已提交单步执行".into(), fast_brain_summary:"单步请求无需 Jev 选择".into(),
             }),
             ExecutionPresentationHint::StoredStep { .. } => Some(CuaControlPresentation {
                 task_id: task_id.clone(), desktop_control, current_step: self.store.get_presentation(task_id).ok()
                     .and_then(|(_, presentation)| presentation.current_step.map(|step| step.label))
                     .unwrap_or_else(|| "正在执行当前步骤".into()),
-                planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(),
+                planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(), slow_brain_summary:"慢脑已提交单步执行".into(), fast_brain_summary:"单步请求无需 Jev 选择".into(),
             }),
         }
     }
@@ -1157,7 +1168,7 @@ mod tests {
     #[test]
     fn cua_control_hub_only_accepts_the_active_task_once() {
         let hub=CuaControlHub::default();
-        let presentation=|task_id:&str| CuaControlPresentation { task_id:task_id.into(), desktop_control:true, current_step:"步骤一".into(), planned_steps:vec![CuaControlStepPresentation { step_id:"step-1".into(), label:"步骤一".into(), state:"pending".into() }], remaining_steps:0, plan_status:"available".into() };
+        let presentation=|task_id:&str| CuaControlPresentation { task_id:task_id.into(), desktop_control:true, current_step:"步骤一".into(), planned_steps:vec![CuaControlStepPresentation { step_id:"step-1".into(), label:"步骤一".into(), state:"pending".into() }], remaining_steps:0, plan_status:"available".into(), slow_brain_summary:"慢脑已提交 1 个受限步骤".into(), fast_brain_summary:"等待评估当前步骤候选".into() };
         assert!(!hub.request_takeover("task-a"));
         assert!(hub.begin(presentation("task-a")));
         assert!(!hub.request_takeover("task-b"));
@@ -1174,7 +1185,7 @@ mod tests {
     #[test]
     fn cua_control_hub_survives_step_boundaries_until_the_task_finishes() {
         let hub=CuaControlHub::default();
-        let presentation=|label:&str| CuaControlPresentation { task_id:"task-a".into(), desktop_control:true, current_step:label.into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into() };
+        let presentation=|label:&str| CuaControlPresentation { task_id:"task-a".into(), desktop_control:true, current_step:label.into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into(), slow_brain_summary:"慢脑已提交单步执行".into(), fast_brain_summary:"单步请求无需 Jev 选择".into() };
         assert!(hub.begin(presentation("打开企业微信")));
         hub.mark_executing("task-a","launch");
         assert_eq!(hub.presentation().unwrap().current_step,"打开企业微信");
@@ -1199,12 +1210,17 @@ mod tests {
                 CuaControlStepPresentation { step_id:"open".into(), label:"打开设置".into(), state:"pending".into() },
                 CuaControlStepPresentation { step_id:"save".into(), label:"保存更改".into(), state:"pending".into() },
             ],
+            slow_brain_summary:"慢脑已提交 2 个受限步骤".into(),
+            fast_brain_summary:"等待评估当前步骤候选".into(),
         }));
+        hub.mark_decision("task-a","save","Jev 已从 2 个候选中选择：保存更改");
         hub.mark_executing("task-a","save");
         let value=serde_json::to_value(hub.presentation().unwrap()).unwrap();
         assert_eq!(value["current_step"],"保存更改");
         assert_eq!(value["planned_steps"][0]["state"],"completed");
         assert_eq!(value["planned_steps"][1]["state"],"executing");
+        assert_eq!(value["slow_brain_summary"],"慢脑已提交 2 个受限步骤");
+        assert_eq!(value["fast_brain_summary"],"Jev 已从 2 个候选中选择：保存更改");
         assert!(value.to_string().contains("打开设置"));
         assert!(!value.to_string().contains("arguments"));
     }
@@ -1212,7 +1228,7 @@ mod tests {
     #[test]
     fn non_cua_execution_is_visible_but_cannot_request_desktop_takeover() {
         let hub=CuaControlHub::default();
-        assert!(hub.begin(CuaControlPresentation { task_id:"browser-task".into(), desktop_control:false, current_step:"核验公开页面".into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into() }));
+        assert!(hub.begin(CuaControlPresentation { task_id:"browser-task".into(), desktop_control:false, current_step:"核验公开页面".into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into(), slow_brain_summary:"慢脑已提交单步执行".into(), fast_brain_summary:"单步请求无需 Jev 选择".into() }));
         let presentation=hub.presentation().unwrap();
         assert!(!presentation.desktop_control);
         assert_eq!(presentation.current_step,"核验公开页面");
