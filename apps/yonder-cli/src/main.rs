@@ -2,7 +2,7 @@ use interprocess::local_socket::{GenericFilePath, ToFsName, tokio::{Stream, prel
 use serde_json::{Value, json};
 use std::{env, io::{self, BufRead, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, HelloParams, ListParams, ProtocolVersion, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
+use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, HelloParams, ListParams, PlanExecuteParams, PlanSlotParams, PlanSubmitParams, ProtocolVersion, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
 
 mod codex_agent_bridge;
 
@@ -85,6 +85,8 @@ fn request(name: &str, args: &Value, id: String, deadline: u64, agent_id: &str) 
         "browser_execute" => { let operation=match field(args,"operation")? { "create"=>BrowserOperation::Create,"observe"=>BrowserOperation::Observe,"hand-off"=>BrowserOperation::HandOff,"take-over"=>BrowserOperation::TakeOver,"finish"=>BrowserOperation::Finish,_=>return Err("operation须为create、observe、hand-off、take-over或finish".into()) }; let (jsonrpc,request_id)=base(); Ok(Request::BrowserExecute { jsonrpc,request_id,params:BrowserExecuteParams { agent_id:agent_id.into(),capability:Capability::BrowserExecute,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),operation } }) },
         "computer_execute" => { let arguments=args.get("arguments").filter(|value|value.is_object()).cloned().ok_or("缺少参数：arguments")?;let (jsonrpc,request_id)=base(); Ok(Request::ComputerExecute { jsonrpc,request_id,params:ComputerExecuteParams { agent_id:agent_id.into(),capability:Capability::ComputerExecute,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),tool_name:field(args,"tool_name")?.into(),arguments } }) },
         "computer_step" => { let arguments=args.get("arguments").filter(|value|value.is_object()).cloned().ok_or("缺少参数：arguments")?;let (jsonrpc,request_id)=base(); Ok(Request::ComputerStep { jsonrpc,request_id,params:ComputerStepParams { agent_id:agent_id.into(),capability:Capability::ComputerExecute,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),step_id:field(args,"step_id")?.into(),label:field(args,"label")?.into(),tool_name:field(args,"tool_name")?.into(),arguments } }) },
+        "task_plan_submit" => { let slots=serde_json::from_value::<Vec<PlanSlotParams>>(args.get("slots").cloned().ok_or("缺少参数：slots")?).map_err(|_|"计划槽位无效")?;let (jsonrpc,request_id)=base();Ok(Request::PlanSubmit{jsonrpc,request_id,params:PlanSubmitParams{agent_id:agent_id.into(),capability:Capability::TaskPlanSubmit,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),plan_id:field(args,"plan_id")?.into(),plan_version:args.get("plan_version").and_then(Value::as_u64).ok_or("缺少参数：plan_version")?,token_budget:args.get("token_budget").and_then(Value::as_u64).ok_or("缺少参数：token_budget")?.try_into().map_err(|_|"token_budget无效")?,slots}})},
+        "task_plan_execute" => { let (jsonrpc,request_id)=base();Ok(Request::PlanExecute{jsonrpc,request_id,params:PlanExecuteParams{agent_id:agent_id.into(),capability:Capability::TaskPlanExecute,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),plan_id:field(args,"plan_id")?.into(),plan_version:args.get("plan_version").and_then(Value::as_u64).ok_or("缺少参数：plan_version")?}})},
         "task_complete" => { let (jsonrpc,request_id)=base(); Ok(Request::Complete { jsonrpc,request_id,params:CompleteParams { agent_id:agent_id.into(),capability:Capability::TaskComplete,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into() } }) },
         "task_fail" => { let (jsonrpc,request_id)=base(); Ok(Request::Fail { jsonrpc,request_id,params:CompleteParams { agent_id:agent_id.into(),capability:Capability::TaskFail,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into() } }) },
         "task_wait_for_user" => { let (jsonrpc,request_id)=base(); Ok(Request::WaitForUser { jsonrpc,request_id,params:WaitForUserParams { agent_id:agent_id.into(),capability:Capability::TaskWaitForUser,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),reason:field(args,"reason")?.into() } }) },
@@ -94,6 +96,40 @@ fn request(name: &str, args: &Value, id: String, deadline: u64, agent_id: &str) 
 
 fn tools() -> Value {
     let object = |required: Vec<&str>, properties: Value| json!({"type":"object","properties":properties,"required":required,"additionalProperties":false});
+    let observe_condition = json!({
+        "type":"object",
+        "additionalProperties":false,
+        "required":["fact","expected"],
+        "properties":{
+            "fact":{"type":"string","enum":["application-ready","target-resolved","composer-ready","delivery-confirmed"]},
+            "expected":{"type":"boolean"}
+        }
+    });
+    let plan_candidate = json!({
+        "type":"object",
+        "additionalProperties":false,
+        "required":["candidate_id","tool_name","arguments","action_kind","target_ref","preconditions","expected_observe"],
+        "properties":{
+            "candidate_id":{"type":"string"},
+            "tool_name":{"type":"string"},
+            "arguments":{"type":"object","additionalProperties":true},
+            "action_kind":{"type":"string","enum":["launch-application","bring-to-front","resolve-conversation","draft-message","send-message"]},
+            "target_ref":{"type":"string"},
+            "preconditions":{"type":"array","minItems":1,"maxItems":4,"items":observe_condition.clone()},
+            "expected_observe":{"type":"array","minItems":1,"maxItems":4,"items":observe_condition},
+            "confirmation_ref":{"type":"string"}
+        }
+    });
+    let plan_slot = json!({
+        "type":"object",
+        "additionalProperties":false,
+        "required":["step_id","label","candidates"],
+        "properties":{
+            "step_id":{"type":"string"},
+            "label":{"type":"string"},
+            "candidates":{"type":"array","minItems":1,"maxItems":9,"items":plan_candidate}
+        }
+    });
     json!([
         {"name":"task_create","description":"登记一个由Agent创建的Yonder任务","inputSchema":object(vec!["idempotency_key","name","description"],json!({"idempotency_key":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"}}))},
         {"name":"task_list","description":"列出当前Agent的Yonder任务","inputSchema":object(vec![],json!({"after_task_id":{"type":"string"},"include_finished":{"type":"boolean"},"running_only":{"type":"boolean"},"limit":{"type":"integer","minimum":1,"maximum":100}}))},
@@ -112,6 +148,8 @@ fn tools() -> Value {
         ,{"name":"task_step_advance","description":"在动作已Observe后推进至下一步骤边界","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))}
         ,{"name":"browser_execute","description":"通过Yonder托管的ego-lite Browser Task Space执行并Observe动作","inputSchema":object(vec!["task_id","expected_sequence","operation"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"operation":{"type":"string","enum":["create","observe","hand-off","take-over","finish"]}}))}
         ,{"name":"computer_step","description":"由Yonder一次完成步骤声明、CUA动作、Observe和步骤推进","inputSchema":object(vec!["task_id","expected_sequence","step_id","label","tool_name","arguments"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"step_id":{"type":"string"},"label":{"type":"string"},"tool_name":{"type":"string"},"arguments":{"type":"object","additionalProperties":true}}))}
+        ,{"name":"task_plan_submit","description":"由慢脑向Yonder提交绑定当前任务的受限CUA计划片段；候选须使用协议定义的动作语义、前置条件与预期Observe","inputSchema":object(vec!["task_id","expected_sequence","plan_id","plan_version","token_budget","slots"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"plan_id":{"type":"string"},"plan_version":{"type":"integer","minimum":1},"token_budget":{"type":"integer","minimum":1,"maximum":10000},"slots":{"type":"array","minItems":1,"maxItems":10,"items":plan_slot}}))}
+        ,{"name":"task_plan_execute","description":"执行当前任务已接受的不可变计划片段；Yonder在片段内调用Jev有界选择并连续执行，每步强制Observe","inputSchema":object(vec!["task_id","expected_sequence","plan_id","plan_version"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"plan_id":{"type":"string"},"plan_version":{"type":"integer","minimum":1}}))}
         ,{"name":"task_complete","description":"完成已Observe并推进边界的CUA任务","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))}
         ,{"name":"task_fail","description":"终结最新已Observe失败并推进边界的CUA任务","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))}
         ,{"name":"task_wait_for_user","description":"在已Observe并推进的步骤边界等待用户处理","inputSchema":object(vec!["task_id","expected_sequence","reason"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"reason":{"type":"string","minLength":1,"maxLength":512}}))}
@@ -221,6 +259,33 @@ mod tests {
         assert!(matches!(request("task_document_execute",&json!({"task_id":"task-1","expected_sequence":"4","source_grant_id":"file_grant_1","output_grant_id":"file_grant_2","expected_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","before":"旧文本","after":"新文本"}),"r8".into(),2000,"agent-a").unwrap(),Request::DocumentExecute { params:DocumentExecuteParams { capability:Capability::DocumentExecute,.. },.. }));
         assert!(matches!(request("task_command_propose",&json!({"task_id":"task-1","program":"/usr/bin/printf","args":["%s","ok"],"cwd":"/tmp","env":{},"timeout_ms":1000}),"r9".into(),2000,"agent-a").unwrap(),Request::CommandPropose { params:CommandProposeParams { capability:Capability::CommandPropose,.. },.. }));
         assert!(matches!(request("task_command_execute",&json!({"task_id":"task-1","expected_sequence":"4","command_id":"command_1"}),"r10".into(),2000,"agent-a").unwrap(),Request::CommandExecute { params:CommandExecuteParams { capability:Capability::CommandExecute,.. },.. }));
-        assert_eq!(names.len(),20);assert!(names.contains(&"task_command_propose"));assert!(names.contains(&"task_command_execute"));assert!(!names.contains(&"computer_execute"));
+        let plan = json!({
+            "task_id":"task-1",
+            "expected_sequence":"4",
+            "plan_id":"plan-1",
+            "plan_version":1,
+            "token_budget":100,
+            "slots":[{
+                "step_id":"launch",
+                "label":"打开企业微信",
+                "candidates":[{
+                    "candidate_id":"wecom",
+                    "tool_name":"launch_app",
+                    "arguments":{"bundle_id":"com.tencent.WeWorkMac"},
+                    "action_kind":"launch-application",
+                    "target_ref":"wecom-app",
+                    "preconditions":[{"fact":"application-ready","expected":false}],
+                    "expected_observe":[{"fact":"application-ready","expected":true}]
+                }]
+            }]
+        });
+        assert!(matches!(request("task_plan_submit",&plan,"r11".into(),2000,"agent-a").unwrap(),Request::PlanSubmit { params:PlanSubmitParams { capability:Capability::TaskPlanSubmit,.. },.. }));
+        assert!(matches!(request("task_plan_execute",&json!({"task_id":"task-1","expected_sequence":"5","plan_id":"plan-1","plan_version":1}),"r12".into(),2000,"agent-a").unwrap(),Request::PlanExecute { params:PlanExecuteParams { capability:Capability::TaskPlanExecute,.. },.. }));
+        assert_eq!(names.len(),22);
+        assert!(names.contains(&"task_command_propose"));
+        assert!(names.contains(&"task_command_execute"));
+        assert!(names.contains(&"task_plan_submit"));
+        assert!(names.contains(&"task_plan_execute"));
+        assert!(!names.contains(&"computer_execute"));
     }
 }
