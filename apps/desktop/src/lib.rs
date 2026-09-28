@@ -142,8 +142,7 @@ pub fn position_window_in_pet_work_area(
     window.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|_| "控制卡定位失败".into())
 }
 
-/// 在当前 pet 旁显示既有任务空间；只负责窗口呈现，不读取或写入任务事实。
-pub fn show_task_space_near_pet(pet: &WebviewWindow) -> Result<(), String> {
+fn show_task_space_near_pet_inner(pet: &WebviewWindow, focus: bool) -> Result<(), String> {
     let app = pet.app_handle();
     let menu = app.get_webview_window("task-space").ok_or("任务菜单不可用")?;
     let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
@@ -160,9 +159,19 @@ pub fn show_task_space_near_pet(pet: &WebviewWindow) -> Result<(), String> {
     let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(size.width) as i32);
     let max_y = area.position.y.saturating_add(area.size.height.saturating_sub(size.height) as i32);
     let target = tauri::PhysicalPosition::new(position.x.clamp(area.position.x, max_x), y.clamp(area.position.y, max_y));
-    menu.set_position(target).and_then(|_| menu.show()).and_then(|_| menu.set_focus())
-        .and_then(|_| menu.eval("window.dispatchEvent(new Event('yonda-tasks-open'))"))
-        .map_err(|_| "任务菜单打开失败".into())
+    menu.set_position(target).and_then(|_| menu.show()).map_err(|_| "任务菜单打开失败")?;
+    if focus { menu.set_focus().map_err(|_| "任务菜单打开失败")?; }
+    let event = if focus {
+        "window.dispatchEvent(new Event('yonda-tasks-open'))"
+    } else {
+        "window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true}}))"
+    };
+    menu.eval(event).map_err(|_| "任务菜单打开失败".into())
+}
+
+/// 用户显式打开时保持既有焦点行为。
+pub fn show_task_space_near_pet(pet: &WebviewWindow) -> Result<(), String> {
+    show_task_space_near_pet_inner(pet, true)
 }
 
 /// 自动展示不应覆盖用户正使用的输入或桌面控制卡。
@@ -173,7 +182,8 @@ pub fn show_task_space_after_agent_create(pet: &WebviewWindow) -> Result<bool, S
             return Ok(false);
         }
     }
-    show_task_space_near_pet(pet)?;
+    // 自动透出不抢走用户当前焦点，否则 task-space 的 blur 收起规则会立刻关闭它。
+    show_task_space_near_pet_inner(pet, false)?;
     Ok(true)
 }
 

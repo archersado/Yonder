@@ -6,7 +6,7 @@ use std::{io, os::unix::fs::PermissionsExt, path::PathBuf, sync::{Arc, Mutex}, t
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use yonder_application::{AuthContext, agent_input::{AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams, AgentRequest, AgentResponse, DeliveryOutcome, Version, decode_response, encode_request, hello_accepted, registration}, gateway::{GatewaySession, Platform, local_hello_agent_id}};
 use crate::{CuaControlHub, TaskHost, agent_input::AgentInputHub, emit_pet_agent_connection, emit_pet_presentation,emit_pet_terminal_presentation, position_window_in_pet_work_area};
-use tauri::WebviewWindow;
+use tauri::{Manager, WebviewWindow};
 
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const ATTACHMENT_CHUNK_BYTES: usize = 47 * 1024;
@@ -176,7 +176,18 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                 None => { let _=cua_control.hide(); },
             }
         }
-        if open_task_space { let _ = crate::show_task_space_after_agent_create(&pet); }
+        if open_task_space {
+            // Local Socket 在 Tokio worker 中处理；窗口操作须回到 Cocoa 主线程，
+            // 否则创建虽成功但任务窗口不会被真正展示。
+            let app = pet.app_handle().clone();
+            app.clone().run_on_main_thread(move || {
+                if let Some(pet) = app.get_webview_window("pet") {
+                    if let Err(error) = crate::show_task_space_after_agent_create(&pet) {
+                        eprintln!("Agent 创建后的任务窗口展示失败: {error}");
+                    }
+                }
+            }).map_err(io::Error::other)?;
+        }
         let response=response.map_err(|_|io::Error::other("本地Gateway调用失败"))?;
         if let Some((has_tasks, state, step_label)) = presentation {
             if let Some((terminal,event_id))=yonder_application::gateway::terminal_presentation(&frame,&response){

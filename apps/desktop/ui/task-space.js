@@ -497,6 +497,10 @@ async function close() {
 byId('close').addEventListener('click', close);
 document.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
 window.addEventListener('blur', close);
-window.addEventListener('yonda-tasks-open', () => { byId('refresh').focus(); load(); });
+window.addEventListener('yonda-tasks-open', event => {
+  // Agent 创建后的自动透出不能夺走当前输入焦点，否则本窗口的 blur 收起策略会立刻把它关闭。
+  if (!event.detail?.automatic) byId('refresh').focus();
+  load();
+});
 load();
 })();
