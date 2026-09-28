@@ -3,7 +3,7 @@
 Story: EN-S3  
 Epic: EN  
 Status: design-review  
-OpenSpec: -
+OpenSpec: en-s3-protocol-single-source
 
 ## 设计文档
 
@@ -33,4 +33,4 @@ OpenSpec: -
 
 ## OpenSpec 与验证
 
-OpenSpec Change 待 Status 转 ready 后按围栏生成（proposal/design/tasks/delta spec 同 PR）；Validation Goal 引用各阶段 AC 与对应证据类型：阶段 1–3/5 以自动化测试与门禁自测为主，阶段 4 须 macOS 原生并发回归日志；Windows 证据门禁保留、暂缓不视为通过。
+[OpenSpec Change：en-s3-protocol-single-source](../../../../openspec/changes/en-s3-protocol-single-source/proposal.md)——阶段 1（协议单一来源）已按本 Change 实施并合入 dev（merge b4c3ba6），等价性证明与偏差记录（Codex 桥钉定 1.19）见其 design.md；独立 Verification Goal 待补。阶段 2–5 沿用本 Story 设计，待审阅转 ready 后按阶段另建或扩展 Change。Validation Goal 引用各阶段 AC 与对应证据类型：阶段 1–3/5 以自动化测试与门禁自测为主，阶段 4 须 macOS 原生并发回归日志；Windows 证据门禁保留、暂缓不视为通过。
