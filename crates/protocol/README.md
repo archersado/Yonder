@@ -6,6 +6,8 @@
 
 支持 task.get、task.events 和 task.list。列表默认返回非终态任务，limit 为 1..100；after_task_id 为排他游标，include_finished=true 时包含终态。协议1.16可用`running_only=true`在分页前只筛选运行态，且不受`include_finished`扩大。响应 next_after_task_id=null 表示本次查询无下一页。跨页更新需刷新首页，不承诺跨页快照一致。
 
+协议1.32可用`newest_first=true`按持久化创建时间倒序、任务ID倒序稳定分页；`after_task_id`仍是不透明排他游标。省略该字段的旧请求继续按任务ID升序。迁移前历史任务时间未知，排在有可信创建时间的任务之后。
+
 ## 生成与检查
 
 在仓库根目录运行：

@@ -45,6 +45,8 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 
 ## 任务、状态与恢复
 
+- 2026-09-28 按 Accepted [AD-DS-05](AD-DS-05-NEWEST-TASK-PAGINATION.md)，任务空间以协议 1.32 请求 SQLite 按创建时间与任务 ID 倒序稳定分页；历史未知时间不伪造，前端不维护置顶副本。
+
 - Execution Session 是 Yonder 内部执行实体；ego-lite Task Space 是 BUA 外部实体；两者映射为统一 Task Status。
 - SQLite 当前状态表是唯一当前事实源，配合追加事件日志与同事务 Outbox，不采用完整 Event Sourcing。每任务 sequence 严格递增。
 - 持久化状态、步骤、结果、错误、等待原因、恢复信息和外部引用；句柄、连接、窗口对象及订阅仅驻内存。

@@ -1,5 +1,9 @@
 # DS-S2 架构设计
 
+## 最新任务优先分页（2026-09-28）
+
+Accepted AD-DS-05 将任务空间查询升级为协议 1.32 的 `newest_first=true`。SQLite `tasks.created_at` 是排序事实；查询按 `(created_at DESC, task_id DESC)` 在授权和状态筛选后分页，`after_task_id` 解析为排他元组游标。schema 21 对历史任务写入未知值 0，不推测历史时间。前端不得反转单页、伪造或临时置顶卡片；旧会话未请求新字段时仍沿用 ID 升序。
+
 ## 边界与依赖
 
 GUI子范围按AD-DS-01增量审阅进入Apply：apps/desktop复用已有Tauri2依赖与原生WebView；系统app_data_dir为真实任务库位置，不接受UI路径。task_query只允许本地task-space窗口，异步工作线程使用唯一TaskHost Mutex串行访问，超时/错误明确反馈。关闭仅隐藏窗口，托盘恢复。首批独立面板暂不迁移小龙，迁移与任务隐藏协调作为剩余原始AC，不能宣称已完成。
