@@ -43,13 +43,18 @@ def isolated_agent_environment():
     test_home = tempfile.TemporaryDirectory(prefix="yonder-ex2-home-")
     home = pathlib.Path(test_home.name)
     environment = os.environ.copy()
-    environment["HOME"] = str(home)
+    # TaskHost 目录显式传入，不能为隔离任务库篡改用户 Keychain/SDK 的 HOME
+    # 上下文；凭据仍只由既有 Jev 面板配置的 Keychain 项提供。
     database = home / "Library/Application Support/com.yonder.desktop/tasks.db"
-    # 首次运行由正式组合根创建 schema，之后再关闭；不能手写任务库结构。
+    environment["YONDER_TEST_CUA_RESOURCE_DIR"] = str(binary.parent.parent / "Resources/cua")
+    # 用现有无 GUI 测试宿主创建 schema，避免为初始化而启动第二个 Tauri 进程。
+    # 不能手写任务库结构；正式 GUI 只在后续 Gateway 样本启动一次。
+    initializer_binary = root / "target/debug/examples/local-agent-gateway"
+    if not initializer_binary.is_file():
+        raise RuntimeError("isolated-host-initializer-unavailable")
     initializer = subprocess.Popen(
-        [str(binary), "--local-agent-stdio"],
+        [str(initializer_binary), str(database.parent)],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        env=environment,
     )
     until = time.monotonic() + 10
     schema_ready = False
@@ -168,15 +173,18 @@ try:
         raise RuntimeError(f"fixture-focus-{focus_failure}")
 
     result["phase"] = "isolated-host-initialization"
+    gateway_binary = root / "target/debug/examples/local-agent-gateway"
+    if not gateway_binary.is_file():
+        raise RuntimeError("isolated-gateway-unavailable")
+    agent_environment = isolated_agent_environment()
     agent = subprocess.Popen(
-        [str(binary), "--local-agent-stdio"],
+        [str(gateway_binary), str(pathlib.Path(test_home.name) / "Library/Application Support/com.yonder.desktop")],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
-        env=isolated_agent_environment(),
+        env=agent_environment,
     )
-    # 先启动正式宿主并完成其数据目录初始化，再恢复 fixture；保证 CUA 捕获的
-    # frontmost target 就是这一个隔离窗口，而非 Yonder 自身的辅助窗口。
+    # 无 GUI Gateway 不会抢占前台；仍在派发前恢复唯一 fixture 为 CUA 目标。
     result["phase"] = "fixture-refocus"
     time.sleep(0.3)
     refocus_fixture()

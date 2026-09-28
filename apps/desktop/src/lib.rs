@@ -6,7 +6,7 @@ pub mod local_agent_stdio;
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 use tauri::WebviewWindow;
@@ -29,6 +29,22 @@ use yonder_application::{
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
 };
+
+#[cfg(target_os = "macos")]
+fn macos_cua_resource_dir() -> Option<PathBuf> {
+    if cfg!(debug_assertions) {
+        if let Some(value) = std::env::var_os("YONDER_TEST_CUA_RESOURCE_DIR") {
+            let path = PathBuf::from(value);
+            let metadata = std::fs::symlink_metadata(&path).ok()?;
+            if path.is_absolute() && metadata.is_dir() && !metadata.file_type().is_symlink() {
+                return Some(path);
+            }
+            return None;
+        }
+    }
+    let executable = std::env::current_exe().ok()?;
+    Some(executable.parent()?.parent()?.join("Resources/cua"))
+}
 use yonder_application::{
     file::{FileCreateTargetRequest, FileReadRequest},
     file_authorization::{FileAuthorizationRegistry, FileGrantError, FileGrantPurpose, FileGrantSummary},
@@ -249,8 +265,7 @@ impl TaskHost {
             std::fs::create_dir_all(&evidence).map_err(|_| HostError::StorageUnavailable)?;
             std::fs::set_permissions(&evidence, std::fs::Permissions::from_mode(0o700))
                 .map_err(|_| HostError::StorageUnavailable)?;
-            std::env::current_exe().ok().and_then(|exe| {
-                let root = exe.parent()?.parent()?.join("Resources/cua");
+            macos_cua_resource_dir().and_then(|root| {
                 CuaWorker::new(
                     &root.join("node"),
                     &root.join("cua_worker.mjs"),
@@ -262,8 +277,7 @@ impl TaskHost {
             })
         };
         #[cfg(target_os = "macos")]
-        let jev = std::env::current_exe().ok().and_then(|exe| {
-            let root = exe.parent()?.parent()?.join("Resources/cua");
+        let jev = macos_cua_resource_dir().and_then(|root| {
             MacosJevPort::new(
                 &root.join("node"),
                 &root.join("jev_worker.mjs"),
