@@ -40,6 +40,8 @@ macOS-only 接线不新增任务状态、事件或 Outbox 写入。Application �
 
 ## 状态与契约
 
+2026-09-28 用户变更将 CUA 候选从“工具名与参数”扩展为受限语义声明：`action_kind`、不含敏感值的 `target_ref`、`preconditions`、`expected_observe` 与可选 `confirmation_ref`。Rust 协议仍是唯一来源；Jev 请求只获得动作语义、当前 Observe 的有界摘要及预期条件，不获得接收人、正文、截图或 Driver 参数。Application 在选择前复核前置条件，在选择后解析一次性本地确认并交给既有 CUA Driver；确认不存在、过期、取消或 Observe 不符均交回归属 Agent。发送等敏感副作用不得把确认值、接收人或正文写入片段 JSON、任务事件、Outbox、日志或模型请求。
+
 SQLite 当前任务状态仍是事实源；已有 step/attempt、sequence、事件、Outbox 事务链记录最小决策来源（计划版本/候选编号/结果分类）和动作结果，不写模型输入或截图。快脑持有的 Observe/目标引用只在当前执行身份和有效期内使用。派发前复核 `task/step/attempt/host`、计划版本、授权、租约、目标新鲜度及用户控制标记。动作结束强制 Observe；目标达成须独立验证，不能只信 Jev `DONE`。偏离、低置信、无候选、参数不足、预算耗尽转为「待慢脑 replan」的可观察原因，具体状态映射复用 TM，不增第二状态机。
 
 取消、接管、用户输入先冻结快脑新决策，再按既有步骤边界停止/Observe/事务确认。副作用超时、崩溃或断连为 `unknown`，保留占用并交回慢脑；重启 running→interrupted，不能恢复旧候选、旧计划或自动重发。敏感操作继续走显式用户确认，不因高置信豁免。
