@@ -1057,6 +1057,43 @@
         "description"
       ]
     },
+    "CuaActionKind": {
+      "description": "Jev 可辨识的 CUA 动作意图。它描述用户可理解的动作，而非 Driver 工具名或\n具体控件定位；后两者绝不能成为模型选择的依据。",
+      "type": "string",
+      "enum": [
+        "launch-application",
+        "bring-to-front",
+        "resolve-conversation",
+        "draft-message",
+        "send-message"
+      ]
+    },
+    "CuaObserveConditionParams": {
+      "description": "单个、无正文的 Observe 断言。事实是封闭集合，避免把窗口文本、联系人或\n消息正文意外带入计划片段、Outbox 或 Jev 请求。",
+      "type": "object",
+      "properties": {
+        "expected": {
+          "type": "boolean"
+        },
+        "fact": {
+          "$ref": "#/$defs/CuaObserveFact"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fact",
+        "expected"
+      ]
+    },
+    "CuaObserveFact": {
+      "type": "string",
+      "enum": [
+        "application-ready",
+        "target-resolved",
+        "composer-ready",
+        "delivery-confirmed"
+      ]
+    },
     "DocumentExecuteParams": {
       "type": "object",
       "properties": {
@@ -1322,11 +1359,35 @@
       ]
     },
     "PlanCandidateParams": {
-      "description": "一个候选只描述既有 CUA Driver 可接受的动作；`handback` 不是可提交动作，\n而是 Application 自动附加的唯一安全出口。",
+      "description": "一个候选除既有 CUA Driver 动作外，还必须携带足以让 Jev 做有界选择的\n语义、前置条件和后置 Observe。`target_ref`、`confirmation_ref` 均为本机\n不透明引用，不能是联系人、消息正文、窗口/控件标识或截图内容。",
       "type": "object",
       "properties": {
+        "action_kind": {
+          "$ref": "#/$defs/CuaActionKind"
+        },
         "arguments": true,
         "candidate_id": {
+          "type": "string"
+        },
+        "confirmation_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected_observe": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CuaObserveConditionParams"
+          }
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CuaObserveConditionParams"
+          }
+        },
+        "target_ref": {
           "type": "string"
         },
         "tool_name": {
@@ -1337,7 +1398,11 @@
       "required": [
         "candidate_id",
         "tool_name",
-        "arguments"
+        "arguments",
+        "action_kind",
+        "target_ref",
+        "preconditions",
+        "expected_observe"
       ]
     },
     "PlanExecuteParams": {

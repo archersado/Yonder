@@ -485,8 +485,39 @@ pub struct ComputerStepParams {
     pub arguments: serde_json::Value,
 }
 
-/// 一个候选只描述既有 CUA Driver 可接受的动作；`handback` 不是可提交动作，
-/// 而是 Application 自动附加的唯一安全出口。
+/// Jev 可辨识的 CUA 动作意图。它描述用户可理解的动作，而非 Driver 工具名或
+/// 具体控件定位；后两者绝不能成为模型选择的依据。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum CuaActionKind {
+    LaunchApplication,
+    BringToFront,
+    ResolveConversation,
+    DraftMessage,
+    SendMessage,
+}
+
+/// 单个、无正文的 Observe 断言。事实是封闭集合，避免把窗口文本、联系人或
+/// 消息正文意外带入计划片段、Outbox 或 Jev 请求。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct CuaObserveConditionParams {
+    pub fact: CuaObserveFact,
+    pub expected: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum CuaObserveFact {
+    ApplicationReady,
+    TargetResolved,
+    ComposerReady,
+    DeliveryConfirmed,
+}
+
+/// 一个候选除既有 CUA Driver 动作外，还必须携带足以让 Jev 做有界选择的
+/// 语义、前置条件和后置 Observe。`target_ref`、`confirmation_ref` 均为本机
+/// 不透明引用，不能是联系人、消息正文、窗口/控件标识或截图内容。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct PlanCandidateParams {
@@ -494,6 +525,13 @@ pub struct PlanCandidateParams {
     pub tool_name: String,
     #[ts(type = "Record<string, unknown>")]
     pub arguments: serde_json::Value,
+    pub action_kind: CuaActionKind,
+    pub target_ref: String,
+    pub preconditions: Vec<CuaObserveConditionParams>,
+    pub expected_observe: Vec<CuaObserveConditionParams>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub confirmation_ref: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1776,9 +1814,25 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && candidate.arguments.is_object()
                         && serde_json::to_vec(&candidate.arguments).is_ok_and(|bytes| bytes.len() <= 16 * 1024)
                         && safe_sdk_arguments(&candidate.arguments)
+                        && valid_id(&candidate.target_ref)
+                        && !candidate.preconditions.is_empty()
+                        && !candidate.expected_observe.is_empty()
+                        && candidate.preconditions.len() <= 4
+                        && candidate.expected_observe.len() <= 4
+                        && valid_observe_conditions(&candidate.preconditions)
+                        && valid_observe_conditions(&candidate.expected_observe)
+                        && match candidate.action_kind {
+                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && candidate.arguments.as_object().is_some_and(|arguments| arguments.is_empty()),
+                            _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
+                        }
                 })
             }
     })
+}
+
+fn valid_observe_conditions(conditions: &[CuaObserveConditionParams]) -> bool {
+    let mut facts = std::collections::HashSet::new();
+    conditions.iter().all(|condition| facts.insert(condition.fact as u8))
 }
 
 pub const MAX_FILE_EXECUTE_BYTES: usize = 48 * 1024;
@@ -1835,6 +1889,9 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         BrowserExecuteParams::decl(&config),
         ComputerExecuteParams::decl(&config),
         ComputerStepParams::decl(&config),
+        CuaActionKind::decl(&config),
+        CuaObserveFact::decl(&config),
+        CuaObserveConditionParams::decl(&config),
         PlanCandidateParams::decl(&config),
         PlanSlotParams::decl(&config),
         PlanSubmitParams::decl(&config),

@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn plan_fragment_requests_require_a_negotiated_1_31_capability() {
         let hello_30 = br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":30}}}"#;
-        let submit = br#"{"jsonrpc":"2.0","id":"submit","method":"task.plan.submit","params":{"agent_id":"a1","capability":"task.plan.submit","deadline":2000,"task_id":"task_1","expected_sequence":"1","plan_id":"plan_1","plan_version":1,"token_budget":100,"slots":[{"step_id":"step_1","label":"\u8f93\u5165","candidates":[{"candidate_id":"candidate_1","tool_name":"type_text","arguments":{"text":"\u6d4b\u8bd5"}}]}]}}"#;
+        let submit = br#"{"jsonrpc":"2.0","id":"submit","method":"task.plan.submit","params":{"agent_id":"a1","capability":"task.plan.submit","deadline":2000,"task_id":"task_1","expected_sequence":"1","plan_id":"plan_1","plan_version":1,"token_budget":100,"slots":[{"step_id":"step_1","label":"\u8f93\u5165","candidates":[{"candidate_id":"candidate_1","tool_name":"type_text","arguments":{"text":"\u6d4b\u8bd5"},"action_kind":"draft-message","target_ref":"test-composer","preconditions":[{"fact":"composer-ready","expected":true}],"expected_observe":[{"fact":"composer-ready","expected":true}]}]}]}}"#;
         let execute = br#"{"jsonrpc":"2.0","id":"execute","method":"task.plan.execute","params":{"agent_id":"a1","capability":"task.plan.execute","deadline":2000,"task_id":"task_1","expected_sequence":"1","plan_id":"plan_1","plan_version":1}}"#;
         let mut store = NoStore;
         let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);

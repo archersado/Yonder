@@ -3291,6 +3291,11 @@ mod tests {
                     candidate_id: "candidate-1".into(),
                     tool_name: "type_text".into(),
                     arguments_json: r#"{"text":"test"}"#.into(),
+                    action_kind: yonder_protocol::CuaActionKind::DraftMessage,
+                    target_ref: "test-composer".into(),
+                    preconditions: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::ComposerReady, expected: true }],
+                    expected_observe: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::ComposerReady, expected: true }],
+                    confirmation_ref: None,
                 }],
             }],
         };

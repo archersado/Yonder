@@ -13,6 +13,11 @@ pub struct JevCandidate {
     pub id: String,
     pub dispatchable: bool,
     pub parameter_complete: bool,
+    /// 受限动作语义；不含 Driver 参数、联系人、消息正文或原始 Observe 内容。
+    pub action_kind: String,
+    pub target_ref: String,
+    pub preconditions: Vec<String>,
+    pub expected_observe: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -103,6 +108,14 @@ fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError
         {
             return Err(JevDecisionError::InvalidInput);
         }
+        if candidate.action_kind.is_empty()
+            || candidate.action_kind.len() > 64
+            || candidate.target_ref.is_empty()
+            || candidate.target_ref.len() > 64
+            || candidate.preconditions.len() > 4
+            || candidate.expected_observe.len() > 4
+            || candidate.preconditions.iter().chain(&candidate.expected_observe).any(|condition| condition.is_empty() || condition.len() > 64 || condition.contains('\0'))
+        { return Err(JevDecisionError::InvalidInput); }
         if candidate.id == HAND_BACK {
             hand_back_count += 1;
             if !candidate.dispatchable || !candidate.parameter_complete {
@@ -178,11 +191,19 @@ mod tests {
                     id: "cua.click".into(),
                     dispatchable: true,
                     parameter_complete: true,
+                    action_kind: "bring-to-front".into(),
+                    target_ref: "app-1".into(),
+                    preconditions: vec!["application-ready=true".into()],
+                    expected_observe: vec!["target-resolved=true".into()],
                 },
                 JevCandidate {
                     id: HAND_BACK.into(),
                     dispatchable: true,
                     parameter_complete: true,
+                    action_kind: "handback".into(),
+                    target_ref: "none".into(),
+                    preconditions: vec![],
+                    expected_observe: vec![],
                 },
             ],
         }
