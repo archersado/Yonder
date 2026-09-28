@@ -382,6 +382,23 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_plan_fragment_schema.sql"))
                 .map_err(storage)?;
         }
+        // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
+        // 的三张业务表。全缺意味着不存在该组业务记录，可以只建空表；部分
+        // 缺失可能已经丢失关联事实，必须失败关闭，不能猜测或补造。
+        let audit_tables: i64 = tx
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('task_artifact_manifests','task_artifact_manifest_items','task_user_confirmations')",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(storage)?;
+        match audit_tables {
+            0 => tx
+                .execute_batch(include_str!("task_audit_repair_schema.sql"))
+                .map_err(storage)?,
+            3 => {}
+            _ => return Err(Error::StorageUnavailable),
+        }
         // 旧发布曾可能在完成版本号写入后中断，留下标称 v20 但缺少该无业务
         // 数据的单例配额表。只补建可推导的配额状态；任务、事件和 Outbox 一律
         // 不在这里猜测或重建。
@@ -722,18 +739,19 @@ impl TaskStore for SqliteTaskStore {
         let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
         let row: Option<(String,i64,String,Option<String>,String)>=tx.query_row("SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(storage)?;
         let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
-        // Jev 可在第一个 CUA 动作启动前交回；交回没有副作用，因此 created 与
-        // running 均是合法边界，仍须同事务追加任务序列、事件和 Outbox。
+        // AD-TM-21：Jev 可在第一个 CUA 动作启动前交回，但 plan.execute 已经
+        // 启动产品执行闭环；交回必须让 created 原子进入 running，避免控制条
+        // 与 Task Space 状态分裂。
         if !matches!(state.as_str(), "created" | "running") || u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?!=expected { return Err(Error::Conflict); }
         let exists:i64=tx.query_row("SELECT count(*) FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",params![task_id,plan_id,plan_version as i64],|r|r.get(0)).map_err(storage)?;
         if exists!=1{return Err(Error::NotFound);}
         let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx.execute("UPDATE tasks SET sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,reason,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
-        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",params![task_id,next as i64,state]).map_err(storage)?;
+        if tx.execute("UPDATE tasks SET state='running',sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,reason,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
+        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,'running')",params![task_id,next as i64,state]).map_err(storage)?;
         tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
         tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![task_id,next as i64,format!(r#"{{"next_intent":{}}}"#, serde_json::to_string(reason).map_err(|_| Error::StorageUnavailable)?) ]).map_err(storage)?;
         tx.commit().map_err(storage)?;
-        Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:status(&state)?,sequence:next})
+        Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next})
     }
     fn supports_execution_attempts(&self) -> bool {
         true
@@ -3329,8 +3347,16 @@ mod tests {
         let created_handback = store
             .hand_back_plan_fragment("created-plan-task", "created-plan", 1, submitted_created.sequence, "需要慢脑重新 Observe 或规划")
             .unwrap();
-        assert_eq!(created_handback.status, Status::Created);
+        assert_eq!(created_handback.status, Status::Running);
         assert_eq!(created_handback.sequence, 3);
+        assert_eq!(
+            store.0.query_row(
+                "SELECT previous,state FROM events WHERE task_id='created-plan-task' AND sequence=3",
+                [],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            ).unwrap(),
+            ("created".into(), "running".into())
+        );
         let facts: (i64, i64) = store
             .0
             .query_row(
@@ -3901,6 +3927,51 @@ mod tests {
             20
         );
         assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
+    }
+
+    #[test]
+    fn current_schema_repairs_only_a_fully_missing_audit_table_group() {
+        let store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        store.0.execute_batch(
+            "DROP TABLE task_user_confirmations;
+             DROP TABLE task_artifact_manifest_items;
+             DROP TABLE task_artifact_manifests;
+             PRAGMA user_version=20;",
+        ).unwrap();
+        let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
+        let task = create(&mut recovered, "recovered-audit-tables").unwrap();
+        assert_eq!(
+            recovered.get_audit(&task.id).unwrap(),
+            yonder_application::TaskAudit::default()
+        );
+        assert_eq!(
+            recovered.0.query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('task_artifact_manifests','task_artifact_manifest_items','task_user_confirmations')",
+                [],
+                |row| row.get::<_, i64>(0),
+            ).unwrap(),
+            3
+        );
+        assert_eq!(
+            recovered.0.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(),
+            20
+        );
+    }
+
+    #[test]
+    fn current_schema_rejects_a_partially_missing_audit_table_group() {
+        let store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        store.0.execute_batch(
+            "DROP TABLE task_user_confirmations;
+             DROP TABLE task_artifact_manifest_items;
+             PRAGMA user_version=20;",
+        ).unwrap();
+        assert!(matches!(
+            SqliteTaskStore::initialize(store.0, true),
+            Err(Error::StorageUnavailable)
+        ));
     }
 
     #[test]
