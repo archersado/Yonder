@@ -21,7 +21,12 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       timeout: request.timeout_ms,
       retry: { maxRetries: 0 },
     });
-    const criteria = Object.fromEntries(request.candidates.map(candidate => [candidate.id, null]));
+    const criteria = Object.fromEntries(request.candidates.map(candidate => [
+      candidate.id,
+      candidate.id === 'handback'
+        ? '仅当没有可派发的已提交候选时选择交回。'
+        : '这是已提交且受支持的候选；当其状态为 true 时可派发该候选。',
+    ]));
     const state = Object.fromEntries(request.candidates.map(candidate => [
       candidate.id,
       candidate.dispatchable && candidate.parameter_complete,
@@ -30,7 +35,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       model: 'jev-latest',
       state: { candidates: state },
       questions: {
-        next: choice('优先选择值为 true 且不是 handback 的候选；只有不存在这类候选时才选择 handback。', criteria),
+        next: choice('选择一个候选。必须优先选择值为 true 且不是 handback 的已提交候选；只有不存在这类候选时才选择 handback。', criteria),
       },
     });
     const answer = result.answers.next;

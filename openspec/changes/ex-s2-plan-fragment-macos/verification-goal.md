@@ -31,3 +31,5 @@
 2026-09-28 验证改用既有 `local-agent-gateway` 无 GUI 独立宿主初始化并服务临时 TaskHost 目录；debug 宿主仅可通过绝对、非链接的 `YONDER_TEST_CUA_RESOURCE_DIR` 读取已签名 bundle 内的 CUA/Jev 资源，正式资源发现路径不变。该路径避免 Tauri 启动崩溃，已到达 `gateway.hello`、协议 1.31、计划提交和 `task.plan.execute`，能力为可用；执行返回安全停止 `-32012`，尚未取得 Jev 已派发的动作。临时任务库与用户 HOME 分离，Keychain 凭据仍不导出；独立宿主的 Keychain 访问身份与 GUI bundle 的差异仍待单独验证。
 
 2026-09-28 已以正式 debug GUI bundle、真实 App Data 与 Keychain 身份运行两条独立固定 fixture 样本。Jev 面板配置为 remote、CUA 启用、单次预算 60 秒；此前 TaskHost 将 Adapter 硬编码为 3 秒，远端选择在该界限后被错误映射为 `-32012`。Adapter 现取面板预算与 30 秒硬上限的较小值，不重试。修复后两次均完成 `task.plan.execute` 并返回合法 `handback`，证明 Jev 调用已完成且未超时；模型未选择已提交动作，故未派发 CUA，尚未构成完整 PASS。
+
+验证 worker 已按 TypeSafe SDK 的 `choice` 约定为每个候选提供说明：可派发候选说明其状态为 true 时可执行，`handback` 明确限定为没有可派发候选时才选择。正式 GUI 新样本仍返回 `handback`；该交回保持为 Jev 的安全决策，不以测试目的删除候选、伪造模型响应或直接绕过 Jev 派发 CUA。

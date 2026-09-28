@@ -246,7 +246,7 @@ try:
         "task.plan.submit", "task.plan.submit", task_id=task["task_id"],
         expected_sequence=task["sequence"], plan_id="native-plan", plan_version=1,
         token_budget=100, slots=[{"step_id": "native-input", "label": "隔离窗口输入验证",
-        "candidates": [{"candidate_id": "type_text", "tool_name": "type_text",
+        "candidates": [{"candidate_id": "cua-dispatch-required", "tool_name": "type_text",
                         "arguments": {"text": "YONDER_SDK_INPUT_A", "delivery_mode": "background"}}]}],
     )
     result["phase"] = "plan-execute"
