@@ -11,6 +11,21 @@ try {
   const inventory = JSON.parse(await driver.listToolsJson());
   const tools = Array.isArray(inventory) ? inventory : inventory.tools ?? [];
   let launchedTarget;
+  const refreshLaunchedTarget = async preferVisible => {
+    if (!launchedTarget) return undefined;
+    const apps = await driver.callTool('list_apps', '{}');
+    const app = !apps.isError ? (structured(apps).apps ?? []).find(item =>
+      item.running && (launchedTarget.bundle_id ? item.bundle_id === launchedTarget.bundle_id : item.pid === launchedTarget.pid)) : undefined;
+    if (Number.isInteger(app?.pid)) launchedTarget.pid = app.pid;
+    const windows = await driver.callTool('list_windows', JSON.stringify({ pid: launchedTarget.pid, on_screen_only: false }));
+    if (apps.isError || windows.isError) return undefined;
+    const listedWindows = (structured(windows).windows ?? []).filter(item => Number.isInteger(item.window_id));
+    const byArea = (left, right) => (right.bounds?.width ?? 0) * (right.bounds?.height ?? 0) - (left.bounds?.width ?? 0) * (left.bounds?.height ?? 0);
+    const visible = listedWindows.filter(item => item.is_on_screen === true && item.on_current_space !== false).sort(byArea);
+    const window = preferVisible && visible.length ? visible[0] : listedWindows.sort(byArea)[0];
+    if (window) launchedTarget.window_id = window.window_id;
+    return { window, visible: visible.length > 0 };
+  };
   for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
     let request;
     try { request = JSON.parse(line); } catch { process.exitCode = 2; break; }
@@ -32,15 +47,19 @@ try {
     try {
       const descriptor = tools.find(tool => tool.name === request.tool_name);
       if (!descriptor) throw new Error('tool unavailable');
+      if (request.tool_name === 'bring_to_front' && launchedTarget?.task_id === request.task_id) {
+        response.failure_stage = 'target-refresh';
+        await refreshLaunchedTarget(false);
+      }
       response.failure_stage = 'observe-before';
-      const args = { pid: request.pid, window_id: request.window_id, include_screenshot: false, max_elements: 100 };
+      const target = request.tool_name === 'bring_to_front' && launchedTarget?.task_id === request.task_id ? launchedTarget : request;
+      const args = { pid: target.pid, window_id: target.window_id, include_screenshot: false, max_elements: 100 };
       const before = await driver.callTool('get_window_state', JSON.stringify(args));
       if (!before.isError) {
         const schema = descriptor.inputSchema ?? descriptor.input_schema ?? {};
         const properties = schema.properties ?? {};
         const actionArgs = { ...request.arguments };
         const desktopScope = actionArgs.scope === 'desktop';
-        const target = request.tool_name === 'bring_to_front' && launchedTarget?.task_id === request.task_id ? launchedTarget : request;
         if (!desktopScope && 'pid' in properties) actionArgs.pid = target.pid;
         if (!desktopScope && 'window_id' in properties && Number.isInteger(target.window_id)) actionArgs.window_id = target.window_id;
         if (!desktopScope && 'windowId' in properties && Number.isInteger(target.window_id)) actionArgs.windowId = target.window_id;
@@ -105,18 +124,8 @@ try {
           if (launchedTarget?.task_id === request.task_id && ['launch_app', 'bring_to_front'].includes(request.tool_name)) {
             const deadline = Date.now() + (request.tool_name === 'launch_app' ? 0 : 2000);
             do {
-              const apps = await driver.callTool('list_apps', '{}');
-              const app = !apps.isError ? (structured(apps).apps ?? []).find(item =>
-                item.running && (launchedTarget.bundle_id ? item.bundle_id === launchedTarget.bundle_id : item.pid === launchedTarget.pid)) : undefined;
-              if (Number.isInteger(app?.pid)) launchedTarget.pid = app.pid;
-              const windows = await driver.callTool('list_windows', JSON.stringify({ pid: launchedTarget.pid, on_screen_only: false }));
-              if (!apps.isError && !windows.isError) {
-                const listedWindows = structured(windows).windows ?? [];
-                const window = listedWindows.find(item => item.is_on_screen === true && item.on_current_space !== false);
-                if (Number.isInteger(window?.window_id)) launchedTarget.window_id = window.window_id;
-                const visible = window?.is_on_screen === true && window?.on_current_space !== false;
-                response.target_visible = request.tool_name === 'bring_to_front' && !action.isError && visible;
-              }
+              const refreshed = await refreshLaunchedTarget(true);
+              response.target_visible = request.tool_name === 'bring_to_front' && !action.isError && refreshed?.visible === true;
               if (response.target_visible === true || Date.now() >= deadline) break;
               await new Promise(resolve => setTimeout(resolve, 100));
             } while (true);
