@@ -18,3 +18,5 @@ OpenSpec: tm-s8-unified-product-chain
 ## 当前结论
 
 四类底层能力及统一启动已有 macOS 子范围证据，但尚无一份同时证明真实慢脑 MCP 接入、Yonder GUI 可见、完整编排、确认、执行、Observe、审计与终态的统一产品证据。本 Story 专门关闭该差距；Windows 按用户决定暂缓，不据此标记双平台 Done。
+
+2026-09-28 已完成统一执行浮窗的 macOS 增量验收：正式 Gateway 创建的 BUA 与 CUA 任务在运行期间均显示顶部浮窗、同步当前步骤，并在终态关闭；BUA 不显示桌面接管，CUA 保留接管触点。四类完整产品闭环及 Windows 证据仍按任务清单推进，不因本次增量验收提前标记 Story Done。
