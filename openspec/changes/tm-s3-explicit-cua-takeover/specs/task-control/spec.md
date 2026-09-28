@@ -18,6 +18,11 @@
 - **WHEN** 用户在当前 CUA 控制卡点击“接管电脑”
 - **THEN** 系统冻结后续动作、等待当前动作 Observe，并以最新任务 sequence 提交既有 takeover 控制
 
+#### Scenario: 步骤间点击接管
+
+- **WHEN** 控制卡仍显示且 CUA 处于动作响应之后、下一条 Agent 请求之前
+- **THEN** 宿主立即在任务串行边界提交 takeover，不等待新的 Gateway 帧，投影刷新期间按钮保持禁用
+
 #### Scenario: 控制卡位置
 
 - **WHEN** CUA 在多显示器环境开始执行
