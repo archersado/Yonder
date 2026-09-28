@@ -672,6 +672,7 @@ impl TaskHost {
 
     /// 未来GUI命令还须校验本地task-space窗口；不能对Agent暴露本机权限。
     pub fn query(&mut self, request: &[u8], now_ms: u64) -> Result<Vec<u8>, HostError> {
+        let cancel_task = yonder_application::gateway::cancel_request_task(request);
         let response = yonder_application::query::handle_encoded_current(
             &mut self.store,
             AuthContext::LocalUser("desktop"),
@@ -679,6 +680,9 @@ impl TaskHost {
             now_ms,
         )
         .map_err(|_| HostError::StorageUnavailable)?;
+        if cancel_task.as_deref().is_some_and(|task_id|yonder_application::gateway::terminal_task_id(&response).as_deref()==Some(task_id)) {
+            if let Err(error)=self.finish_cancelled_runtime(cancel_task.as_deref().unwrap()){eprintln!("取消后的运行时清理失败：{error:?}");}
+        }
         #[cfg(target_os = "macos")]
         if let Some((task_id, kind)) = yonder_application::gateway::local_control_request(request) {
             if yonder_application::gateway::response_is_stopped_control(&response) {
@@ -839,6 +843,7 @@ impl TaskHost {
         request: &[u8],
         now_ms: u64,
     ) -> Result<Vec<u8>, HostError> {
+        let cancel_task = yonder_application::gateway::cancel_request_task(request);
         #[cfg(target_os = "macos")]
         let browser = self
             .browser
@@ -908,6 +913,9 @@ impl TaskHost {
                 now_ms,
             )
             .map_err(|_| HostError::StorageUnavailable)?;
+        if cancel_task.as_deref().is_some_and(|task_id|yonder_application::gateway::terminal_task_id(&response).as_deref()==Some(task_id)) {
+            if let Err(error)=self.finish_cancelled_runtime(cancel_task.as_deref().unwrap()){eprintln!("取消后的运行时清理失败：{error:?}");}
+        }
         #[cfg(target_os = "macos")]
         if let Some(target) = captured_target {
             if yonder_application::gateway::response_is_computer_success(&response) {
@@ -932,6 +940,18 @@ impl TaskHost {
             self.task_space_open_pending = true;
         }
         Ok(response)
+    }
+
+    fn finish_cancelled_runtime(&mut self, task_id: &str) -> Result<(), HostError> {
+        if self.admission.holds(task_id).map_err(|_| HostError::StorageUnavailable)? {
+            self.admission.release_task_after_stop(task_id).map_err(|_| HostError::StorageUnavailable)?;
+        }
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(computer)=self.computer.as_ref(){computer.end_session();}
+            if let Some(reference)=self.work_refs.remove(task_id){self.focus.release(&reference);}
+        }
+        Ok(())
     }
 
     /// 仅供已认证 Local Socket 在成功新建后消费一次展示请求。
@@ -1235,6 +1255,27 @@ mod tests {
         for name in ["tasks.db", "host.lock"] {
             std::fs::remove_file(directory.join(name)).unwrap();
         }
+        std::fs::remove_dir(directory.join("observations")).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn direct_running_cancel_releases_host_admission() {
+        use yonder_application::admission::Resource;
+        let directory=std::env::temp_dir().join(format!("yonda-host-cancel-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host=TaskHost::open(&directory).unwrap();
+        let created=create(&mut host.store,"cancel-running",AuthContext::Agent("agent-a")).unwrap();
+        let permit=host.admission.try_acquire(&created.id,&[Resource::Desktop]).unwrap();
+        drop(permit);
+        let running=transition(&mut host.store,&created.id,created.sequence,Action::Start).unwrap();
+        let request=format!(r#"{{"jsonrpc":"2.0","id":"cancel","method":"task.cancel","params":{{"agent_id":"desktop","capability":"task.cancel","deadline":2000,"task_id":"{}","expected_sequence":"{}"}}}}"#,running.id,running.sequence);
+        let response=host.query(request.as_bytes(),1_000).unwrap();
+        let response:serde_json::Value=serde_json::from_slice(&response).unwrap();
+        assert_eq!(response["result"]["task"]["status"],"cancelled");
+        assert!(!host.admission.holds(&running.id).unwrap());
+        drop(host);
+        for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}
         std::fs::remove_dir(directory.join("observations")).unwrap();
         std::fs::remove_dir(directory).unwrap();
     }

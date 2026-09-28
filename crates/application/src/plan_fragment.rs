@@ -79,6 +79,7 @@ pub fn execute_one(
     auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str,
 ) -> Result<(crate::Task, &'static str), crate::Error> {
     if !matches!(auth, crate::AuthContext::Agent(_)) { return Err(crate::Error::PermissionDenied); }
+    if computer.explicit_takeover_requested(task_id) { return Ok((store.get(task_id)?, "takeover-requested")); }
     let stored=store.get_plan_fragment(task_id,plan_id,plan_version)?.ok_or(crate::Error::NotFound)?;
     if stored.owner_agent_id != auth.agent_id() || stored.fragment.deadline_ms <= now_ms || expected != store.get(task_id)?.sequence { return Err(crate::Error::Conflict); }
     let index=usize::from(stored.current_slot);
@@ -144,6 +145,9 @@ pub fn execute_available(
     let allowed = remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));
     let mut sequence = expected;
     for _ in 0..allowed {
+        if computer.explicit_takeover_requested(task_id) {
+            return Ok((store.get(task_id)?, "takeover-requested"));
+        }
         let (task, disposition) = execute_one(
             store, admission, computer, targets, config, jev, auth, task_id, plan_id,
             plan_version, sequence, now_ms, host_session_id,

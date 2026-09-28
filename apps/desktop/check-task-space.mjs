@@ -106,7 +106,7 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureListRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[]; window.fixtureCommandDecisions=[];
+    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureCancelRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureListRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[]; window.fixtureCommandDecisions=[];
     window.fixtureCommandApprovals=[{taskId:'test-task-20',commandId:'command_fixture_1',state:'awaiting-user',expiresAtMs:Date.now()+60000,preview:{commandId:'command_fixture_1',program:'/usr/bin/printf',args:['%s','hello world'],cwd:'/tmp',env:{LANG:'zh_CN.UTF-8'},timeoutMs:1000,expiresAtMs:0}}];
     window.fixtureCommandApprovals[0].preview.expiresAtMs=window.fixtureCommandApprovals[0].expiresAtMs;
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
@@ -171,7 +171,8 @@ export async function checkTaskSpace(page) {
       if (method === 'task.browser.get' && window.fixtureBrowserError) throw new Error('测试浏览器引用失败');
       const listed = method === 'task.list' && params.running_only ? tasks.filter(task => task.status === 'running') : tasks;
       const start = params.after_task_id ? listed.findIndex(task => task.task_id === params.after_task_id)+1 : 0;
-      const result = method === 'task.control' ? (window.fixtureControlRequests.push(params),{kind:'control',task:{...tasks.find(task=>task.task_id===params.task_id),sequence:'3'},control:{attempt_id:'attempt-1',control_id:'control_2',kind:params.kind,phase:'pending',accepted_sequence:'3',stopped_sequence:null}})
+      const result = method === 'task.cancel' ? (()=>{window.fixtureCancelRequests.push(params);const task=tasks.find(task=>task.task_id===params.task_id);task.status='cancelled';task.sequence=String(Number(task.sequence)+1);return {kind:'snapshot',task};})()
+        : method === 'task.control' ? (window.fixtureControlRequests.push(params),{kind:'control',task:{...tasks.find(task=>task.task_id===params.task_id),sequence:'3'},control:{attempt_id:'attempt-1',control_id:'control_2',kind:params.kind,phase:'pending',accepted_sequence:'3',stopped_sequence:null}})
         : method === 'task.step.get' ? {kind:'step',task:tasks.find(task => task.task_id === params.task_id),step:{step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'}}
         : method === 'task.browser.get' ? {kind:'browser-state',task:tasks.find(task => task.task_id === params.task_id),reference:{external_task_ref:'ego:49',ownership:'agent',managed_pages:1,finished:false,updated_sequence:'3'}}
         : method === 'task.events' && window.fixtureCreationHistory ? {kind:'events',task_id:params.task_id,events:params.after_sequence === '0' ? [
@@ -209,7 +210,7 @@ export async function checkTaskSpace(page) {
   assert.deepEqual(await page.evaluate(() => window.fixtureControlRequests),[{taskId:'test-task-00',expectedSequence:'4'}]);
   assert.ok((await page.evaluate(() => document.getElementById('notice').textContent)).includes('确认边界后可接管'));
   await page.click('#refresh');
-  await page.waitForFunction(() => [...document.querySelectorAll('.task-actions')][0].querySelectorAll('button')[0].textContent === '正在停止…' && [...document.querySelectorAll('.task-actions')][0].querySelectorAll('button')[1].disabled);
+  await page.waitForFunction(() => [...document.querySelectorAll('.task-actions')][0].querySelectorAll('button')[0].textContent === '正在停止…' && ![...document.querySelectorAll('.task-actions')][0].querySelectorAll('button')[1].disabled);
   await page.click('#next');
   await page.waitForFunction(() => document.querySelectorAll('.task').length === 1);
   assert.equal(await page.evaluate(() => document.querySelector('.task strong').textContent), 'test-task-20');
@@ -351,5 +352,9 @@ export async function checkTaskSpace(page) {
   assert.ok(attemptStartText.includes('执行尝试已准备（步骤 step-one · 尝试 attempt-one）'));
   assert.ok(!attemptStartText.includes('worker-secret') && !attemptStartText.includes('host-secret'));
   await page.evaluate(() => { window.fixtureAttemptStartHistory = false; });
+  await page.click('.task-actions button:nth-child(2) >> nth=0');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('任务已取消'));
+  assert.deepEqual(await page.evaluate(() => window.fixtureCancelRequests.map(({task_id,expected_sequence})=>({task_id,expected_sequence}))),[{task_id:'test-task-00',expected_sequence:'4'}]);
+  assert.equal(await page.evaluate(() => window.fixtureControlRequests.some(request => request.kind === 'cancel')),false);
   return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,commandApprovalPreview:true,commandApprovalApprove:true,commandApprovalRevoke:true,auditConfirmation:true,auditConfirmedProjection:true,artifactEmpty:true,artifactVersionChange:true,artifactPagination:true,artifactPartialFailure:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }

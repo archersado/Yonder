@@ -41,6 +41,7 @@ pub fn execute_agent_action(
     auth:AuthContext<'_>, task_id:&str, expected:u64, tool_name:&str, arguments_json:&str, host_session_id:&str,
 ) -> Result<(Task,AttemptResultRecord,Option<ComputerObservation>),Error> {
     if tool_name.is_empty()||tool_name.len()>64||arguments_json.is_empty()||arguments_json.len()>16*1024||arguments_json.contains('\0')||!crate::valid_id(host_session_id){return Err(Error::InvalidInput);}
+    if port.explicit_takeover_requested(task_id){return Err(Error::StopRequired);}
     let (task,step)=crate::get_with_step(store,auth,task_id)?; let step=step.ok_or(Error::StopRequired)?;
     if task.sequence!=expected{return Err(Error::Conflict);}
     let target=targets.frontmost().map_err(|_|Error::StopRequired)?;
@@ -63,6 +64,7 @@ pub fn execute_agent_step(
     store:&mut impl TaskStore,admission:&Admission,port:&(impl ComputerUsePort + ?Sized),targets:&(impl WorkTargetPort + ?Sized),auth:AuthContext<'_>,
     task_id:&str,expected:u64,step_id:&str,label:&str,tool_name:&str,arguments_json:&str,host_session_id:&str,
 )->Result<(Task,AttemptResultRecord,Option<ComputerObservation>),Error>{
+    if port.explicit_takeover_requested(task_id){return Err(Error::StopRequired);}
     let (declared,_)=crate::declare_step(store,auth,task_id,expected,step_id,label)?;
     let (task,result,observation)=execute_agent_action(store,admission,port,targets,auth,task_id,declared.sequence,tool_name,arguments_json,host_session_id)?;
     if !matches!(&result.conclusion,crate::AttemptConclusion::Observed{..}){return Ok((task,result,observation));}

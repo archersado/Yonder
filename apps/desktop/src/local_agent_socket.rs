@@ -137,8 +137,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?;
         let execution_hint = yonder_application::gateway::execution_presentation_hint(&frame, &agent_id, now);
         let cua_hint = yonder_application::gateway::cua_execution_presentation_hint(&frame, &agent_id, now);
-        let mut execution_started = false;
-        let (response, presentation, takeover_result, open_task_space) = {
+        let (response, presentation, suppress_stale_presentation, open_task_space) = {
             let mut locked = host.lock().map_err(|_| io::Error::other("本地Gateway不可用"))?;
             let host_ref = locked.as_mut().ok_or_else(|| io::Error::other("本地Gateway不可用"))?;
             if let Some(hint) = execution_hint.as_ref() {
@@ -155,32 +154,17 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                         cua_hub.finish(task_id);
                         return Err(error);
                     }
-                    execution_started=true;
                     }
                 }
             }
             let response = host_ref.query_session(&mut session, &frame, now);
             let open_task_space = response.is_ok() && host_ref.take_task_space_open_pending();
-            let takeover_result = cua_hint.as_ref().and_then(|hint| {
-                let task_id=hint_task_id(hint);
-                if !execution_started || !cua_hub.take_takeover_requested(task_id) { return None; }
-                let takeover_now=u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_millis()).ok()?;
-                Some(response.as_ref().map_err(|_|()).and_then(|_|host_ref.user_takeover_current(task_id,takeover_now).map_err(|_|())))
-            });
+            // 接管由可信窗口命令在同一个 TaskHost 锁边界内唯一消费。这里若已登记，
+            // 不得在释放锁后用动作返回前取得的 running 投影覆盖窗口命令的 paused 投影。
+            let suppress_stale_presentation = cua_hint.as_ref().is_some_and(|hint|cua_hub.takeover_requested(hint_task_id(hint)));
             let presentation = host_ref.presentation().ok();
-            (response, presentation, takeover_result, open_task_space)
+            (response, presentation, suppress_stale_presentation, open_task_space)
         };
-        if execution_started {
-            match takeover_result {
-                Some(Ok(_)) => {
-                    if let Some(hint)=cua_hint.as_ref(){cua_hub.finish(hint_task_id(hint));}
-                    let _=cua_control.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'taken-over'}))");
-                    let _=cua_control.hide();
-                },
-                Some(Err(())) => { let _=cua_control.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'failed'}))"); },
-                None => {},
-            }
-        }
         if open_task_space {
             // Local Socket 在 Tokio worker 中处理；窗口操作须回到 Cocoa 主线程，
             // 否则创建虽成功但任务窗口不会被真正展示。
@@ -195,9 +179,9 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         }
         let response=response.map_err(|_|io::Error::other("本地Gateway调用失败"))?;
         if let Some(task_id)=yonder_application::gateway::terminal_task_id(&response) {
-            if cua_hub.finish(&task_id) { let _=cua_control.hide(); }
+            if cua_hub.finish(&task_id) || cua_hub.presentation().is_none() { let _=cua_control.hide(); }
         }
-        if let Some((has_tasks, state, step_label)) = presentation {
+        if !suppress_stale_presentation { if let Some((has_tasks, state, step_label)) = presentation {
             if let Some((terminal,event_id))=yonder_application::gateway::terminal_presentation(&frame,&response){
                 emit_pet_terminal_presentation(&pet,has_tasks,terminal,&event_id,has_tasks,state,step_label.as_deref());
             }else{
@@ -211,7 +195,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                     if let Some((has_tasks, state, step_label)) = presentation { emit_pet_presentation(&pet, has_tasks, state, step_label.as_deref()); }
                 });
             }
-        }
+        }}
         (&stream).write_all(&response).await?;
         (&stream).write_all(b"\n").await?;
         if let Some((agent_id, session_id, supports_attachment)) = registration {

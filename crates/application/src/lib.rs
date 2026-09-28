@@ -974,7 +974,7 @@ pub fn events(
     store.events(id, after, limit)
 }
 
-/// 仅未开始任务；停止执行过的任务必须使用Driver停止确认契约。
+/// 用户已明确取消不等待副作用回收；所有非终态任务都以同一CAS事实直接终止。
 pub fn cancel_pending(
     store: &mut impl TaskStore,
     auth: AuthContext<'_>,
@@ -997,7 +997,7 @@ pub fn cancel_pending(
     if expected != task.sequence {
         return Err(Error::Conflict);
     }
-    if task.status != Status::Created {
+    if matches!(task.status, Status::Completed | Status::Failed) {
         return Err(Error::StopRequired);
     }
     transition(store, id, expected, Action::Cancel)

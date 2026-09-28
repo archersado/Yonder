@@ -3445,6 +3445,13 @@ mod tests {
             }
             fn explicit_takeover_requested(&self, _: &str) -> bool { !self.0.lock().unwrap().is_empty() }
         }
+        struct PendingTakeoverPort;
+        impl ComputerUsePort for PendingTakeoverPort {
+            fn dispatch(&self, _: &ExecutionAttempt, _: &WorkTarget, _: &ComputerAction) -> DispatchOutcome {
+                panic!("已登记接管后不得派发新动作")
+            }
+            fn explicit_takeover_requested(&self, _: &str) -> bool { true }
+        }
         struct MustNotChoose;
         impl JevDecisionPort for MustNotChoose {
             fn choose(&self, _: &JevConfig, _: &JevDecisionRequest) -> Result<JevModelChoice, JevDecisionError> {
@@ -3512,13 +3519,24 @@ mod tests {
         let takeover_submitted=store.submit_plan_fragment("a1",&takeover_fragment).unwrap();
         let takeover_port=TakeoverPort(Mutex::new(Vec::new()));
         let (takeover_result,takeover_disposition)=execute_available(
-            &mut store,&Admission::new(1).unwrap(),&takeover_port,&Target,&JevConfig{step_limit:10,..budget_config},&MustNotChoose,
+            &mut store,&Admission::new(1).unwrap(),&takeover_port,&Target,&JevConfig{step_limit:10,..budget_config.clone()},&MustNotChoose,
             AuthContext::Agent("a1"),&takeover_task.id,&takeover_fragment.plan_id,1,takeover_submitted.sequence,1_000,"host",
         ).unwrap();
         assert_eq!(takeover_disposition,"takeover-requested");
         assert_eq!(*takeover_port.0.lock().unwrap(),vec!["launch_app"]);
         assert_eq!(store.get_plan_fragment(&takeover_task.id,&takeover_fragment.plan_id,1).unwrap().unwrap().current_slot,1);
         assert_eq!(takeover_result.status,Status::Running);
+
+        let pending_task=create(&mut store,"pending-takeover-plan").unwrap();
+        let pending_fragment=PlanFragment{task_id:pending_task.id.clone(),plan_id:"pending-takeover-plan-v1".into(),expected_sequence:pending_task.sequence,..takeover_fragment};
+        let pending_submitted=store.submit_plan_fragment("a1",&pending_fragment).unwrap();
+        let (pending_result,pending_disposition)=execute_available(
+            &mut store,&Admission::new(1).unwrap(),&PendingTakeoverPort,&Target,&JevConfig{step_limit:10,..budget_config},&MustNotChoose,
+            AuthContext::Agent("a1"),&pending_task.id,&pending_fragment.plan_id,1,pending_submitted.sequence,1_000,"host",
+        ).unwrap();
+        assert_eq!(pending_disposition,"takeover-requested");
+        assert_eq!(pending_result.sequence,pending_submitted.sequence);
+        assert_eq!(store.get_plan_fragment(&pending_task.id,&pending_fragment.plan_id,1).unwrap().unwrap().current_slot,0);
     }
 
     #[test]
@@ -5291,11 +5309,9 @@ mod tests {
             Err(Error::Conflict)
         );
         transition(&mut store, &other.id, 1, Action::Start).unwrap();
-        assert_eq!(
-            cancel_pending(&mut store, AuthContext::LocalUser("desktop"), &other.id, 2),
-            Err(Error::StopRequired)
-        );
-        assert_eq!(store.get(&other.id).unwrap().status, Status::Running);
+        let running_cancelled=cancel_pending(&mut store, AuthContext::LocalUser("desktop"), &other.id, 2).unwrap();
+        assert_eq!(running_cancelled.status, Status::Cancelled);
+        assert_eq!(store.get(&other.id).unwrap().status, Status::Cancelled);
         let count: i64 = store
             .0
             .query_row(

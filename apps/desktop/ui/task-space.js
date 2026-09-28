@@ -470,7 +470,7 @@ async function load(reset = true) {
       const actions = document.createElement('div'); actions.className = 'task-actions';
       actions.append(
         action(task, pending ? '正在停止…' : '接管', pending ? '停止请求已登记' : task.status === 'running' ? '' : '仅执行中的任务支持接管', (task,button)=>controlTask(task,'takeover',button)),
-        action(task, pending ? '正在停止…' : '取消任务', pending ? '停止请求已登记' : ['created','running'].includes(task.status) ? '' : '仅未开始或执行中的任务支持取消', task.status === 'created' ? cancelTask : (task,button)=>controlTask(task,'cancel',button))
+        action(task, '取消任务', ['completed','failed','cancelled'].includes(task.status) ? '终态任务不能再次取消' : '', cancelTask)
       );
       li.append(actions); tasks.append(li);
     }

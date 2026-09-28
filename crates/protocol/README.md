@@ -26,7 +26,7 @@ ts-rs 12.0.1 对枚举的 serde `deny_unknown_fields` 会输出忽略警告；Ru
 
 协议1.1会话可在存储支持且身份为Agent时协商task.create；参数为agent_id、capability、deadline、idempotency_key、description。返回当前任务快照，同键同说明重试不重复创建，不同说明返回-32009。1.0仅查询；身份必须由可信连接绑定，description不作为可执行指令。
 
-协议1.2提供task.cancel（仅未开始任务），参数task_id/expected_sequence及统一身份/能力/deadline；返回snapshot。旧序号-32011，执行过任务-32012需停止确认。绑定LocalUser可控制已有任务，Agent须握手且只控制所属；created取消与事件/Outbox同事务，重复不增事件。详见AD-TM-04。
+协议1.2提供task.cancel，参数task_id/expected_sequence及统一身份/能力/deadline；返回snapshot。按2026-09-28产品决定，created/running/paused/waiting_for_user/interrupted均可直接取消，状态、事件与Outbox同事务；外部副作用回收不是取消前置。绑定LocalUser可控制已有任务，Agent须握手且只控制所属，重复不增事件。详见AD-TM-04。
 
 2026-09-14：AD-TM-07名称子范围协议1.3。协商1.3的task.create必须提供name（1–256 UTF-8字节，trim非空，无控制字符）；snapshot/list返回同一Agent名称。1.0–1.2快照保持原字段形状，1.1–1.2无名称创建兼容，旧版携带name拒绝-32010。相同幂等键不同名称或说明拒绝-32009。生成产物仍仅来自Rust。
 

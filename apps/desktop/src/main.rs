@@ -552,6 +552,12 @@ async fn task_query(window: WebviewWindow, state: State<'_, TaskState>, request:
     if let (Some(pet), Some((has_tasks, task_state, step_label))) = (pet, presentation) {
         yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state, step_label.as_deref());
     }
+    if let Some(task_id)=yonder_application::gateway::terminal_task_id(response.as_bytes()) {
+        let hub=window.app_handle().state::<yonder_desktop::CuaControlHub>();
+        if hub.finish(&task_id) || hub.presentation().is_none() {
+            if let Some(control)=window.app_handle().get_webview_window("cua-control"){let _=control.hide();}
+        }
+    }
     Ok(response)
 }
 
@@ -571,10 +577,31 @@ async fn user_takeover(window:WebviewWindow,state:State<'_,TaskState>,task_id:St
 }
 
 #[tauri::command]
-fn cua_control_takeover(window:WebviewWindow,hub:State<'_,yonder_desktop::CuaControlHub>,task_id:String)->Result<&'static str,String>{
+async fn cua_control_takeover(window:WebviewWindow,state:State<'_,TaskState>,hub:State<'_,yonder_desktop::CuaControlHub>,task_id:String)->Result<&'static str,String>{
     if window.label()!="cua-control"{return Err("不允许的窗口".into())}
     if !hub.request_takeover(&task_id){return Err("当前没有可接管的 CUA 操作".into())}
-    Ok("accepted")
+    let host=Arc::clone(&state.0);let hub=hub.inner().clone();let claimed_hub=hub.clone();let claimed_task_id=task_id.clone();
+    let result=tauri::async_runtime::spawn_blocking(move||{
+        let mut host=host.lock().map_err(|_|"任务存储不可用")?;
+        let host=host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
+        if !claimed_hub.take_takeover_requested(&claimed_task_id){return Err("接管请求已失效")}
+        let now=u64::try_from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_|"系统时间不可用")?.as_millis()).map_err(|_|"系统时间不可用")?;
+        host.user_takeover_current(&claimed_task_id,now).map_err(|_|"未能安全停止")?;
+        Ok::<_,&'static str>(host.presentation().ok())
+    }).await.map_err(|_|"接管中断".to_owned()).and_then(|value|value.map_err(str::to_owned));
+    match result {
+        Ok(presentation)=>{
+            hub.finish(&task_id);
+            let _=window.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'taken-over'}))");
+            let _=window.hide();
+            if let(Some(pet),Some((has_tasks,task_state,step_label)))=(window.app_handle().get_webview_window("pet"),presentation){yonder_desktop::emit_pet_presentation(&pet,has_tasks,task_state,step_label.as_deref());}
+            Ok("accepted")
+        }
+        Err(error)=>{
+            let _=window.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'failed'}))");
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
