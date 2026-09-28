@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "platform": "macos",
+  "product_entry": "codex -> packaged yonder mcp -> uds -> gateway",
+  "slow_brain": "codex",
+  "fast_brain": "jev",
+  "candidate_count": 2,
+  "plan_submit_disposition": "accepted",
+  "plan_execute_disposition": "handback",
+  "snapshot": {
+    "status": "running",
+    "sequence": "3",
+    "next_intent": "需要慢脑重新 Observe 或规划"
+  },
+  "events": [
+    "created->created",
+    "created->created",
+    "created->running"
+  ],
+  "task_get_readable": true,
+  "task_events_readable": true,
+  "message_sent": false,
+  "passed": true
+}

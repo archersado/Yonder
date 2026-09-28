@@ -12,5 +12,5 @@
 - [x] 收敛快慢脑职责：单一已验证慢脑步骤直接执行；仅多候选 Observe 动作空间调用 Jev 选择；单次 Gateway 调用同步连续消费剩余槽位，并覆盖连续片段与异常交回验证
 - [ ] 覆盖语义候选、确认不持久化、条件偏离交回及企业微信真实 CUA 样本
 - [x] 建立并运行 macOS 独立 Verification Goal
-- [ ] 在安装包 CLI/MCP 导出计划提交与执行，并以真实 Codex MCP 证明快慢脑产品入口
+- [x] 在安装包 CLI/MCP 导出计划提交与执行，并以真实 Codex MCP 证明快慢脑产品入口
 - [ ] 归档 Change；Windows 证据保留为 EX-S2 Story 的未完成项
