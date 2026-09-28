@@ -17,6 +17,8 @@ OpenSpec: ds-s2-task-overview
 
 2026-09-28用户变更：当前执行任务的可信步骤已透出到 Yonder 形象状态条；不显示任务名或其他任务步骤，离开执行态立即清理。Rust/Application 投影、前端状态与 macOS 原生 WebKit 证据通过，见[形象当前步骤独立验证](../../../../openspec/changes/ds-s2-task-overview/verification-pet-current-step-macos.md)；Windows仍暂缓，完整Story保持verifying。
 
+2026-09-28：用户验证真实 Local Socket 创建任务时发现任务未在当前 Yonder 透出；建立 `ds-s2-agent-create-visibility` 增量，复用创建成功的短生命周期展示事实自动展开任务空间，不改变任务状态、协议或持久化。
+
 2026-09-18：首批任务总览的 macOS 实施与独立验证已 PASS，覆盖可信本机宿主、真实两任务、轻量菜单、分页/详情/错误保留及并发刷新。详见 [汇总 Verification Goal](../../../../openspec/changes/ds-s2-task-overview/verification-goal.md)。卡片操作由增量 Change `ds-s2-task-card-actions` 承接。浏览器任务的外部 ego-lite 引用读取与用户交接已由 [BU-S2 独立验证](../../../../openspec/changes/bu-s2-browser-reference-read/verification-goal.md)完成。接管停止与定位已在 macOS 当前 Space 增量中通过 [TM-S3 独立验证](../../../../openspec/changes/tm-s3-takeover-work-focus/verification-goal.md)，且未启动 Recording；Windows、跨 Space/多显示器、Recording 与交回 Observe 仍保留门禁，Story 保持 verifying。
 
 2026-09-22：人工接管/Recording设计已按 AD-RC-01 的“受控会话输入”契约回写。Recording继续默认关闭，DS不得宣称物理用户来源或启用录制入口；产品Recording协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。

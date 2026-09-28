@@ -31,6 +31,12 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 2026-09-18 按 AD-DS-03 修正进行中分页：`task.list` 1.16 以可选 `running_only` 在 SQLite `LIMIT` 前筛选；进行中使用 `true`，全部使用 `false/include_finished=true`。授权、ID 排序、排他游标及页大小不变，UI 不从未结束页推导运行页。
 
 先完成查询协议和桌面前置门禁，禁止以假任务列表替代执行闭环。
+
+## Agent 新建任务即时透出（2026-09-28 用户变更）
+
+本增量复用 TaskHost 已有 `accepted_create → listening_pending` 短生命周期派生事实；Local Socket 在成功请求后的 `presentation()` 返回 `listening` 时，调用 Desktop 共享的“在 pet 旁展示 task-space”函数。该函数只定位、显示窗口并发出已有 `yonda-tasks-open` 事件，任务列表仍由 task-space 经固定本机身份重新查询 SQLite/Gateway 快照。
+
+不新增事件表、协议字段、进程间通道或 UI 状态所有者。显示失败被吞为本机呈现失败，绝不回滚已提交的 `task.create`；同一 listening 周期消费一次展示信号，CUA 控制条、语音和圈选窗口存在时不抢焦点。
 失败不得隐式重试未知副作用。验证覆盖正常、拒绝和中断路径；沿用架构依赖与关联检查。
 
 ## 架构影响
