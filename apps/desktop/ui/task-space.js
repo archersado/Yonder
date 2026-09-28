@@ -452,7 +452,7 @@ async function load(reset = true) {
   placeholder('选择任务查看详情'); message('正在读取任务…');
   next.hidden = true; refresh.disabled = true;
   try {
-    const result = await query('task.list', { after_task_id: cursor, include_finished: includeFinished, running_only: !includeFinished, limit: 20 });
+    const result = await query('task.list', { after_task_id: cursor, include_finished: includeFinished, running_only: !includeFinished, newest_first: true, limit: 20 });
     if (current !== round) return;
     if (result.kind !== 'tasks' || !Array.isArray(result.tasks)) throw new Error('任务列表响应不可用');
     const visibleTasks = result.tasks;

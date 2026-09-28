@@ -831,6 +831,9 @@ pub struct ListParams {
     #[serde(default)]
     #[ts(as = "Option<bool>", optional)]
     pub running_only: bool,
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub newest_first: bool,
     #[schemars(range(min = 1, max = 100))]
     pub limit: u8,
 }

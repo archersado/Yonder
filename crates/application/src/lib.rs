@@ -309,6 +309,9 @@ pub trait TaskStore {
     fn supports_running_filter(&self) -> bool {
         false
     }
+    fn supports_newest_first(&self) -> bool {
+        false
+    }
     /// 未升级的实现拒绝登记；能力声明不访问数据库。
     fn supports_registration(&self) -> bool {
         false
@@ -563,6 +566,23 @@ pub trait TaskStore {
         limit: usize,
     ) -> Result<Vec<Task>, Error>;
     fn list_running(
+        &mut self,
+        _: Option<&str>,
+        _: Option<&str>,
+        _: usize,
+    ) -> Result<Vec<Task>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn list_newest(
+        &mut self,
+        _: Option<&str>,
+        _: Option<&str>,
+        _: bool,
+        _: usize,
+    ) -> Result<Vec<Task>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn list_running_newest(
         &mut self,
         _: Option<&str>,
         _: Option<&str>,
@@ -919,6 +939,28 @@ pub fn list_running(
         tasks,
         next_after_task_id,
     })
+}
+
+pub fn list_newest(
+    store: &mut impl TaskStore,
+    auth: AuthContext<'_>,
+    after: Option<&str>,
+    include_finished: bool,
+    running_only: bool,
+    limit: usize,
+) -> Result<TaskPage, Error> {
+    validate_id(auth.agent_id())?;
+    if let Some(id) = after { validate_id(id)?; }
+    if !(1..=100).contains(&limit) { return Err(Error::InvalidInput); }
+    let mut tasks = if running_only {
+        store.list_running_newest(auth.owner_filter(), after, limit + 1)?
+    } else {
+        store.list_newest(auth.owner_filter(), after, include_finished, limit + 1)?
+    };
+    let more = tasks.len() > limit;
+    tasks.truncate(limit);
+    let next_after_task_id = more.then(|| tasks.last().map(|task| task.id.clone())).flatten();
+    Ok(TaskPage { tasks, next_after_task_id })
 }
 
 pub fn events(

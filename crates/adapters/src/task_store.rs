@@ -1,5 +1,5 @@
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
-use std::{path::Path, time::Duration};
+use std::{path::Path, time::{Duration, SystemTime, UNIX_EPOCH}};
 use yonder_application::{
     Action, ArtifactAvailability, AttemptConclusion, AttemptPhase, AttemptResultRecord,
     ControlKind, ControlPhase, ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status,
@@ -17,7 +17,18 @@ use yonder_application::{
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 20;
+pub const SQLITE_SCHEMA_VERSION: i64 = 21;
+
+fn now_ms() -> Result<i64, Error> {
+    let value = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| Error::StorageUnavailable)?.as_millis();
+    i64::try_from(value).map_err(|_| Error::StorageUnavailable)
+}
+
+fn next_created_at(connection: &Connection) -> Result<i64, Error> {
+    let wall = now_ms()?;
+    let latest: Option<i64> = connection.query_row("SELECT MAX(created_at) FROM tasks", [], |row| row.get(0)).map_err(storage)?;
+    Ok(latest.map_or(wall, |value| wall.max(value.saturating_add(1))))
+}
 
 fn storage(_: rusqlite::Error) -> Error {
     Error::StorageUnavailable
@@ -254,13 +265,13 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
         ]
         .contains(&schema)
         {
             return Err(Error::StorageUnavailable);
         }
-        if schema != 0 && schema != 20 {
+        if schema != 0 && schema != 21 {
             if !migrate_plaintext {
                 return Err(Error::StorageUnavailable);
             }
@@ -300,7 +311,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
         ]
         .contains(&schema)
         {
@@ -380,6 +391,10 @@ impl SqliteTaskStore {
         }
         if schema < 20 {
             tx.execute_batch(include_str!("task_plan_fragment_schema.sql"))
+                .map_err(storage)?;
+        }
+        if schema < 21 {
+            tx.execute_batch(include_str!("task_created_at_schema.sql"))
                 .map_err(storage)?;
         }
         // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
@@ -674,6 +689,9 @@ impl TaskStore for SqliteTaskStore {
         true
     }
     fn supports_running_filter(&self) -> bool {
+        true
+    }
+    fn supports_newest_first(&self) -> bool {
         true
     }
     fn supports_registration(&self) -> bool {
@@ -2937,7 +2955,8 @@ impl TaskStore for SqliteTaskStore {
                     r.get(0)
                 })
                 .map_err(storage)?;
-            tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,name,source) VALUES (?1,?2,'created',1,?3,?4)", params![id,owner,task_name,source_name(source)]).map_err(storage)?;
+            let created_at = next_created_at(&tx)?;
+            tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,name,source,created_at) VALUES (?1,?2,'created',1,?3,?4,?5)", params![id,owner,task_name,source_name(source),created_at]).map_err(storage)?;
             tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,1,'created','created')", [&id]).map_err(storage)?;
             tx.execute("INSERT INTO outbox(task_id,sequence) VALUES (?1,1)", [&id])
                 .map_err(storage)?;
@@ -3030,6 +3049,29 @@ impl TaskStore for SqliteTaskStore {
         })
         .collect()
     }
+    fn list_newest(
+        &mut self,
+        owner: Option<&str>,
+        after: Option<&str>,
+        include_finished: bool,
+        limit: usize,
+    ) -> Result<Vec<Task>, Error> {
+        if !(1..=101).contains(&limit) { return Err(Error::InvalidInput); }
+        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND (?2 OR state NOT IN ('completed','failed','cancelled')) AND (?4 IS NULL OR owner_agent_id=?4) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?3").map_err(storage)?;
+        let rows = stmt.query_map(params![after, include_finished, limit as i64, owner], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,i64>(2)?,r.get::<_,String>(3)?,r.get::<_,Option<String>>(4)?,r.get::<_,String>(5)?))).map_err(storage)?;
+        rows.map(|row| { let (id,state,sequence,owner_agent_id,name,source)=row.map_err(storage)?; Ok(Task{id,owner_agent_id,name,source:task_source(&source)?,status:status(&state)?,sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?}) }).collect()
+    }
+    fn list_running_newest(
+        &mut self,
+        owner: Option<&str>,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<Task>, Error> {
+        if !(1..=101).contains(&limit) { return Err(Error::InvalidInput); }
+        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND state='running' AND (?3 IS NULL OR owner_agent_id=?3) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?2").map_err(storage)?;
+        let rows = stmt.query_map(params![after, limit as i64, owner], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,i64>(2)?,r.get::<_,String>(3)?,r.get::<_,Option<String>>(4)?,r.get::<_,String>(5)?))).map_err(storage)?;
+        rows.map(|row| { let (id,state,sequence,owner_agent_id,name,source)=row.map_err(storage)?; Ok(Task{id,owner_agent_id,name,source:task_source(&source)?,status:status(&state)?,sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?}) }).collect()
+    }
     fn create(
         &mut self,
         id: &str,
@@ -3059,7 +3101,8 @@ impl TaskStore for SqliteTaskStore {
         if exists {
             return Err(Error::Conflict);
         }
-        tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,source) VALUES (?1,?2,'created',1,?3)", params![id,owner_agent_id,source_name(source)]).map_err(storage)?;
+        let created_at = next_created_at(&tx)?;
+        tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,source,created_at) VALUES (?1,?2,'created',1,?3,?4)", params![id,owner_agent_id,source_name(source),created_at]).map_err(storage)?;
         tx.execute(
             "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,1,'created','created')",
             [id],
@@ -3802,7 +3845,7 @@ mod tests {
         .unwrap();
         drop(store);
         let db = Connection::open(&path).unwrap();
-        let experimental = "DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
+        let experimental = "DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
         db.execute_batch(experimental).unwrap();
         drop(db);
         let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
@@ -3850,7 +3893,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            20
+            21
         );
         drop(store);
         for rejected in [
@@ -3896,7 +3939,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 20);
+        assert_eq!(version, 21);
     }
 
     #[test]
@@ -3905,7 +3948,7 @@ mod tests {
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         store
             .0
-            .execute_batch("DROP TABLE task_audit_quota_state; PRAGMA user_version=20;")
+            .execute_batch("DROP TABLE task_audit_quota_state; PRAGMA user_version=21;")
             .unwrap();
         let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
         assert_eq!(
@@ -3924,7 +3967,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            20
+            21
         );
         assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
     }
@@ -3937,7 +3980,7 @@ mod tests {
             "DROP TABLE task_user_confirmations;
              DROP TABLE task_artifact_manifest_items;
              DROP TABLE task_artifact_manifests;
-             PRAGMA user_version=20;",
+             PRAGMA user_version=21;",
         ).unwrap();
         let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
         let task = create(&mut recovered, "recovered-audit-tables").unwrap();
@@ -3955,7 +3998,7 @@ mod tests {
         );
         assert_eq!(
             recovered.0.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(),
-            20
+            21
         );
     }
 
@@ -3966,12 +4009,52 @@ mod tests {
         store.0.execute_batch(
             "DROP TABLE task_user_confirmations;
              DROP TABLE task_artifact_manifest_items;
-             PRAGMA user_version=20;",
+             PRAGMA user_version=21;",
         ).unwrap();
         assert!(matches!(
             SqliteTaskStore::initialize(store.0, true),
             Err(Error::StorageUnavailable)
         ));
+    }
+
+    #[test]
+    fn newest_task_pages_use_persisted_creation_time_and_stable_id_tie_breaker() {
+        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        for id in ["old-unknown", "same-a", "same-b", "middle", "latest"] {
+            create(&mut store, id).unwrap();
+        }
+        store.0.execute_batch(
+            "UPDATE tasks SET created_at=0 WHERE id='old-unknown';
+             UPDATE tasks SET created_at=200 WHERE id IN ('same-a','same-b');
+             UPDATE tasks SET created_at=150 WHERE id='middle';
+             UPDATE tasks SET created_at=300 WHERE id='latest';"
+        ).unwrap();
+
+        let first = yonder_application::list_newest(
+            &mut store, AuthContext::LocalUser("desktop"), None, true, false, 2,
+        ).unwrap();
+        assert_eq!(first.tasks.iter().map(|task| task.id.as_str()).collect::<Vec<_>>(), vec!["latest", "same-b"]);
+        assert_eq!(first.next_after_task_id.as_deref(), Some("same-b"));
+        let second = yonder_application::list_newest(
+            &mut store, AuthContext::LocalUser("desktop"), first.next_after_task_id.as_deref(), true, false, 2,
+        ).unwrap();
+        assert_eq!(second.tasks.iter().map(|task| task.id.as_str()).collect::<Vec<_>>(), vec!["same-a", "middle"]);
+        let third = yonder_application::list_newest(
+            &mut store, AuthContext::LocalUser("desktop"), second.next_after_task_id.as_deref(), true, false, 2,
+        ).unwrap();
+        assert_eq!(third.tasks.iter().map(|task| task.id.as_str()).collect::<Vec<_>>(), vec!["old-unknown"]);
+        assert!(third.next_after_task_id.is_none());
+
+        use yonder_application::gateway::{GatewaySession, Platform};
+        use yonder_protocol::{QueryResult, Response};
+        let mut current = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        current.handle(&mut store, br#"{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":32}}}"#, 1000);
+        let listed = current.handle(&mut store, br#"{"jsonrpc":"2.0","id":"l","method":"task.list","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"include_finished":true,"newest_first":true,"limit":2}}"#, 1000);
+        assert!(matches!(listed, Response::Success { result: QueryResult::Tasks { tasks, .. }, .. } if tasks.iter().map(|task|task.task_id.as_str()).collect::<Vec<_>>() == vec!["latest","same-b"]));
+
+        let mut legacy = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        legacy.handle(&mut store, br#"{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":31}}}"#, 1000);
+        assert!(matches!(legacy.handle(&mut store, br#"{"jsonrpc":"2.0","id":"l","method":"task.list","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"newest_first":true,"limit":2}}"#, 1000), Response::Failure { error, .. } if error.code == -32010));
     }
 
     #[test]
@@ -3986,7 +4069,7 @@ mod tests {
 
         let old_store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
-        old_store.0.execute_batch("DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; PRAGMA user_version=14;").unwrap();
+        old_store.0.execute_batch("DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; PRAGMA user_version=14;").unwrap();
         old_store.0.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence) VALUES ('legacy','a1','created',1)", []).unwrap();
         let db = old_store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
@@ -5247,7 +5330,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            20
+            21
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -6083,7 +6166,7 @@ mod tests {
         let mut store = SqlCipherTaskStore::open(&path, &key).unwrap();
         assert_eq!(store.get("b-middle").unwrap().owner_agent_id, "a1");
         // 合成真实 v1 布局，验证拒绝时数据库字节不变，不触碰用户文件。
-        store.0.execute_batch("DROP INDEX tasks_owner_id; ALTER TABLE tasks DROP COLUMN owner_agent_id; PRAGMA user_version=1;").unwrap();
+        store.0.execute_batch("DROP INDEX tasks_owner_id; DROP INDEX tasks_owner_created_at_id; ALTER TABLE tasks DROP COLUMN owner_agent_id; PRAGMA user_version=1;").unwrap();
         drop(store);
         let before = std::fs::read(&path).unwrap();
         assert!(SqlCipherTaskStore::open(&path, &key).is_err());
@@ -7146,7 +7229,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            20
+            21
         );
     }
 
@@ -7318,7 +7401,7 @@ mod tests {
         }
         store
             .0
-            .execute_batch("DROP TABLE task_focus_events; PRAGMA user_version=18;")
+            .execute_batch("DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; ALTER TABLE tasks DROP COLUMN created_at; DROP TABLE task_focus_events; PRAGMA user_version=18;")
             .unwrap();
         let db = store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
@@ -7339,7 +7422,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            20
+            21
         );
     }
 

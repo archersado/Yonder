@@ -334,7 +334,9 @@ pub(crate) fn handle_request_versioned(
         Request::DocumentExecute { .. } => Err(RpcError::new(-32002, "文档执行须通过Gateway会话")),
         Request::Hello { .. } => Err(RpcError::new(-32002, "握手须通过 Gateway 会话")),
         Request::List { params, .. } => {
-            let page = if params.running_only {
+            let page = if params.newest_first {
+                crate::list_newest(store, auth, params.after_task_id.as_deref(), params.include_finished, params.running_only, usize::from(params.limit))
+            } else if params.running_only {
                 crate::list_running(store, auth, params.after_task_id.as_deref(), usize::from(params.limit))
             } else {
                 crate::list(store, auth, params.after_task_id.as_deref(), params.include_finished, usize::from(params.limit))

@@ -106,7 +106,7 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[]; window.fixtureCommandDecisions=[];
+    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureListRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[]; window.fixtureCommandDecisions=[];
     window.fixtureCommandApprovals=[{taskId:'test-task-20',commandId:'command_fixture_1',state:'awaiting-user',expiresAtMs:Date.now()+60000,preview:{commandId:'command_fixture_1',program:'/usr/bin/printf',args:['%s','hello world'],cwd:'/tmp',env:{LANG:'zh_CN.UTF-8'},timeoutMs:1000,expiresAtMs:0}}];
     window.fixtureCommandApprovals[0].preview.expiresAtMs=window.fixtureCommandApprovals[0].expiresAtMs;
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
@@ -158,6 +158,7 @@ export async function checkTaskSpace(page) {
       if (method === 'task.events' && window.fixtureTimelineError) throw new Error('测试时间线失败');
       if (method === 'task.events' && params.after_sequence !== '0' && window.fixtureTimelinePageError) throw new Error('任务历史不完整，请刷新后重试');
       if (method === 'task.events') window.fixtureEventRequests.push(params);
+      if (method === 'task.list') window.fixtureListRequests.push(params);
       if (method === 'task.artifacts') {
         window.fixtureArtifactRequests.push(params);
         if (params.after_ordinal > 0 && window.fixtureArtifactPageError) throw new Error('测试产物分页失败');
@@ -193,6 +194,7 @@ export async function checkTaskSpace(page) {
   ` });
   await page.reload();
   await page.waitForFunction(() => document.querySelectorAll('.task').length === 20);
+  assert.equal(await page.evaluate(() => window.fixtureListRequests.every(params => params.newest_first === true)), true);
   await page.evaluate(() => {
     window.fixtureTasks.unshift({task_id:'new-created-task',name:'新建任务即时可见',owner_agent_id:'test-agent',source:'local-agent',status:'created',sequence:'1'});
     window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true}}));

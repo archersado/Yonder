@@ -1338,6 +1338,10 @@
           "maximum": 100,
           "minimum": 1
         },
+        "newest_first": {
+          "type": "boolean",
+          "default": false
+        },
         "running_only": {
           "type": "boolean",
           "default": false
