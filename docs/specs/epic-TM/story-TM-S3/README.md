@@ -48,3 +48,5 @@ Accepted AD-TM-04审阅通过，首批仅created取消；openspec/changes/tm-s3-
 2026-09-28依据用户明确变更与 Accepted AD-CU-07 开始显式 CUA 接管增量：移除普通 HID 自动中断，在真实 CUA 执行区间显示与圈选工具条同屏、同顶部居中位置及同视觉的控制条，只允许用户点击“接管电脑”后在动作完成并 Observe 的安全边界暂停。Windows与 Recording 不在本增量范围。
 
 2026-09-28显式 CUA 接管增量 macOS PASS：正式 GUI 顶部控制条、真实 trycua 计划边界接管、`paused/stopped` 与零新增 `unknown/user-input` 均通过，用户现场确认位置与圈选样式一致；见[独立 Verification Goal](../../../../openspec/changes/tm-s3-explicit-cua-takeover/verification-goal.md)。Windows、Recording 与完整交回仍保留，完整 Story 状态不改为 Done。
+
+2026-09-28：根据用户“控制电脑过程中展示规划和执行步骤”的后续变更，建立 `tm-s3-cua-step-presentation` 增量。它只增加已验证计划槽位与真实派发步骤的宿主只读投影，不新增协议、SQLite 状态或第二执行通道；Windows 仍暂缓。

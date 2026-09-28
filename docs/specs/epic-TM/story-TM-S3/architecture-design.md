@@ -27,6 +27,12 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 
 控制条窗口与圈选入口都以 pet 的 current monitor（回退 primary monitor）为锚点，并按 monitor work area 计算；横向居中且距顶部 16 逻辑像素。控制条固定逻辑尺寸、置顶、全工作区可见，但窗口本身只占控制条边界。前端不缓存任务事实、不提交 Agent 身份、sequence、PID/窗口号或定位结果。
 
+### CUA 规划与执行步骤投影（2026-09-28用户变更）
+
+`TaskHost` 在收到已校验的 `PlanExecute` 提示时，从 SQLite 的不可变计划片段读取至多四个槽位标签，形成只读 `CuaControlPresentation`；`CuaControlHub` 只暂存 task_id、步骤列表与当前 prepared attempt 的 step_id。`CuaControlPort` 在实际 Driver 派发前将执行 step_id 写入 Hub；控制条窗口通过受限 Tauri 命令读取该投影，不能修改它。计划片段仍由 Application/SQLite 管理，Hub 不是持久化或并发协调事实源。
+
+单步 `computer.step`/`computer.execute` 没有计划列表时只提供当前标签；Plan 读取失败明确标记不可用而不影响 Application 调用。UI 只渲染纯文本标签、索引和 `completed/executing/pending` 状态；不读取 action arguments、Agent payload 或任何 Adapter 原始观察数据。卡片开始、每次 Driver 派发、接管和结束均重取/清理投影，避免旧任务残留。
+
 ## 架构影响
 
 本文件为规划迁移，运行时无变化；具体实施按关联 ADR 和 Proposal 声明影响，draft/design-review 不授权实施。
