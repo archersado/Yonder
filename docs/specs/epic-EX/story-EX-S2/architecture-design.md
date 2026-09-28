@@ -12,7 +12,7 @@ AG-S1 的慢脑接入边界已由 Accepted [AD-AG-07](../../../../_bmad-output/p
 
 ## 跨 Story 联审前置
 
-本 Story 的设计不重排既有 Epic：AG-S1 的传输与身份、AG-S3 的归属 Agent 步骤声明、TM-S2/TM-S7 的任务事实、CU/BU 的模型无关 Driver 与 Bridge、DO/FI/CM 的文件锁与命令围栏都先保持现状。EX-S2 定稿计划片段、版本/CAS、内部快脑步骤来源、事件/Outbox 交回和可区分错误矩阵。AD-AG-09 已授权 macOS CUA 的受限单槽位消费基线；TM-S7 的统一启动门禁继续适用，其他 Driver、Recipe 与 Windows 不进入本次实施。
+本 Story 的设计不重排既有 Epic：AG-S1 的传输与身份、AG-S3 的归属 Agent 步骤声明、TM-S2/TM-S7 的任务事实、CU/BU 的模型无关 Driver 与 Bridge、DO/FI/CM 的文件锁与命令围栏都先保持现状。EX-S2 定稿计划片段、版本/CAS、内部快脑步骤来源、事件/Outbox 交回和可区分错误矩阵。AD-AG-09 已授权 macOS CUA 的同步有界连续消费基线：一次 Gateway 调用可消费片段剩余槽位，但每个动作仍独立 Observe 并在下一副作用前复核控制；TM-S7 的统一启动门禁继续适用，其他 Driver、Recipe、后台循环与 Windows 不进入本次实施。
 
 慢脑从现有 Agent Gateway 提交首次计划与 replan；本地仍经 MCP stdio/CLI 与 Local Socket，云端仍经单一出站 WSS，两者汇入同一 Application 用例。计划至少绑定 `task_id`、归属 `agent_id`、`request_id`、计划版本、允许能力/资源范围、目标完成判据、截止时间及决策/动作预算。字段以 EX-S1 和 TM-S7 联审为准，最终仅在 Rust 协议类型定义并派生 Schema/TS。Yonder Application 复用统一执行入口，定义一次「从当前 Observe 枚举候选→决策→授权/准入→派发→Observe→提交结果」用例及一个快脑决策 Port。Jev 只由 Adapters 实现此 Port；Adapter 不调用另一 Adapter。快脑需要 replan 时，将有界 Observe/失败依据经既有事件与 Outbox 交给归属 Agent，新计划仍须由 Gateway 进入；不直连慢脑或创建第二会话。
 
@@ -45,6 +45,8 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 执行时以有界内存日志承载交回原因、慢脑唤醒和展示投影，后台按序写 SQLite/Outbox；这些异步写入不阻塞 CUA 槽位或慢脑消费。SQLite 已投影状态仍是重启后唯一可恢复事实；未投影记录在重启后按 `unknown`/`interrupted` 处理，禁止重放副作用。快脑持有的 Observe/目标引用只在当前执行身份和有效期内使用。派发前复核最小持久化检查点、授权、租约、目标新鲜度及用户控制标记。动作结束强制 Observe；目标达成须独立验证，不能只信 Jev `DONE`。偏离、低置信、无候选、参数不足、预算耗尽转为「待慢脑 replan」的内存交回事实，具体状态映射复用 TM，不增第二状态机。
 
 慢脑下发单一路径时，该路径是确定性执行授权，不调用 Jev 再次“规划”或允许其无理由交回；Application 直接派发并在动作后 Observe。仅当同一 Observe 产生多个已验证候选时，Jev 才在候选编号中选择下一动作。动态 CUA 动作空间必须来自 Driver 的当前 Observe 并由 Application 最终复核；Jev 不接收或生成控件标识、坐标、正文、接收人或自由参数。
+
+连续推进由 Application 在一次 `task.plan.execute` 调用栈内完成，最多消费当前不可变片段的剩余槽位。每轮只派发一个动作，成功 Observe 与 attempt 停止边界提交后才推进 `current_slot`；下一轮重新读取片段、任务 sequence 与控制事实。返回响应后不保留执行线程或定时任务。片段完成返回 `fragment-complete`，但不替代归属慢脑提交 `task.complete`/`task.fail`。
 
 取消、接管、用户输入先冻结快脑新决策，再按既有步骤边界停止/Observe/事务确认。副作用超时、崩溃或断连为 `unknown`，保留占用并交回慢脑；重启 running→interrupted，不能恢复旧候选、旧计划或自动重发。敏感操作继续走显式用户确认，不因高置信豁免。
 

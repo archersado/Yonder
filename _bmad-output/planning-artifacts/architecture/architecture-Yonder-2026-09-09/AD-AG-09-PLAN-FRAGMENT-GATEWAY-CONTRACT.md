@@ -11,6 +11,8 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 2026-09-28 快慢脑职责修订（用户变更，已接受）：慢脑拥有目标、语义计划、允许动作类型、成功条件及交回边界；快脑不重新规划。每次 Observe 生成当前窗口的受限、已验证动作空间，Application 负责目标新鲜度和副作用前的最终复核。单一已验证候选是慢脑的确定性步骤，直接派发，不请求 Jev；同一 Observe 下存在多个合法候选时才由 Jev 在候选编号中选择。仅动作空间为空、条件失效、用户控制、预算耗尽、低置信或 `unknown` 交回慢脑。模型输出不得成为坐标、选择器、自由参数或新计划。
 
+2026-09-28 连续执行修订（用户变更，已接受）：归属慢脑提交完整有界片段后，一次 `task.plan.execute` 可在同一 Gateway 调用中同步消费连续槽位，不要求慢脑在每个成功 Observe 后再次调用 Gateway。每个槽位仍严格执行「复核控制与当前事实 → 选择已声明候选 → 单次副作用 → Observe → 提交边界」；只有成功 Observe 后才能进入下一槽位。该同步有界推进最多消费片段剩余槽位，并受片段步数、截止时间和全局配置约束；它不是脱离请求生命周期的后台任务、批处理 DSL 或第二状态机。用户输入、取消、接管、条件失效、`unknown`、低置信或预算耗尽必须在下一副作用前终止推进并交回慢脑。
+
 ## 待决问题
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。
@@ -52,11 +54,11 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 - `resource_scope`（固定为 Desktop）
 - `operations`（顺序槽位及封闭 CUA 候选）
 - `observe_policy`（固定为每动作后 Observe）
-- `budget`（最多十个动作槽位；每次 Gateway 执行只消费一个槽位）
+- `budget`（最多十个动作槽位；单次 Gateway 调用最多同步消费片段剩余槽位）
 - `deadline`
 - `fallback_candidates`
 
-其中 `operations` 是封闭的声明式步骤集合，每个步骤只允许引用已验证的 CUA 能力和预校验参数。`observe_policy` 固定要求每动作后 Observe。执行请求只消费一个已 Observe 边界后的槽位，以便 Gateway 控制、用户输入及停止确认能在槽位之间优先处理；它不是绕开 Gateway 的后台循环。`budget` 至少包含步数、时间、token 和单步动作数。
+其中 `operations` 是封闭的声明式步骤集合，每个步骤只允许引用已验证的 CUA 能力和预校验参数。`observe_policy` 固定要求每动作后 Observe。执行请求在调用生命周期内同步消费槽位，并在每个 Observe 边界重新检查 Gateway 控制、用户输入及停止确认；无需慢脑逐槽位续调，也不得在响应返回后留下后台执行。`budget` 至少包含步数、时间、token 和单步动作数。
 
 ## 安全与恢复
 
@@ -78,7 +80,7 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 ## 评估与采纳门槛
 
-本 ADR 的受限 macOS CUA 基线已接受；扩大到多 Driver、Recipe/DSL、后台批量循环或 Windows 前，仍须满足以下证据并建立新的架构决定：
+本 ADR 的受限 macOS CUA 基线及同步有界连续执行已接受；扩大到多 Driver、Recipe/DSL、脱离 Gateway 请求生命周期的后台循环或 Windows 前，仍须满足以下证据并建立新的架构决定：
 
 1. 在同一任务样本上，计划片段模式相对逐步决策模式显著降低慢脑交互次数、端到端时延和 token 成本；
 2. Observe 异常和 `unknown` 场景能够可靠交回慢脑，且不出现自动重试或状态漂移；

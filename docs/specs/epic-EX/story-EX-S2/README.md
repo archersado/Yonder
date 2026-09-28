@@ -25,4 +25,6 @@ OpenSpec: ex-s2-plan-fragment-macos
  
 2026-09-27：用户要求推进计划片段执行后，[AD-AG-09](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-09-PLAN-FRAGMENT-GATEWAY-CONTRACT.md) 已接受受限 macOS CUA 基线：Gateway 提交不可变片段，Application 在每次 Observe 后仅从已提交候选中请求 Jev 决策；每次 Gateway 执行只消费一个槽位，低置信、偏离、取消、接管、用户输入或 `unknown` 一律交回归属 Agent。该增量不实现 Recipe、自由 DSL、后台批量循环或 Windows 支持。
 
+2026-09-28：用户进一步明确快脑应在慢脑计划上连续判断和执行，而不是要求慢脑逐槽位续调。AD-AG-09 已修订为单次 Gateway 调用内的同步有界连续推进；每动作仍强制 Observe，槽位间重新检查控制与任务事实，异常立即交回，响应后不留后台执行。
+
 2026-09-24 用户变更：先实施 macOS-only Jev 决策接线，Windows 后补；API Key 只从 macOS 系统凭据入口读取，不进入配置、任务数据或日志。该子范围的真实 Keychain/远端调用、离线回归和独立 Verification Goal 已通过，见[已归档 macOS-only 接线 OpenSpec](../../../../openspec/changes/archive/2026-09-24-ex-s2-macos-only-jev-wiring/proposal.md)。Story 整体仍为 implementing；计划片段执行、Windows 与费用证据须先满足各自门禁并另建 Change。
