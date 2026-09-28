@@ -1,0 +1,11 @@
+{
+  "platform": "macos",
+  "task_id": "task_79ec8ec71e94536492d2ee2e8d96fe73",
+  "action_response_status": "running",
+  "takeover_pressed_after_response": true,
+  "task_status": "paused",
+  "control_phase": "stopped",
+  "focus_phase": "failed",
+  "completed_without_followup_gateway_frame": true,
+  "passed": true
+}

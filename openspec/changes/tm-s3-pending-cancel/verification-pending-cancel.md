@@ -13,3 +13,7 @@
 [正式库只读证据](../../../apps/desktop/evidence/pending-cancel-native-retry-20260914/sqlite-result.json)：Agent两任务，created1/cancelled1，事件与Outbox计数分别1/2，未删除历史。[原生截图](../../../apps/desktop/evidence/pending-cancel-native-retry-20260914/native-cancelled-task.png)。
 
 执行过任务取消、停止确认、接管录制及Windows仍未通过；本范围不执行删除、不释放已有租约，完整TM-S3保持implementing，不Archive。后续用户要求操作直接放在任务卡片，当前详情入口验证保留历史，新的卡片规格独立变更。
+
+## 2026-09-28 直接取消增量
+
+用户后续明确排队中及进行中任务均可直接取消，当前阶段不等待副作用回收。Application/SQLite 回归覆盖 `created/running/paused/waiting_for_user/interrupted` 到 `cancelled` 的同事务状态、事件与 Outbox，以及运行中取消后宿主准入释放；任务卡片统一调用 `task.cancel`。本轮正式快慢脑 GUI 验证又从 `running` HandBack 边界经 Gateway 执行 `task.cancel`，最终状态为 `cancelled`。Windows仍按既定决定暂缓，完整 TM-S3 不 Archive。

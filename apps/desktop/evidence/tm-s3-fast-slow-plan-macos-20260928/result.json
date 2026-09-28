@@ -1,0 +1,18 @@
+{
+  "platform": "macos",
+  "task_id": "task_d5396a96af846f6773c26c87aa86b9f5",
+  "window_visible": true,
+  "top_centered_like_region": true,
+  "expected_size": true,
+  "slow_brain_found": true,
+  "fast_brain_found": true,
+  "fast_decision_found": true,
+  "execution_found": true,
+  "planned_step_found": true,
+  "observe_only": true,
+  "task_status": "cancelled",
+  "executed_disposition": "handback",
+  "stopped_before_all_slots": true,
+  "new_user_input_unknown_count": 0,
+  "passed": true
+}

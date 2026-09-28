@@ -52,3 +52,5 @@ Accepted AD-TM-04审阅通过，首批仅created取消；openspec/changes/tm-s3-
 2026-09-28：根据用户“控制电脑过程中展示规划和执行步骤”的后续变更，建立 `tm-s3-cua-step-presentation` 增量。它只增加已验证计划槽位与真实派发步骤的宿主只读投影，不新增协议、SQLite 状态或第二执行通道；Windows 仍暂缓。
 
 2026-09-28：`tm-s3-cua-step-presentation` macOS PASS：正式 GUI 顶部控制条显示当前真实执行步骤、四条有界规划步骤及剩余数量，原生 AX 和截图确认顶部定位与步骤文本；显式接管后保持 `paused/stopped` 且无新增 `unknown/user-input`。见[独立 Verification Goal](../../../../openspec/changes/tm-s3-cua-step-presentation/verification-goal.md)；Windows、Recording 与完整交回仍保留。
+
+2026-09-28：顶部控制条进一步固定为“慢脑规划 → 快脑决策 → 正在执行”。Application只投影候选数量、封闭动作语义或HandBack，不输出思维链/参数/正文；正式 macOS bundle 已分别通过响应后无后续Gateway帧的步骤间接管，以及真实双候选Jev HandBack过程展示。见[汇总 Verification Goal](../../../../openspec/changes/tm-s3-explicit-cua-takeover/verification-goal.md)。
