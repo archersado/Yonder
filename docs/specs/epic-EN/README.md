@@ -10,6 +10,7 @@ Epic: EN
 
 - [EN-S1 模块 Epic 与 Story 设计门禁](story-EN-S1/README.md)
 - [EN-S2 发布签名与分发](story-EN-S2/README.md)
+- [EN-S3 核心结构重构：协议来源、能力协商、端口拆分与宿主并发](story-EN-S3/README.md)
 
 ## 验收与依赖
 

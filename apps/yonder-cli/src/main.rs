@@ -2,7 +2,7 @@ use interprocess::local_socket::{GenericFilePath, ToFsName, tokio::{Stream, prel
 use serde_json::{Value, json};
 use std::{env, io::{self, BufRead, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, HelloParams, ListParams, PlanExecuteParams, PlanSlotParams, PlanSubmitParams, ProtocolVersion, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
+use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, HelloParams, ListParams, PlanExecuteParams, PlanSlotParams, PlanSubmitParams, PROTOCOL_VERSION, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
 
 mod codex_agent_bridge;
 
@@ -48,7 +48,7 @@ async fn gateway(agent_id: &str, request: Request) -> io::Result<Response> {
         .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "Yonder未运行"))?;
     let hello = Request::Hello { jsonrpc: Version::V2, request_id: "hello".into(), params: HelloParams {
         agent_id: agent_id.into(), capability: Capability::TaskRead, deadline: now_ms()? + 60_000,
-        protocol_version: ProtocolVersion { major: 1, minor: 32 },
+        protocol_version: PROTOCOL_VERSION,
         session_id: None, offered_capabilities: None,
     }};
     match send(&stream, &hello).await? {

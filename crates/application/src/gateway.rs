@@ -18,7 +18,7 @@ use crate::{
     query,
 };
 use yonder_protocol::{
-    AttemptResult as ProtocolAttemptResult, AttemptResultPhase, AttemptUnknownReason, Availability,
+    AttemptResult as ProtocolAttemptResult, AttemptResultPhase, Availability,
     BrowserOperation, BrowserReference, Capability, CapabilityInfo,
     ComputerObservation as ProtocolComputerObservation, DocumentExecutionResult as ProtocolDocumentExecutionResult,
     DocumentFormat as ProtocolDocumentFormat, FileExecutionResult as ProtocolFileExecutionResult,
@@ -29,9 +29,8 @@ use yonder_protocol::{
 };
 
 pub use yonder_protocol::Platform;
+pub use yonder_protocol::PROTOCOL_VERSION;
 
-/// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 32 };
 const PROTOCOL: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
 
 pub fn is_execution_request(bytes: &[u8]) -> bool {
@@ -1556,32 +1555,12 @@ fn attempt_result(value: crate::AttemptResultRecord) -> ProtocolAttemptResult {
             true,
             None,
         ),
+        // wire 映射唯一来源见 crate::unknown_reason 的 From 实现。
         crate::AttemptConclusion::Unknown { reason } => (
             AttemptResultPhase::Unknown,
             None,
             false,
-            Some(match reason {
-                crate::computer_use::UnknownReason::InvalidInput => {
-                    AttemptUnknownReason::InvalidInput
-                }
-                crate::computer_use::UnknownReason::DependencyUnavailable => {
-                    AttemptUnknownReason::DependencyUnavailable
-                }
-                crate::computer_use::UnknownReason::WorkerFailed => {
-                    AttemptUnknownReason::WorkerFailed
-                }
-                crate::computer_use::UnknownReason::TimedOut => AttemptUnknownReason::TimedOut,
-                crate::computer_use::UnknownReason::InvalidResponse => {
-                    AttemptUnknownReason::InvalidResponse
-                }
-                crate::computer_use::UnknownReason::IdentityMismatch => {
-                    AttemptUnknownReason::IdentityMismatch
-                }
-                crate::computer_use::UnknownReason::ObserveFailed => {
-                    AttemptUnknownReason::ObserveFailed
-                }
-                crate::computer_use::UnknownReason::UserInput => AttemptUnknownReason::UserInput,
-            }),
+            Some(reason.into()),
         ),
     };
     ProtocolAttemptResult {

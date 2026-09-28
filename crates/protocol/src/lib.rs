@@ -7,6 +7,10 @@ pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
 pub const MAX_TASK_EVENT_BYTES: usize = 8 * 1024;
 pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
+/// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
+/// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 32 };
+
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
 }

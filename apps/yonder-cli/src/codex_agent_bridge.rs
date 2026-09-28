@@ -22,7 +22,7 @@ use tokio::{
 use tokio_tungstenite::{WebSocketStream, client_async, tungstenite::Message};
 use yonder_protocol::{
     AgentInputParams, AgentInputResult, AgentRequest, AgentResponse, Capability, HelloParams,
-    MAX_REQUEST_BYTES, OfferedCapability, ProtocolVersion, Request, Response, Version,
+    MAX_REQUEST_BYTES, OfferedCapability, ProtocolVersion, PROTOCOL_VERSION, Request, Response, Version,
 };
 
 const CODEX_RPC_TIMEOUT: Duration = Duration::from_secs(10);
@@ -355,7 +355,8 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
             capability: Capability::TaskRead,
             deadline: now_ms()?.saturating_add(10_000),
             protocol_version: ProtocolVersion {
-                major: 1,
+                major: PROTOCOL_VERSION.major,
+                // 桥只使用 agent.input 文本通道；钉在 1.14+ 既有能力，不随新版本隐式扩权。
                 minor: 19,
             },
             session_id: Some(thread_id.clone()),

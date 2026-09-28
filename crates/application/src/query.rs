@@ -4,7 +4,7 @@ use yonder_protocol::{
     ArtifactAvailability as ProtocolArtifactAvailability,
     ArtifactManifestItem as ProtocolArtifactManifestItem,
     AttemptResult as ProtocolAttemptResult, AttemptResultPhase as ProtocolAttemptPhase,
-    AttemptStarted as ProtocolAttemptStarted, AttemptUnknownReason as ProtocolUnknownReason,
+    AttemptStarted as ProtocolAttemptStarted,
     BrowserReference, ControlKind as ProtocolControlKind, ControlPhase as ProtocolControlPhase,
     ControlRecord as ProtocolControl, FocusFailure as ProtocolFocusFailure,
     FocusPhase as ProtocolFocusPhase, QueryResult, Request, Response, RpcError,
@@ -365,18 +365,10 @@ pub(crate) fn handle_request_versioned(
             check_event_continuity(after, task.sequence, usize::from(params.limit), &records)?;
             let projected = records.into_iter().map(|e| {
                 let attempt_result = if include_attempt_results { e.attempt_result.map(|result| {
+                    // wire 映射唯一来源见 crate::unknown_reason 的 From 实现。
                     let (phase,action_succeeded,observe_valid,unknown_reason) = match result.conclusion {
                         crate::AttemptConclusion::Observed { action_succeeded } => (ProtocolAttemptPhase::Observed,Some(action_succeeded),true,None),
-                        crate::AttemptConclusion::Unknown { reason } => (ProtocolAttemptPhase::Unknown,None,false,Some(match reason {
-                            crate::computer_use::UnknownReason::InvalidInput => ProtocolUnknownReason::InvalidInput,
-                            crate::computer_use::UnknownReason::DependencyUnavailable => ProtocolUnknownReason::DependencyUnavailable,
-                            crate::computer_use::UnknownReason::WorkerFailed => ProtocolUnknownReason::WorkerFailed,
-                            crate::computer_use::UnknownReason::TimedOut => ProtocolUnknownReason::TimedOut,
-                            crate::computer_use::UnknownReason::InvalidResponse => ProtocolUnknownReason::InvalidResponse,
-                            crate::computer_use::UnknownReason::IdentityMismatch => ProtocolUnknownReason::IdentityMismatch,
-                            crate::computer_use::UnknownReason::ObserveFailed => ProtocolUnknownReason::ObserveFailed,
-                            crate::computer_use::UnknownReason::UserInput => ProtocolUnknownReason::UserInput,
-                        })),
+                        crate::AttemptConclusion::Unknown { reason } => (ProtocolAttemptPhase::Unknown,None,false,Some(reason.into())),
                     };
                     ProtocolAttemptResult { step_id:result.step_id, attempt_id:result.attempt_id, worker_instance_id:result.worker_instance_id, host_session_id:result.host_session_id, phase, action_succeeded, observe_valid, unknown_reason }
                 }) } else { None };

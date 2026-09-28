@@ -19,6 +19,7 @@ pub mod jev_config;
 pub mod jev_runtime;
 pub mod plan_fragment;
 pub mod query;
+pub mod unknown_reason;
 pub mod work_focus;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -603,21 +604,17 @@ pub trait TaskStore {
     -> Result<(), Error>;
 }
 
+/// ID 规则唯一来源是 protocol 的 `valid_id`；本函数只把同一规则映射为
+/// `Error::InvalidInput`，不得复制第二份字符集判断。
 fn validate_id(id: &str) -> Result<(), Error> {
-    if id.is_empty()
-        || id.len() > 128
-        || !id
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
-    {
-        return Err(Error::InvalidInput);
+    if yonder_protocol::valid_id(id) {
+        Ok(())
+    } else {
+        Err(Error::InvalidInput)
     }
-    Ok(())
 }
 
-pub fn valid_id(id: &str) -> bool {
-    validate_id(id).is_ok()
-}
+pub use yonder_protocol::valid_id;
 
 /// Task Space 显式本地用户操作；Agent 不获得确认能力。
 pub fn confirm_result(

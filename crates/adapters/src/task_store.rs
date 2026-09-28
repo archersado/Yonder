@@ -165,6 +165,8 @@ fn status(value: &str) -> Result<Status, Error> {
     }
 }
 
+/// SQLite 持久化字符串与 wire 形状同源于 protocol 的 kebab-case 派生；
+/// reason/parse_reason 只做存储字符串转换，不得偏离 wire 名。
 fn reason(value: UnknownReason) -> &'static str {
     match value {
         UnknownReason::InvalidInput => "invalid-input",
