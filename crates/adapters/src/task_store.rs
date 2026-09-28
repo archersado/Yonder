@@ -717,7 +717,8 @@ impl TaskStore for SqliteTaskStore {
         tx.commit().map_err(storage)?;
         Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next})
     }
-    fn hand_back_plan_fragment(&mut self, task_id: &str, plan_id: &str, plan_version: u64, expected: u64) -> Result<Task, Error> {
+    fn hand_back_plan_fragment(&mut self, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, reason: &str) -> Result<Task, Error> {
+        if reason.is_empty() || reason.as_bytes().len() > 1024 || reason.chars().any(|value| value.is_control() && value != '\n') { return Err(Error::InvalidInput); }
         let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
         let row: Option<(String,i64,String,Option<String>,String)>=tx.query_row("SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(storage)?;
         let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
@@ -727,9 +728,10 @@ impl TaskStore for SqliteTaskStore {
         let exists:i64=tx.query_row("SELECT count(*) FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",params![task_id,plan_id,plan_version as i64],|r|r.get(0)).map_err(storage)?;
         if exists!=1{return Err(Error::NotFound);}
         let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx.execute("UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",params![next as i64,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
+        if tx.execute("UPDATE tasks SET sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,reason,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
         tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",params![task_id,next as i64,state]).map_err(storage)?;
         tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
+        tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![task_id,next as i64,format!(r#"{{\"next_intent\":{}}}"#, serde_json::to_string(reason).map_err(|_| Error::StorageUnavailable)?) ]).map_err(storage)?;
         tx.commit().map_err(storage)?;
         Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:status(&state)?,sequence:next})
     }
@@ -3313,8 +3315,9 @@ mod tests {
         let advanced = store.advance_plan_fragment("plan-task", "plan-1", 1, 0, 3).unwrap();
         assert_eq!(advanced.sequence, 4);
         assert_eq!(store.get_plan_fragment("plan-task", "plan-1", 1).unwrap().unwrap().current_slot, 1);
-        let handed_back = store.hand_back_plan_fragment("plan-task", "plan-1", 1, advanced.sequence).unwrap();
+        let handed_back = store.hand_back_plan_fragment("plan-task", "plan-1", 1, advanced.sequence, "需要慢脑重新 Observe 或规划").unwrap();
         assert_eq!(handed_back.sequence, 5);
+        assert_eq!(store.get_presentation("plan-task").unwrap().1.next_intent.as_deref(), Some("需要慢脑重新 Observe 或规划"));
         let created_task = create(&mut store, "created-plan-task").unwrap();
         let created_fragment = PlanFragment {
             task_id: created_task.id.clone(),
@@ -3324,7 +3327,7 @@ mod tests {
         };
         let submitted_created = store.submit_plan_fragment("a1", &created_fragment).unwrap();
         let created_handback = store
-            .hand_back_plan_fragment("created-plan-task", "created-plan", 1, submitted_created.sequence)
+            .hand_back_plan_fragment("created-plan-task", "created-plan", 1, submitted_created.sequence, "需要慢脑重新 Observe 或规划")
             .unwrap();
         assert_eq!(created_handback.status, Status::Created);
         assert_eq!(created_handback.sequence, 3);

@@ -85,15 +85,15 @@ pub fn execute_one(
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete")); }
     let choice=select(config,jev,&stored.fragment,index).map_err(|_|crate::Error::StopRequired)?;
     let Selection::Dispatch(action)=choice else {
-        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected)?;
+        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑重新 Observe 或规划")?;
         return Ok((task, "handback"));
     };
     // `SendMessage` 的正文与收件人只能存在于本机一次性确认载荷中；受限
     // 片段本身刻意没有该载荷。确认组合根尚未交付时必须交回，绝不能把空
     // 参数派发为一个不可解释的按键操作，更不能猜测或重试发送。
     if matches!(action.action_kind, yonder_protocol::CuaActionKind::SendMessage) {
-        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected)?;
-        return Ok((task, "confirmation-required"));
+        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑安排本机发送确认")?;
+        return Ok((task, "slow-brain-required"));
     }
     let slot=&stored.fragment.slots[index];
     let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
@@ -103,7 +103,7 @@ pub fn execute_one(
         if !matches!(task.status, crate::Status::Created | crate::Status::Running) {
             return Ok((task, "handback"));
         }
-        match store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence) {
+        match store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"需要慢脑重新 Observe 或规划") {
             Ok(task) => return Ok((task,"handback")),
             // 用户输入可在 unknown 结果落库后、交回事件写入前原子地中断任务。
             // 此时保留已写入的 interrupted 事实，不能用过期 CAS 再写第二个交回。
