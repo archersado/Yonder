@@ -175,6 +175,11 @@ pub fn select(
 ) -> Result<Selection, JevDecisionError> {
     validate(fragment).map_err(|_| JevDecisionError::InvalidInput)?;
     let slot = fragment.slots.get(slot_index).ok_or(JevDecisionError::InvalidInput)?;
+    // 慢脑只给出一个已验证候选时，它已经是确定性执行授权；再让 Jev 在
+    // “执行/交回”之间二次规划只会增加时延并制造无理由交回。
+    if slot.candidates.len() == 1 {
+        return Ok(Selection::Dispatch(slot.candidates[0].clone()));
+    }
     let mut candidates = slot.candidates.iter().map(|candidate| JevCandidate {
         id: candidate.candidate_id.clone(), dispatchable: true, parameter_complete: true,
         action_kind: format!("{:?}", candidate.action_kind), target_ref: candidate.target_ref.clone(),
@@ -199,6 +204,9 @@ mod tests {
     fn fragment() -> PlanFragment { PlanFragment { plan_id:"plan-1".into(), plan_version:1, task_id:"task-1".into(), expected_sequence:1, deadline_ms:1, token_budget:1, slots:vec![PlanSlot { step_id:"step-1".into(), label:"点击继续".into(), candidates:vec![candidate()] }] } }
     fn config() -> JevConfig { JevConfig { enabled:true, service_mode:JevServiceMode::Remote, endpoint:JEV_REMOTE_ENDPOINT.into(), step_limit:10, time_limit_ms:60_000, token_limit:10_000, capabilities:vec![JevCapability::Cua] } }
     #[test] fn selects_only_submitted_candidate() { assert_eq!(select(&config(), &Fake, &fragment(), 0).unwrap(), Selection::Dispatch(fragment().slots[0].candidates[0].clone())); }
+    struct MustNotChoose;
+    impl JevDecisionPort for MustNotChoose { fn choose(&self, _: &JevConfig, _: &JevDecisionRequest) -> Result<JevModelChoice, JevDecisionError> { panic!("单一路径不得请求 Jev") } }
+    #[test] fn dispatches_a_single_verified_slow_brain_step_without_jev() { assert_eq!(select(&config(), &MustNotChoose, &fragment(), 0).unwrap(), Selection::Dispatch(candidate())); }
     #[test] fn rejects_free_form_or_oversized_fragment() { let mut value=fragment(); value.slots[0].candidates[0].tool_name="Shell".into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment(); value.slots=vec![]; assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn send_candidate_requires_opaque_confirmation_and_no_body() { let mut value=fragment(); value.slots[0].candidates[0].action_kind=yonder_protocol::CuaActionKind::SendMessage; value.slots[0].candidates[0].tool_name="press_key".into(); value.slots[0].candidates[0].confirmation_ref=Some("confirm-1".into()); assert_eq!(validate(&value),Ok(())); value.slots[0].candidates[0].arguments_json=r#"{\"text\":\"hi\"}"#.into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
 }
