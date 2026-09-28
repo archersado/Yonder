@@ -27,3 +27,24 @@
 
 - **WHEN** 只有测试宿主、直接 Driver、私有脚本或数据库写入能够完成样本
 - **THEN** 对应产品链路判定 FAIL，并返回所属 Story 修复，不得将底层能力证据标为产品 PASS
+
+### Requirement: 所有执行能力必须透出统一顶部步骤浮窗
+
+系统 MUST 在 CUA、BUA、Office/Document、Command 及后续统一 Gateway 执行请求开始时显示顶部执行浮窗。浮窗 MUST 展示可信当前步骤与可用规划步骤；不存在计划片段时 MUST 明确标记未提供，不得伪造。只有 CUA 可以显示并接受“接管电脑”。
+
+#### Scenario: BUA 执行显示步骤但不提供桌面接管
+
+- **WHEN** 归属 Agent 调用 `browser.execute` 开始或继续 Browser Task Space
+- **THEN** 顶部浮窗显示“Yonder 正在执行任务”和当前 BUA 步骤
+- **AND** 不显示“接管电脑”，任务终态后浮窗关闭
+
+#### Scenario: CUA 保留显式接管
+
+- **WHEN** 归属 Agent 调用 CUA 执行请求
+- **THEN** 顶部浮窗显示“Yonder 正在控制您的电脑”、规划与当前步骤以及“接管电脑”
+- **AND** 普通输入不关闭浮窗，只有终态或显式接管成功关闭
+
+#### Scenario: 非 CUA 伪造接管被拒绝
+
+- **WHEN** 非 CUA 浮窗或其他本机窗口尝试提交桌面接管
+- **THEN** Rust 宿主拒绝请求，不改变任务状态、sequence 或执行准入

@@ -6,6 +6,7 @@
 - [x] 修复首动作前 Jev 交回的 running 状态同步及 v20 审计表全缺安全修复，恢复产品 `task.get/task.events`。
 - [ ] 用真实 Codex MCP 完成 CUA 企业微信任务，覆盖计划/当前步骤、持续控制条、发送确认与终态。
 - [ ] 用真实 Codex MCP 完成 BUA 公开网页任务，覆盖 ego-lite Task Space、Observe、交回与终态。
+- [ ] 将顶部规划/执行浮窗扩展到所有 Gateway 执行能力，保留仅 CUA 可接管，并用真实 CUA/BUA 任务验证生命周期。
 - [ ] 用真实 Codex MCP 完成 Office 临时 DOCX 默认另存任务，覆盖双授权、锁、哈希和结果。
 - [ ] 用真实 Codex MCP 完成安全 Command 任务，覆盖本机批准、结构化执行、有界输出与终态。
 - [ ] 汇总 macOS 独立 Verification Goal；失败项返回所属 Story，Windows 保持暂缓。
