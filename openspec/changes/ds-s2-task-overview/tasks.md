@@ -22,6 +22,6 @@
 - [x] 修复 Enter/Space 入口按悬停自动收起：键盘打开时聚焦任务面板并保持可操作
 - [x] 右键唤起任务菜单并移除悬停自动打开；更新macOS原生与前端回归验证
 - [x] DS-S2 STEP-PET-01～05：补充形象当前步骤产品、架构、交互与 delta spec，授权增量 Apply
-- [ ] TaskHost 从 running 任务事实投影当前步骤，并在执行前后发布安全事件
-- [ ] 小龙形象实现步骤状态条、状态清理、单行省略与无障碍文本
-- [ ] 覆盖 Rust/前端回归并建立 macOS 独立 Verification Goal；Windows 证据继续暂缓
+- [x] TaskHost 从当前执行任务事实投影步骤，并在执行前后发布安全事件
+- [x] 小龙形象实现步骤状态条、状态清理、单行省略与无障碍文本
+- [x] 覆盖 Rust/前端回归并建立 macOS 独立 Verification Goal；Windows 证据继续暂缓

@@ -1,0 +1,17 @@
+{
+  "cleared_after_running" : {
+    "aria" : "轻点Yonda小龙，按住移动可拖动，Agent已连接",
+    "display" : "none",
+    "hasStep" : "false",
+    "text" : ""
+  },
+  "passed" : true,
+  "platform" : "macOS WebKit fixture",
+  "running" : {
+    "aria" : "轻点Yonda小龙，按住移动可拖动，当前步骤：打开企业微信，Agent已连接",
+    "display" : "block",
+    "hasStep" : "true",
+    "text" : "正在：打开企业微信"
+  },
+  "task_store_mutated" : false
+}
