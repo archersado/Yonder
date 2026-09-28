@@ -162,7 +162,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             let open_task_space = response.is_ok() && host_ref.take_task_space_open_pending();
             let takeover_result = cua_hint.as_ref().and_then(|hint| {
                 let task_id=hint_task_id(hint);
-                if !cua_started || !cua_hub.finish(task_id) { return None; }
+                if !cua_started || !cua_hub.take_takeover_requested(task_id) { return None; }
                 let takeover_now=u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_millis()).ok()?;
                 Some(response.as_ref().map_err(|_|()).and_then(|_|host_ref.user_takeover_current(task_id,takeover_now).map_err(|_|())))
             });
@@ -171,9 +171,13 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         };
         if cua_started {
             match takeover_result {
-                Some(Ok(_)) => { let _=cua_control.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'taken-over'}))"); let _=cua_control.hide(); },
+                Some(Ok(_)) => {
+                    if let Some(hint)=cua_hint.as_ref(){cua_hub.finish(hint_task_id(hint));}
+                    let _=cua_control.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'taken-over'}))");
+                    let _=cua_control.hide();
+                },
                 Some(Err(())) => { let _=cua_control.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'failed'}))"); },
-                None => { let _=cua_control.hide(); },
+                None => {},
             }
         }
         if open_task_space {
@@ -189,6 +193,9 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             }).map_err(io::Error::other)?;
         }
         let response=response.map_err(|_|io::Error::other("本地Gateway调用失败"))?;
+        if let Some(task_id)=yonder_application::gateway::terminal_task_id(&response) {
+            if cua_hub.finish(&task_id) { let _=cua_control.hide(); }
+        }
         if let Some((has_tasks, state, step_label)) = presentation {
             if let Some((terminal,event_id))=yonder_application::gateway::terminal_presentation(&frame,&response){
                 emit_pet_terminal_presentation(&pet,has_tasks,terminal,&event_id,has_tasks,state,step_label.as_deref());

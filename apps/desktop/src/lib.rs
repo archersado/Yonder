@@ -62,7 +62,12 @@ pub struct CuaControlHub(Arc<Mutex<Option<CuaControlState>>>);
 impl CuaControlHub {
     pub fn begin(&self, presentation: CuaControlPresentation) -> bool {
         let Ok(mut state) = self.0.lock() else { return false };
-        if state.as_ref().is_some_and(|active| active.task_id != presentation.task_id) { return false; }
+        if let Some(active) = state.as_mut() {
+            if active.task_id != presentation.task_id { return false; }
+            active.presentation = presentation;
+            active.executing_step_id = None;
+            return true;
+        }
         *state = Some(CuaControlState { task_id: presentation.task_id.clone(), takeover_requested: false, presentation, executing_step_id: None });
         true
     }
@@ -103,10 +108,16 @@ impl CuaControlHub {
         self.0.lock().is_ok_and(|state| state.as_ref().is_some_and(|active| active.task_id == task_id && active.takeover_requested))
     }
 
+    pub fn take_takeover_requested(&self, task_id: &str) -> bool {
+        let Ok(mut state) = self.0.lock() else { return false };
+        let Some(active) = state.as_mut().filter(|active| active.task_id == task_id) else { return false };
+        std::mem::take(&mut active.takeover_requested)
+    }
+
     pub fn finish(&self, task_id: &str) -> bool {
         let Ok(mut state) = self.0.lock() else { return false };
         if state.as_ref().is_none_or(|active| active.task_id != task_id) { return false; }
-        state.take().is_some_and(|active| active.takeover_requested)
+        state.take().is_some()
     }
 }
 
@@ -1111,10 +1122,31 @@ mod tests {
         assert!(hub.begin(presentation("task-a")));
         assert!(!hub.request_takeover("task-b"));
         assert!(hub.request_takeover("task-a"));
+        assert!(hub.take_takeover_requested("task-a"));
+        assert!(hub.presentation().is_some());
+        assert!(!hub.take_takeover_requested("task-a"));
         assert!(hub.finish("task-a"));
         assert!(!hub.finish("task-a"));
         assert!(hub.begin(presentation("task-b")));
-        assert!(!hub.finish("task-b"));
+        assert!(hub.finish("task-b"));
+    }
+
+    #[test]
+    fn cua_control_hub_survives_step_boundaries_until_the_task_finishes() {
+        let hub=CuaControlHub::default();
+        let presentation=|label:&str| CuaControlPresentation { task_id:"task-a".into(), current_step:label.into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into() };
+        assert!(hub.begin(presentation("打开企业微信")));
+        hub.mark_executing("task-a","launch");
+        assert_eq!(hub.presentation().unwrap().current_step,"打开企业微信");
+
+        // 同一任务的下一次 RPC 只刷新投影，不能把任务级控制状态当作上一步一起清理。
+        assert!(hub.begin(presentation("定位会话")));
+        assert_eq!(hub.presentation().unwrap().current_step,"定位会话");
+        assert!(!hub.take_takeover_requested("task-a"));
+        assert!(hub.presentation().is_some());
+
+        assert!(hub.finish("task-a"));
+        assert!(hub.presentation().is_none());
     }
 
     #[test]

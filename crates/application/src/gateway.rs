@@ -245,6 +245,25 @@ pub fn terminal_presentation(request: &[u8], response: &[u8]) -> Option<(&'stati
     Some((state, format!("{}:{}:{state}", task.task_id, task.sequence)))
 }
 
+/// 从成功响应中取得已经进入终态的任务；供桌面宿主清理只读运行时展示。
+/// 只信任 Rust 协议解码后的任务快照，不接受调用方提交的 task_id。
+pub fn terminal_task_id(response: &[u8]) -> Option<String> {
+    let task = match yonder_protocol::decode_response(response).ok()? {
+        Response::Success {
+            result: QueryResult::Snapshot { task } | QueryResult::Browser { task, .. },
+            ..
+        } => task,
+        _ => return None,
+    };
+    matches!(
+        task.status,
+        yonder_protocol::TaskStatus::Completed
+            | yonder_protocol::TaskStatus::Failed
+            | yonder_protocol::TaskStatus::Cancelled
+    )
+    .then_some(task.task_id)
+}
+
 pub struct GatewaySession<'a> {
     auth: AuthContext<'a>,
     platform: Platform,
@@ -562,6 +581,13 @@ mod tests {
             terminal_presentation(complete.as_bytes(), rejected.as_bytes()),
             None
         );
+        assert_eq!(terminal_task_id(success.as_bytes()).as_deref(), Some("task_1"));
+        assert_eq!(terminal_task_id(failed.as_bytes()).as_deref(), Some("task_1"));
+        let cancelled = r#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"snapshot","task":{"task_id":"task_1","owner_agent_id":"agent","name":"测试","status":"cancelled","sequence":"5"}}}"#;
+        assert_eq!(terminal_task_id(cancelled.as_bytes()).as_deref(), Some("task_1"));
+        let running = r#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"snapshot","task":{"task_id":"task_1","owner_agent_id":"agent","name":"测试","status":"running","sequence":"5"}}}"#;
+        assert_eq!(terminal_task_id(running.as_bytes()), None);
+        assert_eq!(terminal_task_id(rejected.as_bytes()), None);
     }
 }
 
