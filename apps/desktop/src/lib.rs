@@ -79,7 +79,7 @@ impl ComputerUsePort for CuaControlPort<'_> {
     fn explicit_takeover_requested(&self,task_id:&str)->bool{self.hub.is_some_and(|hub|hub.takeover_requested(task_id))}
 }
 
-/// 与圈选交互共用 pet 当前显示器及 work area 坐标系。
+/// 与圈选工具条共用 pet 当前显示器、work area 与顶部 16pt 锚点。
 pub fn position_window_in_pet_work_area(
     pet: &WebviewWindow,
     window: &WebviewWindow,
@@ -93,7 +93,7 @@ pub fn position_window_in_pet_work_area(
     let width = (logical_width * scale).round() as u32;
     let height = (logical_height * scale).round() as u32;
     let x = area.position.x + (area.size.width.saturating_sub(width) / 2) as i32;
-    let y = area.position.y + (area.size.height.saturating_sub(height) / 2) as i32;
+    let y = area.position.y + (16.0 * scale).round() as i32;
     window.set_size(tauri::PhysicalSize::new(width, height)).map_err(|_| "控制卡尺寸设置失败")?;
     window.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|_| "控制卡定位失败".into())
 }

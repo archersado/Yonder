@@ -28,7 +28,7 @@
       "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
       "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
     }, {
-      "label": "cua-control", "url": "cua-control.html", "title": "Yonda · 电脑控制", "width": 440, "height": 132,
+      "label": "cua-control", "url": "cua-control.html", "title": "Yonda · 电脑控制", "width": 460, "height": 68,
       "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
       "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
       "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true, "backgroundThrottling": "disabled"

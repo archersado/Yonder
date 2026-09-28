@@ -49,7 +49,7 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 - 重启后 running 转 interrupted；重新 Observe 后由外部 Agent 决定继续、跳过或局部 replan，禁止自动重试副作用未知动作。
 - 提供 task.get、task.events(after_sequence)、CLI status/watch、MCP 查询/长轮询与云端事件推送。
 - 每一步后增量 Observe；窗口切换、导航、目标丢失时完整 Observe。Yonder 可在外部计划片段内用 Jev 选择下一受支持操作与目标并校验预期条件；超出计划或需语义 replan 时交回经 Gateway 接入的外部 Agent。
-- CUA 使用唯一前台租约；按 Accepted AD-CU-07，普通键鼠输入不自动暂停，用户从屏幕中央的 Yonder 控制卡显式点击“接管电脑”后，宿主在动作完成并 Observe 的安全边界暂停。BUA MVP 单并发。后台读取可并行，同一文件禁止并发写。
+- CUA 使用唯一前台租约；按 Accepted AD-CU-07，普通键鼠输入不自动暂停，用户从与圈选工具条同样位于屏幕顶部居中的 Yonder 控制条显式点击“接管电脑”后，宿主在动作完成并 Observe 的安全边界暂停。BUA MVP 单并发。后台读取可并行，同一文件禁止并发写。
 
 2026-09-18 按 Accepted [AD-TM-10](AD-TM-10-AGENT-WAIT-FOR-USER.md) 增加协议 1.17 等待用户提交：仅归属 Agent 在已 Observe 并推进的安全步骤边界写入 `waiting-for-user`，等待原因、事件与 Outbox 同事务，提交后释放准入资源；不提供自动 Resume。
 

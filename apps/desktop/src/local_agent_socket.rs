@@ -106,7 +106,7 @@ fn hint_task_id(hint: &yonder_application::gateway::ExecutionPresentationHint) -
 }
 
 fn show_cua_control(pet: &WebviewWindow, window: &WebviewWindow, task_id: &str, step_label: Option<&str>) -> io::Result<()> {
-    position_window_in_pet_work_area(pet, window, 440.0, 132.0).map_err(io::Error::other)?;
+    position_window_in_pet_work_area(pet, window, 460.0, 68.0).map_err(io::Error::other)?;
     let detail=serde_json::json!({"taskId":task_id,"stepLabel":step_label});
     window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-cua-control-start',{{detail:{detail}}}))"))
         .and_then(|_|window.show()).map_err(io::Error::other)

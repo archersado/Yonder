@@ -25,7 +25,7 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 
 本地 Gateway 在已校验的 `computer.step`、`computer.execute` 或 `plan.execute` 进入同步执行前发布控制卡；完成后必定清理。`cua-control` Tauri 窗口只提交 task_id，Rust 校验窗口 label 与 Hub 当前 task 后登记接管；因为任务执行期间 `TaskHost` 锁被同步调用持有，按钮不得等待该锁。动作返回并 Observe 后，Gateway 在同一宿主锁内消费信号、读取最新 task sequence 并调用既有 `user_takeover`，随后才向 Agent 写回响应，保证下一请求不能越过已登记控制。
 
-控制卡窗口与圈选入口都以 pet 的 current monitor（回退 primary monitor）为锚点，并按 monitor work area 计算。卡片固定逻辑尺寸、置顶、全工作区可见，但窗口本身只占卡片边界。前端不缓存任务事实、不提交 Agent 身份、sequence、PID/窗口号或定位结果。
+控制条窗口与圈选入口都以 pet 的 current monitor（回退 primary monitor）为锚点，并按 monitor work area 计算；横向居中且距顶部 16 逻辑像素。控制条固定逻辑尺寸、置顶、全工作区可见，但窗口本身只占控制条边界。前端不缓存任务事实、不提交 Agent 身份、sequence、PID/窗口号或定位结果。
 
 ## 架构影响
 
