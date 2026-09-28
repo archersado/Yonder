@@ -193,6 +193,15 @@ export async function checkTaskSpace(page) {
   ` });
   await page.reload();
   await page.waitForFunction(() => document.querySelectorAll('.task').length === 20);
+  await page.evaluate(() => {
+    window.fixtureTasks.unshift({task_id:'new-created-task',name:'新建任务即时可见',owner_agent_id:'test-agent',source:'local-agent',status:'created',sequence:'1'});
+    window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true}}));
+  });
+  await page.waitForFunction(() => document.getElementById('all').getAttribute('aria-pressed') === 'true' && [...document.querySelectorAll('.task strong')].some(item => item.textContent === '新建任务即时可见'));
+  assert.equal(await page.evaluate(() => document.activeElement?.id === 'refresh'), false);
+  await page.evaluate(() => { window.fixtureTasks.splice(window.fixtureTasks.findIndex(task => task.task_id === 'new-created-task'), 1); });
+  await page.click('#ongoing');
+  await page.waitForFunction(() => document.querySelectorAll('.task').length === 20);
   await page.click('.task-actions button >> nth=0');
   await page.waitForFunction(() => document.querySelector('.task-actions button').textContent === '正在停止…');
   assert.deepEqual(await page.evaluate(() => window.fixtureControlRequests),[{taskId:'test-task-00',expectedSequence:'4'}]);

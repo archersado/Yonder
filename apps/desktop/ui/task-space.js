@@ -499,7 +499,15 @@ document.addEventListener('keydown', event => { if (event.key === 'Escape') { ev
 window.addEventListener('blur', close);
 window.addEventListener('yonda-tasks-open', event => {
   // Agent 创建后的自动透出不能夺走当前输入焦点，否则本窗口的 blur 收起策略会立刻把它关闭。
-  if (!event.detail?.automatic) byId('refresh').focus();
+  if (event.detail?.automatic) {
+    // 新建任务在首次执行前是 created；若沿用“进行中”筛选，面板虽已展开但
+    // 新任务仍不可见。自动透出切到全部，手动打开继续保留用户当前筛选。
+    includeFinished = true;
+    byId('ongoing').setAttribute('aria-pressed', 'false');
+    byId('all').setAttribute('aria-pressed', 'true');
+  } else {
+    byId('refresh').focus();
+  }
   load();
 });
 load();
