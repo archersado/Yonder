@@ -257,7 +257,7 @@ try:
         "task.plan.execute", "task.plan.execute", task_id=task["task_id"],
         expected_sequence=submitted["sequence"], plan_id="native-plan", plan_version=1,
     )
-    result["jev_selected_submitted_candidate"] = executed.get("disposition") == "advanced"
+    result["jev_selected_submitted_candidate"] = executed.get("disposition") == "fragment-complete"
     if not result["jev_selected_submitted_candidate"]:
         raise RuntimeError("plan-handed-back")
     until = time.monotonic() + 8

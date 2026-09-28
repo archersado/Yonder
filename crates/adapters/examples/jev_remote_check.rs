@@ -18,7 +18,7 @@ fn main() {
         Path::new(&args[3]),
         "Yonder",
         "jev",
-        Duration::from_millis(3000),
+        Duration::from_secs(30),
     )
     .unwrap();
     let config = JevConfig {
@@ -37,11 +37,19 @@ fn main() {
                 id: "cua.unavailable".into(),
                 dispatchable: false,
                 parameter_complete: false,
+                action_kind: "bring-to-front".into(),
+                target_ref: "verification-app".into(),
+                preconditions: vec!["application-ready=true".into()],
+                expected_observe: vec!["target-resolved=true".into()],
             },
             JevCandidate {
                 id: "handback".into(),
                 dispatchable: true,
                 parameter_complete: true,
+                action_kind: "handback".into(),
+                target_ref: "none".into(),
+                preconditions: vec![],
+                expected_observe: vec![],
             },
         ],
     };

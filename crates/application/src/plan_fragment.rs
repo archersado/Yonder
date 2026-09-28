@@ -70,8 +70,8 @@ pub fn submit(
     store.submit_plan_fragment(auth.agent_id(), &fragment)
 }
 
-/// 可信 Gateway 会话在单一槽位内编排 Jev 与既有 CUA 用例。它不循环：每次
-/// 调用至多派发一次动作，随后强制 Observe；调用方据 disposition 把交回依据送往 Outbox。
+/// 可信 Gateway 会话执行一个槽位。连续执行必须由 [`execute_available`] 调用，
+/// 以保证每轮都重新读取计划、任务序列和控制事实。
 pub fn execute_one(
     store: &mut impl crate::TaskStore, admission: &crate::admission::Admission,
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
@@ -119,6 +119,48 @@ pub fn execute_one(
     }
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
     Ok((task,"advanced"))
+}
+
+/// 在一次 Gateway 调用生命周期内同步消费剩余槽位。每轮仍只产生一个副作用，
+/// 且 `execute_one` 已在返回前完成 Observe 与 attempt 停止边界；下一轮因此会
+/// 重新经过任务 CAS、控制检查、桌面租约与目标解析。函数返回后不留下后台执行。
+pub fn execute_available(
+    store: &mut impl crate::TaskStore, admission: &crate::admission::Admission,
+    computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
+    config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized),
+    auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str,
+) -> Result<(crate::Task, &'static str), crate::Error> {
+    let initial = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
+    if initial.owner_agent_id != auth.agent_id()
+        || initial.fragment.deadline_ms <= now_ms
+        || expected != store.get(task_id)?.sequence
+    {
+        return Err(crate::Error::Conflict);
+    }
+    let remaining = initial.fragment.slots.len().saturating_sub(usize::from(initial.current_slot));
+    if remaining == 0 {
+        return Ok((store.get(task_id)?, "fragment-complete"));
+    }
+    let allowed = remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));
+    let mut sequence = expected;
+    for _ in 0..allowed {
+        let (task, disposition) = execute_one(
+            store, admission, computer, targets, config, jev, auth, task_id, plan_id,
+            plan_version, sequence, now_ms, host_session_id,
+        )?;
+        sequence = task.sequence;
+        if disposition != "advanced" {
+            return Ok((task, disposition));
+        }
+        let current = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
+        if usize::from(current.current_slot) >= current.fragment.slots.len() {
+            return Ok((task, "fragment-complete"));
+        }
+    }
+    let task = store.hand_back_plan_fragment(
+        task_id, plan_id, plan_version, sequence, "计划片段步数预算已耗尽",
+    )?;
+    Ok((task, "handback"))
 }
 
 pub fn validate(fragment: &PlanFragment) -> Result<(), crate::Error> {

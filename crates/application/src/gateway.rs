@@ -619,12 +619,8 @@ impl<'a> GatewaySession<'a> {
                 let config=jev_config.ok_or_else(||RpcError::new(-32020,"Jev计划执行组合根不可用"))?;
                 let jev=jev.ok_or_else(||RpcError::new(-32020,"Jev计划执行组合根不可用"))?;
                 let (computer,targets)=(computer.ok_or_else(||RpcError::new(-32020,"CUA Runtime不可用"))?,targets.ok_or_else(||RpcError::new(-32020,"桌面目标解析不可用"))?);
-                let (task,disposition)=crate::plan_fragment::execute_one(store,admission,computer,targets,config,jev,self.auth,&params.task_id,&params.plan_id,params.plan_version,yonder_protocol::sequence(&params.expected_sequence)?,now_ms,host_session_id).map_err(query::error)?;
-                let handoff_reason = match disposition {
-                    "handback" => Some("需要慢脑重新 Observe 或规划".into()),
-                    "slow-brain-required" => Some("需要慢脑安排本机发送确认".into()),
-                    _ => None,
-                };
+                let (task,disposition)=crate::plan_fragment::execute_available(store,admission,computer,targets,config,jev,self.auth,&params.task_id,&params.plan_id,params.plan_version,yonder_protocol::sequence(&params.expected_sequence)?,now_ms,host_session_id).map_err(query::error)?;
+                let handoff_reason = plan_handoff_reason(disposition).map(str::to_owned);
                 Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into(), handoff_reason })
             },
             Request::FileGrants { params, .. } => {
@@ -1364,6 +1360,14 @@ impl<'a> GatewaySession<'a> {
                 error,
             },
         }
+    }
+}
+
+fn plan_handoff_reason(disposition: &str) -> Option<&'static str> {
+    match disposition {
+        "handback" => Some("需要慢脑重新 Observe 或规划"),
+        "slow-brain-required" => Some("需要慢脑安排本机发送确认"),
+        _ => None,
     }
 }
 

@@ -3343,6 +3343,93 @@ mod tests {
     }
 
     #[test]
+    fn plan_fragment_continuously_executes_verified_slots_in_one_call() {
+        use std::sync::Mutex;
+        use yonder_application::{
+            admission::Admission,
+            computer_use::{ComputerAction, ComputerUsePort, DispatchOutcome, WorkTarget, WorkTargetPort},
+            jev_config::{JEV_REMOTE_ENDPOINT, JevCapability, JevServiceMode},
+            jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
+            plan_fragment::{CandidateAction, PlanSlot, execute_available},
+        };
+
+        struct Target;
+        impl WorkTargetPort for Target {
+            fn frontmost(&self) -> Result<WorkTarget, UnknownReason> {
+                Ok(WorkTarget { pid: 1, window_id: 1 })
+            }
+        }
+        struct Port(Mutex<Vec<String>>);
+        impl ComputerUsePort for Port {
+            fn dispatch(&self, _: &ExecutionAttempt, _: &WorkTarget, action: &ComputerAction) -> DispatchOutcome {
+                self.0.lock().unwrap().push(action.tool_name.clone());
+                DispatchOutcome::Known { action_succeeded: true, observation: None }
+            }
+        }
+        struct MustNotChoose;
+        impl JevDecisionPort for MustNotChoose {
+            fn choose(&self, _: &JevConfig, _: &JevDecisionRequest) -> Result<JevModelChoice, JevDecisionError> {
+                panic!("单一已验证候选不得调用Jev")
+            }
+        }
+        fn candidate(id: &str, tool_name: &str, action_kind: yonder_protocol::CuaActionKind) -> CandidateAction {
+            CandidateAction {
+                candidate_id: id.into(), tool_name: tool_name.into(), arguments_json: "{}".into(),
+                action_kind, target_ref: "verified-target".into(),
+                preconditions: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::ApplicationReady, expected: true }],
+                expected_observe: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::TargetResolved, expected: true }],
+                confirmation_ref: None,
+            }
+        }
+
+        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let created = create(&mut store, "continuous-plan").unwrap();
+        let fragment = PlanFragment {
+            plan_id: "continuous-plan-v1".into(), plan_version: 1, task_id: created.id.clone(),
+            expected_sequence: created.sequence, deadline_ms: 2_000, token_budget: 100,
+            slots: vec![
+                PlanSlot { step_id: "launch".into(), label: "启动应用".into(), candidates: vec![candidate("launch-app", "launch_app", yonder_protocol::CuaActionKind::LaunchApplication)] },
+                PlanSlot { step_id: "focus".into(), label: "前置窗口".into(), candidates: vec![candidate("focus-app", "bring_to_front", yonder_protocol::CuaActionKind::BringToFront)] },
+            ],
+        };
+        let submitted = store.submit_plan_fragment("a1", &fragment).unwrap();
+        let config = JevConfig {
+            enabled: true, service_mode: JevServiceMode::Remote, endpoint: JEV_REMOTE_ENDPOINT.into(),
+            step_limit: 10, time_limit_ms: 60_000, token_limit: 10_000, capabilities: vec![JevCapability::Cua],
+        };
+        let port = Port(Mutex::new(Vec::new()));
+        let (task, disposition) = execute_available(
+            &mut store, &Admission::new(1).unwrap(), &port, &Target, &config, &MustNotChoose,
+            AuthContext::Agent("a1"), &created.id, &fragment.plan_id, 1, submitted.sequence, 1_000, "host",
+        ).unwrap();
+
+        assert_eq!(disposition, "fragment-complete");
+        assert_eq!(task.status, Status::Running);
+        assert_eq!(*port.0.lock().unwrap(), vec!["launch_app", "bring_to_front"]);
+        assert_eq!(store.get_plan_fragment(&created.id, &fragment.plan_id, 1).unwrap().unwrap().current_slot, 2);
+        assert_eq!(store.get_attempt(&created.id).unwrap().unwrap().phase, AttemptPhase::Stopped);
+
+        let budget_task = create(&mut store, "budgeted-plan").unwrap();
+        let budget_fragment = PlanFragment {
+            task_id: budget_task.id.clone(), plan_id: "budgeted-plan-v1".into(),
+            expected_sequence: budget_task.sequence, ..fragment.clone()
+        };
+        let budget_submitted = store.submit_plan_fragment("a1", &budget_fragment).unwrap();
+        let budget_port = Port(Mutex::new(Vec::new()));
+        let budget_config = JevConfig { step_limit: 1, ..config };
+        let (budget_result, budget_disposition) = execute_available(
+            &mut store, &Admission::new(1).unwrap(), &budget_port, &Target, &budget_config, &MustNotChoose,
+            AuthContext::Agent("a1"), &budget_task.id, &budget_fragment.plan_id, 1,
+            budget_submitted.sequence, 1_000, "host",
+        ).unwrap();
+        assert_eq!(budget_disposition, "handback");
+        assert_eq!(*budget_port.0.lock().unwrap(), vec!["launch_app"]);
+        assert_eq!(store.get_plan_fragment(&budget_task.id, &budget_fragment.plan_id, 1).unwrap().unwrap().current_slot, 1);
+        assert_eq!(store.get_presentation(&budget_task.id).unwrap().1.next_intent.as_deref(), Some("计划片段步数预算已耗尽"));
+        assert_eq!(budget_result.status, Status::Running);
+    }
+
+    #[test]
     fn agent_names_are_versioned_persistent_idempotent_and_bounded() {
         use yonder_application::gateway::{GatewaySession, Platform};
         use yonder_protocol::{QueryResult, Response};
