@@ -23,7 +23,7 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 
 按 Accepted AD-CU-07，`CuaWorker` 删除 HID generation 轮询与 `UserInput` 结果生成；超时、Worker/SDK 故障、身份不符和 Observe 失败保持原语义。桌面宿主增加仅内存存在的 `CuaControlHub`，持有当前 CUA task、步骤摘要和一次性接管请求，不进入 SQLite，也不成为任务状态源。
 
-本地 Gateway 在已校验的 `computer.step`、`computer.execute` 或 `plan.execute` 进入同步执行前发布控制卡；完成后必定清理。`cua-control` Tauri 窗口只提交 task_id，Rust 校验窗口 label 与 Hub 当前 task 后登记接管；因为任务执行期间 `TaskHost` 锁被同步调用持有，按钮不得等待该锁。动作返回并 Observe 后，Gateway 在同一宿主锁内消费信号、读取最新 task sequence 并调用既有 `user_takeover`，随后才向 Agent 写回响应，保证下一请求不能越过已登记控制。
+本地 Gateway 在已校验的 `computer.step`、`computer.execute` 或 `plan.execute` 进入同步执行前发布控制卡；Hub 以 task_id 跨 RPC 保留，后续同任务 CUA 请求只刷新步骤投影。单次动作返回和 Observe 不清理 Hub；成功的任务终态响应、显式接管成功或确认的执行会话终止才清理 Hub 并隐藏窗口。`cua-control` Tauri 窗口只提交 task_id，Rust 校验窗口 label 与 Hub 当前 task 后登记接管；因为任务执行期间 `TaskHost` 锁被同步调用持有，按钮不得等待该锁。动作返回并 Observe 后，Gateway 在同一宿主锁内消费信号、读取最新 task sequence 并调用既有 `user_takeover`，随后才向 Agent 写回响应，保证下一请求不能越过已登记控制。
 
 控制条窗口与圈选入口都以 pet 的 current monitor（回退 primary monitor）为锚点，并按 monitor work area 计算；横向居中且距顶部 16 逻辑像素。控制条固定逻辑尺寸、置顶、全工作区可见，但窗口本身只占控制条边界。前端不缓存任务事实、不提交 Agent 身份、sequence、PID/窗口号或定位结果。
 
