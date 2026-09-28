@@ -31,10 +31,28 @@ use yonder_application::{
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
 };
 
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+pub struct CuaControlStepPresentation {
+    pub step_id: String,
+    pub label: String,
+    pub state: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+pub struct CuaControlPresentation {
+    pub task_id: String,
+    pub current_step: String,
+    pub planned_steps: Vec<CuaControlStepPresentation>,
+    pub remaining_steps: u16,
+    pub plan_status: String,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct CuaControlState {
     task_id: String,
     takeover_requested: bool,
+    presentation: CuaControlPresentation,
+    executing_step_id: Option<String>,
 }
 
 /// CUA 执行热路径的进程内信号；不持久化，也不等待 TaskHost/SQLite 锁。
@@ -42,11 +60,36 @@ struct CuaControlState {
 pub struct CuaControlHub(Arc<Mutex<Option<CuaControlState>>>);
 
 impl CuaControlHub {
-    pub fn begin(&self, task_id: &str) -> bool {
+    pub fn begin(&self, presentation: CuaControlPresentation) -> bool {
         let Ok(mut state) = self.0.lock() else { return false };
-        if state.as_ref().is_some_and(|active| active.task_id != task_id) { return false; }
-        *state = Some(CuaControlState { task_id: task_id.to_owned(), takeover_requested: false });
+        if state.as_ref().is_some_and(|active| active.task_id != presentation.task_id) { return false; }
+        *state = Some(CuaControlState { task_id: presentation.task_id.clone(), takeover_requested: false, presentation, executing_step_id: None });
         true
+    }
+
+    pub fn mark_executing(&self, task_id: &str, step_id: &str) {
+        let Ok(mut state) = self.0.lock() else { return };
+        let Some(active) = state.as_mut().filter(|active| active.task_id == task_id) else { return };
+        active.executing_step_id = Some(step_id.to_owned());
+        if let Some(step) = active.presentation.planned_steps.iter().find(|step| step.step_id == step_id) {
+            active.presentation.current_step = step.label.clone();
+        }
+        for step in &mut active.presentation.planned_steps {
+            step.state = if step.step_id == step_id { "executing".into() } else { "pending".into() };
+        }
+        if let Some(index) = active.presentation.planned_steps.iter().position(|step| step.step_id == step_id) {
+            for step in &mut active.presentation.planned_steps[..index] { step.state = "completed".into(); }
+        }
+    }
+
+    pub fn presentation(&self) -> Option<CuaControlPresentation> {
+        let state = self.0.lock().ok()?;
+        let active = state.as_ref()?;
+        let mut presentation = active.presentation.clone();
+        if active.executing_step_id.is_none() && presentation.plan_status == "available" {
+            presentation.current_step = format!("准备执行：{}", presentation.current_step);
+        }
+        Some(presentation)
     }
 
     pub fn request_takeover(&self, task_id: &str) -> bool {
@@ -73,6 +116,7 @@ struct CuaControlPort<'a> { inner: &'a CuaWorker, hub: Option<&'a CuaControlHub>
 #[cfg(target_os = "macos")]
 impl ComputerUsePort for CuaControlPort<'_> {
     fn dispatch(&self, attempt:&yonder_application::ExecutionAttempt,target:&WorkTarget,action:&yonder_application::computer_use::ComputerAction)->yonder_application::computer_use::DispatchOutcome {
+        if let Some(hub)=self.hub { hub.mark_executing(&attempt.task_id,&attempt.step_id); }
         self.inner.dispatch(attempt,target,action)
     }
     fn end_session(&self){self.inner.end_session()}
@@ -877,6 +921,53 @@ impl TaskHost {
         }
     }
 
+    /// 只投影已校验执行请求对应的步骤标签；不把动作参数或观察数据交给 UI。
+    pub fn cua_control_presentation(
+        &mut self,
+        agent_id: &str,
+        hint: &yonder_application::gateway::ExecutionPresentationHint,
+    ) -> Option<CuaControlPresentation> {
+        use yonder_application::gateway::ExecutionPresentationHint;
+        let task_id = match hint {
+            ExecutionPresentationHint::StoredStep { task_id }
+            | ExecutionPresentationHint::DeclaredStep { task_id, .. }
+            | ExecutionPresentationHint::PlanSlot { task_id, .. } => task_id,
+        };
+        let task = self.store.get(task_id).ok()?;
+        if task.owner_agent_id != agent_id || !matches!(task.status, yonder_application::Status::Created | yonder_application::Status::Running) {
+            return None;
+        }
+        match hint {
+            ExecutionPresentationHint::PlanSlot { plan_id, plan_version, .. } => {
+                let stored = self.store.get_plan_fragment(task_id, plan_id, *plan_version).ok()??;
+                let current = usize::from(stored.current_slot);
+                let start = current.saturating_sub(1);
+                let end = (start + 4).min(stored.fragment.slots.len());
+                let planned_steps = stored.fragment.slots[start..end].iter().enumerate().map(|(offset, slot)| {
+                    let index = start + offset;
+                    CuaControlStepPresentation {
+                        step_id: slot.step_id.clone(), label: slot.label.clone(),
+                        state: if index < current { "completed".into() } else { "pending".into() },
+                    }
+                }).collect::<Vec<_>>();
+                let current_step = stored.fragment.slots.get(current).map(|slot| slot.label.clone())
+                    .unwrap_or_else(|| "计划步骤已完成".into());
+                Some(CuaControlPresentation {
+                    task_id: task_id.clone(), current_step, planned_steps,
+                    remaining_steps: u16::try_from(stored.fragment.slots.len().saturating_sub(end)).unwrap_or(u16::MAX),
+                    plan_status: "available".into(),
+                })
+            }
+            ExecutionPresentationHint::DeclaredStep { label, .. } => Some(CuaControlPresentation {
+                task_id: task_id.clone(), current_step: label.clone(), planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(),
+            }),
+            ExecutionPresentationHint::StoredStep { .. } => Some(CuaControlPresentation {
+                task_id: task_id.clone(), current_step: self.running_step_label(task_id).unwrap_or_else(|| "正在执行当前步骤".into()),
+                planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(),
+            }),
+        }
+    }
+
     /// 本地桌宠派生展示；执行优先，否则以首个未结束任务为代表。非执行/隐藏许可。
     pub fn presentation(&mut self) -> Result<(bool, &'static str, Option<String>), HostError> {
         let tasks = self
@@ -962,14 +1053,34 @@ mod tests {
     #[test]
     fn cua_control_hub_only_accepts_the_active_task_once() {
         let hub=CuaControlHub::default();
+        let presentation=|task_id:&str| CuaControlPresentation { task_id:task_id.into(), current_step:"步骤一".into(), planned_steps:vec![CuaControlStepPresentation { step_id:"step-1".into(), label:"步骤一".into(), state:"pending".into() }], remaining_steps:0, plan_status:"available".into() };
         assert!(!hub.request_takeover("task-a"));
-        assert!(hub.begin("task-a"));
+        assert!(hub.begin(presentation("task-a")));
         assert!(!hub.request_takeover("task-b"));
         assert!(hub.request_takeover("task-a"));
         assert!(hub.finish("task-a"));
         assert!(!hub.finish("task-a"));
-        assert!(hub.begin("task-b"));
+        assert!(hub.begin(presentation("task-b")));
         assert!(!hub.finish("task-b"));
+    }
+
+    #[test]
+    fn cua_control_hub_projects_the_real_dispatch_step_without_action_arguments() {
+        let hub=CuaControlHub::default();
+        assert!(hub.begin(CuaControlPresentation {
+            task_id:"task-a".into(), current_step:"打开设置".into(), remaining_steps:2, plan_status:"available".into(),
+            planned_steps:vec![
+                CuaControlStepPresentation { step_id:"open".into(), label:"打开设置".into(), state:"pending".into() },
+                CuaControlStepPresentation { step_id:"save".into(), label:"保存更改".into(), state:"pending".into() },
+            ],
+        }));
+        hub.mark_executing("task-a","save");
+        let value=serde_json::to_value(hub.presentation().unwrap()).unwrap();
+        assert_eq!(value["current_step"],"保存更改");
+        assert_eq!(value["planned_steps"][0]["state"],"completed");
+        assert_eq!(value["planned_steps"][1]["state"],"executing");
+        assert!(value.to_string().contains("打开设置"));
+        assert!(!value.to_string().contains("arguments"));
     }
     use yonder_application::{Action, create, transition};
 

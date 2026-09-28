@@ -105,9 +105,9 @@ fn hint_task_id(hint: &yonder_application::gateway::ExecutionPresentationHint) -
     }
 }
 
-fn show_cua_control(pet: &WebviewWindow, window: &WebviewWindow, task_id: &str, step_label: Option<&str>) -> io::Result<()> {
-    position_window_in_pet_work_area(pet, window, 460.0, 68.0).map_err(io::Error::other)?;
-    let detail=serde_json::json!({"taskId":task_id,"stepLabel":step_label});
+fn show_cua_control(pet: &WebviewWindow, window: &WebviewWindow, presentation: &crate::CuaControlPresentation) -> io::Result<()> {
+    position_window_in_pet_work_area(pet, window, 560.0, 174.0).map_err(io::Error::other)?;
+    let detail=serde_json::json!({"presentation":presentation});
     window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-cua-control-start',{{detail:{detail}}}))"))
         .and_then(|_|window.show()).map_err(io::Error::other)
 }
@@ -147,13 +147,15 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             }
             if let Some(hint) = cua_hint.as_ref() {
                 let task_id=hint_task_id(hint);
-                let step_label=host_ref.execution_step_label(&agent_id,hint);
-                if cua_hub.begin(task_id) {
-                    if let Err(error)=show_cua_control(&pet,&cua_control,task_id,step_label.as_deref()) {
+                let presentation=host_ref.cua_control_presentation(&agent_id,hint);
+                if let Some(presentation)=presentation.filter(|presentation|presentation.task_id==*task_id) {
+                    if cua_hub.begin(presentation.clone()) {
+                    if let Err(error)=show_cua_control(&pet,&cua_control,&presentation) {
                         cua_hub.finish(task_id);
                         return Err(error);
                     }
                     cua_started=true;
+                    }
                 }
             }
             let response = host_ref.query_session(&mut session, &frame, now);

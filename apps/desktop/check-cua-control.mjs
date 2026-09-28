@@ -2,27 +2,39 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 
-const elements=Object.fromEntries(['#title','#step','#takeover'].map(key=>[key,{textContent:'',disabled:false,listeners:{},addEventListener(type,fn){this.listeners[type]=fn;}}]));
+const element=()=>({textContent:'',disabled:false,hidden:false,className:'',listeners:{},children:[],addEventListener(type,fn){this.listeners[type]=fn;},replaceChildren(...children){this.children=children;}});
+const elements=Object.fromEntries(['#title','#step','#takeover','#steps','#plan','#plan-note'].map(key=>[key,element()]));
 const events={};
 const calls=[];
 const window={
-  __TAURI_INTERNALS__:{invoke:async(command,args)=>{calls.push({command,args});return 'accepted';}},
+  __TAURI_INTERNALS__:{invoke:async(command,args)=>{calls.push({command,args});return command==='cua_control_presentation'?presentation:'accepted';}},
   addEventListener(type,fn){events[type]=fn;},
 };
-const document={querySelector:key=>elements[key]};
-vm.runInNewContext(readFileSync(new URL('./ui/cua-control.js',import.meta.url),'utf8'),{window,document});
+const document={querySelector:key=>elements[key],createElement:()=>element()};
+const timers=[];
+const setInterval=fn=>{timers.push(fn);return timers.length;};
+const clearInterval=()=>{};
+let presentation={task_id:'task-1',current_step:'打开企业微信',planned_steps:[{step_id:'open',label:'打开企业微信',state:'executing'},{step_id:'write',label:'填写问候',state:'pending'}],remaining_steps:2,plan_status:'available'};
+vm.runInNewContext(readFileSync(new URL('./ui/cua-control.js',import.meta.url),'utf8'),{window,document,setInterval,clearInterval});
 
-events['yonda-cua-control-start']({detail:{taskId:'task-1',stepLabel:'打开企业微信'}});
+events['yonda-cua-control-start']({detail:{presentation}});
 assert.equal(elements['#title'].textContent,'Yonder 正在控制您的电脑');
 assert.equal(elements['#step'].textContent,'打开企业微信');
 assert.equal(elements['#takeover'].disabled,false);
+assert.equal(elements['#steps'].children.length,2);
+assert.equal(elements['#steps'].children[0].className,'executing');
+assert.equal(elements['#plan-note'].textContent,'另有 2 步');
+presentation={...presentation,current_step:'填写问候',planned_steps:[{step_id:'open',label:'打开企业微信',state:'completed'},{step_id:'write',label:'填写问候',state:'executing'}],remaining_steps:1};
+await timers[0]();
+assert.equal(elements['#steps'].children[0].className,'completed');
+assert.equal(elements['#step'].textContent,'填写问候');
 await elements['#takeover'].listeners.click();
-assert.equal(calls.length,1);
-assert.equal(calls[0].command,'cua_control_takeover');
-assert.equal(calls[0].args.taskId,'task-1');
+const takeoverCall=calls.at(-1);
+assert.equal(takeoverCall.command,'cua_control_takeover');
+assert.equal(takeoverCall.args.taskId,'task-1');
 assert.equal(elements['#title'].textContent,'正在安全停止');
 assert.equal(elements['#takeover'].disabled,true);
 events['yonda-cua-control-result']({detail:'failed'});
 assert.equal(elements['#title'].textContent,'未能安全停止');
 assert.equal(elements['#takeover'].textContent,'接管失败');
-console.log(JSON.stringify({start:true,step:true,explicitTakeoverOnly:true,pending:true,failure:true}));
+console.log(JSON.stringify({start:true,plannedSteps:true,executionProgress:true,explicitTakeoverOnly:true,pending:true,failure:true}));
