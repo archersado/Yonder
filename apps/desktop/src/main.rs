@@ -412,24 +412,7 @@ fn pet_agent_connected(window: WebviewWindow, hub: State<'_, yonder_desktop::age
 
 fn show_menu(app: &tauri::AppHandle) -> Result<(), String> {
     let pet = app.get_webview_window("pet").ok_or("小龙不可用")?;
-    let menu = app.get_webview_window("task-space").ok_or("任务菜单不可用")?;
-    let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
-        .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
-    let area = monitor.work_area();
-    let position = pet.outer_position().map_err(|_| "位置不可用")?;
-    let pet_size = pet.outer_size().map_err(|_| "尺寸不可用")?;
-    let size = menu.outer_size().map_err(|_| "菜单尺寸不可用")?;
-    let gap = (8.0 * monitor.scale_factor()) as i32;
-    let below = position.y + pet_size.height as i32 + gap;
-    let y = if i64::from(below) + i64::from(size.height) <= i64::from(area.position.y) + i64::from(area.size.height) {
-        below
-    } else { position.y - size.height as i32 - gap };
-    let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(size.width) as i32);
-    let max_y = area.position.y.saturating_add(area.size.height.saturating_sub(size.height) as i32);
-    let target = tauri::PhysicalPosition::new(position.x.clamp(area.position.x, max_x), y.clamp(area.position.y, max_y));
-    menu.set_position(target).and_then(|_| menu.show()).and_then(|_| menu.set_focus())
-        .and_then(|_| menu.eval("window.dispatchEvent(new Event('yonda-tasks-open'))"))
-        .map_err(|_| "任务菜单打开失败".into())
+    yonder_desktop::show_task_space_near_pet(&pet)
 }
 
 fn show_voice_input(app: &tauri::AppHandle) -> Result<(), String> {

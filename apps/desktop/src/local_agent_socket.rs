@@ -138,7 +138,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         let execution_hint = yonder_application::gateway::execution_presentation_hint(&frame, &agent_id, now);
         let cua_hint = yonder_application::gateway::cua_execution_presentation_hint(&frame, &agent_id, now);
         let mut cua_started = false;
-        let (response, presentation, takeover_result) = {
+        let (response, presentation, takeover_result, open_task_space) = {
             let mut locked = host.lock().map_err(|_| io::Error::other("本地Gateway不可用"))?;
             let host_ref = locked.as_mut().ok_or_else(|| io::Error::other("本地Gateway不可用"))?;
             if let Some(hint) = execution_hint.as_ref() {
@@ -159,6 +159,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                 }
             }
             let response = host_ref.query_session(&mut session, &frame, now);
+            let open_task_space = response.is_ok() && host_ref.take_task_space_open_pending();
             let takeover_result = cua_hint.as_ref().and_then(|hint| {
                 let task_id=hint_task_id(hint);
                 if !cua_started || !cua_hub.finish(task_id) { return None; }
@@ -166,7 +167,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                 Some(response.as_ref().map_err(|_|()).and_then(|_|host_ref.user_takeover_current(task_id,takeover_now).map_err(|_|())))
             });
             let presentation = host_ref.presentation().ok();
-            (response, presentation, takeover_result)
+            (response, presentation, takeover_result, open_task_space)
         };
         if cua_started {
             match takeover_result {
@@ -175,6 +176,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                 None => { let _=cua_control.hide(); },
             }
         }
+        if open_task_space { let _ = crate::show_task_space_after_agent_create(&pet); }
         let response=response.map_err(|_|io::Error::other("本地Gateway调用失败"))?;
         if let Some((has_tasks, state, step_label)) = presentation {
             if let Some((terminal,event_id))=yonder_application::gateway::terminal_presentation(&frame,&response){

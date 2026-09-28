@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tauri::WebviewWindow;
+use tauri::{Manager, WebviewWindow};
 use yonder_adapters::{command::StructuredCommandAdapter, document::OoxmlDocumentAdapter, file::ControlledFileAdapter, task_store::SqliteTaskStore};
 #[cfg(target_os = "macos")]
 use yonder_adapters::{
@@ -140,6 +140,41 @@ pub fn position_window_in_pet_work_area(
     let y = area.position.y + (16.0 * scale).round() as i32;
     window.set_size(tauri::PhysicalSize::new(width, height)).map_err(|_| "控制卡尺寸设置失败")?;
     window.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|_| "控制卡定位失败".into())
+}
+
+/// 在当前 pet 旁显示既有任务空间；只负责窗口呈现，不读取或写入任务事实。
+pub fn show_task_space_near_pet(pet: &WebviewWindow) -> Result<(), String> {
+    let app = pet.app_handle();
+    let menu = app.get_webview_window("task-space").ok_or("任务菜单不可用")?;
+    let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
+        .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
+    let area = monitor.work_area();
+    let position = pet.outer_position().map_err(|_| "位置不可用")?;
+    let pet_size = pet.outer_size().map_err(|_| "尺寸不可用")?;
+    let size = menu.outer_size().map_err(|_| "菜单尺寸不可用")?;
+    let gap = (8.0 * monitor.scale_factor()) as i32;
+    let below = position.y + pet_size.height as i32 + gap;
+    let y = if i64::from(below) + i64::from(size.height) <= i64::from(area.position.y) + i64::from(area.size.height) {
+        below
+    } else { position.y - size.height as i32 - gap };
+    let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(size.width) as i32);
+    let max_y = area.position.y.saturating_add(area.size.height.saturating_sub(size.height) as i32);
+    let target = tauri::PhysicalPosition::new(position.x.clamp(area.position.x, max_x), y.clamp(area.position.y, max_y));
+    menu.set_position(target).and_then(|_| menu.show()).and_then(|_| menu.set_focus())
+        .and_then(|_| menu.eval("window.dispatchEvent(new Event('yonda-tasks-open'))"))
+        .map_err(|_| "任务菜单打开失败".into())
+}
+
+/// 自动展示不应覆盖用户正使用的输入或桌面控制卡。
+pub fn show_task_space_after_agent_create(pet: &WebviewWindow) -> Result<bool, String> {
+    let app = pet.app_handle();
+    for label in ["cua-control", "voice-input", "region-preview"] {
+        if app.get_webview_window(label).is_some_and(|window| window.is_visible().unwrap_or(false)) {
+            return Ok(false);
+        }
+    }
+    show_task_space_near_pet(pet)?;
+    Ok(true)
 }
 
 #[cfg(target_os = "macos")]
@@ -326,6 +361,7 @@ pub struct TaskHost {
     command_approvals: CommandApprovalRegistry,
     listening_pending: bool,
     listening_until: Option<Instant>,
+    task_space_open_pending: bool,
     #[cfg(target_os = "macos")]
     browser: Option<EgoLiteBridge>,
     #[cfg(target_os = "macos")]
@@ -425,6 +461,7 @@ impl TaskHost {
             command_approvals: CommandApprovalRegistry::default(),
             listening_pending: false,
             listening_until: None,
+            task_space_open_pending: false,
             #[cfg(target_os = "macos")]
             browser,
             #[cfg(target_os = "macos")]
@@ -861,8 +898,14 @@ impl TaskHost {
         if accepted_create {
             self.listening_pending = true;
             self.listening_until = None;
+            self.task_space_open_pending = true;
         }
         Ok(response)
+    }
+
+    /// 仅供已认证 Local Socket 在成功新建后消费一次展示请求。
+    pub fn take_task_space_open_pending(&mut self) -> bool {
+        std::mem::take(&mut self.task_space_open_pending)
     }
 
     fn running_step_label(&mut self, task_id: &str) -> Option<String> {
