@@ -48,6 +48,8 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 连续推进由 Application 在一次 `task.plan.execute` 调用栈内完成，最多消费当前不可变片段的剩余槽位。每轮只派发一个动作，成功 Observe 与 attempt 停止边界提交后才推进 `current_slot`；下一轮重新读取片段、任务 sequence 与控制事实。返回响应后不保留执行线程或定时任务。片段完成返回 `fragment-complete`，但不替代归属慢脑提交 `task.complete`/`task.fail`。
 
+产品 MCP 必须从同一 Rust 协议类型构造 `task.plan.submit` 与 `task.plan.execute` 请求，直接转发到既有私有 UDS Gateway；不得在 CLI 重写计划校验、执行循环或 Jev 选择。MCP schema 只镜像协议字段，Gateway 继续负责身份、版本、CAS、期限、候选和能力检查。该入口使 Codex 成为真实慢脑，不创建第二 Agent 通道。
+
 取消、接管、用户输入先冻结快脑新决策，再按既有步骤边界停止/Observe/事务确认。副作用超时、崩溃或断连为 `unknown`，保留占用并交回慢脑；重启 running→interrupted，不能恢复旧候选、旧计划或自动重发。敏感操作继续走显式用户确认，不因高置信豁免。
 
 ## 失败与验证
