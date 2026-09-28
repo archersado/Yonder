@@ -1821,6 +1821,7 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && candidate.expected_observe.len() <= 4
                         && valid_observe_conditions(&candidate.preconditions)
                         && valid_observe_conditions(&candidate.expected_observe)
+                        && tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
                         && match candidate.action_kind {
                             CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && candidate.arguments.as_object().is_some_and(|arguments| arguments.is_empty()),
                             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
@@ -1833,6 +1834,19 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
 fn valid_observe_conditions(conditions: &[CuaObserveConditionParams]) -> bool {
     let mut facts = std::collections::HashSet::new();
     conditions.iter().all(|condition| facts.insert(condition.fact as u8))
+}
+
+/// 语义候选不能借“动作类型”之名派发另一类 Driver 工具。尚未具备稳定语义的
+/// 控件点击必须交回外部 Agent，不能伪装为消息或应用动作。
+pub fn tool_matches_action_kind(kind: CuaActionKind, tool_name: &str) -> bool {
+    matches!(
+        (kind, tool_name),
+        (CuaActionKind::LaunchApplication, "launch_app")
+            | (CuaActionKind::BringToFront, "bring_to_front")
+            | (CuaActionKind::ResolveConversation, "press_key")
+            | (CuaActionKind::DraftMessage, "type_text")
+            | (CuaActionKind::SendMessage, "press_key")
+    )
 }
 
 pub const MAX_FILE_EXECUTE_BYTES: usize = 48 * 1024;

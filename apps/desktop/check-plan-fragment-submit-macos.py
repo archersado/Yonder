@@ -19,7 +19,7 @@ def call(number, method, capability, **params):
 try:
     hello=call(1,"gateway.hello","task.read",protocol_version={"major":1,"minor":31})
     task=call(2,"task.create","task.create",idempotency_key=f"plan-{time.time_ns()}",description="EX-S2计划片段验证",name="EX-S2验证")["result"]["task"]
-    submitted=call(3,"task.plan.submit","task.plan.submit",task_id=task["task_id"],expected_sequence=task["sequence"],plan_id="verify-plan",plan_version=1,token_budget=1,slots=[{"step_id":"verify-step","label":"隔离验证步骤","candidates":[{"candidate_id":"safe","tool_name":"type_text","arguments":{"delivery_mode":"background"}}]}])
+    submitted=call(3,"task.plan.submit","task.plan.submit",task_id=task["task_id"],expected_sequence=task["sequence"],plan_id="verify-plan",plan_version=1,token_budget=1,slots=[{"step_id":"verify-step","label":"隔离验证步骤","candidates":[{"candidate_id":"safe","tool_name":"type_text","arguments":{"delivery_mode":"background"},"action_kind":"draft-message","target_ref":"isolated-fixture-composer","preconditions":[{"fact":"composer-ready","expected":True}],"expected_observe":[{"fact":"composer-ready","expected":True}]}]}])
     capabilities={entry.get("name") for entry in hello.get("result",{}).get("capabilities",[])}
     result={
         "hello_ok":hello.get("result",{}).get("protocol_version",{}).get("minor")==31,

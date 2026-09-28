@@ -146,6 +146,7 @@ fn valid_candidate(candidate: &CandidateAction) -> bool {
         && candidate.expected_observe.len() <= 4
         && valid_observe_conditions(&candidate.preconditions)
         && valid_observe_conditions(&candidate.expected_observe)
+        && yonder_protocol::tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
         && match candidate.action_kind {
             yonder_protocol::CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && candidate.arguments_json == "{}",
             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
@@ -187,10 +188,10 @@ mod tests {
     use crate::jev_runtime::JevModelChoice;
     struct Fake;
     impl JevDecisionPort for Fake { fn choose(&self, _: &JevConfig, _: &JevDecisionRequest) -> Result<JevModelChoice, JevDecisionError> { Ok(JevModelChoice { candidate_id: "click".into(), confidence: 0.9 }) } }
-    fn candidate() -> CandidateAction { CandidateAction { candidate_id:"click".into(), tool_name:"computer_click".into(), arguments_json:"{}".into(), action_kind:yonder_protocol::CuaActionKind::BringToFront, target_ref:"wecom-app".into(), preconditions:vec![yonder_protocol::CuaObserveConditionParams { fact:yonder_protocol::CuaObserveFact::ApplicationReady, expected:true }], expected_observe:vec![yonder_protocol::CuaObserveConditionParams { fact:yonder_protocol::CuaObserveFact::TargetResolved, expected:true }], confirmation_ref:None } }
+    fn candidate() -> CandidateAction { CandidateAction { candidate_id:"click".into(), tool_name:"bring_to_front".into(), arguments_json:"{}".into(), action_kind:yonder_protocol::CuaActionKind::BringToFront, target_ref:"wecom-app".into(), preconditions:vec![yonder_protocol::CuaObserveConditionParams { fact:yonder_protocol::CuaObserveFact::ApplicationReady, expected:true }], expected_observe:vec![yonder_protocol::CuaObserveConditionParams { fact:yonder_protocol::CuaObserveFact::TargetResolved, expected:true }], confirmation_ref:None } }
     fn fragment() -> PlanFragment { PlanFragment { plan_id:"plan-1".into(), plan_version:1, task_id:"task-1".into(), expected_sequence:1, deadline_ms:1, token_budget:1, slots:vec![PlanSlot { step_id:"step-1".into(), label:"点击继续".into(), candidates:vec![candidate()] }] } }
     fn config() -> JevConfig { JevConfig { enabled:true, service_mode:JevServiceMode::Remote, endpoint:JEV_REMOTE_ENDPOINT.into(), step_limit:10, time_limit_ms:60_000, token_limit:10_000, capabilities:vec![JevCapability::Cua] } }
     #[test] fn selects_only_submitted_candidate() { assert_eq!(select(&config(), &Fake, &fragment(), 0).unwrap(), Selection::Dispatch(fragment().slots[0].candidates[0].clone())); }
     #[test] fn rejects_free_form_or_oversized_fragment() { let mut value=fragment(); value.slots[0].candidates[0].tool_name="Shell".into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment(); value.slots=vec![]; assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
-    #[test] fn send_candidate_requires_opaque_confirmation_and_no_body() { let mut value=fragment(); value.slots[0].candidates[0].action_kind=yonder_protocol::CuaActionKind::SendMessage; value.slots[0].candidates[0].confirmation_ref=Some("confirm-1".into()); assert_eq!(validate(&value),Ok(())); value.slots[0].candidates[0].arguments_json=r#"{\"text\":\"hi\"}"#.into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
+    #[test] fn send_candidate_requires_opaque_confirmation_and_no_body() { let mut value=fragment(); value.slots[0].candidates[0].action_kind=yonder_protocol::CuaActionKind::SendMessage; value.slots[0].candidates[0].tool_name="press_key".into(); value.slots[0].candidates[0].confirmation_ref=Some("confirm-1".into()); assert_eq!(validate(&value),Ok(())); value.slots[0].candidates[0].arguments_json=r#"{\"text\":\"hi\"}"#.into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
 }
