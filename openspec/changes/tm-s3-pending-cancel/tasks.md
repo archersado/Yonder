@@ -7,5 +7,6 @@
 - [x] 详情取消交互
 - [x] macOS原生验证与独立Verification Goal
 - [x] 执行中停止确认（已由 tm-s3-control-request 完成）
+- [ ] 按2026-09-28变更统一排队/进行中直接取消并释放宿主准入
 - [ ] Windows验证
 - [ ] 完整Story/PR通过后Archive
