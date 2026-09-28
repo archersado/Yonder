@@ -1,0 +1,14 @@
+{
+  "platform": "macos",
+  "task_id": "task_0e19e584e3c58641eac3f58cafc583c6",
+  "window_visible": true,
+  "top_centered_like_region": true,
+  "takeover_pressed": true,
+  "task_status": "paused",
+  "control_phase": "stopped",
+  "focus_phase": "failed",
+  "executed_disposition": "takeover-requested",
+  "stopped_before_all_slots": true,
+  "new_user_input_unknown_count": 0,
+  "passed": true
+}

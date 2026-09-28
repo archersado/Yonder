@@ -46,3 +46,5 @@ Accepted AD-TM-04审阅通过，首批仅created取消；openspec/changes/tm-s3-
 2026-09-20接管定位可见性增量PASS：macOS Adapter 在 AX 焦点确认后复核原窗口处于 WindowServer 当前可见列表，避免跨 Space 不可见窗口被误报为已定位；见[独立 Verification Goal](../../../../openspec/changes/tm-s3-work-focus-visibility/verification-goal.md)。真实跨 Space/多显示器仍需单独原生样本，Windows与 Recording 继续保留。
 
 2026-09-28依据用户明确变更与 Accepted AD-CU-07 开始显式 CUA 接管增量：移除普通 HID 自动中断，在真实 CUA 执行区间显示与圈选工具条同屏、同顶部居中位置及同视觉的控制条，只允许用户点击“接管电脑”后在动作完成并 Observe 的安全边界暂停。Windows与 Recording 不在本增量范围。
+
+2026-09-28显式 CUA 接管增量 macOS PASS：正式 GUI 顶部控制条、真实 trycua 计划边界接管、`paused/stopped` 与零新增 `unknown/user-input` 均通过，用户现场确认位置与圈选样式一致；见[独立 Verification Goal](../../../../openspec/changes/tm-s3-explicit-cua-takeover/verification-goal.md)。Windows、Recording 与完整交回仍保留，完整 Story 状态不改为 Done。

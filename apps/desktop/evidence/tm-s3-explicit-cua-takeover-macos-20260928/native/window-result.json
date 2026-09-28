@@ -1,0 +1,18 @@
+{
+  "button_found" : true,
+  "expected_top" : 50,
+  "message" : true,
+  "passed" : true,
+  "pid" : 12922,
+  "position" : [
+    625,
+    50
+  ],
+  "size" : [
+    460,
+    68
+  ],
+  "takeover_pressed" : true,
+  "top_centered_like_region" : true,
+  "visible" : true
+}
