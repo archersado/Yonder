@@ -4,6 +4,7 @@
 - [x] 从 `dev` 构建并启动唯一正式 Yonder GUI，校验 Codex MCP 指向本次 CLI。
 - [ ] 校验 Jev 面板配置与凭据可用，构造真实多候选片段并记录快脑选择、连续执行、交回及纯慢脑对照耗时。
 - [x] 修复首动作前 Jev 交回的 running 状态同步及 v20 审计表全缺安全修复，恢复产品 `task.get/task.events`。
+- [ ] 修复首动作前 Jev 交回后的 replan 恢复边界：同一 running 任务在无既有 attempt/Admission 时须能安全取得桌面租约并执行慢脑经 Gateway 提交的新片段。
 - [ ] 用真实 Codex MCP 完成 CUA 企业微信任务，覆盖计划/当前步骤、持续控制条、发送确认与终态。
 - [ ] 用真实 Codex MCP 完成 BUA 公开网页任务，覆盖 ego-lite Task Space、Observe、交回与终态。
 - [x] 将顶部规划/执行浮窗扩展到所有 Gateway 执行能力，保留仅 CUA 可接管，并用真实 CUA/BUA 任务验证生命周期。
