@@ -49,7 +49,7 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 - 重启后 running 转 interrupted；重新 Observe 后由外部 Agent 决定继续、跳过或局部 replan，禁止自动重试副作用未知动作。
 - 提供 task.get、task.events(after_sequence)、CLI status/watch、MCP 查询/长轮询与云端事件推送。
 - 每一步后增量 Observe；窗口切换、导航、目标丢失时完整 Observe。Yonder 可在外部计划片段内用 Jev 选择下一受支持操作与目标并校验预期条件；超出计划或需语义 replan 时交回经 Gateway 接入的外部 Agent。
-- CUA 使用唯一前台租约，用户输入即暂停；BUA MVP 单并发。后台读取可并行，同一文件禁止并发写。
+- CUA 使用唯一前台租约；按 Accepted AD-CU-07，普通键鼠输入不自动暂停，用户从屏幕中央的 Yonder 控制卡显式点击“接管电脑”后，宿主在动作完成并 Observe 的安全边界暂停。BUA MVP 单并发。后台读取可并行，同一文件禁止并发写。
 
 2026-09-18 按 Accepted [AD-TM-10](AD-TM-10-AGENT-WAIT-FOR-USER.md) 增加协议 1.17 等待用户提交：仅归属 Agent 在已 Observe 并推进的安全步骤边界写入 `waiting-for-user`，等待原因、事件与 Outbox 同事务，提交后释放准入资源；不提供自动 Resume。
 
@@ -142,7 +142,7 @@ SQLite 存元数据并使用 FTS5；大内容存加密附件。Agent 只能经 C
 
 2026-09-14创建权限补充（Accepted AD-AG-01）：任务只由已连接且认证/握手的Agent经统一Gateway创建，不支持人工手动创建；用户仍可确认和操作已有任务。具体创建协议/幂等存储按AG-S2联审，未定稿不开放写入口。
 
-2026-09-14人工接管补充（Accepted AD-TM-03）：显式人工接管已有任务时记录user来源行为；交回归属Agent前保存证据并新鲜Observe，Agent显式决策后重新准入，禁止自动恢复。普通输入自动暂停不自动开始Recording，隐私排除与单设备一Recording约束不变。
+2026-09-14人工接管补充（停止触发由2026-09-28 Accepted AD-CU-07修订）：显式人工接管已有任务时记录user来源行为；交回归属Agent前保存证据并新鲜Observe，Agent显式决策后重新准入，禁止自动恢复。普通输入不自动暂停也不自动开始Recording，隐私排除与单设备一Recording约束不变。
 
 任务登记首批协议/幂等设计见Accepted AD-AG-02：Gateway 1.1的task.create仅登记created，schema2→3追加原子幂等表；本地联调用私有stdio测试夹具，生产连接认证/IPC仍独立门禁。
 

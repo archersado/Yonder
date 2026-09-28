@@ -10,14 +10,14 @@ Agent不得提交PID、窗口号、Session、target、snapshot、元素token/ind
 
 macOS目标固定为请求到达时最前方、可见、非Yonder的layer-0窗口，由宿主原生Adapter解析为内部`WorkTarget`；目标缺失或不唯一时不准备attempt。该选择规则不做语义规划、不按标题猜测、不移动窗口。单次SDK参数JSON不得超过16KiB，正文不得进入日志、事件或验证证据。
 
-Driver 使用固定 trycua SDK 0.25.0 和受监管按需 Worker。Capability 只有在 SDK、Node、辅助功能权限、目标解析与用户输入监测均可用时才为 available。动作期间检测到新的真实 HID 键鼠输入时终止 Worker，将 attempt 记为 `unknown/user-input`，任务转为 `interrupted`并释放桌面输入租约；不得重试或自动恢复，也不得开启 Recording。
+Driver 使用固定 trycua SDK 0.25.0 和受监管按需 Worker。Capability 只有在 SDK、Node、辅助功能权限与目标解析可用时才为 available。2026-09-28 Accepted AD-CU-07 覆盖原 HID 自动中断：普通键鼠输入不再终止 Worker或改变任务；只有 Yonder 控制卡的显式接管意图在动作完成并 Observe 后触发安全边界暂停。历史 `unknown/user-input` 仅保留兼容读取。
 
-2026-09-16连续动作修订：同一任务执行期内的CUA动作复用一个受监管Node Worker和同一个trycua Driver会话，按唯一Desktop租约串行执行；不得在连续动作中插入另一套原生动作执行器。每个动作仍独立生成attempt并强制Observe。任务完成、用户输入、超时、Worker/SDK崩溃或宿主退出时销毁该会话，后续动作只能由Agent在重新Observe并作出决策后进入新会话。macOS原生代码仅提供可信目标解析、HID中断信号，以及已停止后人工接管的WorkRef定位；WorkRef定位不得发生在Agent CUA动作序列中。
+2026-09-16连续动作修订（用户输入终止条款由AD-CU-07覆盖）：同一任务执行期内的CUA动作复用一个受监管Node Worker和同一个trycua Driver会话，按唯一Desktop租约串行执行；不得在连续动作中插入另一套原生动作执行器。每个动作仍独立生成attempt并强制Observe。任务完成、显式接管、超时、Worker/SDK崩溃或宿主退出时销毁该会话，后续动作只能由Agent在重新Observe并作出决策后进入新会话。macOS原生代码提供可信目标解析及已停止后人工接管的WorkRef定位；WorkRef定位不得发生在Agent CUA动作序列中。
 
 已Observe的普通步骤仍使用1.7 `task.step.advance`。`task.complete`只允许归属Agent在running、最近attempt已stopped、无pending control且持有任务资源时提交；完成事务成功后才释放资源。Windows按用户决定暂缓，声明dependency missing；本决定不增加语义规划、自动安装或绕过SDK授权。
 
 2026-09-16粗粒度接口修订：协议1.12新增`computer.step`，把步骤声明、attempt准备、SDK动作、强制Observe和普通边界推进收敛为一次Agent往返；SQLite仍按原事务边界逐阶段提交，崩溃恢复语义不变。1.11底层`computer.execute`保留兼容但不再向MCP默认发现，避免每个动作由Agent重复调用declare/execute/advance。响应只返回紧凑任务状态、动作结论和有界Observe证据，不回传完整SDK Payload。
 
-Node Worker继续是Yonder应用包内的固定trycua Adapter：其进程隔离承担SDK崩溃、超时和用户输入中断，不属于Agent协议层，也不消耗模型token。除非trycua提供稳定受支持的Rust进程内SDK，否则不复制其生成FFI或把Worker代码移入Skill。后置Observe由trycua生成桌面状态；截图最多4MiB，写入Yonder受控临时目录并以本地只读路径返回，任务完成或会话终止时清理。日志、事件和Outbox不得写入截图、正文或完整结构化Payload。
+Node Worker继续是Yonder应用包内的固定trycua Adapter：其进程隔离承担SDK崩溃和超时，不属于Agent协议层，也不消耗模型token。除非trycua提供稳定受支持的Rust进程内SDK，否则不复制其生成FFI或把Worker代码移入Skill。后置Observe由trycua生成桌面状态；截图最多4MiB，写入Yonder受控临时目录并以本地只读路径返回，任务完成或会话终止时清理。日志、事件和Outbox不得写入截图、正文或完整结构化Payload。
 
 2026-09-17跨Space应用前置修订：`launch_app`保持SDK定义的后台启动语义，Yonder不得把它隐式改写为`bring_to_front`。Worker只在同一任务、同一受监管SDK会话内暂存最近一次成功`launch_app`返回的bundle id、PID与普通窗口号；每次Observe先按SDK bundle id解析当前主进程，处理启动器向主进程的PID交接。Agent下一步显式调用`bring_to_front`且不提交受保护身份时，Worker注入该可信返回值。缓存不持久化、不跨任务，并随Worker会话终止清除。SDK若不能把窗口从其他Space前置，结果保持失败；Yonder不得硬编码Dock坐标、调用系统脚本或伪报已前置。屏幕截图权限不可用时，`target_visible`仅用于启动和显式前置：后台启动按SDK契约为false，前置要求SDK已确认动作成功且后置窗口可见；其他动作返回null，不依赖瞬时active或单独on-screen状态猜测前台，也不解释界面内容。
