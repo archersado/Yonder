@@ -31,6 +31,10 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 
 `TaskHost` 在收到已校验的 `PlanExecute` 提示时，从 SQLite 的不可变计划片段读取至多四个槽位标签，形成只读 `CuaControlPresentation`；`CuaControlHub` 只暂存 task_id、步骤列表与当前 prepared attempt 的 step_id。`CuaControlPort` 在实际 Driver 派发前将执行 step_id 写入 Hub；控制条窗口通过受限 Tauri 命令读取该投影，不能修改它。计划片段仍由 Application/SQLite 管理，Hub 不是持久化或并发协调事实源。
 
+2026-09-28用户追加要求把快慢脑过程同时透出。Application在每槽位进入选择前，通过既有`ComputerUsePort`的只读投影钩子发布候选数量；选择后只发布封闭`CuaActionKind`对应的用户可理解动作语义，单候选明确为慢脑直接授权，多候选明确为Jev已选择，HandBack明确为交回慢脑。该钩子不改变选择、CAS或Driver接口，不携带候选参数、置信度、模型原文或思维链。Hub在同一任务内保留`slow_brain_summary`与`fast_brain_summary`，UI和Driver均不是事实源。
+
+窗口事件只用于低延迟提示，不能是唯一初始化路径。`cua-control.js`加载后必须主动调用受限`cua_control_presentation`取得当前投影；事件先于监听器、WebView重载或隐藏后重显都从同一Hub恢复。读取失败只保持安全默认文案，不影响执行。
+
 单步 `computer.step`/`computer.execute` 没有计划列表时只提供当前标签；Plan 读取失败明确标记不可用而不影响 Application 调用。UI 只渲染纯文本标签、索引和 `completed/executing/pending` 状态；不读取 action arguments、Agent payload 或任何 Adapter 原始观察数据。卡片开始、每次 Driver 派发、接管和结束均重取/清理投影，避免旧任务残留。
 
 ## 架构影响

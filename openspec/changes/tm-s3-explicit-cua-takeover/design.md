@@ -5,3 +5,5 @@
 UI 窗口宽 460、高 68，锚定 pet 当前显示器，在 work area 横向居中并距顶部 16 逻辑像素，与圈选工具条共用同样的 monitor/work-area 定位和视觉参数。它不是全屏窗口，不吞控制条外输入。JS 只消费宿主事件和调用无 sequence 的显式命令；本地 pending 状态跨投影刷新保留，避免按钮在停止完成前被重新启用。
 
 新执行不读取 macOS HID generation。历史枚举和数据兼容保留；原生 C 文件中的监测实现可删除，避免常驻 Event Tap。
+
+`CuaControlPresentation`增加慢脑与快脑的有界摘要。计划读取只产生槽位标签/数量；Application在选择前后通过`ComputerUsePort`默认空实现的投影钩子更新候选数量、单候选直接授权、多候选Jev选择或HandBack，具体Adapter和UI不参与决策。动作语义来自封闭`CuaActionKind`映射，不投出参数、置信度、模型原文或思维链。JS注册事件后立即主动读取当前Hub投影，事件与轮询只做刷新，消除隐藏WebView尚未加载时丢失首次事件的空白卡片。
