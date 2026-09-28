@@ -395,7 +395,7 @@ fn pet_is_visible(window: WebviewWindow) -> Result<bool, String> {
 }
 
 #[tauri::command]
-async fn pet_task_state(window: WebviewWindow, state: State<'_, TaskState>) -> Result<(bool, &'static str), String> {
+async fn pet_task_state(window: WebviewWindow, state: State<'_, TaskState>) -> Result<(bool, &'static str, Option<String>), String> {
     if window.label() != "pet" { return Err("不允许的窗口".into()); }
     let host = Arc::clone(&state.0);
     tauri::async_runtime::spawn_blocking(move || {
@@ -532,7 +532,7 @@ fn voice_input_phase(window: WebviewWindow, state: State<'_, voice_input::VoiceR
 
 #[tauri::command]
 async fn task_menu_show(window: WebviewWindow, state: State<'_, TaskState>) -> Result<bool, String> {
-    let (has_tasks, _) = pet_task_state(window.clone(), state).await?;
+    let (has_tasks, _, _) = pet_task_state(window.clone(), state).await?;
     if !has_tasks { return Ok(false); }
     show_menu(window.app_handle())?;
     Ok(true)
@@ -566,8 +566,8 @@ async fn task_query(window: WebviewWindow, state: State<'_, TaskState>, request:
         let response = String::from_utf8(response).map_err(|_| "任务响应不可用".to_owned())?;
         Ok::<_, String>((response, host.presentation().ok()))
     }).await.map_err(|_| "任务查询中断".to_owned())??;
-    if let (Some(pet), Some((has_tasks, task_state))) = (pet, presentation) {
-        yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state);
+    if let (Some(pet), Some((has_tasks, task_state, step_label))) = (pet, presentation) {
+        yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state, step_label.as_deref());
     }
     Ok(response)
 }
@@ -583,7 +583,7 @@ async fn user_takeover(window:WebviewWindow,state:State<'_,TaskState>,task_id:St
         let response=String::from_utf8(host.user_takeover(&task_id,expected,now).map_err(|_|"接管失败")?).map_err(|_|"任务响应不可用")?;
         Ok::<_,String>((response,host.presentation().ok()))
     }).await.map_err(|_|"接管中断".to_owned())??;
-    if let(Some(pet),Some((has_tasks,task_state)))=(pet,presentation){yonder_desktop::emit_pet_presentation(&pet,has_tasks,task_state);}
+    if let(Some(pet),Some((has_tasks,task_state,step_label)))=(pet,presentation){yonder_desktop::emit_pet_presentation(&pet,has_tasks,task_state,step_label.as_deref());}
     Ok(response)
 }
 
@@ -618,8 +618,8 @@ async fn task_confirm(
     if !terminal {
         return Err("确认未保持任务终态".into());
     }
-    if let (Some(pet), Some((has_tasks, task_state))) = (pet, presentation) {
-        yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state);
+    if let (Some(pet), Some((has_tasks, task_state, step_label))) = (pet, presentation) {
+        yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state, step_label.as_deref());
     }
     Ok(())
 }

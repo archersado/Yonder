@@ -47,6 +47,57 @@ pub fn is_execution_request(bytes: &[u8]) -> bool {
     )
 }
 
+/// 桌面表现层只读取已解码执行请求的任务身份，不解析动作内容。
+pub fn execution_request_task(bytes: &[u8]) -> Option<String> {
+    match yonder_protocol::decode(bytes).ok()? {
+        Request::BrowserExecute { params, .. } => Some(params.task_id),
+        Request::ComputerExecute { params, .. } => Some(params.task_id),
+        Request::ComputerStep { params, .. } => Some(params.task_id),
+        Request::PlanExecute { params, .. } => Some(params.task_id),
+        Request::FileExecute { params, .. } => Some(params.task_id),
+        Request::DocumentExecute { params, .. } => Some(params.task_id),
+        Request::CommandExecute { params, .. } => Some(params.task_id),
+        _ => None,
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ExecutionPresentationHint {
+    StoredStep { task_id: String },
+    DeclaredStep { task_id: String, label: String },
+    PlanSlot { task_id: String, plan_id: String, plan_version: u64 },
+}
+
+/// 只在协议校验与连接身份一致后提供当前执行请求的步骤定位信息。
+pub fn execution_presentation_hint(
+    bytes: &[u8],
+    connected_agent_id: &str,
+    now_ms: u64,
+) -> Option<ExecutionPresentationHint> {
+    let request = yonder_protocol::decode(bytes).ok()?;
+    request.validate(now_ms).ok()?;
+    if request.agent_id() != connected_agent_id {
+        return None;
+    }
+    match request {
+        Request::ComputerStep { params, .. } => Some(ExecutionPresentationHint::DeclaredStep {
+            task_id: params.task_id,
+            label: params.label,
+        }),
+        Request::PlanExecute { params, .. } => Some(ExecutionPresentationHint::PlanSlot {
+            task_id: params.task_id,
+            plan_id: params.plan_id,
+            plan_version: params.plan_version,
+        }),
+        Request::BrowserExecute { params, .. } => Some(ExecutionPresentationHint::StoredStep { task_id: params.task_id }),
+        Request::ComputerExecute { params, .. } => Some(ExecutionPresentationHint::StoredStep { task_id: params.task_id }),
+        Request::FileExecute { params, .. } => Some(ExecutionPresentationHint::StoredStep { task_id: params.task_id }),
+        Request::DocumentExecute { params, .. } => Some(ExecutionPresentationHint::StoredStep { task_id: params.task_id }),
+        Request::CommandExecute { params, .. } => Some(ExecutionPresentationHint::StoredStep { task_id: params.task_id }),
+        _ => None,
+    }
+}
+
 fn is_agent_write_request(request: &Request) -> bool {
     matches!(
         request,
@@ -374,6 +425,17 @@ mod tests {
         let step = br#"{"jsonrpc":"2.0","id":"r2","method":"computer.step","params":{"agent_id":"a1","capability":"computer.execute","deadline":2000,"task_id":"t1","expected_sequence":"2","step_id":"press","label":"press key","tool_name":"press_key","arguments":{"key":"tab"}}}"#;
         assert!(is_execution_request(computer));
         assert!(is_execution_request(step));
+        assert_eq!(execution_request_task(computer).as_deref(), Some("t1"));
+        assert_eq!(execution_request_task(step).as_deref(), Some("t1"));
+        assert_eq!(
+            execution_presentation_hint(step, "a1", 1000),
+            Some(ExecutionPresentationHint::DeclaredStep {
+                task_id: "t1".into(),
+                label: "press key".into(),
+            })
+        );
+        assert!(execution_presentation_hint(step, "other", 1000).is_none());
+        assert!(execution_presentation_hint(step, "a1", 3000).is_none());
         assert!(!is_execution_request(br#"{"jsonrpc":"2.0","id":"r1","method":"task.get","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"t1"}}"#));
         assert!(!is_execution_request(br#"{"method":"computer.execute"}"#));
     }

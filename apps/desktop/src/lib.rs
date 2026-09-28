@@ -147,13 +147,25 @@ impl ConfirmError {
     }
 }
 
-pub fn emit_pet_presentation(window: &WebviewWindow, has_tasks: bool, state: &str) {
+pub fn emit_pet_presentation(
+    window: &WebviewWindow,
+    has_tasks: bool,
+    state: &str,
+    step_label: Option<&str>,
+) {
     let state = match state {
         "idle" | "listening" | "thinking" | "executing" | "waiting_for_user" | "paused"
         | "recording" | "success" | "failed" | "unknown" => state,
         _ => "unknown",
     };
-    let _ = window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-presentation',{{detail:{{hasTasks:{has_tasks},state:'{state}'}}}}))"));
+    let detail = serde_json::json!({
+        "hasTasks": has_tasks,
+        "state": state,
+        "stepLabel": if state == "executing" { step_label } else { None },
+    });
+    let _ = window.eval(&format!(
+        "window.dispatchEvent(new CustomEvent('yonda-presentation',{{detail:{detail}}}))"
+    ));
 }
 
 pub fn emit_pet_terminal_presentation(
@@ -163,6 +175,7 @@ pub fn emit_pet_terminal_presentation(
     event_id: &str,
     resume_has_tasks: bool,
     resume_state: &str,
+    resume_step_label: Option<&str>,
 ) {
     if !matches!(state, "success" | "failed")
         || !matches!(
@@ -181,7 +194,7 @@ pub fn emit_pet_terminal_presentation(
     {
         return;
     }
-    let detail = serde_json::json!({"hasTasks":has_tasks,"state":state,"eventId":event_id,"resumeHasTasks":resume_has_tasks,"resumeState":resume_state});
+    let detail = serde_json::json!({"hasTasks":has_tasks,"state":state,"stepLabel":null,"eventId":event_id,"resumeHasTasks":resume_has_tasks,"resumeState":resume_state,"resumeStepLabel":if resume_state=="executing"{resume_step_label}else{None}});
     let _ = window.eval(&format!(
         "window.dispatchEvent(new CustomEvent('yonda-presentation',{{detail:{detail}}}))"
     ));
@@ -728,16 +741,79 @@ impl TaskHost {
         Ok(response)
     }
 
+    fn running_step_label(&mut self, task_id: &str) -> Option<String> {
+        self.store
+            .get_presentation(task_id)
+            .ok()
+            .filter(|(task, _)| task.status == yonder_application::Status::Running)
+            .and_then(|(_, presentation)| presentation.current_step.map(|step| step.label))
+    }
+
+    /// 当前请求已经由协议与连接身份校验；只为它的真实可执行任务解析步骤。
+    pub fn execution_step_label(
+        &mut self,
+        agent_id: &str,
+        hint: &yonder_application::gateway::ExecutionPresentationHint,
+    ) -> Option<String> {
+        use yonder_application::gateway::ExecutionPresentationHint;
+        let task_id = match hint {
+            ExecutionPresentationHint::StoredStep { task_id }
+            | ExecutionPresentationHint::DeclaredStep { task_id, .. }
+            | ExecutionPresentationHint::PlanSlot { task_id, .. } => task_id,
+        };
+        let task = self.store.get(task_id).ok()?;
+        if task.owner_agent_id != agent_id
+            || !matches!(
+                task.status,
+                yonder_application::Status::Created | yonder_application::Status::Running
+            )
+        {
+            return None;
+        }
+        match hint {
+            ExecutionPresentationHint::StoredStep { .. } => self
+                .store
+                .get_presentation(task_id)
+                .ok()?
+                .1
+                .current_step
+                .map(|step| step.label),
+            ExecutionPresentationHint::DeclaredStep { label, .. } => Some(label.clone()),
+            ExecutionPresentationHint::PlanSlot {
+                plan_id,
+                plan_version,
+                ..
+            } => {
+                let stored = self
+                    .store
+                    .get_plan_fragment(task_id, plan_id, *plan_version)
+                    .ok()??;
+                stored
+                    .fragment
+                    .slots
+                    .get(usize::from(stored.current_slot))
+                    .map(|slot| slot.label.clone())
+            }
+        }
+    }
+
     /// 本地桌宠派生展示；执行优先，否则以首个未结束任务为代表。非执行/隐藏许可。
-    pub fn presentation(&mut self) -> Result<(bool, &'static str), HostError> {
+    pub fn presentation(&mut self) -> Result<(bool, &'static str, Option<String>), HostError> {
         let tasks = self
             .store
             .list(None, None, false, 1)
             .map_err(|_| HostError::StorageUnavailable)?;
+        let mut step_label = None;
         let state = match self.activity() {
             ActivityState::Busy => {
                 self.listening_pending = false;
                 self.listening_until = None;
+                step_label = self
+                    .store
+                    .list_running(None, None, 1)
+                    .ok()
+                    .and_then(|running| running.first().map(|task| task.id.clone()))
+                    .and_then(|task_id| self.running_step_label(&task_id));
                 "executing"
             }
             ActivityState::Unknown => return Err(HostError::StorageUnavailable),
@@ -760,7 +836,7 @@ impl TaskHost {
                 _ => "idle",
             },
         };
-        Ok((!tasks.is_empty(), state))
+        Ok((!tasks.is_empty(), state, step_label))
     }
 
     /// 是观察而非隐藏许可；正式收起仍需预约协调。
@@ -1131,18 +1207,18 @@ mod tests {
             assert!(read(&mut host, &mut fresh, query.as_bytes()).contains("-32002"));
         }
         assert_eq!(host.activity(), ActivityState::NoKnownWork);
-        assert_eq!(host.presentation().unwrap(), (true, "paused"));
+        assert_eq!(host.presentation().unwrap(), (true, "paused", None));
         transition(&mut host.store, "task-a", 3, Action::Resume).unwrap();
-        assert_eq!(host.presentation().unwrap(), (true, "executing"));
+        assert_eq!(host.presentation().unwrap(), (true, "executing", None));
         transition(&mut host.store, "task-a", 4, Action::WaitForUser).unwrap();
-        assert_eq!(host.presentation().unwrap(), (true, "waiting_for_user"));
+        assert_eq!(host.presentation().unwrap(), (true, "waiting_for_user", None));
         transition(&mut host.store, "task-a", 5, Action::Resume).unwrap();
         transition(&mut host.store, "task-a", 6, Action::Pause).unwrap();
-        assert_eq!(host.presentation().unwrap(), (true, "paused"));
+        assert_eq!(host.presentation().unwrap(), (true, "paused", None));
         transition(&mut host.store, "task-a", 7, Action::Resume).unwrap();
         transition(&mut host.store, "task-a", 8, Action::Complete).unwrap();
         transition(&mut host.store, "task-b", 3, Action::Cancel).unwrap();
-        assert_eq!(host.presentation().unwrap(), (false, "idle"));
+        assert_eq!(host.presentation().unwrap(), (false, "idle", None));
 
         let forged = String::from_utf8(request.to_vec())
             .unwrap()
@@ -1152,7 +1228,7 @@ mod tests {
         assert!(!denied.contains("task-a"));
         drop(host);
         let mut reopened = TaskHost::open(&directory).unwrap();
-        assert_eq!(reopened.presentation().unwrap(), (false, "idle"));
+        assert_eq!(reopened.presentation().unwrap(), (false, "idle", None));
         let mut session = GatewaySession::new(AuthContext::Agent("agent-c"), Platform::Macos);
         let create = br#"{"jsonrpc":"2.0","id":"c0","method":"task.create","params":{"agent_id":"agent-c","capability":"task.create","deadline":2000,"idempotency_key":"listen","description":"request","name":"request test"}}"#;
         assert!(
@@ -1166,7 +1242,7 @@ mod tests {
                 .unwrap()
                 .contains("-32002")
         );
-        assert_eq!(reopened.presentation().unwrap(), (false, "idle"));
+        assert_eq!(reopened.presentation().unwrap(), (false, "idle", None));
         let hello = br#"{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"agent-c","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":3}}}"#;
         reopened.query_session(&mut session, hello, 1000).unwrap();
         assert!(
@@ -1174,11 +1250,11 @@ mod tests {
                 .unwrap()
                 .contains("created")
         );
-        assert_eq!(reopened.presentation().unwrap(), (true, "listening"));
+        assert_eq!(reopened.presentation().unwrap(), (true, "listening", None));
         std::thread::sleep(Duration::from_millis(1650));
         assert_ne!(reopened.presentation().unwrap().1, "listening");
         reopened.query_session(&mut session, create, 1000).unwrap();
-        assert_eq!(reopened.presentation().unwrap(), (true, "idle"));
+        assert_eq!(reopened.presentation().unwrap(), (true, "idle", None));
         let created = reopened
             .store
             .list(None, None, false, 100)
@@ -1186,6 +1262,35 @@ mod tests {
             .into_iter()
             .find(|task| task.owner_agent_id == "agent-c")
             .unwrap();
+        let (created, _) = reopened
+            .store
+            .declare_step(
+                "agent-c",
+                &created.id,
+                created.sequence,
+                "open-settings",
+                "打开设置面板",
+            )
+            .unwrap();
+        assert_eq!(
+            reopened.execution_step_label(
+                "agent-c",
+                &yonder_application::gateway::ExecutionPresentationHint::StoredStep {
+                    task_id: created.id.clone(),
+                },
+            ),
+            Some("打开设置面板".into())
+        );
+        assert_eq!(
+            reopened.execution_step_label(
+                "agent-c",
+                &yonder_application::gateway::ExecutionPresentationHint::DeclaredStep {
+                    task_id: created.id.clone(),
+                    label: "点击保存".into(),
+                },
+            ),
+            Some("点击保存".into())
+        );
         transition(
             &mut reopened.store,
             &created.id,
@@ -1193,7 +1298,10 @@ mod tests {
             Action::Start,
         )
         .unwrap();
-        assert_eq!(reopened.presentation().unwrap(), (true, "executing"));
+        assert_eq!(
+            reopened.presentation().unwrap(),
+            (true, "executing", Some("打开设置面板".into()))
+        );
         drop(reopened);
         for name in ["tasks.db", "host.lock"] {
             std::fs::remove_file(directory.join(name)).unwrap();

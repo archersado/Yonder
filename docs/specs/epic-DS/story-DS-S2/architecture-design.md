@@ -69,11 +69,11 @@ macOS 未激活 WKWebView 的悬停事件不能作为可靠唯一入口。复用
 
 ## 形象当前步骤投影（2026-09-28）
 
-Architecture Impact: conforming。`TaskHost::presentation()` 在既有 `ActivityState::Busy` 分支读取首个真实 running 任务的 `TaskPresentation.current_step`，返回有界标签；非 executing 状态强制返回空标签。该投影不新增协议、表或状态所有者，读取失败沿用宿主状态不可用语义。
+Architecture Impact: conforming。`TaskHost::presentation()` 在既有 `ActivityState::Busy` 分支读取首个真实 running 任务的 `TaskPresentation.current_step`，返回有界标签；非 executing 状态强制返回空标签。同步请求开始前，Application Gateway 只在协议校验、deadline 与连接身份一致后生成精确任务提示：普通执行读取已声明步骤，计划执行读取不可变片段当前槽位，组合式 `computer.step` 使用该次已校验的显式 label。该投影不新增协议、表或状态所有者。
 
-本地 Gateway 对已解码执行请求在副作用开始前读取一次当前投影并发送 `yonda-presentation`，使同步 Driver 占用期间即可显示步骤；请求完成后仍发送 SQLite 与 Admission 派生快照。前端只保存当前窗口表现所需的短暂字符串，状态离开 executing 时立即清空，不参与恢复或业务判断。事件 detail 使用 JSON 序列化，避免步骤文本进入可执行脚本。
+本地 Gateway 对通过上述校验的执行请求在副作用开始前读取一次当前投影并发送 `yonda-presentation`，使同步 Driver 占用期间即可显示步骤；任务必须属于当前连接 Agent 且处于 created/running，否则不显示。请求完成后仍发送 SQLite 与 Admission 派生快照。前端只保存当前窗口表现所需的短暂字符串，状态离开 executing 时立即清空，不参与恢复或业务判断。事件 detail 使用 JSON 序列化，避免步骤文本进入可执行脚本。
 
-步骤标签沿用 Application `valid_step_label` 的长度与控制字符门禁；形象只显示纯文本、CSS 单行省略。多任务时与执行事实一致，优先选择按存储稳定顺序返回的 running 任务；Admission 忙但暂时没有可读 running 步骤时显示通用“正在执行任务”，不推断另一任务的步骤。任务执行不得等待或依赖形象事件成功。
+步骤标签沿用 Application `valid_step_label` 的长度与控制字符门禁；形象只显示纯文本、CSS 单行省略。多任务时与执行事实一致，优先选择按存储稳定顺序返回的 running 任务；Admission 忙但暂时没有可读 running 步骤时隐藏步骤提示，不推断另一任务的步骤。任务执行不得等待或依赖形象事件成功。
 
 ## 人工接管记录与交回（2026-09-14用户变更）
 

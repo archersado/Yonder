@@ -118,27 +118,31 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             }
         };
         let registration = registration(&frame);
-        if yonder_application::gateway::is_execution_request(&frame) { emit_pet_presentation(&pet, true, "executing"); }
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?;
+        let execution_hint = yonder_application::gateway::execution_presentation_hint(&frame, &agent_id, now);
         let (response, presentation) = {
             let mut locked = host.lock().map_err(|_| io::Error::other("本地Gateway不可用"))?;
             let host_ref = locked.as_mut().ok_or_else(|| io::Error::other("本地Gateway不可用"))?;
+            if let Some(hint) = execution_hint.as_ref() {
+                let step_label = host_ref.execution_step_label(&agent_id, hint);
+                emit_pet_presentation(&pet, true, "executing", step_label.as_deref());
+            }
             let response = host_ref.query_session(&mut session, &frame, now).map_err(|_| io::Error::other("本地Gateway调用失败"))?;
             let presentation = host_ref.presentation().ok();
             (response, presentation)
         };
-        if let Some((has_tasks, state)) = presentation {
+        if let Some((has_tasks, state, step_label)) = presentation {
             if let Some((terminal,event_id))=yonder_application::gateway::terminal_presentation(&frame,&response){
-                emit_pet_terminal_presentation(&pet,has_tasks,terminal,&event_id,has_tasks,state);
+                emit_pet_terminal_presentation(&pet,has_tasks,terminal,&event_id,has_tasks,state,step_label.as_deref());
             }else{
-                emit_pet_presentation(&pet, has_tasks, state);
+                emit_pet_presentation(&pet, has_tasks, state, step_label.as_deref());
             }
             if state == "listening" {
                 let host = host.clone(); let pet = pet.clone();
                 tokio::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(1650)).await;
                     let presentation = host.lock().ok().and_then(|mut value| value.as_mut()?.presentation().ok());
-                    if let Some((has_tasks, state)) = presentation { emit_pet_presentation(&pet, has_tasks, state); }
+                    if let Some((has_tasks, state, step_label)) = presentation { emit_pet_presentation(&pet, has_tasks, state, step_label.as_deref()); }
                 });
             }
         }

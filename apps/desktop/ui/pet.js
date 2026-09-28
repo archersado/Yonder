@@ -24,6 +24,7 @@
   const statePaws = document.querySelectorAll('.state-paw');
   const stateEyelids = document.querySelector('.state-eyelids');
   const packStatus = document.querySelector('#pack-status');
+  const taskStepStatus = document.querySelector('#task-step-status');
   let animations = JSON.parse(document.querySelector('#state-animations').textContent);
   const frameImages = {};
   const blinkImages = {};
@@ -45,6 +46,7 @@
   let idleTimer;
   let hasTasks = null;
   let taskState = 'unknown';
+  let stepLabel = null;
   let agentConnected = false;
   let voiceActive = false;
   const displayedState = () => voiceActive ? 'voice_listening' : taskState;
@@ -108,9 +110,11 @@
   }
   function updateAccessibility() {
     const connection = agentConnected ? 'Agent已连接' : 'Agent未连接';
-    document.title = voiceActive ? `Yonda · 正在聆听 · ${connection}` : `Yonda · ${connection}`;
+    const step = taskState === 'executing' && stepLabel ? ` · 正在：${stepLabel}` : '';
+    document.title = voiceActive ? `Yonda · 正在聆听 · ${connection}` : `Yonda${step} · ${connection}`;
     const action = voiceActive ? 'Yonda正在聆听' : mode === 'docked' ? '点击趴在边缘的Yonda唤醒它' : '轻点Yonda小龙，按住移动可拖动';
-    pet.setAttribute('aria-label', `${action}，${connection}`);
+    const currentStep = taskState === 'executing' && stepLabel ? `，当前步骤：${stepLabel}` : '';
+    pet.setAttribute('aria-label', `${action}${currentStep}，${connection}`);
   }
   async function refreshVisibility() {
     const request = ++visibilityRequest;
@@ -439,18 +443,22 @@
     try { await native('task_menu_show'); }
     catch { console.warn('任务菜单暂不可用'); }
   }
-  function applyPresentation(nextHasTasks, nextState, keepTerminal = false) {
+  function applyPresentation(nextHasTasks, nextState, nextStepLabel = null, keepTerminal = false) {
     if (!keepTerminal) { clearTimeout(terminalTimer); terminalTimer = null; }
     hasTasks = nextHasTasks;
+    stepLabel = nextState === 'executing' && typeof nextStepLabel === 'string' && nextStepLabel.length > 0 ? nextStepLabel : null;
+    taskStepStatus.textContent = stepLabel ? `正在：${stepLabel}` : '';
+    pet.dataset.hasStep = String(stepLabel !== null);
     if (taskState !== nextState) {
       taskState = nextState; stateStarted = Date.now(); if (!voiceActive) pet.dataset.state = nextState; sync();
       if (mode === 'docked') wake();
     }
+    updateAccessibility();
   }
   async function loadInitialPresentation() {
     try {
-      const [nextHasTasks, nextState] = await native('pet_task_state');
-      applyPresentation(nextHasTasks, nextState);
+      const [nextHasTasks, nextState, nextStepLabel] = await native('pet_task_state');
+      applyPresentation(nextHasTasks, nextState, nextStepLabel);
     } catch {
       hasTasks = null;
       if (taskState !== 'unknown') { taskState = 'unknown'; stateStarted = Date.now(); pet.dataset.state = 'unknown'; sync(); if (mode === 'docked') wake(); }
@@ -474,12 +482,12 @@
       if (!detail.eventId || detail.eventId === lastTerminalId || typeof detail.resumeHasTasks !== 'boolean' || typeof detail.resumeState !== 'string') return;
       lastTerminalId = detail.eventId;
       clearTimeout(terminalTimer);
-      applyPresentation(detail.hasTasks, detail.state, true);
+      applyPresentation(detail.hasTasks, detail.state, detail.stepLabel, true);
       if (mode === 'docked') wake();
-      terminalTimer = setTimeout(() => { terminalTimer = null; applyPresentation(detail.resumeHasTasks, detail.resumeState, true); }, 1800);
+      terminalTimer = setTimeout(() => { terminalTimer = null; applyPresentation(detail.resumeHasTasks, detail.resumeState, detail.resumeStepLabel, true); }, 1800);
       return;
     }
-    applyPresentation(detail.hasTasks, detail.state);
+    applyPresentation(detail.hasTasks, detail.state, detail.stepLabel);
   });
   window.addEventListener('yonda-agent-connection', event => {
     if (typeof event.detail?.connected === 'boolean') applyAgentConnection(event.detail.connected);
