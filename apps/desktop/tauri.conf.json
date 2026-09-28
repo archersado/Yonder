@@ -28,7 +28,7 @@
       "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
       "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
     }, {
-      "label": "cua-control", "url": "cua-control.html", "title": "Yonda · 电脑控制", "width": 460, "height": 68,
+      "label": "cua-control", "url": "cua-control.html", "title": "Yonda · 任务执行", "width": 460, "height": 68,
       "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
       "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
       "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true, "backgroundThrottling": "disabled"
@@ -54,7 +54,7 @@
         "identifier": "region-preview-local", "description": "仅允许圈选预览窗口自行隐藏",
         "local": true, "windows": ["region-preview"], "permissions": ["core:window:allow-hide"]
       }, {
-        "identifier": "cua-control-local", "description": "CUA 控制卡只允许调用本机显式接管命令",
+        "identifier": "cua-control-local", "description": "统一执行浮窗只允许 CUA 调用本机显式接管命令",
         "local": true, "windows": ["cua-control"], "permissions": []
       }],
       "csp": "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'"

@@ -41,6 +41,7 @@ pub struct CuaControlStepPresentation {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct CuaControlPresentation {
     pub task_id: String,
+    pub desktop_control: bool,
     pub current_step: String,
     pub planned_steps: Vec<CuaControlStepPresentation>,
     pub remaining_steps: u16,
@@ -99,7 +100,7 @@ impl CuaControlHub {
 
     pub fn request_takeover(&self, task_id: &str) -> bool {
         let Ok(mut state) = self.0.lock() else { return false };
-        let Some(active) = state.as_mut().filter(|active| active.task_id == task_id) else { return false };
+        let Some(active) = state.as_mut().filter(|active| active.task_id == task_id && active.presentation.desktop_control) else { return false };
         active.takeover_requested = true;
         true
     }
@@ -995,10 +996,11 @@ impl TaskHost {
     }
 
     /// 只投影已校验执行请求对应的步骤标签；不把动作参数或观察数据交给 UI。
-    pub fn cua_control_presentation(
+    pub fn execution_control_presentation(
         &mut self,
         agent_id: &str,
         hint: &yonder_application::gateway::ExecutionPresentationHint,
+        desktop_control: bool,
     ) -> Option<CuaControlPresentation> {
         use yonder_application::gateway::ExecutionPresentationHint;
         let task_id = match hint {
@@ -1026,16 +1028,18 @@ impl TaskHost {
                 let current_step = stored.fragment.slots.get(current).map(|slot| slot.label.clone())
                     .unwrap_or_else(|| "计划步骤已完成".into());
                 Some(CuaControlPresentation {
-                    task_id: task_id.clone(), current_step, planned_steps,
+                    task_id: task_id.clone(), desktop_control, current_step, planned_steps,
                     remaining_steps: u16::try_from(stored.fragment.slots.len().saturating_sub(end)).unwrap_or(u16::MAX),
                     plan_status: "available".into(),
                 })
             }
             ExecutionPresentationHint::DeclaredStep { label, .. } => Some(CuaControlPresentation {
-                task_id: task_id.clone(), current_step: label.clone(), planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(),
+                task_id: task_id.clone(), desktop_control, current_step: label.clone(), planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(),
             }),
             ExecutionPresentationHint::StoredStep { .. } => Some(CuaControlPresentation {
-                task_id: task_id.clone(), current_step: self.running_step_label(task_id).unwrap_or_else(|| "正在执行当前步骤".into()),
+                task_id: task_id.clone(), desktop_control, current_step: self.store.get_presentation(task_id).ok()
+                    .and_then(|(_, presentation)| presentation.current_step.map(|step| step.label))
+                    .unwrap_or_else(|| "正在执行当前步骤".into()),
                 planned_steps: vec![], remaining_steps: 0, plan_status: "none".into(),
             }),
         }
@@ -1133,7 +1137,7 @@ mod tests {
     #[test]
     fn cua_control_hub_only_accepts_the_active_task_once() {
         let hub=CuaControlHub::default();
-        let presentation=|task_id:&str| CuaControlPresentation { task_id:task_id.into(), current_step:"步骤一".into(), planned_steps:vec![CuaControlStepPresentation { step_id:"step-1".into(), label:"步骤一".into(), state:"pending".into() }], remaining_steps:0, plan_status:"available".into() };
+        let presentation=|task_id:&str| CuaControlPresentation { task_id:task_id.into(), desktop_control:true, current_step:"步骤一".into(), planned_steps:vec![CuaControlStepPresentation { step_id:"step-1".into(), label:"步骤一".into(), state:"pending".into() }], remaining_steps:0, plan_status:"available".into() };
         assert!(!hub.request_takeover("task-a"));
         assert!(hub.begin(presentation("task-a")));
         assert!(!hub.request_takeover("task-b"));
@@ -1150,7 +1154,7 @@ mod tests {
     #[test]
     fn cua_control_hub_survives_step_boundaries_until_the_task_finishes() {
         let hub=CuaControlHub::default();
-        let presentation=|label:&str| CuaControlPresentation { task_id:"task-a".into(), current_step:label.into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into() };
+        let presentation=|label:&str| CuaControlPresentation { task_id:"task-a".into(), desktop_control:true, current_step:label.into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into() };
         assert!(hub.begin(presentation("打开企业微信")));
         hub.mark_executing("task-a","launch");
         assert_eq!(hub.presentation().unwrap().current_step,"打开企业微信");
@@ -1170,6 +1174,7 @@ mod tests {
         let hub=CuaControlHub::default();
         assert!(hub.begin(CuaControlPresentation {
             task_id:"task-a".into(), current_step:"打开设置".into(), remaining_steps:2, plan_status:"available".into(),
+            desktop_control:true,
             planned_steps:vec![
                 CuaControlStepPresentation { step_id:"open".into(), label:"打开设置".into(), state:"pending".into() },
                 CuaControlStepPresentation { step_id:"save".into(), label:"保存更改".into(), state:"pending".into() },
@@ -1182,6 +1187,17 @@ mod tests {
         assert_eq!(value["planned_steps"][1]["state"],"executing");
         assert!(value.to_string().contains("打开设置"));
         assert!(!value.to_string().contains("arguments"));
+    }
+
+    #[test]
+    fn non_cua_execution_is_visible_but_cannot_request_desktop_takeover() {
+        let hub=CuaControlHub::default();
+        assert!(hub.begin(CuaControlPresentation { task_id:"browser-task".into(), desktop_control:false, current_step:"核验公开页面".into(), planned_steps:vec![], remaining_steps:0, plan_status:"none".into() }));
+        let presentation=hub.presentation().unwrap();
+        assert!(!presentation.desktop_control);
+        assert_eq!(presentation.current_step,"核验公开页面");
+        assert!(!hub.request_takeover("browser-task"));
+        assert!(hub.finish("browser-task"));
     }
     use yonder_application::{Action, create, transition};
 
@@ -1596,6 +1612,25 @@ mod tests {
             ),
             Some("点击保存".into())
         );
+        let browser_presentation = reopened.execution_control_presentation(
+            "agent-c",
+            &yonder_application::gateway::ExecutionPresentationHint::StoredStep {
+                task_id: created.id.clone(),
+            },
+            false,
+        ).unwrap();
+        assert_eq!(browser_presentation.current_step, "打开设置面板");
+        assert!(!browser_presentation.desktop_control);
+        let computer_presentation = reopened.execution_control_presentation(
+            "agent-c",
+            &yonder_application::gateway::ExecutionPresentationHint::DeclaredStep {
+                task_id: created.id.clone(),
+                label: "点击保存".into(),
+            },
+            true,
+        ).unwrap();
+        assert_eq!(computer_presentation.current_step, "点击保存");
+        assert!(computer_presentation.desktop_control);
         transition(
             &mut reopened.store,
             &created.id,

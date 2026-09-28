@@ -137,7 +137,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?;
         let execution_hint = yonder_application::gateway::execution_presentation_hint(&frame, &agent_id, now);
         let cua_hint = yonder_application::gateway::cua_execution_presentation_hint(&frame, &agent_id, now);
-        let mut cua_started = false;
+        let mut execution_started = false;
         let (response, presentation, takeover_result, open_task_space) = {
             let mut locked = host.lock().map_err(|_| io::Error::other("本地Gateway不可用"))?;
             let host_ref = locked.as_mut().ok_or_else(|| io::Error::other("本地Gateway不可用"))?;
@@ -145,16 +145,17 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                 let step_label = host_ref.execution_step_label(&agent_id, hint);
                 emit_pet_presentation(&pet, true, "executing", step_label.as_deref());
             }
-            if let Some(hint) = cua_hint.as_ref() {
+            if let Some(hint) = execution_hint.as_ref() {
                 let task_id=hint_task_id(hint);
-                let presentation=host_ref.cua_control_presentation(&agent_id,hint);
+                let desktop_control=cua_hint.as_ref().is_some_and(|cua|hint_task_id(cua)==task_id);
+                let presentation=host_ref.execution_control_presentation(&agent_id,hint,desktop_control);
                 if let Some(presentation)=presentation.filter(|presentation|presentation.task_id==*task_id) {
                     if cua_hub.begin(presentation.clone()) {
                     if let Err(error)=show_cua_control(&pet,&cua_control,&presentation) {
                         cua_hub.finish(task_id);
                         return Err(error);
                     }
-                    cua_started=true;
+                    execution_started=true;
                     }
                 }
             }
@@ -162,14 +163,14 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             let open_task_space = response.is_ok() && host_ref.take_task_space_open_pending();
             let takeover_result = cua_hint.as_ref().and_then(|hint| {
                 let task_id=hint_task_id(hint);
-                if !cua_started || !cua_hub.take_takeover_requested(task_id) { return None; }
+                if !execution_started || !cua_hub.take_takeover_requested(task_id) { return None; }
                 let takeover_now=u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_millis()).ok()?;
                 Some(response.as_ref().map_err(|_|()).and_then(|_|host_ref.user_takeover_current(task_id,takeover_now).map_err(|_|())))
             });
             let presentation = host_ref.presentation().ok();
             (response, presentation, takeover_result, open_task_space)
         };
-        if cua_started {
+        if execution_started {
             match takeover_result {
                 Some(Ok(_)) => {
                     if let Some(hint)=cua_hint.as_ref(){cua_hub.finish(hint_task_id(hint));}
