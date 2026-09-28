@@ -3366,6 +3366,14 @@ mod tests {
                 DispatchOutcome::Known { action_succeeded: true, observation: None }
             }
         }
+        struct TakeoverPort(Mutex<Vec<String>>);
+        impl ComputerUsePort for TakeoverPort {
+            fn dispatch(&self, _: &ExecutionAttempt, _: &WorkTarget, action: &ComputerAction) -> DispatchOutcome {
+                self.0.lock().unwrap().push(action.tool_name.clone());
+                DispatchOutcome::Known { action_succeeded: true, observation: None }
+            }
+            fn explicit_takeover_requested(&self, _: &str) -> bool { !self.0.lock().unwrap().is_empty() }
+        }
         struct MustNotChoose;
         impl JevDecisionPort for MustNotChoose {
             fn choose(&self, _: &JevConfig, _: &JevDecisionRequest) -> Result<JevModelChoice, JevDecisionError> {
@@ -3427,6 +3435,19 @@ mod tests {
         assert_eq!(store.get_plan_fragment(&budget_task.id, &budget_fragment.plan_id, 1).unwrap().unwrap().current_slot, 1);
         assert_eq!(store.get_presentation(&budget_task.id).unwrap().1.next_intent.as_deref(), Some("计划片段步数预算已耗尽"));
         assert_eq!(budget_result.status, Status::Running);
+
+        let takeover_task=create(&mut store,"takeover-plan").unwrap();
+        let takeover_fragment=PlanFragment{task_id:takeover_task.id.clone(),plan_id:"takeover-plan-v1".into(),expected_sequence:takeover_task.sequence,..fragment};
+        let takeover_submitted=store.submit_plan_fragment("a1",&takeover_fragment).unwrap();
+        let takeover_port=TakeoverPort(Mutex::new(Vec::new()));
+        let (takeover_result,takeover_disposition)=execute_available(
+            &mut store,&Admission::new(1).unwrap(),&takeover_port,&Target,&JevConfig{step_limit:10,..budget_config},&MustNotChoose,
+            AuthContext::Agent("a1"),&takeover_task.id,&takeover_fragment.plan_id,1,takeover_submitted.sequence,1_000,"host",
+        ).unwrap();
+        assert_eq!(takeover_disposition,"takeover-requested");
+        assert_eq!(*takeover_port.0.lock().unwrap(),vec!["launch_app"]);
+        assert_eq!(store.get_plan_fragment(&takeover_task.id,&takeover_fragment.plan_id,1).unwrap().unwrap().current_slot,1);
+        assert_eq!(takeover_result.status,Status::Running);
     }
 
     #[test]

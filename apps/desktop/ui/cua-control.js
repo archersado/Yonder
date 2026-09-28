@@ -1,0 +1,5 @@
+(()=>{'use strict';const invoke=window.__TAURI_INTERNALS__?.invoke;const title=document.querySelector('#title');const step=document.querySelector('#step');const takeover=document.querySelector('#takeover');let taskId=null;
+window.addEventListener('yonda-cua-control-start',event=>{taskId=event.detail?.taskId??null;title.textContent='Yonder 正在控制您的电脑';step.textContent=event.detail?.stepLabel||'正在执行当前步骤';takeover.textContent='接管电脑';takeover.disabled=!taskId;});
+window.addEventListener('yonda-cua-control-result',event=>{if(event.detail==='failed'){title.textContent='未能安全停止';step.textContent='任务结果待核实，请在任务详情中查看';takeover.textContent='接管失败';takeover.disabled=true;}});
+takeover.addEventListener('click',async()=>{if(!invoke||!taskId||takeover.disabled)return;takeover.disabled=true;takeover.textContent='正在停止';title.textContent='正在安全停止';step.textContent='完成当前操作并观察后交回控制';try{await invoke('cua_control_takeover',{taskId});}catch{title.textContent='接管请求未被接受';step.textContent='当前没有可接管的 CUA 操作';takeover.textContent='接管失败';}});
+})();

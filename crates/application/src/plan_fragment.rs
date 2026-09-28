@@ -152,6 +152,9 @@ pub fn execute_available(
         if disposition != "advanced" {
             return Ok((task, disposition));
         }
+        if computer.explicit_takeover_requested(task_id) {
+            return Ok((task, "takeover-requested"));
+        }
         let current = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
         if usize::from(current.current_slot) >= current.fragment.slots.len() {
             return Ok((task, "fragment-complete"));

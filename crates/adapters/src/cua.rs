@@ -3,7 +3,7 @@ use std::{fs, io::{BufRead, BufReader, Write}, path::{Path, PathBuf}, process::{
 use yonder_application::{ExecutionAttempt, computer_use::{ComputerAction, ComputerObservation, ComputerUsePort, DispatchOutcome, UnknownReason, WorkTarget, WorkTargetPort}};
 
 #[cfg(target_os="macos")]
-unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_hid_generation(value:*mut u64)->i32; fn yonda_accessibility_trusted()->i32; }
+unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; }
 
 #[cfg(target_os="macos")]
 pub struct MacosFrontmostTarget;
@@ -90,10 +90,6 @@ impl CuaWorker {
             Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed);
         }
         let started=Instant::now();
-        #[cfg(target_os="macos")]
-        let mut initial_hid=0u64;
-        #[cfg(target_os="macos")]
-        if unsafe{yonda_hid_generation(&mut initial_hid)}==0{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::DependencyUnavailable)}
         let output = loop {
             match slot.as_ref().unwrap().output.recv_timeout(Duration::from_millis(25)) {
                 Ok(Ok(output))=>break output,
@@ -101,8 +97,6 @@ impl CuaWorker {
                 Err(mpsc::RecvTimeoutError::Disconnected)=>{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed)},
                 Err(mpsc::RecvTimeoutError::Timeout)=>{},
             }
-            #[cfg(target_os="macos")]
-            {let mut current=initial_hid;if unsafe{yonda_hid_generation(&mut current)}==0{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::DependencyUnavailable)}if current!=initial_hid{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::UserInput)}}
             if started.elapsed()>=self.timeout{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::TimedOut)}
         };
         let outcome=classify(attempt, &output,&self.evidence);

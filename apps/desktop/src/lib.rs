@@ -7,6 +7,7 @@ use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use tauri::WebviewWindow;
@@ -29,6 +30,73 @@ use yonder_application::{
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
 };
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CuaControlState {
+    task_id: String,
+    takeover_requested: bool,
+}
+
+/// CUA 执行热路径的进程内信号；不持久化，也不等待 TaskHost/SQLite 锁。
+#[derive(Clone, Default)]
+pub struct CuaControlHub(Arc<Mutex<Option<CuaControlState>>>);
+
+impl CuaControlHub {
+    pub fn begin(&self, task_id: &str) -> bool {
+        let Ok(mut state) = self.0.lock() else { return false };
+        if state.as_ref().is_some_and(|active| active.task_id != task_id) { return false; }
+        *state = Some(CuaControlState { task_id: task_id.to_owned(), takeover_requested: false });
+        true
+    }
+
+    pub fn request_takeover(&self, task_id: &str) -> bool {
+        let Ok(mut state) = self.0.lock() else { return false };
+        let Some(active) = state.as_mut().filter(|active| active.task_id == task_id) else { return false };
+        active.takeover_requested = true;
+        true
+    }
+
+    pub fn takeover_requested(&self, task_id: &str) -> bool {
+        self.0.lock().is_ok_and(|state| state.as_ref().is_some_and(|active| active.task_id == task_id && active.takeover_requested))
+    }
+
+    pub fn finish(&self, task_id: &str) -> bool {
+        let Ok(mut state) = self.0.lock() else { return false };
+        if state.as_ref().is_none_or(|active| active.task_id != task_id) { return false; }
+        state.take().is_some_and(|active| active.takeover_requested)
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct CuaControlPort<'a> { inner: &'a CuaWorker, hub: Option<&'a CuaControlHub> }
+
+#[cfg(target_os = "macos")]
+impl ComputerUsePort for CuaControlPort<'_> {
+    fn dispatch(&self, attempt:&yonder_application::ExecutionAttempt,target:&WorkTarget,action:&yonder_application::computer_use::ComputerAction)->yonder_application::computer_use::DispatchOutcome {
+        self.inner.dispatch(attempt,target,action)
+    }
+    fn end_session(&self){self.inner.end_session()}
+    fn explicit_takeover_requested(&self,task_id:&str)->bool{self.hub.is_some_and(|hub|hub.takeover_requested(task_id))}
+}
+
+/// 与圈选交互共用 pet 当前显示器及 work area 坐标系。
+pub fn position_window_in_pet_work_area(
+    pet: &WebviewWindow,
+    window: &WebviewWindow,
+    logical_width: f64,
+    logical_height: f64,
+) -> Result<(), String> {
+    let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
+        .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
+    let area = monitor.work_area();
+    let scale = monitor.scale_factor();
+    let width = (logical_width * scale).round() as u32;
+    let height = (logical_height * scale).round() as u32;
+    let x = area.position.x + (area.size.width.saturating_sub(width) / 2) as i32;
+    let y = area.position.y + (area.size.height.saturating_sub(height) / 2) as i32;
+    window.set_size(tauri::PhysicalSize::new(width, height)).map_err(|_| "控制卡尺寸设置失败")?;
+    window.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|_| "控制卡定位失败".into())
+}
 
 #[cfg(target_os = "macos")]
 fn macos_cua_resource_dir() -> Option<PathBuf> {
@@ -219,6 +287,8 @@ pub struct TaskHost {
     #[cfg(target_os = "macos")]
     computer: Option<CuaWorker>,
     #[cfg(target_os = "macos")]
+    cua_control: Option<CuaControlHub>,
+    #[cfg(target_os = "macos")]
     jev: Option<MacosJevPort>,
     #[cfg(target_os = "macos")]
     targets: MacosFrontmostTarget,
@@ -316,6 +386,8 @@ impl TaskHost {
             #[cfg(target_os = "macos")]
             computer,
             #[cfg(target_os = "macos")]
+            cua_control: None,
+            #[cfg(target_os = "macos")]
             jev,
             #[cfg(target_os = "macos")]
             targets: MacosFrontmostTarget,
@@ -333,6 +405,9 @@ impl TaskHost {
             .has_resource(yonder_application::admission::Resource::Desktop)
             .map_err(|_| HostError::StorageUnavailable)
     }
+
+    #[cfg(target_os = "macos")]
+    pub fn set_cua_control_hub(&mut self, hub:CuaControlHub){self.cua_control=Some(hub)}
 
     pub fn register_agent(
         &mut self,
@@ -554,6 +629,12 @@ impl TaskHost {
         self.query(&request, now_ms)
     }
 
+    /// 控制卡已由宿主绑定当前 task；sequence 必须在持有事实源锁后重新读取。
+    pub fn user_takeover_current(&mut self, task_id: &str, now_ms: u64) -> Result<Vec<u8>, HostError> {
+        let sequence = self.store.get(task_id).map_err(|_| HostError::StorageUnavailable)?.sequence;
+        self.user_takeover(task_id, sequence, now_ms)
+    }
+
     /// Task Space 的显式本机用户确认入口；Agent 不能调用。
     pub fn confirm_result(
         &mut self,
@@ -652,10 +733,9 @@ impl TaskHost {
             .as_ref()
             .map(|port| port as &dyn BrowserUsePort);
         #[cfg(target_os = "macos")]
-        let computer = self
-            .computer
-            .as_ref()
-            .map(|port| port as &dyn ComputerUsePort);
+        let controlled_computer=self.computer.as_ref().map(|inner|CuaControlPort{inner,hub:self.cua_control.as_ref()});
+        #[cfg(target_os = "macos")]
+        let computer = controlled_computer.as_ref().map(|port|port as &dyn ComputerUsePort);
         #[cfg(target_os = "macos")]
         let computer_task = yonder_application::gateway::computer_request_task(request);
         #[cfg(target_os = "macos")]
@@ -878,6 +958,19 @@ impl TaskHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cua_control_hub_only_accepts_the_active_task_once() {
+        let hub=CuaControlHub::default();
+        assert!(!hub.request_takeover("task-a"));
+        assert!(hub.begin("task-a"));
+        assert!(!hub.request_takeover("task-b"));
+        assert!(hub.request_takeover("task-a"));
+        assert!(hub.finish("task-a"));
+        assert!(!hub.finish("task-a"));
+        assert!(hub.begin("task-b"));
+        assert!(!hub.finish("task-b"));
+    }
     use yonder_application::{Action, create, transition};
 
     #[test]

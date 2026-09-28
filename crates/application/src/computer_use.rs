@@ -22,6 +22,7 @@ pub enum DispatchOutcome {
 pub trait ComputerUsePort {
     fn dispatch(&self, attempt: &ExecutionAttempt, target: &WorkTarget, action: &ComputerAction) -> DispatchOutcome;
     fn end_session(&self) {}
+    fn explicit_takeover_requested(&self, _task_id: &str) -> bool { false }
 }
 
 pub trait WorkTargetPort { fn frontmost(&self) -> Result<WorkTarget, UnknownReason>; }

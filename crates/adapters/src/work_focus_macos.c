@@ -1,8 +1,6 @@
 #include <ApplicationServices/ApplicationServices.h>
 #include <libproc.h>
 #include <math.h>
-#include <pthread.h>
-#include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -152,13 +150,5 @@ int yonda_frontmost_work_target(int32_t self_pid,uint32_t *pid,uint32_t *window_
   }
   if(window)CFRelease(window);if(app)CFRelease(app);CFRelease(list);return found?0:3;
 }
-
-static _Atomic uint64_t hid_generation=0;static _Atomic int hid_monitor_ready=0;static pthread_once_t hid_monitor_once=PTHREAD_ONCE_INIT;
-static CGEventRef hid_event(CGEventTapProxy proxy,CGEventType type,CGEventRef event,void *context){(void)proxy;(void)type;(void)context;if(event&&CGEventGetIntegerValueField(event,kCGEventSourceUnixProcessID)==0)atomic_fetch_add(&hid_generation,1);return event;}
-// 鼠标移动本身不改变目标状态，窗口激活也会产生系统移动事件；只把键入、点击和
-// 滚动视为用户接管输入，避免把 AppKit 的前台切换误判为用户操作。
-static void *hid_monitor(void *unused){(void)unused;CGEventMask mask=CGEventMaskBit(kCGEventKeyDown)|CGEventMaskBit(kCGEventLeftMouseDown)|CGEventMaskBit(kCGEventRightMouseDown)|CGEventMaskBit(kCGEventOtherMouseDown)|CGEventMaskBit(kCGEventScrollWheel);CFMachPortRef tap=CGEventTapCreate(kCGHIDEventTap,kCGHeadInsertEventTap,kCGEventTapOptionListenOnly,mask,hid_event,NULL);if(!tap){atomic_store(&hid_monitor_ready,-1);return NULL;}CFRunLoopSourceRef source=CFMachPortCreateRunLoopSource(kCFAllocatorDefault,tap,0);CFRunLoopAddSource(CFRunLoopGetCurrent(),source,kCFRunLoopCommonModes);CGEventTapEnable(tap,true);atomic_store(&hid_monitor_ready,1);CFRunLoopRun();CFRelease(source);CFRelease(tap);return NULL;}
-static void start_hid_monitor(void){pthread_t thread;if(pthread_create(&thread,NULL,hid_monitor,NULL)==0)pthread_detach(thread);else atomic_store(&hid_monitor_ready,-1);}
-int yonda_hid_generation(uint64_t *value){if(!value)return 0;pthread_once(&hid_monitor_once,start_hid_monitor);for(int i=0;i<100&&atomic_load(&hid_monitor_ready)==0;i++)usleep(10000);if(atomic_load(&hid_monitor_ready)!=1)return 0;*value=atomic_load(&hid_generation);return 1;}
 
 int yonda_accessibility_trusted(void) {return AXIsProcessTrusted()?1:0;}

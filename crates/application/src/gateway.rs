@@ -98,6 +98,34 @@ pub fn execution_presentation_hint(
     }
 }
 
+/// 只识别会实际占用桌面的 CUA 请求；BUA、文件、文档和命令不应显示桌面控制卡。
+pub fn cua_execution_presentation_hint(
+    bytes: &[u8],
+    connected_agent_id: &str,
+    now_ms: u64,
+) -> Option<ExecutionPresentationHint> {
+    let request = yonder_protocol::decode(bytes).ok()?;
+    request.validate(now_ms).ok()?;
+    if request.agent_id() != connected_agent_id {
+        return None;
+    }
+    match request {
+        Request::ComputerStep { params, .. } => Some(ExecutionPresentationHint::DeclaredStep {
+            task_id: params.task_id,
+            label: params.label,
+        }),
+        Request::PlanExecute { params, .. } => Some(ExecutionPresentationHint::PlanSlot {
+            task_id: params.task_id,
+            plan_id: params.plan_id,
+            plan_version: params.plan_version,
+        }),
+        Request::ComputerExecute { params, .. } => {
+            Some(ExecutionPresentationHint::StoredStep { task_id: params.task_id })
+        }
+        _ => None,
+    }
+}
+
 fn is_agent_write_request(request: &Request) -> bool {
     matches!(
         request,
@@ -436,6 +464,9 @@ mod tests {
         );
         assert!(execution_presentation_hint(step, "other", 1000).is_none());
         assert!(execution_presentation_hint(step, "a1", 3000).is_none());
+        assert_eq!(cua_execution_presentation_hint(computer,"a1",1000),Some(ExecutionPresentationHint::StoredStep{task_id:"t1".into()}));
+        assert_eq!(cua_execution_presentation_hint(step,"a1",1000),Some(ExecutionPresentationHint::DeclaredStep{task_id:"t1".into(),label:"press key".into()}));
+        assert!(cua_execution_presentation_hint(step,"other",1000).is_none());
         assert!(!is_execution_request(br#"{"jsonrpc":"2.0","id":"r1","method":"task.get","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"t1"}}"#));
         assert!(!is_execution_request(br#"{"method":"computer.execute"}"#));
     }

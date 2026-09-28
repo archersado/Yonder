@@ -588,6 +588,13 @@ async fn user_takeover(window:WebviewWindow,state:State<'_,TaskState>,task_id:St
 }
 
 #[tauri::command]
+fn cua_control_takeover(window:WebviewWindow,hub:State<'_,yonder_desktop::CuaControlHub>,task_id:String)->Result<&'static str,String>{
+    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
+    if !hub.request_takeover(&task_id){return Err("当前没有可接管的 CUA 操作".into())}
+    Ok("accepted")
+}
+
+#[tauri::command]
 async fn task_confirm(
     window: WebviewWindow,
     state: State<'_, TaskState>,
@@ -913,7 +920,7 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, cua_control_takeover, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             release_contract::validate()?;
             #[cfg(target_os = "macos")]
@@ -922,13 +929,15 @@ fn main() {
             app.get_webview_window("task-space").ok_or("任务菜单未创建")?.hide()?;
             app.get_webview_window("voice-input").ok_or("语音卡未创建")?.hide()?;
             app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?.hide()?;
+            let cua_control=app.get_webview_window("cua-control").ok_or("CUA 控制卡未创建")?;
+            cua_control.hide()?;
             app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?.hide()?;
             app.get_webview_window("agent-settings").ok_or("Agent管理窗口未创建")?.hide()?;
             #[cfg(target_os = "macos")]
             {
                 use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior as Behavior};
                 // 小龙与任务菜单采用相同Space/全屏辅助行为。
-                for window in [pet.clone(), app.get_webview_window("task-space").ok_or("任务菜单未创建")?, app.get_webview_window("voice-input").ok_or("语音卡未创建")?, app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?, app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?, app.get_webview_window("agent-settings").ok_or("Agent管理窗口未创建")?] {
+                for window in [pet.clone(), app.get_webview_window("task-space").ok_or("任务菜单未创建")?, app.get_webview_window("voice-input").ok_or("语音卡未创建")?, app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?, cua_control.clone(), app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?, app.get_webview_window("agent-settings").ok_or("Agent管理窗口未创建")?] {
                 let native = unsafe { &*window.ns_window()?.cast::<NSWindow>() };
                 let mut behavior = native.collectionBehavior();
                 if objc2::available!(macos = 13.0) {
@@ -940,8 +949,13 @@ fn main() {
             }
             pet.center()?;
             pet.show()?;
+            let cua_hub = yonder_desktop::CuaControlHub::default();
             let host = app.path().app_data_dir().ok().and_then(|path| match TaskHost::open(&path) {
-                Ok(host) => Some(host),
+                Ok(mut host) => {
+                    #[cfg(target_os = "macos")]
+                    host.set_cua_control_hub(cua_hub.clone());
+                    Some(host)
+                },
                 Err(error) => {
                     eprintln!("Yonder TaskHost 初始化失败：{error:?}");
                     None
@@ -955,9 +969,10 @@ fn main() {
             let input_hub = yonder_desktop::agent_input::AgentInputHub::default();
             app.manage(voice_input::VoiceRuntime::new(app.handle().clone(), input_hub.clone()));
             app.manage(input_hub.clone());
+            app.manage(cua_hub.clone());
             #[cfg(target_os = "macos")]
             app.manage(yonder_desktop::local_agent_socket::Server::start(
-                host.clone(), app.path().app_data_dir()?.join("agent.sock"), pet.clone(), input_hub
+                host.clone(), app.path().app_data_dir()?.join("agent.sock"), pet.clone(), input_hub, cua_control, cua_hub
             )?);
             if cfg!(all(debug_assertions, target_os = "macos")) && std::env::args_os().any(|arg| arg == "--local-agent-stdio") {
                 // AD-AG-03：父进程私有管道，仅显式研发启动；不等待阻塞读线程退出。
@@ -1005,7 +1020,7 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() == "task-space" || window.label() == "voice-input" || window.label() == "region-preview" || window.label() == "jev-settings" || window.label() == "agent-settings" {
+            if window.label() == "task-space" || window.label() == "voice-input" || window.label() == "region-preview" || window.label() == "cua-control" || window.label() == "jev-settings" || window.label() == "agent-settings" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     if window.label() == "voice-input" { window.app_handle().state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Direct); }
