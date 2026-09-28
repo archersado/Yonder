@@ -611,7 +611,7 @@ impl<'a> GatewaySession<'a> {
                 if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
                 if !self.can_plan_submit { return Err(RpcError::new(-32010, "计划片段提交需要协议1.31及本机片段存储")); }
                 let task = crate::plan_fragment::submit(store, self.auth, &params).map_err(query::error)?;
-                Ok(QueryResult::Plan { task_id: task.id, plan_id: params.plan_id, plan_version: params.plan_version, sequence: task.sequence.to_string(), disposition: "accepted".into() })
+                Ok(QueryResult::Plan { task_id: task.id, plan_id: params.plan_id, plan_version: params.plan_version, sequence: task.sequence.to_string(), disposition: "accepted".into(), handoff_reason: None })
             }
             Request::PlanExecute { params, .. } => {
                 if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
@@ -620,7 +620,12 @@ impl<'a> GatewaySession<'a> {
                 let jev=jev.ok_or_else(||RpcError::new(-32020,"Jev计划执行组合根不可用"))?;
                 let (computer,targets)=(computer.ok_or_else(||RpcError::new(-32020,"CUA Runtime不可用"))?,targets.ok_or_else(||RpcError::new(-32020,"桌面目标解析不可用"))?);
                 let (task,disposition)=crate::plan_fragment::execute_one(store,admission,computer,targets,config,jev,self.auth,&params.task_id,&params.plan_id,params.plan_version,yonder_protocol::sequence(&params.expected_sequence)?,now_ms,host_session_id).map_err(query::error)?;
-                Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into() })
+                let handoff_reason = match disposition {
+                    "handback" => Some("需要慢脑重新 Observe 或规划".into()),
+                    "slow-brain-required" => Some("需要慢脑安排本机发送确认".into()),
+                    _ => None,
+                };
+                Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into(), handoff_reason })
             },
             Request::FileGrants { params, .. } => {
                 if !self.negotiated {

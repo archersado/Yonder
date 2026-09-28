@@ -1252,6 +1252,9 @@ pub enum QueryResult {
         plan_version: u64,
         sequence: String,
         disposition: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        handoff_reason: Option<String>,
     },
 }
 
