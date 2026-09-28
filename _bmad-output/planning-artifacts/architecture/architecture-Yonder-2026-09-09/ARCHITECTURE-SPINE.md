@@ -13,6 +13,8 @@ companions: [DEVELOPMENT-AND-CHANGE-MODE.md]
 
 ## 产品边界
 
+2026-09-28 按 Accepted [AD-TM-21](AD-TM-21-PLAN-EXECUTION-STATE-AND-SCHEMA-REPAIR.md) 统一计划执行状态与启动修复：Jev 在首个 Driver 动作前交回时，任务仍须原子进入 `running` 并写入事件/Outbox/下一意图；标称 v20 且三张审计业务表全部缺失时只允许确定性建空表，部分缺失拒绝启动。
+
 2026-09-21 按 Accepted [AD-EX-01](AD-EX-01-BOUNDED-FAST-BRAIN.md) 修正系统边界：Yonder 可在 CUA/BUA/Document/Command Driver 之上运行有界 Jev 快脑决策循环；外部慢脑仍负责首次计划和需要时的 replan，所有慢脑请求继续进入既有 Agent Gateway。Jev 接入路线另由 Proposed [AD-EX-02](AD-EX-02-JEV-INTEGRATION-ROUTE.md) 验证；技术门禁未通过前不修改运行时代码或开放产品能力。2026-09-22 Proposed [AD-EX-04](AD-EX-04-BOUNDED-ACTION-RECIPE.md) 仅记录类型化动作配方优化候选，当前基线仍是 Jev 每步决策。
 
 Yonder 是 Windows/macOS 上轻量常驻的 Agent Tool，提供本地系统操作、用户操作感知和个人上下文采集。它可被桌面 Agent、Agent CLI 或外部云端 Agent 驱动；不是通用 Agent、首次计划/语义 replan 的慢脑规划器，也不是云端服务。仅 AD-EX-01 定义的有界 Jev 快脑模型循环可以内置。BUA 直接复用 ego-lite Browser Task Space，Yonder 不复制该模型。

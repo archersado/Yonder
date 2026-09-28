@@ -8,6 +8,7 @@
 
 - 建立四条基于 Codex MCP 慢脑、Yonder/Jev 快脑、正式 Yonder GUI 和统一 Gateway 的产品验收任务。
 - 统一验证创建可见性、慢脑计划、快脑有界选择/连续执行、交回、确认、running、Observe、事件/Outbox和终态。
+- 修复真实链路暴露的状态分裂与读侧阻断：首动作前 Jev 交回仍原子进入 running，标称 v20 且审计表组全缺时安全建空表。
 - 验证发现的缺口返回所属 Story 实施；本 Change 不建立第二编排器或测试专用产品路径。
 
 ## Impact

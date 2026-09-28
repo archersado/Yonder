@@ -11,3 +11,5 @@ Jev 只能看受限候选语义、有界 Observe 摘要与预期条件，不能�
 验收进程必须连接用户正在看的 Yonder 实例。不得启动隔离 TaskHost、直接调用 Driver、用 Python/Swift 创建或推进任务、直接修改 SQLite，或把原生夹具结果当产品闭环。原生脚本只允许读取窗口/进程和生成证据，不得替代业务动作。
 
 每条任务记录同一链路的可读阶段，不保存正文、截图、完整命令输出、完整 Agent Payload、内部 ID 或本机路径。失败停在真实阶段并进入 Apply；不能为通过验证绕过确认、权限、文件锁、Desktop 租约或 Observe。
+
+按 Accepted AD-TM-21，计划执行在首个 Driver 动作前被 Jev 交回时，SQLite 交回事务也必须完成 `created→running`，并原子写入 sequence、事件、Outbox 与下一意图；控制条不得拥有另一份执行状态。启动迁移同时核验 schema 18 的三张审计业务表：全有则不变，全缺才安全建空表，部分缺失失败关闭，绝不重建业务记录。
