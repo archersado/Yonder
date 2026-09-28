@@ -17,6 +17,7 @@ binary = root / "target/debug/Yonda.app/Contents/MacOS/yonder-desktop"
 fixture_bin = pathlib.Path("/private/tmp/yonder-ex2-plan-fixture")
 fixture_src = root / "apps/desktop/tests/plan-fragment-fixture-macos.swift"
 result = {"platform": "macos", "recording_started": False}
+formal_gui = "--formal-gui" in sys.argv[1:]
 fixture = None
 agent = None
 fixture_state = {}
@@ -172,19 +173,28 @@ try:
     else:
         raise RuntimeError(f"fixture-focus-{focus_failure}")
 
-    result["phase"] = "isolated-host-initialization"
-    gateway_binary = root / "target/debug/examples/local-agent-gateway"
-    if not gateway_binary.is_file():
-        raise RuntimeError("isolated-gateway-unavailable")
-    agent_environment = isolated_agent_environment()
-    agent = subprocess.Popen(
-        [str(gateway_binary), str(pathlib.Path(test_home.name) / "Library/Application Support/com.yonder.desktop")],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        env=agent_environment,
-    )
-    # 无 GUI Gateway 不会抢占前台；仍在派发前恢复唯一 fixture 为 CUA 目标。
+    if formal_gui:
+        result["phase"] = "formal-gui-initialization"
+        agent = subprocess.Popen(
+            [str(binary), "--local-agent-stdio"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    else:
+        result["phase"] = "isolated-host-initialization"
+        gateway_binary = root / "target/debug/examples/local-agent-gateway"
+        if not gateway_binary.is_file():
+            raise RuntimeError("isolated-gateway-unavailable")
+        agent_environment = isolated_agent_environment()
+        agent = subprocess.Popen(
+            [str(gateway_binary), str(pathlib.Path(test_home.name) / "Library/Application Support/com.yonder.desktop")],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=agent_environment,
+        )
+    # GUI 启动可能抢占前台；派发前恢复唯一 fixture 为 CUA 目标。
     result["phase"] = "fixture-refocus"
     time.sleep(0.3)
     refocus_fixture()

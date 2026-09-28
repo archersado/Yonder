@@ -284,7 +284,7 @@ impl TaskHost {
                 &root.join("node_modules/@typesafe-ai/sdk/dist/index.mjs"),
                 "Yonder",
                 "jev",
-                Duration::from_millis(3000),
+                Duration::from_secs(30),
             )
             .ok()
         });

@@ -15,6 +15,8 @@ use yonder_application::{
     jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
 };
 
+const MAX_JEV_WORKER_TIMEOUT: Duration = Duration::from_secs(30);
+
 pub struct MacosJevPort {
     node: PathBuf,
     script: PathBuf,
@@ -48,7 +50,7 @@ impl MacosJevPort {
         timeout: Duration,
     ) -> Result<Self, JevDecisionError> {
         if timeout.is_zero()
-            || timeout > Duration::from_millis(3000)
+            || timeout > MAX_JEV_WORKER_TIMEOUT
             || [node, script, sdk]
                 .iter()
                 .any(|path| !path.is_absolute() || !path.is_file())
@@ -105,7 +107,7 @@ impl MacosJevPort {
         }
     }
 
-    fn run_worker(&self, request: &WorkerRequest<'_>) -> Result<WorkerResponse, JevDecisionError> {
+    fn run_worker(&self, request: &WorkerRequest<'_>, timeout: Duration) -> Result<WorkerResponse, JevDecisionError> {
         let payload =
             serde_json::to_string(request).map_err(|_| JevDecisionError::InvalidResponse)?;
         let mut child = Command::new(&self.node)
@@ -144,7 +146,7 @@ impl MacosJevPort {
             match child.try_wait() {
                 Ok(Some(status)) if status.success() => break,
                 Ok(Some(_)) => return Err(JevDecisionError::RemoteError),
-                Ok(None) if started.elapsed() < self.timeout => {
+                Ok(None) if started.elapsed() < timeout => {
                     thread::sleep(Duration::from_millis(10))
                 }
                 _ => {
@@ -207,13 +209,16 @@ impl JevDecisionPort for MacosJevPort {
         request: &JevDecisionRequest,
     ) -> Result<JevModelChoice, JevDecisionError> {
         let api_key = self.credential()?;
+        // 面板控制单次选择预算；Adapter 再以硬上限保证快脑不会长期占用
+        // Gateway 执行槽位。两者均有界，且不进行自动重试。
+        let timeout = Duration::from_millis(config.time_limit_ms).min(self.timeout);
         let worker_request = WorkerRequest {
             endpoint: &config.endpoint,
             api_key: &api_key,
-            timeout_ms: self.timeout.as_millis() as u64,
+            timeout_ms: timeout.as_millis() as u64,
             candidates: &request.candidates,
         };
-        let response = self.run_worker(&worker_request)?;
+        let response = self.run_worker(&worker_request, timeout)?;
         Ok(JevModelChoice {
             candidate_id: response.candidate_id,
             confidence: response.confidence,
@@ -311,7 +316,7 @@ mod tests {
                 },
             ],
         };
-        let result = port.run_worker(&request).unwrap();
+        let result = port.run_worker(&request, Duration::from_millis(3000)).unwrap();
         assert_eq!(result.candidate_id, "handback");
         assert!((0.0..=1.0).contains(&result.confidence));
         let _ = fs::remove_file(script);
@@ -330,7 +335,7 @@ mod tests {
                 &sdk_path(),
                 "Yonder",
                 "jev",
-                Duration::from_millis(3001)
+                MAX_JEV_WORKER_TIMEOUT + Duration::from_millis(1)
             ),
             Err(JevDecisionError::InvalidInput)
         ));
