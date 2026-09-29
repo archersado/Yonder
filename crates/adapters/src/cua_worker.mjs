@@ -5,6 +5,14 @@ import { pathToFileURL } from 'node:url';
 
 const sdk = await import(pathToFileURL(process.argv[2]).href);
 const structured = value => value.structuredJson ? JSON.parse(value.structuredJson) : JSON.parse(value.rawJson ?? '{}').structuredContent ?? {};
+// trycua 0.25.0 的 launch_state 在不同平台实现中可能是旧版枚举字符串，
+// 也可能是包含 requested/process_running/window_ready 的结构化状态。两种形态
+// 表达的是同一契约；只要 SDK 已返回可信 PID 且确认进程运行或窗口就绪，就可
+// 将 launch_app 判为已确认，不能因响应形态差异误报 observe-failed。
+const launchStateConfirmed = state =>
+  ['process_running', 'window_ready'].includes(state)
+  || (state && typeof state === 'object'
+    && (state.process_running === true || state.window_ready === true));
 const driver = sdk.CuaDriver.create(undefined);
 try {
   await driver.metadata();
@@ -84,7 +92,7 @@ try {
             ...(window ? { window_id: window.window_id } : {}),
           } : undefined;
         }
-        const launchConfirmed=request.tool_name==='launch_app' && Number.isInteger(actionResult.pid) && ['process_running','window_ready'].includes(actionResult.launch_state);
+        const launchConfirmed=request.tool_name==='launch_app' && Number.isInteger(actionResult.pid) && launchStateConfirmed(actionResult.launch_state);
         response.action_effect=launchConfirmed?'confirmed':typeof actionResult.effect==='string'?actionResult.effect:action.isError?'refused':'unverifiable';
         response.action_known = true;
         response.action_succeeded = response.action_effect === 'confirmed';
