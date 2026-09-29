@@ -85,10 +85,10 @@ pub fn execute_one(
     let index=usize::from(stored.current_slot);
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete")); }
     let slot=&stored.fragment.slots[index];
-    computer.project_decision(task_id,&slot.step_id,&format!("正在评估 {} 个受支持候选",slot.candidates.len()));
+    computer.project_decision(task_id,&slot.step_id,&slot.label,&format!("正在评估 {} 个受支持候选",slot.candidates.len()));
     let choice=select(config,jev,&stored.fragment,index).map_err(|_|crate::Error::StopRequired)?;
     let Selection::Dispatch(action)=choice else {
-        computer.project_decision(task_id,&slot.step_id,"已交回慢脑重新观察或规划");
+        computer.project_decision(task_id,&slot.step_id,&slot.label,"已交回慢脑重新观察或规划");
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑重新 Observe 或规划")?;
         return Ok((task, "handback"));
     };
@@ -97,7 +97,7 @@ pub fn execute_one(
     } else {
         format!("Jev 已从 {} 个候选中选择：{}",slot.candidates.len(),action_kind_label(action.action_kind))
     };
-    computer.project_decision(task_id,&slot.step_id,&decision);
+    computer.project_decision(task_id,&slot.step_id,&slot.label,&decision);
     // `SendMessage` 的正文与收件人只能存在于本机一次性确认载荷中；受限
     // 片段本身刻意没有该载荷。确认组合根尚未交付时必须交回，绝不能把空
     // 参数派发为一个不可解释的按键操作，更不能猜测或重试发送。
@@ -107,6 +107,7 @@ pub fn execute_one(
     }
     let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
+        computer.project_step_unverified(task_id,&slot.step_id);
         // user-input 会把任务原子地转为 interrupted，并已写入事件/Outbox；此时
         // 不得再把片段交回写成第二次状态迁移，否则会掩盖中断事实并触发 CAS 冲突。
         if !matches!(task.status, crate::Status::Created | crate::Status::Running) {
@@ -127,6 +128,7 @@ pub fn execute_one(
         }
     }
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
+    computer.project_step_completed(task_id,&slot.step_id);
     Ok((task,"advanced"))
 }
 

@@ -4,7 +4,7 @@ pub mod agent_input;
 pub mod local_agent_socket;
 pub mod local_agent_stdio;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -56,6 +56,7 @@ struct CuaControlState {
     takeover_requested: bool,
     presentation: CuaControlPresentation,
     executing_step_id: Option<String>,
+    completed_step_ids: HashSet<String>,
 }
 
 /// CUA 执行热路径的进程内信号；不持久化，也不等待 TaskHost/SQLite 锁。
@@ -63,16 +64,28 @@ struct CuaControlState {
 pub struct CuaControlHub(Arc<Mutex<Option<CuaControlState>>>);
 
 impl CuaControlHub {
-    pub fn begin(&self, presentation: CuaControlPresentation) -> bool {
+    pub fn begin(&self, mut presentation: CuaControlPresentation) -> bool {
         let Ok(mut state) = self.0.lock() else { return false };
         if let Some(active) = state.as_mut() {
             if active.task_id != presentation.task_id { return false; }
+            for step in &presentation.planned_steps { if step.state == "completed" { active.completed_step_ids.insert(step.step_id.clone()); } }
+            for step in &mut presentation.planned_steps { if active.completed_step_ids.contains(&step.step_id) { step.state = "completed".into(); } }
             active.presentation = presentation;
             active.executing_step_id = None;
             return true;
         }
-        *state = Some(CuaControlState { task_id: presentation.task_id.clone(), takeover_requested: false, presentation, executing_step_id: None });
+        let completed_step_ids=presentation.planned_steps.iter().filter(|step|step.state=="completed").map(|step|step.step_id.clone()).collect();
+        *state = Some(CuaControlState { task_id: presentation.task_id.clone(), takeover_requested: false, presentation, executing_step_id: None, completed_step_ids });
         true
+    }
+
+    fn ensure_step_visible(active:&mut CuaControlState,step_id:&str,step_label:&str){
+        if active.presentation.planned_steps.iter().all(|step|step.step_id!=step_id){
+            if active.presentation.planned_steps.len()>=4{active.presentation.planned_steps.remove(0);}
+            active.presentation.planned_steps.push(CuaControlStepPresentation{step_id:step_id.into(),label:step_label.into(),state:"pending".into()});
+            active.presentation.remaining_steps=active.presentation.remaining_steps.saturating_sub(1);
+        }
+        active.presentation.current_step=step_label.into();
     }
 
     pub fn mark_executing(&self, task_id: &str, step_id: &str) {
@@ -82,20 +95,29 @@ impl CuaControlHub {
         if let Some(step) = active.presentation.planned_steps.iter().find(|step| step.step_id == step_id) {
             active.presentation.current_step = step.label.clone();
         }
-        for step in &mut active.presentation.planned_steps {
-            step.state = if step.step_id == step_id { "executing".into() } else { "pending".into() };
-        }
-        if let Some(index) = active.presentation.planned_steps.iter().position(|step| step.step_id == step_id) {
-            for step in &mut active.presentation.planned_steps[..index] { step.state = "completed".into(); }
-        }
+        for step in &mut active.presentation.planned_steps { step.state=if active.completed_step_ids.contains(&step.step_id){"completed".into()}else if step.step_id==step_id{"executing".into()}else{"pending".into()}; }
     }
 
-    pub fn mark_decision(&self,task_id:&str,step_id:&str,summary:&str){
+    pub fn mark_decision(&self,task_id:&str,step_id:&str,step_label:&str,summary:&str){
         if summary.is_empty()||summary.len()>160||summary.contains('\0'){return}
         let Ok(mut state)=self.0.lock() else{return};
         let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
+        Self::ensure_step_visible(active,step_id,step_label);
         active.presentation.fast_brain_summary=summary.into();
-        if let Some(step)=active.presentation.planned_steps.iter_mut().find(|step|step.step_id==step_id){if step.state=="pending"{step.state="deciding".into();}}
+        if let Some(step)=active.presentation.planned_steps.iter_mut().find(|step|step.step_id==step_id){if !active.completed_step_ids.contains(step_id){step.state="deciding".into();}}
+    }
+
+    pub fn mark_completed(&self,task_id:&str,step_id:&str){
+        let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
+        active.completed_step_ids.insert(step_id.into());
+        if active.executing_step_id.as_deref()==Some(step_id){active.executing_step_id=None;}
+        if let Some(step)=active.presentation.planned_steps.iter_mut().find(|step|step.step_id==step_id){step.state="completed".into();}
+    }
+
+    pub fn mark_unverified(&self,task_id:&str,step_id:&str){
+        let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
+        if active.executing_step_id.as_deref()==Some(step_id){active.executing_step_id=None;}
+        if let Some(step)=active.presentation.planned_steps.iter_mut().find(|step|step.step_id==step_id){step.state="unverified".into();active.presentation.current_step=format!("待核实：{}",step.label);}
     }
 
     pub fn presentation(&self) -> Option<CuaControlPresentation> {
@@ -143,7 +165,9 @@ impl ComputerUsePort for CuaControlPort<'_> {
     }
     fn end_session(&self){self.inner.end_session()}
     fn explicit_takeover_requested(&self,task_id:&str)->bool{self.hub.is_some_and(|hub|hub.takeover_requested(task_id))}
-    fn project_decision(&self,task_id:&str,step_id:&str,summary:&str){if let Some(hub)=self.hub{hub.mark_decision(task_id,step_id,summary)}}
+    fn project_decision(&self,task_id:&str,step_id:&str,step_label:&str,summary:&str){if let Some(hub)=self.hub{hub.mark_decision(task_id,step_id,step_label,summary)}}
+    fn project_step_completed(&self,task_id:&str,step_id:&str){if let Some(hub)=self.hub{hub.mark_completed(task_id,step_id)}}
+    fn project_step_unverified(&self,task_id:&str,step_id:&str){if let Some(hub)=self.hub{hub.mark_unverified(task_id,step_id)}}
 }
 
 /// 与圈选工具条共用 pet 当前显示器、work area 与顶部 16pt 锚点。
@@ -1213,8 +1237,9 @@ mod tests {
             slow_brain_summary:"慢脑已提交 2 个受限步骤".into(),
             fast_brain_summary:"等待评估当前步骤候选".into(),
         }));
-        hub.mark_decision("task-a","save","Jev 已从 2 个候选中选择：保存更改");
+        hub.mark_decision("task-a","save","保存更改","Jev 已从 2 个候选中选择：保存更改");
         hub.mark_executing("task-a","save");
+        hub.mark_completed("task-a","open");
         let value=serde_json::to_value(hub.presentation().unwrap()).unwrap();
         assert_eq!(value["current_step"],"保存更改");
         assert_eq!(value["planned_steps"][0]["state"],"completed");
@@ -1223,6 +1248,28 @@ mod tests {
         assert_eq!(value["fast_brain_summary"],"Jev 已从 2 个候选中选择：保存更改");
         assert!(value.to_string().contains("打开设置"));
         assert!(!value.to_string().contains("arguments"));
+    }
+
+    #[test]
+    fn cua_control_hub_never_infers_success_and_keeps_the_current_step_visible() {
+        let hub=CuaControlHub::default();
+        assert!(hub.begin(CuaControlPresentation {
+            task_id:"task-a".into(), current_step:"步骤一".into(), remaining_steps:1, plan_status:"available".into(), desktop_control:true,
+            planned_steps:(1..=4).map(|index| CuaControlStepPresentation { step_id:format!("step-{index}"), label:format!("步骤{index}"), state:"pending".into() }).collect(),
+            slow_brain_summary:"慢脑已提交 5 个受限步骤".into(), fast_brain_summary:"等待评估当前步骤候选".into(),
+        }));
+        hub.mark_decision("task-a","step-5","步骤五","Jev 已选择步骤五");
+        hub.mark_executing("task-a","step-5");
+        let value=serde_json::to_value(hub.presentation().unwrap()).unwrap();
+        assert_eq!(value["current_step"],"步骤五");
+        assert_eq!(value["planned_steps"][0]["state"],"pending");
+        assert_eq!(value["planned_steps"][0]["step_id"],"step-2");
+        assert_eq!(value["planned_steps"][3]["state"],"executing");
+        assert_eq!(value["remaining_steps"],0);
+
+        hub.mark_unverified("task-a","step-5");
+        let value=serde_json::to_value(hub.presentation().unwrap()).unwrap();
+        assert_eq!(value["planned_steps"][3]["state"],"unverified");
     }
 
     #[test]

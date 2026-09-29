@@ -37,6 +37,7 @@ try {
       host_session_id: request.host_session_id,
       action_known: false,
       action_succeeded: false,
+      action_effect: null,
       observe_valid: false,
       element_count: 0,
       screenshot_path: null,
@@ -71,8 +72,9 @@ try {
         }
         response.failure_stage = 'action';
         const action = await driver.callTool(request.tool_name, JSON.stringify(actionArgs));
+        const actionResult = action.isError ? {} : structured(action);
         if (!action.isError && request.tool_name === 'launch_app') {
-          const launched = structured(action);
+          const launched = actionResult;
           const window = launched.windows?.filter(item => Number.isInteger(item.window_id))
             .sort((left, right) => (right.bounds?.width ?? 0) * (right.bounds?.height ?? 0) - (left.bounds?.width ?? 0) * (left.bounds?.height ?? 0))[0];
           launchedTarget = Number.isInteger(launched.pid) ? {
@@ -82,8 +84,10 @@ try {
             ...(window ? { window_id: window.window_id } : {}),
           } : undefined;
         }
+        const launchConfirmed=request.tool_name==='launch_app' && Number.isInteger(actionResult.pid) && ['process_running','window_ready'].includes(actionResult.launch_state);
+        response.action_effect=launchConfirmed?'confirmed':typeof actionResult.effect==='string'?actionResult.effect:action.isError?'refused':'unverifiable';
         response.action_known = true;
-        response.action_succeeded = !action.isError;
+        response.action_succeeded = response.action_effect === 'confirmed';
         response.failure_stage = 'observe-after';
         const desktop = tools.find(tool => tool.name === 'get_desktop_state');
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
