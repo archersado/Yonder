@@ -73,6 +73,97 @@ pub fn execute_agent_command(
     Ok(AgentCommandExecution { task, attempt_result, execution })
 }
 
+pub fn execute_agent_command_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    approvals: &CommandApprovalRegistry,
+    port: &dyn CommandPort,
+    cancellation: &dyn CommandCancellation,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected_sequence: u64,
+    command_id: &str,
+    host_session_id: &str,
+    now_ms: u64,
+) -> Result<AgentCommandExecution, Error> {
+    if !crate::valid_id(task_id)
+        || !crate::valid_id(command_id)
+        || !crate::valid_id(host_session_id)
+    {
+        return Err(Error::InvalidInput);
+    }
+    let (task, step) = crate::get_with_step(store, auth, task_id)?;
+    let step = step.ok_or(Error::StopRequired)?;
+    approvals
+        .verify_for_execution(auth, &task, expected_sequence, command_id, now_ms)
+        .map_err(approval_error)?;
+    let request = approvals
+        .consume(auth, &task, expected_sequence, command_id, now_ms)
+        .map_err(approval_error)?;
+    let attempt = crate::execution_runtime::begin_attempt(
+        runtime,
+        admission,
+        &task,
+        &step,
+        expected_sequence,
+        "command_worker",
+        host_session_id,
+        &[],
+    )
+    .map_err(runtime_error)?;
+    let execution = match command::execute(port, &request, cancellation) {
+        Ok(execution) => execution,
+        Err(error) => {
+            crate::execution_runtime::record_attempt_outcome(
+                runtime,
+                &attempt,
+                AttemptConclusion::Observed {
+                    action_succeeded: false,
+                },
+            )
+            .map_err(runtime_error)?;
+            return Err(command_error(error));
+        }
+    };
+    let conclusion = match execution.outcome {
+        CommandOutcome::Unknown => AttemptConclusion::Unknown {
+            reason: UnknownReason::WorkerFailed,
+        },
+        CommandOutcome::Exited { exit_code: 0 } => AttemptConclusion::Observed {
+            action_succeeded: true,
+        },
+        CommandOutcome::Exited { .. }
+        | CommandOutcome::TimedOut
+        | CommandOutcome::Cancelled
+        | CommandOutcome::OutputLimitExceeded => AttemptConclusion::Observed {
+            action_succeeded: false,
+        },
+    };
+    let (snapshot, attempt_result) =
+        crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
+            .map_err(runtime_error)?;
+    Ok(AgentCommandExecution {
+        task: Task {
+            status: crate::Status::Running,
+            sequence: snapshot.sequence,
+            ..task
+        },
+        attempt_result,
+        execution,
+    })
+}
+
+fn runtime_error(error: crate::execution_runtime::RuntimeError) -> Error {
+    match error {
+        crate::execution_runtime::RuntimeError::InvalidInput => Error::InvalidInput,
+        crate::execution_runtime::RuntimeError::Conflict => Error::Conflict,
+        crate::execution_runtime::RuntimeError::Backpressure => Error::StopRequired,
+        crate::execution_runtime::RuntimeError::NotFound => Error::NotFound,
+        crate::execution_runtime::RuntimeError::Unavailable => Error::StorageUnavailable,
+    }
+}
+
 fn record_rejected_after_start(store: &mut impl TaskStore, accepted: &ExecutionAttempt, task_id: &str) -> Result<(), Error> {
     let current = store.get(task_id)?;
     store.record_attempt_result(accepted, current.sequence, AttemptConclusion::Observed { action_succeeded: false })

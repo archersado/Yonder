@@ -260,6 +260,7 @@ fn projected_state(
         | RuntimeEventKind::StepCompleted { .. }
         | RuntimeEventKind::StepUnverified { .. }
         | RuntimeEventKind::StepBoundaryAdvanced { .. }
+        | RuntimeEventKind::BrowserReferenceUpdated { .. }
         | RuntimeEventKind::HandedBack { .. }
             if current == "running" =>
         {
@@ -431,6 +432,13 @@ impl RuntimeEventProjector for SqliteTaskStore {
                     {
                         return Err(RuntimeProjectionError::Conflict);
                     }
+                }
+                RuntimeEventKind::BrowserReferenceUpdated { reference } => {
+                    tx.execute(
+                        "INSERT INTO task_browser_refs(task_id,external_task_ref,ownership,managed_pages,finished,updated_sequence) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(task_id) DO UPDATE SET external_task_ref=excluded.external_task_ref,ownership=excluded.ownership,managed_pages=excluded.managed_pages,finished=excluded.finished,updated_sequence=excluded.updated_sequence",
+                        params![event.task_id,reference.external_task_ref,reference.ownership,reference.managed_pages as i64,i64::from(reference.finished),event.sequence as i64],
+                    )
+                    .map_err(|_| RuntimeProjectionError::Unavailable)?;
                 }
                 _ => {}
             }

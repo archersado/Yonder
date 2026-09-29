@@ -46,6 +46,150 @@ pub fn execute_agent_save_as(
     Ok(DocumentExecution { task, attempt_result, receipt })
 }
 
+pub fn execute_agent_save_as_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    grants: &FileAuthorizationRegistry,
+    files: &dyn FilePort,
+    documents: &dyn DocumentPort,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected_sequence: u64,
+    source_grant_id: &str,
+    output_grant_id: &str,
+    expected_hash: &str,
+    before: &str,
+    after: &str,
+    host_session_id: &str,
+    now_ms: u64,
+) -> Result<DocumentExecution, Error> {
+    if !crate::valid_id(task_id)
+        || !crate::valid_id(source_grant_id)
+        || !crate::valid_id(output_grant_id)
+        || !crate::valid_id(host_session_id)
+        || source_grant_id == output_grant_id
+        || expected_hash.len() != 64
+        || before.is_empty()
+        || before.len() > 16 * 1024
+        || after.len() > 16 * 1024
+    {
+        return Err(Error::InvalidInput);
+    }
+    let (task, step) = crate::get_with_step(store, auth, task_id)?;
+    let step = step.ok_or(Error::StopRequired)?;
+    let attempt = crate::execution_runtime::begin_attempt(
+        runtime,
+        admission,
+        &task,
+        &step,
+        expected_sequence,
+        "document_worker",
+        host_session_id,
+        &[Resource::File(format!(
+            "document_{source_grant_id}_{output_grant_id}"
+        ))],
+    )
+    .map_err(runtime_error)?;
+    let source = match grants.resolve(auth, &task, source_grant_id, FileGrantPurpose::Read, now_ms) {
+        Ok(grant) => grant,
+        Err(error) => return record_runtime_grant_failure(runtime, &task, &attempt, error),
+    };
+    let output = match grants.resolve(auth, &task, output_grant_id, FileGrantPurpose::CreateNew, now_ms) {
+        Ok(grant) => grant,
+        Err(error) => return record_runtime_grant_failure(runtime, &task, &attempt, error),
+    };
+    let operation = match (source.location, output.location) {
+        (
+            FileGrantLocation::Existing { request: source, .. },
+            FileGrantLocation::CreateTarget { request: output, .. },
+        ) => document::save_as(
+            files,
+            documents,
+            &DocumentSaveAsRequest {
+                source,
+                output_path: output.path,
+                output_authorized_root: output.authorized_root,
+                expected_sha256: expected_hash.into(),
+                before: before.into(),
+                after: after.into(),
+            },
+        ),
+        _ => Err(DocumentFileError::PermissionDenied),
+    };
+    let (conclusion, receipt) = match operation {
+        Ok(receipt) => (
+            AttemptConclusion::Observed {
+                action_succeeded: true,
+            },
+            Some(receipt),
+        ),
+        Err(DocumentFileError::Unknown | DocumentFileError::File(crate::file::FileError::Unknown)) => (
+            AttemptConclusion::Unknown {
+                reason: crate::computer_use::UnknownReason::WorkerFailed,
+            },
+            None,
+        ),
+        Err(_) => (
+            AttemptConclusion::Observed {
+                action_succeeded: false,
+            },
+            None,
+        ),
+    };
+    let (snapshot, attempt_result) =
+        crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
+            .map_err(runtime_error)?;
+    Ok(DocumentExecution {
+        task: Task {
+            status: crate::Status::Running,
+            sequence: snapshot.sequence,
+            ..task
+        },
+        attempt_result,
+        receipt,
+    })
+}
+
+fn record_runtime_grant_failure(
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    task: &Task,
+    attempt: &ExecutionAttempt,
+    error: FileGrantError,
+) -> Result<DocumentExecution, Error> {
+    let conclusion = if matches!(error, FileGrantError::Unavailable) {
+        AttemptConclusion::Unknown {
+            reason: crate::computer_use::UnknownReason::WorkerFailed,
+        }
+    } else {
+        AttemptConclusion::Observed {
+            action_succeeded: false,
+        }
+    };
+    let (snapshot, attempt_result) =
+        crate::execution_runtime::record_attempt_outcome(runtime, attempt, conclusion)
+            .map_err(runtime_error)?;
+    Ok(DocumentExecution {
+        task: Task {
+            status: crate::Status::Running,
+            sequence: snapshot.sequence,
+            ..task.clone()
+        },
+        attempt_result,
+        receipt: None,
+    })
+}
+
+fn runtime_error(error: crate::execution_runtime::RuntimeError) -> Error {
+    match error {
+        crate::execution_runtime::RuntimeError::InvalidInput => Error::InvalidInput,
+        crate::execution_runtime::RuntimeError::Conflict => Error::Conflict,
+        crate::execution_runtime::RuntimeError::Backpressure => Error::StopRequired,
+        crate::execution_runtime::RuntimeError::NotFound => Error::NotFound,
+        crate::execution_runtime::RuntimeError::Unavailable => Error::StorageUnavailable,
+    }
+}
+
 /// 授权在启动事务之后才可消费；解析失败也必须收束 attempt，不能留下伪运行状态。
 fn record_grant_failure(
     store: &mut impl TaskStore,

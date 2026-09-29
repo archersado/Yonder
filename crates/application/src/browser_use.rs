@@ -234,6 +234,185 @@ pub fn execute_agent_action(
     Ok((result_task, reference))
 }
 
+pub fn execute_agent_action_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    port: &(impl BrowserUsePort + ?Sized),
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    operation: &str,
+    host_session_id: &str,
+) -> Result<(Task, BrowserReferenceRecord), Error> {
+    let (task, step) = crate::get_with_step(store, auth, task_id)?;
+    let step = step.ok_or(Error::StopRequired)?;
+    if !crate::valid_id(host_session_id) {
+        return Err(Error::InvalidInput);
+    }
+    if store
+        .get_control(task_id)?
+        .is_some_and(|control| control.phase == crate::ControlPhase::Pending)
+    {
+        return Err(Error::StopRequired);
+    }
+    let runtime_reference = runtime
+        .snapshot(task_id)
+        .ok()
+        .and_then(|snapshot| snapshot.browser_reference);
+    let previous = match runtime_reference {
+        Some(reference) => Some(BrowserReferenceRecord {
+            task_id: task_id.into(),
+            external_task_ref: reference.external_task_ref,
+            ownership: reference.ownership,
+            managed_pages: reference.managed_pages,
+            finished: reference.finished,
+            updated_sequence: expected,
+        }),
+        None => store.get_browser_reference(task_id)?,
+    };
+    let action = match operation {
+        "create" if previous.is_none() => BrowserAction::Create {
+            name: task.name.clone().unwrap_or_else(|| task.id.clone()),
+        },
+        "observe" | "hand-off" | "take-over" | "finish" => {
+            let external_task_ref = previous
+                .as_ref()
+                .filter(|value| !value.finished)
+                .ok_or(Error::StopRequired)?
+                .external_task_ref
+                .clone();
+            match operation {
+                "observe" => BrowserAction::Observe { external_task_ref },
+                "hand-off" => BrowserAction::HandOff { external_task_ref },
+                "take-over" => BrowserAction::TakeOver { external_task_ref },
+                "finish" => BrowserAction::Finish { external_task_ref },
+                _ => unreachable!(),
+            }
+        }
+        _ => return Err(Error::InvalidInput),
+    };
+    let attempt = crate::execution_runtime::begin_attempt(
+        runtime,
+        admission,
+        &task,
+        &step,
+        expected,
+        "ego_bridge",
+        host_session_id,
+        &[Resource::Browser],
+    )
+    .map_err(runtime_error)?;
+    let outcome = port.dispatch(&attempt, &action);
+    let (conclusion, next_reference) = match outcome {
+        BrowserOutcome::Observed(reference)
+            if valid_ref(&reference.external_task_ref)
+                && valid_ownership(&reference.ownership)
+                && reference.managed_pages <= 100 =>
+        {
+            (
+                crate::AttemptConclusion::Observed {
+                    action_succeeded: true,
+                },
+                Some(crate::execution_runtime::RuntimeBrowserReference {
+                    external_task_ref: reference.external_task_ref,
+                    ownership: reference.ownership,
+                    managed_pages: reference.managed_pages,
+                    finished: false,
+                }),
+            )
+        }
+        BrowserOutcome::Finished { external_task_ref }
+            if valid_ref(&external_task_ref)
+                && previous
+                    .as_ref()
+                    .is_some_and(|value| value.external_task_ref == external_task_ref && !value.finished) =>
+        {
+            let previous = previous.as_ref().expect("validated");
+            (
+                crate::AttemptConclusion::Observed {
+                    action_succeeded: true,
+                },
+                Some(crate::execution_runtime::RuntimeBrowserReference {
+                    external_task_ref,
+                    ownership: previous.ownership.clone(),
+                    managed_pages: previous.managed_pages,
+                    finished: true,
+                }),
+            )
+        }
+        BrowserOutcome::Unknown(reason) => (
+            crate::AttemptConclusion::Unknown { reason },
+            None,
+        ),
+        _ => (
+            crate::AttemptConclusion::Unknown {
+                reason: UnknownReason::InvalidResponse,
+            },
+            None,
+        ),
+    };
+    let (mut snapshot, _) =
+        crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
+            .map_err(runtime_error)?;
+    if let Some(reference) = next_reference {
+        snapshot = runtime
+            .apply(crate::execution_runtime::RuntimeCommand::UpdateBrowserReference {
+                task_id: task_id.into(),
+                reference,
+            })
+            .map_err(runtime_error)?;
+    }
+    let current_reference = snapshot
+        .browser_reference
+        .clone()
+        .ok_or(Error::StopRequired)?;
+    let reference = BrowserReferenceRecord {
+        task_id: task_id.into(),
+        external_task_ref: current_reference.external_task_ref,
+        ownership: current_reference.ownership,
+        managed_pages: current_reference.managed_pages,
+        finished: current_reference.finished,
+        updated_sequence: snapshot.sequence,
+    };
+    if operation == "finish" && reference.finished {
+        let _boundary =
+            crate::execution_runtime::advance_boundary(runtime, task_id, snapshot.sequence)
+                .map_err(runtime_error)?;
+        snapshot = runtime
+            .apply(crate::execution_runtime::RuntimeCommand::Terminate {
+                task_id: task_id.into(),
+                phase: crate::execution_runtime::RuntimePhase::Completed,
+            })
+            .map_err(runtime_error)?;
+        admission
+            .release_task_after_stop(task_id)
+            .map_err(|_| Error::StorageUnavailable)?;
+    }
+    Ok((
+        Task {
+            status: if reference.finished {
+                crate::Status::Completed
+            } else {
+                crate::Status::Running
+            },
+            sequence: snapshot.sequence,
+            ..task
+        },
+        reference,
+    ))
+}
+
+fn runtime_error(error: crate::execution_runtime::RuntimeError) -> Error {
+    match error {
+        crate::execution_runtime::RuntimeError::InvalidInput => Error::InvalidInput,
+        crate::execution_runtime::RuntimeError::Conflict => Error::Conflict,
+        crate::execution_runtime::RuntimeError::Backpressure => Error::StopRequired,
+        crate::execution_runtime::RuntimeError::NotFound => Error::NotFound,
+        crate::execution_runtime::RuntimeError::Unavailable => Error::StorageUnavailable,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -784,13 +784,14 @@ impl<'a> GatewaySession<'a> {
                 };
                 use base64::{Engine as _, engine::general_purpose::STANDARD};
                 let body = params.data_base64.as_deref().map(|value| STANDARD.decode(value).map_err(|_| RpcError::new(-32602, "非法文件正文编码"))).transpose()?;
-                let result = file_execution::execute_agent_file(
-                    store, admission,
-                    file_grants.ok_or_else(|| RpcError::new(-32020, "本机文件授权入口不可用"))?,
-                    file_port.ok_or_else(|| RpcError::new(-32020, "macOS文件运行时不可用"))?,
-                    self.auth, &params.task_id, yonder_protocol::sequence(&params.expected_sequence)?,
-                    &params.grant_id, operation, body.as_deref(), host_session_id, now_ms,
-                ).map_err(query::error)?;
+                let grants=file_grants.ok_or_else(|| RpcError::new(-32020, "本机文件授权入口不可用"))?;
+                let files=file_port.ok_or_else(|| RpcError::new(-32020, "macOS文件运行时不可用"))?;
+                let expected=yonder_protocol::sequence(&params.expected_sequence)?;
+                let result = if let Some(runtime)=execution_runtime {
+                    file_execution::execute_agent_file_runtime(store,runtime,admission,grants,files,self.auth,&params.task_id,expected,&params.grant_id,operation,body.as_deref(),host_session_id,now_ms)
+                } else {
+                    file_execution::execute_agent_file(store,admission,grants,files,self.auth,&params.task_id,expected,&params.grant_id,operation,body.as_deref(),host_session_id,now_ms)
+                }.map_err(query::error)?;
                 let data_base64 = result.read_bytes.as_deref().map(|value| STANDARD.encode(value));
                 Ok(QueryResult::FileExecution { execution: ProtocolFileExecutionResult {
                     task: snapshot(result.task), attempt_result: attempt_result(result.attempt_result),
@@ -800,15 +801,15 @@ impl<'a> GatewaySession<'a> {
             Request::DocumentExecute { params, .. } => {
                 if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
                 if !self.can_document_execute { return Err(RpcError::new(-32010, "文档执行需要协议1.29及macOS文档运行时")); }
-                let result = document_execution::execute_agent_save_as(
-                    store, admission,
-                    file_grants.ok_or_else(|| RpcError::new(-32020, "本机文件授权入口不可用"))?,
-                    file_port.ok_or_else(|| RpcError::new(-32020, "macOS文件运行时不可用"))?,
-                    documents.ok_or_else(|| RpcError::new(-32020, "macOS文档运行时不可用"))?,
-                    self.auth, &params.task_id, yonder_protocol::sequence(&params.expected_sequence)?,
-                    &params.source_grant_id, &params.output_grant_id, &params.expected_hash,
-                    &params.before, &params.after, host_session_id, now_ms,
-                ).map_err(query::error)?;
+                let grants=file_grants.ok_or_else(|| RpcError::new(-32020, "本机文件授权入口不可用"))?;
+                let files=file_port.ok_or_else(|| RpcError::new(-32020, "macOS文件运行时不可用"))?;
+                let document_port=documents.ok_or_else(|| RpcError::new(-32020, "macOS文档运行时不可用"))?;
+                let expected=yonder_protocol::sequence(&params.expected_sequence)?;
+                let result = if let Some(runtime)=execution_runtime {
+                    document_execution::execute_agent_save_as_runtime(store,runtime,admission,grants,files,document_port,self.auth,&params.task_id,expected,&params.source_grant_id,&params.output_grant_id,&params.expected_hash,&params.before,&params.after,host_session_id,now_ms)
+                } else {
+                    document_execution::execute_agent_save_as(store,admission,grants,files,document_port,self.auth,&params.task_id,expected,&params.source_grant_id,&params.output_grant_id,&params.expected_hash,&params.before,&params.after,host_session_id,now_ms)
+                }.map_err(query::error)?;
                 let (format, sha256, bytes_written) = match result.receipt {
                     Some(receipt) => (Some(match receipt.format { crate::document::DocumentFormat::Docx=>ProtocolDocumentFormat::Docx,crate::document::DocumentFormat::Xlsx=>ProtocolDocumentFormat::Xlsx,crate::document::DocumentFormat::Pptx=>ProtocolDocumentFormat::Pptx }),Some(receipt.sha256),Some(receipt.bytes_written)),
                     None => (None,None,None),
@@ -825,13 +826,14 @@ impl<'a> GatewaySession<'a> {
             }
             Request::CommandExecute { params, .. } => {
                 if !self.negotiated || !self.can_command_execute { return Err(RpcError::new(-32010, "命令执行需要协议1.30、本机批准及macOS命令运行时")); }
-                let result=command_execution::execute_agent_command(
-                    store,admission,
-                    command_approvals.ok_or_else(||RpcError::new(-32020,"本机命令批准入口不可用"))?,
-                    command_port.ok_or_else(||RpcError::new(-32020,"macOS命令运行时不可用"))?,
-                    &NeverCancel,self.auth,&params.task_id,yonder_protocol::sequence(&params.expected_sequence)?,
-                    &params.command_id,host_session_id,now_ms,
-                ).map_err(query::error)?;
+                let approvals=command_approvals.ok_or_else(||RpcError::new(-32020,"本机命令批准入口不可用"))?;
+                let port=command_port.ok_or_else(||RpcError::new(-32020,"macOS命令运行时不可用"))?;
+                let expected=yonder_protocol::sequence(&params.expected_sequence)?;
+                let result=if let Some(runtime)=execution_runtime {
+                    command_execution::execute_agent_command_runtime(store,runtime,admission,approvals,port,&NeverCancel,self.auth,&params.task_id,expected,&params.command_id,host_session_id,now_ms)
+                } else {
+                    command_execution::execute_agent_command(store,admission,approvals,port,&NeverCancel,self.auth,&params.task_id,expected,&params.command_id,host_session_id,now_ms)
+                }.map_err(query::error)?;
                 use base64::{Engine as _,engine::general_purpose::STANDARD};
                 let (outcome,exit_code)=match result.execution.outcome {
                     CommandOutcome::Exited{exit_code}=>(ProtocolCommandExecutionOutcome::Exited,Some(exit_code)),
@@ -875,18 +877,18 @@ impl<'a> GatewaySession<'a> {
                 if !self.can_advance {
                     return Err(RpcError::new(-32010, "步骤推进需要协议1.7及执行能力"));
                 }
-                let (task, _) = crate::get_with_step(store, self.auth, &params.task_id)
-                    .map_err(query::error)?;
-                if task.sequence != yonder_protocol::sequence(&params.expected_sequence)? {
-                    return Err(RpcError::new(-32011, "任务序号冲突"));
-                }
-                let attempt = store
-                    .get_attempt(&params.task_id)
-                    .map_err(query::error)?
-                    .ok_or_else(|| RpcError::new(-32012, "当前步骤没有可推进的执行结果"))?;
-                let (task, _) =
-                    crate::advance_after_observe(store, &params.task_id, &attempt.attempt_id)
-                        .map_err(query::error)?;
+                let expected=yonder_protocol::sequence(&params.expected_sequence)?;
+                let task = if let Some(runtime)=execution_runtime {
+                    let stored=crate::get(store,&params.task_id).map_err(query::error)?;
+                    if !self.auth.can_read(&stored){return Err(query::error(crate::Error::NotFound));}
+                    let snapshot=crate::execution_runtime::advance_boundary(runtime,&params.task_id,expected).map_err(|error|query::error(runtime_error(error)))?;
+                    crate::Task{status:crate::Status::Running,sequence:snapshot.sequence,..stored}
+                } else {
+                    let (task, _) = crate::get_with_step(store, self.auth, &params.task_id).map_err(query::error)?;
+                    if task.sequence != expected { return Err(RpcError::new(-32011, "任务序号冲突")); }
+                    let attempt = store.get_attempt(&params.task_id).map_err(query::error)?.ok_or_else(|| RpcError::new(-32012, "当前步骤没有可推进的执行结果"))?;
+                    crate::advance_after_observe(store, &params.task_id, &attempt.attempt_id).map_err(query::error)?.0
+                };
                 Ok(QueryResult::Snapshot {
                     task: snapshot(task),
                 })
@@ -909,17 +911,12 @@ impl<'a> GatewaySession<'a> {
                     BrowserOperation::TakeOver => "take-over",
                     BrowserOperation::Finish => "finish",
                 };
-                let (task, reference) = crate::browser_use::execute_agent_action(
-                    store,
-                    admission,
-                    port,
-                    self.auth,
-                    &params.task_id,
-                    yonder_protocol::sequence(&params.expected_sequence)?,
-                    operation,
-                    host_session_id,
-                )
-                .map_err(query::error)?;
+                let expected=yonder_protocol::sequence(&params.expected_sequence)?;
+                let (task, reference) = if let Some(runtime)=execution_runtime {
+                    crate::browser_use::execute_agent_action_runtime(store,runtime,admission,port,self.auth,&params.task_id,expected,operation,host_session_id)
+                } else {
+                    crate::browser_use::execute_agent_action(store,admission,port,self.auth,&params.task_id,expected,operation,host_session_id)
+                }.map_err(query::error)?;
                 Ok(QueryResult::Browser {
                     task: snapshot(task),
                     reference: browser_reference(reference),
@@ -1593,6 +1590,16 @@ fn file_grant_error(error: crate::file_authorization::FileGrantError) -> RpcErro
             RpcError::new(-32020, "本机文件授权入口不可用")
         }
         _ => RpcError::new(-32603, "文件授权查询失败"),
+    }
+}
+
+fn runtime_error(error: crate::execution_runtime::RuntimeError) -> crate::Error {
+    match error {
+        crate::execution_runtime::RuntimeError::InvalidInput => crate::Error::InvalidInput,
+        crate::execution_runtime::RuntimeError::NotFound => crate::Error::NotFound,
+        crate::execution_runtime::RuntimeError::Conflict => crate::Error::Conflict,
+        crate::execution_runtime::RuntimeError::Backpressure => crate::Error::StopRequired,
+        crate::execution_runtime::RuntimeError::Unavailable => crate::Error::StorageUnavailable,
     }
 }
 fn attempt_result(value: crate::AttemptResultRecord) -> ProtocolAttemptResult {

@@ -1564,7 +1564,7 @@ mod tests {
         assert_eq!(execution["attempt_result"]["action_succeeded"],true);
         assert!(host.list_command_approvals(&task.id,now+14).unwrap().is_empty());
         let replay=String::from_utf8(host.query_session(&mut session,execute.as_bytes(),now+15).unwrap()).unwrap();
-        assert!(replay.contains("-32011")||replay.contains("-32012"));
+        assert!(replay.contains("-32003")||replay.contains("-32011")||replay.contains("-32012"));
         assert!(!replay.contains("gateway-ok")&&!replay.contains("/usr/bin/printf"));
         drop(host);
         for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}

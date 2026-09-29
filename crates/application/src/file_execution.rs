@@ -81,6 +81,116 @@ pub fn execute_agent_file(
     Ok(FileExecution { task: result.0, attempt_result: result.1, read_bytes: result.2.read_bytes, sha256: result.2.sha256, bytes_written: result.2.bytes_written })
 }
 
+pub fn execute_agent_file_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    registry: &FileAuthorizationRegistry,
+    files: &dyn FilePort,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected_sequence: u64,
+    grant_id: &str,
+    operation: FileOperation,
+    body: Option<&[u8]>,
+    host_session_id: &str,
+    now_ms: u64,
+) -> Result<FileExecution, Error> {
+    if !crate::valid_id(task_id)
+        || !crate::valid_id(grant_id)
+        || !crate::valid_id(host_session_id)
+        || body.is_some_and(|value| value.len() > MAX_AGENT_FILE_BYTES)
+        || (operation.needs_body() != body.is_some())
+    {
+        return Err(Error::InvalidInput);
+    }
+    let (task, step) = crate::get_with_step(store, auth, task_id)?;
+    let step = step.ok_or(Error::StopRequired)?;
+    let attempt = crate::execution_runtime::begin_attempt(
+        runtime,
+        admission,
+        &task,
+        &step,
+        expected_sequence,
+        "file_worker",
+        host_session_id,
+        &[Resource::File(grant_id.into())],
+    )
+    .map_err(runtime_error)?;
+    let outcome = match registry.resolve(auth, &task, grant_id, operation.purpose(), now_ms) {
+        Ok(grant) => perform(files, grant.location, operation, body),
+        Err(error) => {
+            let conclusion = if matches!(error, FileGrantError::Unavailable) {
+                AttemptConclusion::Unknown {
+                    reason: crate::computer_use::UnknownReason::WorkerFailed,
+                }
+            } else {
+                AttemptConclusion::Observed {
+                    action_succeeded: false,
+                }
+            };
+            let (snapshot, attempt_result) =
+                crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
+                    .map_err(runtime_error)?;
+            return Ok(FileExecution {
+                task: Task {
+                    status: crate::Status::Running,
+                    sequence: snapshot.sequence,
+                    ..task
+                },
+                attempt_result,
+                read_bytes: None,
+                sha256: None,
+                bytes_written: None,
+            });
+        }
+    };
+    let (conclusion, performed) = match outcome {
+        Ok(value) => (
+            AttemptConclusion::Observed {
+                action_succeeded: true,
+            },
+            value,
+        ),
+        Err(FileError::Unknown) => (
+            AttemptConclusion::Unknown {
+                reason: crate::computer_use::UnknownReason::WorkerFailed,
+            },
+            Performed::empty(),
+        ),
+        Err(_) => (
+            AttemptConclusion::Observed {
+                action_succeeded: false,
+            },
+            Performed::empty(),
+        ),
+    };
+    let (snapshot, attempt_result) =
+        crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
+            .map_err(runtime_error)?;
+    Ok(FileExecution {
+        task: Task {
+            status: crate::Status::Running,
+            sequence: snapshot.sequence,
+            ..task
+        },
+        attempt_result,
+        read_bytes: performed.read_bytes,
+        sha256: performed.sha256,
+        bytes_written: performed.bytes_written,
+    })
+}
+
+fn runtime_error(error: crate::execution_runtime::RuntimeError) -> Error {
+    match error {
+        crate::execution_runtime::RuntimeError::InvalidInput => Error::InvalidInput,
+        crate::execution_runtime::RuntimeError::Conflict => Error::Conflict,
+        crate::execution_runtime::RuntimeError::Backpressure => Error::StopRequired,
+        crate::execution_runtime::RuntimeError::NotFound => Error::NotFound,
+        crate::execution_runtime::RuntimeError::Unavailable => Error::StorageUnavailable,
+    }
+}
+
 struct Performed { read_bytes: Option<Vec<u8>>, sha256: Option<String>, bytes_written: Option<u64> }
 impl Performed { fn empty() -> Self { Self { read_bytes: None, sha256: None, bytes_written: None } } }
 

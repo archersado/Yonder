@@ -45,6 +45,14 @@ pub struct RuntimeStep {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct RuntimeBrowserReference {
+    pub external_task_ref: String,
+    pub ownership: String,
+    pub managed_pages: usize,
+    pub finished: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RuntimeSnapshot {
     pub task_id: String,
     pub sequence: u64,
@@ -52,6 +60,7 @@ pub struct RuntimeSnapshot {
     pub phase: RuntimePhase,
     pub current_step: Option<RuntimeStep>,
     pub last_step_succeeded: Option<bool>,
+    pub browser_reference: Option<RuntimeBrowserReference>,
     pub pending_events: usize,
 }
 
@@ -75,6 +84,7 @@ pub enum RuntimeEventKind {
         reason: crate::unknown_reason::UnknownReason,
     },
     StepBoundaryAdvanced { step_id: String },
+    BrowserReferenceUpdated { reference: RuntimeBrowserReference },
     HandedBack { reason: String },
     Terminal { phase: RuntimePhase },
 }
@@ -120,6 +130,10 @@ pub enum RuntimeCommand {
         reason: crate::unknown_reason::UnknownReason,
     },
     AdvanceStepBoundary { task_id: String, step_id: String },
+    UpdateBrowserReference {
+        task_id: String,
+        reference: RuntimeBrowserReference,
+    },
     HandBack {
         task_id: String,
         reason: String,
@@ -287,6 +301,25 @@ pub fn record_attempt_outcome(
             result_sequence: snapshot.sequence,
         },
     ))
+}
+
+pub fn advance_boundary(
+    runtime: &ExecutionRuntimeHandle,
+    task_id: &str,
+    expected_sequence: u64,
+) -> Result<RuntimeSnapshot, RuntimeError> {
+    let current = runtime.snapshot(task_id)?;
+    if current.sequence != expected_sequence {
+        return Err(RuntimeError::Conflict);
+    }
+    let step = current.current_step.ok_or(RuntimeError::Conflict)?;
+    if step.phase != RuntimeStepPhase::Completed {
+        return Err(RuntimeError::Conflict);
+    }
+    runtime.apply(RuntimeCommand::AdvanceStepBoundary {
+        task_id: task_id.into(),
+        step_id: step.step_id,
+    })
 }
 
 impl ExecutionRuntime {
@@ -510,6 +543,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     phase: RuntimePhase::Running,
                     current_step: None,
                     last_step_succeeded: None,
+                    browser_reference: None,
                     pending_events: 0,
                 },
                 pending: VecDeque::new(),
@@ -639,6 +673,22 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     task.snapshot.current_step = None;
                     append(task, RuntimeEventKind::StepBoundaryAdvanced { step_id })?;
                 }
+                RuntimeCommand::UpdateBrowserReference { reference, .. } => {
+                    if !reference
+                        .external_task_ref
+                        .strip_prefix("ego:")
+                        .is_some_and(|value| value.parse::<u64>().is_ok_and(|value| value > 0))
+                        || !matches!(
+                            reference.ownership.as_str(),
+                            "agent" | "agentDelegatedToUser" | "user"
+                        )
+                        || reference.managed_pages > 100
+                    {
+                        return Err(RuntimeError::InvalidInput);
+                    }
+                    task.snapshot.browser_reference = Some(reference.clone());
+                    append(task, RuntimeEventKind::BrowserReferenceUpdated { reference })?;
+                }
                 RuntimeCommand::HandBack { reason, .. } => {
                     if reason.is_empty() || reason.len() > 160 {
                         return Err(RuntimeError::InvalidInput);
@@ -711,6 +761,7 @@ fn command_task_id(command: &RuntimeCommand) -> &str {
         | RuntimeCommand::CompleteStep { task_id, .. }
         | RuntimeCommand::UnverifyStep { task_id, .. }
         | RuntimeCommand::AdvanceStepBoundary { task_id, .. }
+        | RuntimeCommand::UpdateBrowserReference { task_id, .. }
         | RuntimeCommand::HandBack { task_id, .. }
         | RuntimeCommand::Terminate { task_id, .. }
         | RuntimeCommand::Ack { task_id, .. } => task_id,
