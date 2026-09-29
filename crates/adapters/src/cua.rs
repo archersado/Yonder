@@ -5,7 +5,7 @@ use std::ffi::CString;
 use yonder_application::{ExecutionAttempt, computer_use::{ComputerAction, ComputerObservation, ComputerUsePort, DispatchOutcome, UnknownReason, WorkTarget, WorkTargetPort}};
 
 #[cfg(target_os="macos")]
-unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; fn yonda_sky_app_focus(bundle_id:*const std::ffi::c_char)->i32; }
+unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; fn yonda_activate_window_for_app(bundle_id:*const std::ffi::c_char)->i32; }
 
 #[cfg(target_os="macos")]
 pub struct MacosFrontmostTarget;
@@ -19,7 +19,28 @@ impl WorkTargetPort for MacosFrontmostTarget {
 #[derive(Clone,Copy,Eq,PartialEq)]
 enum CuaBackend { TryCua, Sky }
 
-pub struct CuaWorker { node: PathBuf, script: PathBuf, sdk: PathBuf, evidence:PathBuf, timeout: Duration, backend:CuaBackend, session: Mutex<Option<WorkerSession>> }
+/// 只由已验证 Driver 身份构造；Agent/UI 不能提供或覆盖应用/窗口身份。
+pub struct WindowActivationTarget { application_id:String, window_id:Option<u64> }
+impl WindowActivationTarget {
+    pub fn application_id(&self)->&str {&self.application_id}
+    pub fn window_id(&self)->Option<u64> {self.window_id}
+}
+
+/// Yonder 统一的窗口激活能力。macOS 使用 AX 原生桥，其他平台可委托 Sky activate_window。
+pub trait WindowActivationPort:Send+Sync { fn activate_window(&self,target:&WindowActivationTarget)->Result<(),UnknownReason>; }
+
+#[cfg(target_os="macos")]
+struct MacosWindowActivator;
+#[cfg(target_os="macos")]
+impl WindowActivationPort for MacosWindowActivator {
+    fn activate_window(&self,target:&WindowActivationTarget)->Result<(),UnknownReason>{
+        if !valid_sky_app_id(target.application_id()){return Err(UnknownReason::InvalidInput)}
+        let value=CString::new(target.application_id()).map_err(|_|UnknownReason::InvalidInput)?;
+        match unsafe{yonda_activate_window_for_app(value.as_ptr())}{0=>Ok(()),1=>Err(UnknownReason::DependencyUnavailable),_=>Err(UnknownReason::ObserveFailed)}
+    }
+}
+
+pub struct CuaWorker { node: PathBuf, script: PathBuf, sdk: PathBuf, evidence:PathBuf, timeout: Duration, backend:CuaBackend, window_activation:Option<Box<dyn WindowActivationPort>>, session: Mutex<Option<WorkerSession>> }
 
 struct WorkerSession { child: Child, input: ChildStdin, output: mpsc::Receiver<Result<Vec<u8>, ()>>, launched_app:Option<(String,String)> }
 
@@ -51,15 +72,19 @@ fn valid_sky_app_id(value:&str)->bool {value.len()<=255&&!value.is_empty()&&valu
 impl CuaWorker {
     /// 三个路径只能由可信组合根提供；SDK入口必须属于固定0.25.0包。
     pub fn new(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.25.0", CuaBackend::TryCua)
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.25.0", CuaBackend::TryCua, None)
     }
 
     /// Sky 是外部安装的可选后端；只接受当前验证过的精确包身份。
     pub fn new_sky(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@oai/sky", "0.7.1", CuaBackend::Sky)
+        #[cfg(target_os="macos")]
+        let window_activation=Some(Box::new(MacosWindowActivator) as Box<dyn WindowActivationPort>);
+        #[cfg(not(target_os="macos"))]
+        let window_activation=None;
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@oai/sky", "0.7.1", CuaBackend::Sky, window_activation)
     }
 
-    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, expected_name:&str, expected_version:&str, backend:CuaBackend) -> Result<Self, UnknownReason> {
+    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, expected_name:&str, expected_version:&str, backend:CuaBackend, window_activation:Option<Box<dyn WindowActivationPort>>) -> Result<Self, UnknownReason> {
         if timeout.is_zero() || timeout > Duration::from_secs(120) || [node, script, sdk].iter().any(|path| !path.is_absolute() || !path.is_file()) || !evidence.is_absolute() || !evidence.is_dir() {
             return Err(UnknownReason::InvalidInput);
         }
@@ -68,7 +93,7 @@ impl CuaWorker {
         let name = identity.as_ref().and_then(|value| value.get("name")).and_then(|value| value.as_str());
         let version = identity.as_ref().and_then(|value| value.get("version")).and_then(|value| value.as_str());
         if name != Some(expected_name) || version != Some(expected_version) { return Err(UnknownReason::DependencyUnavailable); }
-        let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, backend, session: Mutex::new(None) };
+        let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, backend, window_activation, session: Mutex::new(None) };
         worker.cleanup();Ok(worker)
     }
 
@@ -111,15 +136,7 @@ impl CuaWorker {
         if slot.is_none(){*slot=match self.start(){Ok(session)=>Some(session),Err(reason)=>return DispatchOutcome::Unknown(reason)}}
         if self.backend==CuaBackend::Sky && action.tool_name=="launch_app" {slot.as_mut().unwrap().launched_app=None;}
         if self.backend==CuaBackend::Sky && action.tool_name=="bring_to_front" {
-            let Some((_,bundle_id))=slot.as_ref().and_then(|session|session.launched_app.as_ref()).filter(|(task_id,_)|task_id==&attempt.task_id) else{return DispatchOutcome::Unknown(UnknownReason::InvalidInput)};
-            #[cfg(target_os="macos")]
-            {
-                let bundle_id=match CString::new(bundle_id.as_str()){Ok(value)=>value,Err(_)=>return DispatchOutcome::Unknown(UnknownReason::InvalidInput)};
-                let code=unsafe{yonda_sky_app_focus(bundle_id.as_ptr())};
-                if code!=0{return DispatchOutcome::Unknown(if code==1{UnknownReason::DependencyUnavailable}else{UnknownReason::ObserveFailed})}
-            }
-            #[cfg(not(target_os="macos"))]
-            return DispatchOutcome::Unknown(UnknownReason::DependencyUnavailable);
+            if let Some(port)=self.window_activation.as_deref(){if let Err(reason)=activate_cached_window(port,slot.as_ref().and_then(|session|session.launched_app.as_ref()),&attempt.task_id){return DispatchOutcome::Unknown(reason)}}
         }
         if slot.as_mut().is_none_or(|session|session.input.write_all(&bytes).and_then(|_|session.input.write_all(b"\n")).and_then(|_|session.input.flush()).is_err()) {
             Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed);
@@ -144,6 +161,12 @@ impl CuaWorker {
         if matches!(outcome,DispatchOutcome::Unknown(_)){Self::stop(&mut slot);self.cleanup()}
         outcome
     }
+}
+
+fn activate_cached_window(port:&dyn WindowActivationPort,launched:Option<&(String,String)>,task_id:&str)->Result<(),UnknownReason>{
+    let Some((_,application_id))=launched.filter(|(launched_task,_)|launched_task==task_id) else{return Err(UnknownReason::InvalidInput)};
+    if !valid_sky_app_id(application_id){return Err(UnknownReason::InvalidResponse)}
+    port.activate_window(&WindowActivationTarget{application_id:application_id.clone(),window_id:None})
 }
 
 impl Drop for CuaWorker { fn drop(&mut self){if let Ok(slot)=self.session.get_mut(){Self::stop(slot)}self.cleanup()} }
@@ -179,6 +202,11 @@ mod tests {
     use super::*;
     use yonder_application::AttemptPhase;
 
+    struct RecordingActivator(Mutex<Vec<String>>);
+    impl WindowActivationPort for RecordingActivator {
+        fn activate_window(&self,target:&WindowActivationTarget)->Result<(),UnknownReason>{assert_eq!(target.window_id(),None);self.0.lock().unwrap().push(target.application_id().into());Ok(())}
+    }
+
     #[test]
     fn result_requires_exact_identity_and_post_action_observe() {
         let evidence=std::env::temp_dir();
@@ -199,6 +227,16 @@ mod tests {
         assert!(!valid_sky_app_id("/Applications/WeCom.app"));
         assert!(!valid_sky_app_id(""));
         assert!(!valid_sky_app_id(&"a".repeat(256)));
+    }
+
+    #[test]
+    fn activation_uses_only_same_task_cached_driver_identity() {
+        let port=RecordingActivator(Mutex::new(vec![]));
+        let launched=("task-a".into(),"com.tencent.WeWorkMac".into());
+        assert_eq!(activate_cached_window(&port,Some(&launched),"task-a"),Ok(()));
+        assert_eq!(*port.0.lock().unwrap(),vec!["com.tencent.WeWorkMac"]);
+        assert_eq!(activate_cached_window(&port,Some(&launched),"task-b"),Err(UnknownReason::InvalidInput));
+        assert_eq!(activate_cached_window(&port,None,"task-a"),Err(UnknownReason::InvalidInput));
     }
 
     #[cfg(unix)]

@@ -11,7 +11,7 @@ static BOOL number(NSDictionary *item, CFStringRef key, int64_t *value) {
 }
 
 /* bundle id 必须来自 Sky list_apps 的 canonical id，不接受 Agent 提交 PID/window。 */
-int yonda_sky_app_focus(const char *raw_bundle_id) {
+int yonda_activate_window_for_app(const char *raw_bundle_id) {
   @autoreleasepool {
     if(!raw_bundle_id)return 8;
     NSString *bundle=[NSString stringWithUTF8String:raw_bundle_id];

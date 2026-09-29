@@ -215,7 +215,7 @@ async function perform(request, target) {
     return;
   }
   if (request.tool_name === 'bring_to_front' && sky.target === 'mac') {
-    // Rust 已用精确 pid/window_id 执行并验证原生 AX raise；这里仅做后置观察。
+    // Yonder WindowActivationPort 已执行并验证原生 AX raise；这里仅做后置观察。
     return;
   }
   const name = request.tool_name === 'bring_to_front' ? 'activate_window' : request.tool_name;
