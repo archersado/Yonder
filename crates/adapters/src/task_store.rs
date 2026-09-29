@@ -1,32 +1,43 @@
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
-use std::{path::Path, time::{Duration, SystemTime, UNIX_EPOCH}};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use std::{
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use yonder_application::{
+    agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
+    browser_use::{valid_ref, BrowserReferenceRecord},
+    computer_use::UnknownReason,
+    execution_runtime::{
+        RuntimeEvent, RuntimeEventKind, RuntimeEventProjector, RuntimePhase, RuntimeProjectionError,
+    },
+    jev_config::JevConfig,
+    plan_fragment::{PlanFragment, StoredPlanFragment},
+    work_focus::FocusFailure,
     Action, ArtifactAvailability, AttemptConclusion, AttemptPhase, AttemptResultRecord,
     ControlKind, ControlPhase, ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status,
     StepBoundaryRecord, StepDeclaration, StopRecord, Task, TaskArtifactManifest,
     TaskArtifactManifestItem, TaskEventRecord, TaskObservation, TaskObservationResult,
     TaskPresentation, TaskSource, TaskStore, Transition, MAX_ARTIFACT_MANIFEST_ITEMS,
-    agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
-    browser_use::{BrowserReferenceRecord, valid_ref},
-    computer_use::UnknownReason,
-    jev_config::JevConfig,
-    plan_fragment::{PlanFragment, StoredPlanFragment},
-    work_focus::FocusFailure,
 };
 
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 21;
+pub const SQLITE_SCHEMA_VERSION: i64 = 22;
 
 fn now_ms() -> Result<i64, Error> {
-    let value = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| Error::StorageUnavailable)?.as_millis();
+    let value = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| Error::StorageUnavailable)?
+        .as_millis();
     i64::try_from(value).map_err(|_| Error::StorageUnavailable)
 }
 
 fn next_created_at(connection: &Connection) -> Result<i64, Error> {
     let wall = now_ms()?;
-    let latest: Option<i64> = connection.query_row("SELECT MAX(created_at) FROM tasks", [], |row| row.get(0)).map_err(storage)?;
+    let latest: Option<i64> = connection
+        .query_row("SELECT MAX(created_at) FROM tasks", [], |row| row.get(0))
+        .map_err(storage)?;
     Ok(latest.map_or(wall, |value| wall.max(value.saturating_add(1))))
 }
 
@@ -239,6 +250,121 @@ fn artifact_availability(value: &str) -> Result<ArtifactAvailability, Error> {
     }
 }
 
+fn projected_state(
+    current: &str,
+    kind: &RuntimeEventKind,
+) -> Result<&'static str, RuntimeProjectionError> {
+    match kind {
+        RuntimeEventKind::Activated if matches!(current, "created" | "running") => Ok("running"),
+        RuntimeEventKind::StepStarted { .. }
+        | RuntimeEventKind::StepCompleted { .. }
+        | RuntimeEventKind::StepUnverified { .. }
+        | RuntimeEventKind::HandedBack { .. }
+            if current == "running" =>
+        {
+            Ok("running")
+        }
+        RuntimeEventKind::Terminal { phase } => match phase {
+            RuntimePhase::Completed => Ok("completed"),
+            RuntimePhase::Failed => Ok("failed"),
+            RuntimePhase::Cancelled => Ok("cancelled"),
+            RuntimePhase::Interrupted => Ok("interrupted"),
+            _ => Err(RuntimeProjectionError::Conflict),
+        },
+        _ => Err(RuntimeProjectionError::Conflict),
+    }
+}
+
+impl RuntimeEventProjector for SqliteTaskStore {
+    fn project(&mut self, events: &[RuntimeEvent]) -> Result<(), RuntimeProjectionError> {
+        let Some(first) = events.first() else {
+            return Err(RuntimeProjectionError::Conflict);
+        };
+        if events.iter().enumerate().any(|(offset, event)| {
+            event.task_id != first.task_id
+                || event.sequence != first.sequence.saturating_add(offset as u64)
+        }) {
+            return Err(RuntimeProjectionError::Conflict);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| RuntimeProjectionError::Unavailable)?;
+        let row: Option<(String, i64)> = tx
+            .query_row(
+                "SELECT state,sequence FROM tasks WHERE id=?1",
+                [&first.task_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| RuntimeProjectionError::Unavailable)?;
+        let (mut current_state, stored_sequence) = row.ok_or(RuntimeProjectionError::Conflict)?;
+        let mut current_sequence =
+            u64::try_from(stored_sequence).map_err(|_| RuntimeProjectionError::Conflict)?;
+
+        for event in events {
+            let payload =
+                serde_json::to_string(event).map_err(|_| RuntimeProjectionError::Unavailable)?;
+            if event.sequence <= current_sequence {
+                let stored: Option<String> = tx
+                    .query_row(
+                        "SELECT payload FROM task_runtime_projections WHERE task_id=?1 AND sequence=?2",
+                        params![event.task_id, event.sequence as i64],
+                        |row| row.get(0),
+                    )
+                    .optional()
+                    .map_err(|_| RuntimeProjectionError::Unavailable)?;
+                if stored.as_deref() != Some(payload.as_str()) {
+                    return Err(RuntimeProjectionError::Conflict);
+                }
+                continue;
+            }
+            if event.sequence != current_sequence.saturating_add(1) {
+                return Err(RuntimeProjectionError::Conflict);
+            }
+            let next_state = projected_state(&current_state, &event.kind)?;
+            if tx
+                .execute(
+                    "UPDATE tasks SET state=?1,sequence=?2 WHERE id=?3 AND sequence=?4",
+                    params![
+                        next_state,
+                        event.sequence as i64,
+                        event.task_id,
+                        current_sequence as i64
+                    ],
+                )
+                .map_err(|_| RuntimeProjectionError::Unavailable)?
+                != 1
+            {
+                return Err(RuntimeProjectionError::Conflict);
+            }
+            tx.execute(
+                "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?4)",
+                params![
+                    event.task_id,
+                    event.sequence as i64,
+                    current_state,
+                    next_state
+                ],
+            )
+            .map_err(|_| RuntimeProjectionError::Unavailable)?;
+            tx.execute(
+                "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
+                params![event.task_id, event.sequence as i64],
+            )
+            .map_err(|_| RuntimeProjectionError::Unavailable)?;
+            tx.execute(
+                "INSERT INTO task_runtime_projections(task_id,sequence,payload) VALUES(?1,?2,?3)",
+                params![event.task_id, event.sequence as i64, payload],
+            )
+            .map_err(|_| RuntimeProjectionError::Unavailable)?;
+            current_sequence = event.sequence;
+            current_state = next_state.into();
+        }
+        tx.commit().map_err(|_| RuntimeProjectionError::Unavailable)
+    }
+}
+
 impl SqliteTaskStore {
     pub fn open_unencrypted(path: &Path) -> Result<Self, Error> {
         Self::initialize(Connection::open(path).map_err(storage)?, true)
@@ -267,13 +393,13 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
         ]
         .contains(&schema)
         {
             return Err(Error::StorageUnavailable);
         }
-        if schema != 0 && schema != 21 {
+        if schema != 0 && schema != SQLITE_SCHEMA_VERSION {
             if !migrate_plaintext {
                 return Err(Error::StorageUnavailable);
             }
@@ -313,7 +439,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
         ]
         .contains(&schema)
         {
@@ -397,6 +523,10 @@ impl SqliteTaskStore {
         }
         if schema < 21 {
             tx.execute_batch(include_str!("task_created_at_schema.sql"))
+                .map_err(storage)?;
+        }
+        if schema < 22 {
+            tx.execute_batch(include_str!("task_runtime_projection_schema.sql"))
                 .map_err(storage)?;
         }
         // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
@@ -503,10 +633,19 @@ impl SqliteTaskStore {
 
 impl AgentRegistry for SqliteTaskStore {
     fn ensure_agent(&mut self, agent_id: &str, now_ms: u64) -> Result<AgentRegistration, Error> {
-        if !yonder_application::valid_id(agent_id) || now_ms >= i64::MAX as u64 || now_ms < 1_000_000_000_000 { return Err(Error::InvalidInput); }
-        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
+        if !yonder_application::valid_id(agent_id)
+            || now_ms >= i64::MAX as u64
+            || now_ms < 1_000_000_000_000
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
         tx.execute("INSERT INTO agent_registry(agent_id,status,registered_at,last_seen_at,updated_at) VALUES(?1,'enabled',?2,NULL,?2) ON CONFLICT(agent_id) DO NOTHING",params![agent_id,now_ms as i64]).map_err(storage)?;
-        let value=Self::get_agent_registration(&tx,agent_id)?.ok_or(Error::StorageUnavailable)?;
+        let value =
+            Self::get_agent_registration(&tx, agent_id)?.ok_or(Error::StorageUnavailable)?;
         tx.commit().map_err(storage)?;
         Ok(value)
     }
@@ -702,76 +841,239 @@ impl TaskStore for SqliteTaskStore {
     fn supports_step_declarations(&self) -> bool {
         true
     }
-    fn supports_plan_fragments(&self) -> bool { true }
-    fn submit_plan_fragment(&mut self, owner: &str, fragment: &PlanFragment) -> Result<Task, Error> {
+    fn supports_plan_fragments(&self) -> bool {
+        true
+    }
+    fn submit_plan_fragment(
+        &mut self,
+        owner: &str,
+        fragment: &PlanFragment,
+    ) -> Result<Task, Error> {
         yonder_application::plan_fragment::validate(fragment)?;
-        if !yonder_application::valid_id(owner) { return Err(Error::InvalidInput); }
+        if !yonder_application::valid_id(owner) {
+            return Err(Error::InvalidInput);
+        }
         let json = serde_json::to_string(fragment).map_err(|_| Error::StorageUnavailable)?;
-        let tx = self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
-        let row: Option<(String,i64,String,Option<String>,String)> = tx.query_row(
-            "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1", [&fragment.task_id],
-            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))
-        ).optional().map_err(storage)?;
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [&fragment.task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
         let (state, sequence, actual_owner, name, source) = row.ok_or(Error::NotFound)?;
-        if actual_owner != owner { return Err(Error::NotFound); }
-        let task = Task { id:fragment.task_id.clone(), owner_agent_id:actual_owner.clone(), name, source:task_source(&source)?, status:status(&state)?, sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)? };
+        if actual_owner != owner {
+            return Err(Error::NotFound);
+        }
+        let task = Task {
+            id: fragment.task_id.clone(),
+            owner_agent_id: actual_owner.clone(),
+            name,
+            source: task_source(&source)?,
+            status: status(&state)?,
+            sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+        };
         let existing: Option<String> = tx.query_row(
             "SELECT fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
             params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64], |r|r.get(0)
         ).optional().map_err(storage)?;
         if let Some(existing) = existing {
-            if existing == json { tx.commit().map_err(storage)?; return Ok(task); }
+            if existing == json {
+                tx.commit().map_err(storage)?;
+                return Ok(task);
+            }
             return Err(Error::Conflict);
         }
-        if !matches!(task.status, Status::Created | Status::Running) || task.sequence != fragment.expected_sequence { return Err(Error::Conflict); }
-        let accepted=task.sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx.execute("UPDATE tasks SET sequence=?1 WHERE id=?2 AND owner_agent_id=?3 AND sequence=?4",params![accepted as i64,fragment.task_id,owner,task.sequence as i64]).map_err(storage)? != 1 { return Err(Error::Conflict); }
-        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",params![fragment.task_id,accepted as i64,state]).map_err(storage)?;
-        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![fragment.task_id,accepted as i64]).map_err(storage)?;
+        if !matches!(task.status, Status::Created | Status::Running)
+            || task.sequence != fragment.expected_sequence
+        {
+            return Err(Error::Conflict);
+        }
+        let accepted = task
+            .sequence
+            .checked_add(1)
+            .ok_or(Error::StorageUnavailable)?;
+        if tx
+            .execute(
+                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND owner_agent_id=?3 AND sequence=?4",
+                params![
+                    accepted as i64,
+                    fragment.task_id,
+                    owner,
+                    task.sequence as i64
+                ],
+            )
+            .map_err(storage)?
+            != 1
+        {
+            return Err(Error::Conflict);
+        }
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",
+            params![fragment.task_id, accepted as i64, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
+            params![fragment.task_id, accepted as i64],
+        )
+        .map_err(storage)?;
         tx.execute("INSERT INTO task_plan_fragments(task_id,plan_id,plan_version,owner_agent_id,accepted_sequence,fragment_json) VALUES(?1,?2,?3,?4,?5,?6)",params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64,owner,accepted as i64,json]).map_err(storage)?;
         tx.commit().map_err(storage)?;
-        Ok(Task { sequence:accepted, ..task })
+        Ok(Task {
+            sequence: accepted,
+            ..task
+        })
     }
-    fn get_plan_fragment(&mut self, task_id: &str, plan_id: &str, plan_version: u64) -> Result<Option<StoredPlanFragment>, Error> {
+    fn get_plan_fragment(
+        &mut self,
+        task_id: &str,
+        plan_id: &str,
+        plan_version: u64,
+    ) -> Result<Option<StoredPlanFragment>, Error> {
         let row: Option<(String,i64,i64,String)> = self.0.query_row(
             "SELECT owner_agent_id,accepted_sequence,current_slot,fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
             params![task_id,plan_id,plan_version as i64], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))
         ).optional().map_err(storage)?;
-        row.map(|(owner,accepted,current,json)| Ok(StoredPlanFragment { owner_agent_id:owner, accepted_sequence:u64::try_from(accepted).map_err(|_|Error::StorageUnavailable)?, current_slot:u16::try_from(current).map_err(|_|Error::StorageUnavailable)?, fragment:serde_json::from_str(&json).map_err(|_|Error::StorageUnavailable)? })).transpose()
+        row.map(|(owner, accepted, current, json)| {
+            Ok(StoredPlanFragment {
+                owner_agent_id: owner,
+                accepted_sequence: u64::try_from(accepted)
+                    .map_err(|_| Error::StorageUnavailable)?,
+                current_slot: u16::try_from(current).map_err(|_| Error::StorageUnavailable)?,
+                fragment: serde_json::from_str(&json).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .transpose()
     }
-    fn advance_plan_fragment(&mut self, task_id: &str, plan_id: &str, plan_version: u64, slot: u16, expected: u64) -> Result<Task, Error> {
-        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
-        let row: Option<(String,i64,String,Option<String>,String)>=tx.query_row("SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(storage)?;
-        let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
-        let current=u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?;
-        if current!=expected || state!="running" { return Err(Error::Conflict); }
+    fn advance_plan_fragment(
+        &mut self,
+        task_id: &str,
+        plan_id: &str,
+        plan_version: u64,
+        slot: u16,
+        expected: u64,
+    ) -> Result<Task, Error> {
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, owner, name, source) = row.ok_or(Error::NotFound)?;
+        let current = u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?;
+        if current != expected || state != "running" {
+            return Err(Error::Conflict);
+        }
         let changed=tx.execute("UPDATE task_plan_fragments SET current_slot=current_slot+1 WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3 AND current_slot=?4",params![task_id,plan_id,plan_version as i64,slot as i64]).map_err(storage)?;
-        if changed!=1{return Err(Error::Conflict);}
-        let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx.execute("UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",params![next as i64,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
-        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",params![task_id,next as i64,state]).map_err(storage)?;
-        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
+        if changed != 1 {
+            return Err(Error::Conflict);
+        }
+        let next = expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx
+            .execute(
+                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
+                params![next as i64, task_id, expected as i64],
+            )
+            .map_err(storage)?
+            != 1
+        {
+            return Err(Error::Conflict);
+        }
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",
+            params![task_id, next as i64, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
+            params![task_id, next as i64],
+        )
+        .map_err(storage)?;
         tx.commit().map_err(storage)?;
-        Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next})
+        Ok(Task {
+            id: task_id.into(),
+            owner_agent_id: owner,
+            name,
+            source: task_source(&source)?,
+            status: Status::Running,
+            sequence: next,
+        })
     }
-    fn hand_back_plan_fragment(&mut self, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, reason: &str) -> Result<Task, Error> {
-        if reason.is_empty() || reason.as_bytes().len() > 1024 || reason.chars().any(|value| value.is_control() && value != '\n') { return Err(Error::InvalidInput); }
-        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
-        let row: Option<(String,i64,String,Option<String>,String)>=tx.query_row("SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(storage)?;
-        let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
+    fn hand_back_plan_fragment(
+        &mut self,
+        task_id: &str,
+        plan_id: &str,
+        plan_version: u64,
+        expected: u64,
+        reason: &str,
+    ) -> Result<Task, Error> {
+        if reason.is_empty()
+            || reason.as_bytes().len() > 1024
+            || reason
+                .chars()
+                .any(|value| value.is_control() && value != '\n')
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, owner, name, source) = row.ok_or(Error::NotFound)?;
         // AD-TM-21：Jev 可在第一个 CUA 动作启动前交回，但 plan.execute 已经
         // 启动产品执行闭环；交回必须让 created 原子进入 running，避免控制条
         // 与 Task Space 状态分裂。
-        if !matches!(state.as_str(), "created" | "running") || u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?!=expected { return Err(Error::Conflict); }
+        if !matches!(state.as_str(), "created" | "running")
+            || u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? != expected
+        {
+            return Err(Error::Conflict);
+        }
         let exists:i64=tx.query_row("SELECT count(*) FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",params![task_id,plan_id,plan_version as i64],|r|r.get(0)).map_err(storage)?;
-        if exists!=1{return Err(Error::NotFound);}
-        let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if exists != 1 {
+            return Err(Error::NotFound);
+        }
+        let next = expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
         if tx.execute("UPDATE tasks SET state='running',sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,reason,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
-        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,'running')",params![task_id,next as i64,state]).map_err(storage)?;
-        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,'running')",
+            params![task_id, next as i64, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
+            params![task_id, next as i64],
+        )
+        .map_err(storage)?;
         tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![task_id,next as i64,format!(r#"{{"next_intent":{}}}"#, serde_json::to_string(reason).map_err(|_| Error::StorageUnavailable)?) ]).map_err(storage)?;
         tx.commit().map_err(storage)?;
-        Ok(Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next})
+        Ok(Task {
+            id: task_id.into(),
+            owner_agent_id: owner,
+            name,
+            source: task_source(&source)?,
+            status: Status::Running,
+            sequence: next,
+        })
     }
     fn supports_execution_attempts(&self) -> bool {
         true
@@ -899,9 +1201,7 @@ impl TaskStore for SqliteTaskStore {
         if state == "created" {
             return Err(Error::StopRequired);
         }
-        if expected_sequence
-            != u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?
-        {
+        if expected_sequence != u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? {
             return Err(Error::Conflict);
         }
         Self::ensure_audit_capacity(&tx)?;
@@ -998,7 +1298,12 @@ impl TaskStore for SqliteTaskStore {
             .map_err(storage)?;
         statement
             .query_map(
-                params![task_id, version as i64, i64::from(after_ordinal), limit as i64],
+                params![
+                    task_id,
+                    version as i64,
+                    i64::from(after_ordinal),
+                    limit as i64
+                ],
                 |row| {
                     Ok((
                         row.get::<_, i64>(0)?,
@@ -2942,14 +3247,17 @@ impl TaskStore for SqliteTaskStore {
             {
                 return Err(Error::IdempotencyConflict);
             }
-            (Task {
-                id,
-                owner_agent_id: owner.into(),
-                name: current_name,
-                source: task_source(&current_source)?,
-                status: status(&state)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            }, false)
+            (
+                Task {
+                    id,
+                    owner_agent_id: owner.into(),
+                    name: current_name,
+                    source: task_source(&current_source)?,
+                    status: status(&state)?,
+                    sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+                },
+                false,
+            )
         } else {
             Self::ensure_audit_capacity(&tx)?;
             let id: String = tx
@@ -2964,14 +3272,17 @@ impl TaskStore for SqliteTaskStore {
                 .map_err(storage)?;
             tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES (?1,1,'source',?2)", params![id,format!(r#"{{"source":"{}"}}"#, source_name(source))]).map_err(storage)?;
             tx.execute("INSERT INTO task_creations(owner_agent_id,idempotency_key,task_id,description,name) VALUES (?1,?2,?3,?4,?5)", params![owner,key,id,description,task_name]).map_err(storage)?;
-            (Task {
-                id,
-                owner_agent_id: owner.into(),
-                name: task_name.map(str::to_owned),
-                source,
-                status: Status::Created,
-                sequence: 1,
-            }, true)
+            (
+                Task {
+                    id,
+                    owner_agent_id: owner.into(),
+                    name: task_name.map(str::to_owned),
+                    source,
+                    status: Status::Created,
+                    sequence: 1,
+                },
+                true,
+            )
         };
         tx.commit().map_err(storage)?;
         Ok(yonder_application::RegistrationOutcome { task, created })
@@ -3058,10 +3369,34 @@ impl TaskStore for SqliteTaskStore {
         include_finished: bool,
         limit: usize,
     ) -> Result<Vec<Task>, Error> {
-        if !(1..=101).contains(&limit) { return Err(Error::InvalidInput); }
+        if !(1..=101).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
         let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND (?2 OR state NOT IN ('completed','failed','cancelled')) AND (?4 IS NULL OR owner_agent_id=?4) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?3").map_err(storage)?;
-        let rows = stmt.query_map(params![after, include_finished, limit as i64, owner], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,i64>(2)?,r.get::<_,String>(3)?,r.get::<_,Option<String>>(4)?,r.get::<_,String>(5)?))).map_err(storage)?;
-        rows.map(|row| { let (id,state,sequence,owner_agent_id,name,source)=row.map_err(storage)?; Ok(Task{id,owner_agent_id,name,source:task_source(&source)?,status:status(&state)?,sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?}) }).collect()
+        let rows = stmt
+            .query_map(params![after, include_finished, limit as i64, owner], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
+            Ok(Task {
+                id,
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
     }
     fn list_running_newest(
         &mut self,
@@ -3069,10 +3404,34 @@ impl TaskStore for SqliteTaskStore {
         after: Option<&str>,
         limit: usize,
     ) -> Result<Vec<Task>, Error> {
-        if !(1..=101).contains(&limit) { return Err(Error::InvalidInput); }
+        if !(1..=101).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
         let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND state='running' AND (?3 IS NULL OR owner_agent_id=?3) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?2").map_err(storage)?;
-        let rows = stmt.query_map(params![after, limit as i64, owner], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,i64>(2)?,r.get::<_,String>(3)?,r.get::<_,Option<String>>(4)?,r.get::<_,String>(5)?))).map_err(storage)?;
-        rows.map(|row| { let (id,state,sequence,owner_agent_id,name,source)=row.map_err(storage)?; Ok(Task{id,owner_agent_id,name,source:task_source(&source)?,status:status(&state)?,sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?}) }).collect()
+        let rows = stmt
+            .query_map(params![after, limit as i64, owner], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
+            Ok(Task {
+                id,
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
     }
     fn create(
         &mut self,
@@ -3263,7 +3622,7 @@ impl TaskStore for SqliteTaskStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use yonder_application::{Action, AuthContext, transition};
+    use yonder_application::{transition, Action, AuthContext};
 
     #[test]
     fn event_queries_report_first_middle_and_tail_gaps_without_mutation() {
@@ -3358,29 +3717,72 @@ mod tests {
                     arguments_json: r#"{"text":"test"}"#.into(),
                     action_kind: yonder_protocol::CuaActionKind::DraftMessage,
                     target_ref: "test-composer".into(),
-                    preconditions: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::ComposerReady, expected: true }],
-                    expected_observe: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::ComposerReady, expected: true }],
+                    preconditions: vec![yonder_protocol::CuaObserveConditionParams {
+                        fact: yonder_protocol::CuaObserveFact::ComposerReady,
+                        expected: true,
+                    }],
+                    expected_observe: vec![yonder_protocol::CuaObserveConditionParams {
+                        fact: yonder_protocol::CuaObserveFact::ComposerReady,
+                        expected: true,
+                    }],
                     confirmation_ref: None,
                 }],
             }],
         };
         let submitted = store.submit_plan_fragment("a1", &fragment).unwrap();
         assert_eq!(submitted.sequence, 2);
-        assert_eq!(store.submit_plan_fragment("a1", &fragment).unwrap().sequence, 2);
+        assert_eq!(
+            store
+                .submit_plan_fragment("a1", &fragment)
+                .unwrap()
+                .sequence,
+            2
+        );
         let mut changed = fragment.clone();
         changed.token_budget = 101;
-        assert_eq!(store.submit_plan_fragment("a1", &changed), Err(Error::Conflict));
-        let stored = store.get_plan_fragment("plan-task", "plan-1", 1).unwrap().unwrap();
+        assert_eq!(
+            store.submit_plan_fragment("a1", &changed),
+            Err(Error::Conflict)
+        );
+        let stored = store
+            .get_plan_fragment("plan-task", "plan-1", 1)
+            .unwrap()
+            .unwrap();
         assert_eq!(stored.current_slot, 0);
         assert_eq!(stored.accepted_sequence, 2);
 
         transition(&mut store, "plan-task", submitted.sequence, Action::Start).unwrap();
-        let advanced = store.advance_plan_fragment("plan-task", "plan-1", 1, 0, 3).unwrap();
+        let advanced = store
+            .advance_plan_fragment("plan-task", "plan-1", 1, 0, 3)
+            .unwrap();
         assert_eq!(advanced.sequence, 4);
-        assert_eq!(store.get_plan_fragment("plan-task", "plan-1", 1).unwrap().unwrap().current_slot, 1);
-        let handed_back = store.hand_back_plan_fragment("plan-task", "plan-1", 1, advanced.sequence, "需要慢脑重新 Observe 或规划").unwrap();
+        assert_eq!(
+            store
+                .get_plan_fragment("plan-task", "plan-1", 1)
+                .unwrap()
+                .unwrap()
+                .current_slot,
+            1
+        );
+        let handed_back = store
+            .hand_back_plan_fragment(
+                "plan-task",
+                "plan-1",
+                1,
+                advanced.sequence,
+                "需要慢脑重新 Observe 或规划",
+            )
+            .unwrap();
         assert_eq!(handed_back.sequence, 5);
-        assert_eq!(store.get_presentation("plan-task").unwrap().1.next_intent.as_deref(), Some("需要慢脑重新 Observe 或规划"));
+        assert_eq!(
+            store
+                .get_presentation("plan-task")
+                .unwrap()
+                .1
+                .next_intent
+                .as_deref(),
+            Some("需要慢脑重新 Observe 或规划")
+        );
         let created_task = create(&mut store, "created-plan-task").unwrap();
         let created_fragment = PlanFragment {
             task_id: created_task.id.clone(),
@@ -3390,7 +3792,13 @@ mod tests {
         };
         let submitted_created = store.submit_plan_fragment("a1", &created_fragment).unwrap();
         let created_handback = store
-            .hand_back_plan_fragment("created-plan-task", "created-plan", 1, submitted_created.sequence, "需要慢脑重新 Observe 或规划")
+            .hand_back_plan_fragment(
+                "created-plan-task",
+                "created-plan",
+                1,
+                submitted_created.sequence,
+                "需要慢脑重新 Observe 或规划",
+            )
             .unwrap();
         assert_eq!(created_handback.status, Status::Running);
         assert_eq!(created_handback.sequence, 3);
@@ -3418,125 +3826,310 @@ mod tests {
         use std::sync::Mutex;
         use yonder_application::{
             admission::Admission,
-            computer_use::{ComputerAction, ComputerUsePort, DispatchOutcome, WorkTarget, WorkTargetPort},
-            jev_config::{JEV_REMOTE_ENDPOINT, JevCapability, JevServiceMode},
+            computer_use::{
+                ComputerAction, ComputerUsePort, DispatchOutcome, WorkTarget, WorkTargetPort,
+            },
+            jev_config::{JevCapability, JevServiceMode, JEV_REMOTE_ENDPOINT},
             jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
-            plan_fragment::{CandidateAction, PlanSlot, execute_available},
+            plan_fragment::{execute_available, CandidateAction, PlanSlot},
         };
 
         struct Target;
         impl WorkTargetPort for Target {
             fn frontmost(&self) -> Result<WorkTarget, UnknownReason> {
-                Ok(WorkTarget { pid: 1, window_id: 1 })
+                Ok(WorkTarget {
+                    pid: 1,
+                    window_id: 1,
+                })
             }
         }
         struct Port(Mutex<Vec<String>>);
         impl ComputerUsePort for Port {
-            fn dispatch(&self, _: &ExecutionAttempt, _: &WorkTarget, action: &ComputerAction) -> DispatchOutcome {
+            fn dispatch(
+                &self,
+                _: &ExecutionAttempt,
+                _: &WorkTarget,
+                action: &ComputerAction,
+            ) -> DispatchOutcome {
                 self.0.lock().unwrap().push(action.tool_name.clone());
-                DispatchOutcome::Known { action_succeeded: true, observation: None }
+                DispatchOutcome::Known {
+                    action_succeeded: true,
+                    observation: None,
+                }
             }
         }
         struct TakeoverPort(Mutex<Vec<String>>);
         impl ComputerUsePort for TakeoverPort {
-            fn dispatch(&self, _: &ExecutionAttempt, _: &WorkTarget, action: &ComputerAction) -> DispatchOutcome {
+            fn dispatch(
+                &self,
+                _: &ExecutionAttempt,
+                _: &WorkTarget,
+                action: &ComputerAction,
+            ) -> DispatchOutcome {
                 self.0.lock().unwrap().push(action.tool_name.clone());
-                DispatchOutcome::Known { action_succeeded: true, observation: None }
+                DispatchOutcome::Known {
+                    action_succeeded: true,
+                    observation: None,
+                }
             }
-            fn explicit_takeover_requested(&self, _: &str) -> bool { !self.0.lock().unwrap().is_empty() }
+            fn explicit_takeover_requested(&self, _: &str) -> bool {
+                !self.0.lock().unwrap().is_empty()
+            }
         }
         struct PendingTakeoverPort;
         impl ComputerUsePort for PendingTakeoverPort {
-            fn dispatch(&self, _: &ExecutionAttempt, _: &WorkTarget, _: &ComputerAction) -> DispatchOutcome {
+            fn dispatch(
+                &self,
+                _: &ExecutionAttempt,
+                _: &WorkTarget,
+                _: &ComputerAction,
+            ) -> DispatchOutcome {
                 panic!("已登记接管后不得派发新动作")
             }
-            fn explicit_takeover_requested(&self, _: &str) -> bool { true }
+            fn explicit_takeover_requested(&self, _: &str) -> bool {
+                true
+            }
         }
         struct MustNotChoose;
         impl JevDecisionPort for MustNotChoose {
-            fn choose(&self, _: &JevConfig, _: &JevDecisionRequest) -> Result<JevModelChoice, JevDecisionError> {
+            fn choose(
+                &self,
+                _: &JevConfig,
+                _: &JevDecisionRequest,
+            ) -> Result<JevModelChoice, JevDecisionError> {
                 panic!("单一已验证候选不得调用Jev")
             }
         }
-        fn candidate(id: &str, tool_name: &str, action_kind: yonder_protocol::CuaActionKind) -> CandidateAction {
+        fn candidate(
+            id: &str,
+            tool_name: &str,
+            action_kind: yonder_protocol::CuaActionKind,
+        ) -> CandidateAction {
             CandidateAction {
-                candidate_id: id.into(), tool_name: tool_name.into(), arguments_json: "{}".into(),
-                action_kind, target_ref: "verified-target".into(),
-                preconditions: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::ApplicationReady, expected: true }],
-                expected_observe: vec![yonder_protocol::CuaObserveConditionParams { fact: yonder_protocol::CuaObserveFact::TargetResolved, expected: true }],
+                candidate_id: id.into(),
+                tool_name: tool_name.into(),
+                arguments_json: "{}".into(),
+                action_kind,
+                target_ref: "verified-target".into(),
+                preconditions: vec![yonder_protocol::CuaObserveConditionParams {
+                    fact: yonder_protocol::CuaObserveFact::ApplicationReady,
+                    expected: true,
+                }],
+                expected_observe: vec![yonder_protocol::CuaObserveConditionParams {
+                    fact: yonder_protocol::CuaObserveFact::TargetResolved,
+                    expected: true,
+                }],
                 confirmation_ref: None,
             }
         }
 
-        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         let created = create(&mut store, "continuous-plan").unwrap();
         let fragment = PlanFragment {
-            plan_id: "continuous-plan-v1".into(), plan_version: 1, task_id: created.id.clone(),
-            expected_sequence: created.sequence, deadline_ms: 2_000, token_budget: 100,
+            plan_id: "continuous-plan-v1".into(),
+            plan_version: 1,
+            task_id: created.id.clone(),
+            expected_sequence: created.sequence,
+            deadline_ms: 2_000,
+            token_budget: 100,
             slots: vec![
-                PlanSlot { step_id: "launch".into(), label: "启动应用".into(), candidates: vec![candidate("launch-app", "launch_app", yonder_protocol::CuaActionKind::LaunchApplication)] },
-                PlanSlot { step_id: "focus".into(), label: "前置窗口".into(), candidates: vec![candidate("focus-app", "bring_to_front", yonder_protocol::CuaActionKind::BringToFront)] },
+                PlanSlot {
+                    step_id: "launch".into(),
+                    label: "启动应用".into(),
+                    candidates: vec![candidate(
+                        "launch-app",
+                        "launch_app",
+                        yonder_protocol::CuaActionKind::LaunchApplication,
+                    )],
+                },
+                PlanSlot {
+                    step_id: "focus".into(),
+                    label: "前置窗口".into(),
+                    candidates: vec![candidate(
+                        "focus-app",
+                        "bring_to_front",
+                        yonder_protocol::CuaActionKind::BringToFront,
+                    )],
+                },
             ],
         };
         let submitted = store.submit_plan_fragment("a1", &fragment).unwrap();
         let config = JevConfig {
-            enabled: true, service_mode: JevServiceMode::Remote, endpoint: JEV_REMOTE_ENDPOINT.into(),
-            step_limit: 10, time_limit_ms: 60_000, token_limit: 10_000, capabilities: vec![JevCapability::Cua],
+            enabled: true,
+            service_mode: JevServiceMode::Remote,
+            endpoint: JEV_REMOTE_ENDPOINT.into(),
+            step_limit: 10,
+            time_limit_ms: 60_000,
+            token_limit: 10_000,
+            capabilities: vec![JevCapability::Cua],
         };
         let port = Port(Mutex::new(Vec::new()));
         let (task, disposition) = execute_available(
-            &mut store, &Admission::new(1).unwrap(), &port, &Target, &config, &MustNotChoose,
-            AuthContext::Agent("a1"), &created.id, &fragment.plan_id, 1, submitted.sequence, 1_000, "host",
-        ).unwrap();
+            &mut store,
+            &Admission::new(1).unwrap(),
+            &port,
+            &Target,
+            &config,
+            &MustNotChoose,
+            AuthContext::Agent("a1"),
+            &created.id,
+            &fragment.plan_id,
+            1,
+            submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
 
         assert_eq!(disposition, "fragment-complete");
         assert_eq!(task.status, Status::Running);
-        assert_eq!(*port.0.lock().unwrap(), vec!["launch_app", "bring_to_front"]);
-        assert_eq!(store.get_plan_fragment(&created.id, &fragment.plan_id, 1).unwrap().unwrap().current_slot, 2);
-        assert_eq!(store.get_attempt(&created.id).unwrap().unwrap().phase, AttemptPhase::Stopped);
+        assert_eq!(
+            *port.0.lock().unwrap(),
+            vec!["launch_app", "bring_to_front"]
+        );
+        assert_eq!(
+            store
+                .get_plan_fragment(&created.id, &fragment.plan_id, 1)
+                .unwrap()
+                .unwrap()
+                .current_slot,
+            2
+        );
+        assert_eq!(
+            store.get_attempt(&created.id).unwrap().unwrap().phase,
+            AttemptPhase::Stopped
+        );
 
         let budget_task = create(&mut store, "budgeted-plan").unwrap();
         let budget_fragment = PlanFragment {
-            task_id: budget_task.id.clone(), plan_id: "budgeted-plan-v1".into(),
-            expected_sequence: budget_task.sequence, ..fragment.clone()
+            task_id: budget_task.id.clone(),
+            plan_id: "budgeted-plan-v1".into(),
+            expected_sequence: budget_task.sequence,
+            ..fragment.clone()
         };
         let budget_submitted = store.submit_plan_fragment("a1", &budget_fragment).unwrap();
         let budget_port = Port(Mutex::new(Vec::new()));
-        let budget_config = JevConfig { step_limit: 1, ..config };
+        let budget_config = JevConfig {
+            step_limit: 1,
+            ..config
+        };
         let (budget_result, budget_disposition) = execute_available(
-            &mut store, &Admission::new(1).unwrap(), &budget_port, &Target, &budget_config, &MustNotChoose,
-            AuthContext::Agent("a1"), &budget_task.id, &budget_fragment.plan_id, 1,
-            budget_submitted.sequence, 1_000, "host",
-        ).unwrap();
+            &mut store,
+            &Admission::new(1).unwrap(),
+            &budget_port,
+            &Target,
+            &budget_config,
+            &MustNotChoose,
+            AuthContext::Agent("a1"),
+            &budget_task.id,
+            &budget_fragment.plan_id,
+            1,
+            budget_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
         assert_eq!(budget_disposition, "handback");
         assert_eq!(*budget_port.0.lock().unwrap(), vec!["launch_app"]);
-        assert_eq!(store.get_plan_fragment(&budget_task.id, &budget_fragment.plan_id, 1).unwrap().unwrap().current_slot, 1);
-        assert_eq!(store.get_presentation(&budget_task.id).unwrap().1.next_intent.as_deref(), Some("计划片段步数预算已耗尽"));
+        assert_eq!(
+            store
+                .get_plan_fragment(&budget_task.id, &budget_fragment.plan_id, 1)
+                .unwrap()
+                .unwrap()
+                .current_slot,
+            1
+        );
+        assert_eq!(
+            store
+                .get_presentation(&budget_task.id)
+                .unwrap()
+                .1
+                .next_intent
+                .as_deref(),
+            Some("计划片段步数预算已耗尽")
+        );
         assert_eq!(budget_result.status, Status::Running);
 
-        let takeover_task=create(&mut store,"takeover-plan").unwrap();
-        let takeover_fragment=PlanFragment{task_id:takeover_task.id.clone(),plan_id:"takeover-plan-v1".into(),expected_sequence:takeover_task.sequence,..fragment};
-        let takeover_submitted=store.submit_plan_fragment("a1",&takeover_fragment).unwrap();
-        let takeover_port=TakeoverPort(Mutex::new(Vec::new()));
-        let (takeover_result,takeover_disposition)=execute_available(
-            &mut store,&Admission::new(1).unwrap(),&takeover_port,&Target,&JevConfig{step_limit:10,..budget_config.clone()},&MustNotChoose,
-            AuthContext::Agent("a1"),&takeover_task.id,&takeover_fragment.plan_id,1,takeover_submitted.sequence,1_000,"host",
-        ).unwrap();
-        assert_eq!(takeover_disposition,"takeover-requested");
-        assert_eq!(*takeover_port.0.lock().unwrap(),vec!["launch_app"]);
-        assert_eq!(store.get_plan_fragment(&takeover_task.id,&takeover_fragment.plan_id,1).unwrap().unwrap().current_slot,1);
-        assert_eq!(takeover_result.status,Status::Running);
+        let takeover_task = create(&mut store, "takeover-plan").unwrap();
+        let takeover_fragment = PlanFragment {
+            task_id: takeover_task.id.clone(),
+            plan_id: "takeover-plan-v1".into(),
+            expected_sequence: takeover_task.sequence,
+            ..fragment
+        };
+        let takeover_submitted = store
+            .submit_plan_fragment("a1", &takeover_fragment)
+            .unwrap();
+        let takeover_port = TakeoverPort(Mutex::new(Vec::new()));
+        let (takeover_result, takeover_disposition) = execute_available(
+            &mut store,
+            &Admission::new(1).unwrap(),
+            &takeover_port,
+            &Target,
+            &JevConfig {
+                step_limit: 10,
+                ..budget_config.clone()
+            },
+            &MustNotChoose,
+            AuthContext::Agent("a1"),
+            &takeover_task.id,
+            &takeover_fragment.plan_id,
+            1,
+            takeover_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
+        assert_eq!(takeover_disposition, "takeover-requested");
+        assert_eq!(*takeover_port.0.lock().unwrap(), vec!["launch_app"]);
+        assert_eq!(
+            store
+                .get_plan_fragment(&takeover_task.id, &takeover_fragment.plan_id, 1)
+                .unwrap()
+                .unwrap()
+                .current_slot,
+            1
+        );
+        assert_eq!(takeover_result.status, Status::Running);
 
-        let pending_task=create(&mut store,"pending-takeover-plan").unwrap();
-        let pending_fragment=PlanFragment{task_id:pending_task.id.clone(),plan_id:"pending-takeover-plan-v1".into(),expected_sequence:pending_task.sequence,..takeover_fragment};
-        let pending_submitted=store.submit_plan_fragment("a1",&pending_fragment).unwrap();
-        let (pending_result,pending_disposition)=execute_available(
-            &mut store,&Admission::new(1).unwrap(),&PendingTakeoverPort,&Target,&JevConfig{step_limit:10,..budget_config},&MustNotChoose,
-            AuthContext::Agent("a1"),&pending_task.id,&pending_fragment.plan_id,1,pending_submitted.sequence,1_000,"host",
-        ).unwrap();
-        assert_eq!(pending_disposition,"takeover-requested");
-        assert_eq!(pending_result.sequence,pending_submitted.sequence);
-        assert_eq!(store.get_plan_fragment(&pending_task.id,&pending_fragment.plan_id,1).unwrap().unwrap().current_slot,0);
+        let pending_task = create(&mut store, "pending-takeover-plan").unwrap();
+        let pending_fragment = PlanFragment {
+            task_id: pending_task.id.clone(),
+            plan_id: "pending-takeover-plan-v1".into(),
+            expected_sequence: pending_task.sequence,
+            ..takeover_fragment
+        };
+        let pending_submitted = store.submit_plan_fragment("a1", &pending_fragment).unwrap();
+        let (pending_result, pending_disposition) = execute_available(
+            &mut store,
+            &Admission::new(1).unwrap(),
+            &PendingTakeoverPort,
+            &Target,
+            &JevConfig {
+                step_limit: 10,
+                ..budget_config
+            },
+            &MustNotChoose,
+            AuthContext::Agent("a1"),
+            &pending_task.id,
+            &pending_fragment.plan_id,
+            1,
+            pending_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
+        assert_eq!(pending_disposition, "takeover-requested");
+        assert_eq!(pending_result.sequence, pending_submitted.sequence);
+        assert_eq!(
+            store
+                .get_plan_fragment(&pending_task.id, &pending_fragment.plan_id, 1)
+                .unwrap()
+                .unwrap()
+                .current_slot,
+            0
+        );
     }
 
     #[test]
@@ -3865,7 +4458,7 @@ mod tests {
         .unwrap();
         drop(store);
         let db = Connection::open(&path).unwrap();
-        let experimental = "DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
+        let experimental = "DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; DROP TABLE task_browser_refs; DROP TABLE task_controls; DROP TABLE task_attempts; DROP TABLE task_steps; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN name; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; ALTER TABLE task_creations DROP COLUMN name; ALTER TABLE events DROP COLUMN wait_reason; ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)); ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'transition' CHECK(kind IN ('transition','deleted')); PRAGMA user_version=4;";
         db.execute_batch(experimental).unwrap();
         drop(db);
         let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
@@ -3913,7 +4506,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            21
+            22
         );
         drop(store);
         for rejected in [
@@ -3959,7 +4552,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 21);
+        assert_eq!(version, 22);
     }
 
     #[test]
@@ -3968,7 +4561,7 @@ mod tests {
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         store
             .0
-            .execute_batch("DROP TABLE task_audit_quota_state; PRAGMA user_version=21;")
+            .execute_batch("DROP TABLE task_audit_quota_state; PRAGMA user_version=22;")
             .unwrap();
         let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
         assert_eq!(
@@ -3987,7 +4580,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            21
+            22
         );
         assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
     }
@@ -3996,12 +4589,15 @@ mod tests {
     fn current_schema_repairs_only_a_fully_missing_audit_table_group() {
         let store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
-        store.0.execute_batch(
-            "DROP TABLE task_user_confirmations;
+        store
+            .0
+            .execute_batch(
+                "DROP TABLE task_user_confirmations;
              DROP TABLE task_artifact_manifest_items;
              DROP TABLE task_artifact_manifests;
-             PRAGMA user_version=21;",
-        ).unwrap();
+             PRAGMA user_version=22;",
+            )
+            .unwrap();
         let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
         let task = create(&mut recovered, "recovered-audit-tables").unwrap();
         assert_eq!(
@@ -4017,8 +4613,11 @@ mod tests {
             3
         );
         assert_eq!(
-            recovered.0.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(),
-            21
+            recovered
+                .0
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            22
         );
     }
 
@@ -4026,11 +4625,14 @@ mod tests {
     fn current_schema_rejects_a_partially_missing_audit_table_group() {
         let store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
-        store.0.execute_batch(
-            "DROP TABLE task_user_confirmations;
+        store
+            .0
+            .execute_batch(
+                "DROP TABLE task_user_confirmations;
              DROP TABLE task_artifact_manifest_items;
-             PRAGMA user_version=21;",
-        ).unwrap();
+             PRAGMA user_version=22;",
+            )
+            .unwrap();
         assert!(matches!(
             SqliteTaskStore::initialize(store.0, true),
             Err(Error::StorageUnavailable)
@@ -4039,30 +4641,73 @@ mod tests {
 
     #[test]
     fn newest_task_pages_use_persisted_creation_time_and_stable_id_tie_breaker() {
-        let mut store = SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         for id in ["old-unknown", "same-a", "same-b", "middle", "latest"] {
             create(&mut store, id).unwrap();
         }
-        store.0.execute_batch(
-            "UPDATE tasks SET created_at=0 WHERE id='old-unknown';
+        store
+            .0
+            .execute_batch(
+                "UPDATE tasks SET created_at=0 WHERE id='old-unknown';
              UPDATE tasks SET created_at=200 WHERE id IN ('same-a','same-b');
              UPDATE tasks SET created_at=150 WHERE id='middle';
-             UPDATE tasks SET created_at=300 WHERE id='latest';"
-        ).unwrap();
+             UPDATE tasks SET created_at=300 WHERE id='latest';",
+            )
+            .unwrap();
 
         let first = yonder_application::list_newest(
-            &mut store, AuthContext::LocalUser("desktop"), None, true, false, 2,
-        ).unwrap();
-        assert_eq!(first.tasks.iter().map(|task| task.id.as_str()).collect::<Vec<_>>(), vec!["latest", "same-b"]);
+            &mut store,
+            AuthContext::LocalUser("desktop"),
+            None,
+            true,
+            false,
+            2,
+        )
+        .unwrap();
+        assert_eq!(
+            first
+                .tasks
+                .iter()
+                .map(|task| task.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["latest", "same-b"]
+        );
         assert_eq!(first.next_after_task_id.as_deref(), Some("same-b"));
         let second = yonder_application::list_newest(
-            &mut store, AuthContext::LocalUser("desktop"), first.next_after_task_id.as_deref(), true, false, 2,
-        ).unwrap();
-        assert_eq!(second.tasks.iter().map(|task| task.id.as_str()).collect::<Vec<_>>(), vec!["same-a", "middle"]);
+            &mut store,
+            AuthContext::LocalUser("desktop"),
+            first.next_after_task_id.as_deref(),
+            true,
+            false,
+            2,
+        )
+        .unwrap();
+        assert_eq!(
+            second
+                .tasks
+                .iter()
+                .map(|task| task.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["same-a", "middle"]
+        );
         let third = yonder_application::list_newest(
-            &mut store, AuthContext::LocalUser("desktop"), second.next_after_task_id.as_deref(), true, false, 2,
-        ).unwrap();
-        assert_eq!(third.tasks.iter().map(|task| task.id.as_str()).collect::<Vec<_>>(), vec!["old-unknown"]);
+            &mut store,
+            AuthContext::LocalUser("desktop"),
+            second.next_after_task_id.as_deref(),
+            true,
+            false,
+            2,
+        )
+        .unwrap();
+        assert_eq!(
+            third
+                .tasks
+                .iter()
+                .map(|task| task.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["old-unknown"]
+        );
         assert!(third.next_after_task_id.is_none());
 
         use yonder_application::gateway::{GatewaySession, Platform};
@@ -4070,17 +4715,21 @@ mod tests {
         let mut current = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
         current.handle(&mut store, br#"{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":32}}}"#, 1000);
         let listed = current.handle(&mut store, br#"{"jsonrpc":"2.0","id":"l","method":"task.list","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"include_finished":true,"newest_first":true,"limit":2}}"#, 1000);
-        assert!(matches!(listed, Response::Success { result: QueryResult::Tasks { tasks, .. }, .. } if tasks.iter().map(|task|task.task_id.as_str()).collect::<Vec<_>>() == vec!["latest","same-b"]));
+        assert!(
+            matches!(listed, Response::Success { result: QueryResult::Tasks { tasks, .. }, .. } if tasks.iter().map(|task|task.task_id.as_str()).collect::<Vec<_>>() == vec!["latest","same-b"])
+        );
 
         let mut legacy = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
         legacy.handle(&mut store, br#"{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":31}}}"#, 1000);
-        assert!(matches!(legacy.handle(&mut store, br#"{"jsonrpc":"2.0","id":"l","method":"task.list","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"newest_first":true,"limit":2}}"#, 1000), Response::Failure { error, .. } if error.code == -32010));
+        assert!(
+            matches!(legacy.handle(&mut store, br#"{"jsonrpc":"2.0","id":"l","method":"task.list","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"newest_first":true,"limit":2}}"#, 1000), Response::Failure { error, .. } if error.code == -32010)
+        );
     }
 
     #[test]
     fn task_presentation_metadata_is_persistent_versioned_and_version_gated() {
-        use yonder_application::admission::{Admission, Resource, start_attempt};
-        use yonder_application::computer_use::{DispatchOutcome, record_dispatch_outcome};
+        use yonder_application::admission::{start_attempt, Admission, Resource};
+        use yonder_application::computer_use::{record_dispatch_outcome, DispatchOutcome};
         use yonder_application::gateway::{GatewaySession, Platform};
         use yonder_protocol::{
             QueryResult, Response, TaskObservationResult as ProtocolObservationResult,
@@ -4089,7 +4738,7 @@ mod tests {
 
         let old_store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
-        old_store.0.execute_batch("DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; PRAGMA user_version=14;").unwrap();
+        old_store.0.execute_batch("DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; PRAGMA user_version=14;").unwrap();
         old_store.0.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence) VALUES ('legacy','a1','created',1)", []).unwrap();
         let db = old_store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
@@ -4267,8 +4916,8 @@ mod tests {
     #[test]
     fn artifact_manifests_are_versioned_authorized_and_transactional() {
         use yonder_application::{
-            ArtifactAvailability, ArtifactManifestEntry, artifact_manifest_page,
-            publish_artifact_manifest,
+            artifact_manifest_page, publish_artifact_manifest, ArtifactAvailability,
+            ArtifactManifestEntry,
         };
 
         let mut store =
@@ -4299,17 +4948,13 @@ mod tests {
         transition(&mut store, &task.id, 1, Action::Start).unwrap();
         let (published, first) =
             publish_artifact_manifest(&mut store, &task.id, 2, &first_entries).unwrap();
-        assert_eq!((published.sequence, first.version, first.item_count), (3, 1, 2));
+        assert_eq!(
+            (published.sequence, first.version, first.item_count),
+            (3, 1, 2)
+        );
 
-        let page = artifact_manifest_page(
-            &mut store,
-            AuthContext::Agent("a1"),
-            &task.id,
-            1,
-            0,
-            1,
-        )
-        .unwrap();
+        let page = artifact_manifest_page(&mut store, AuthContext::Agent("a1"), &task.id, 1, 0, 1)
+            .unwrap();
         assert_eq!(page.items[0].reference_id, "artifact-docx");
         assert_eq!(page.next_after_ordinal, Some(1));
 
@@ -4368,25 +5013,11 @@ mod tests {
         assert_eq!(tail.items[0].reference_id, "artifact-preview");
         assert_eq!(tail.next_after_ordinal, None);
         assert_eq!(
-            artifact_manifest_page(
-                &mut store,
-                AuthContext::Agent("a2"),
-                &task.id,
-                1,
-                0,
-                100,
-            ),
+            artifact_manifest_page(&mut store, AuthContext::Agent("a2"), &task.id, 1, 0, 100,),
             Err(Error::NotFound)
         );
         assert_eq!(
-            artifact_manifest_page(
-                &mut store,
-                AuthContext::Agent("a1"),
-                &task.id,
-                2,
-                0,
-                100,
-            ),
+            artifact_manifest_page(&mut store, AuthContext::Agent("a1"), &task.id, 2, 0, 100,),
             Err(Error::NotFound)
         );
 
@@ -4486,8 +5117,8 @@ mod tests {
     #[test]
     fn artifact_manifest_input_and_quota_are_bounded() {
         use yonder_application::{
-            ArtifactAvailability, ArtifactManifestEntry, MAX_ARTIFACT_MANIFEST_ITEMS,
-            publish_artifact_manifest,
+            publish_artifact_manifest, ArtifactAvailability, ArtifactManifestEntry,
+            MAX_ARTIFACT_MANIFEST_ITEMS,
         };
 
         let mut store =
@@ -4855,9 +5486,9 @@ mod tests {
 
     #[test]
     fn historical_observations_keep_each_step_and_gate_protocol_121() {
-        use yonder_application::admission::{Admission, Resource, start_attempt};
+        use yonder_application::admission::{start_attempt, Admission, Resource};
         use yonder_application::computer_use::{
-            DispatchOutcome, UnknownReason, record_dispatch_outcome,
+            record_dispatch_outcome, DispatchOutcome, UnknownReason,
         };
         use yonder_application::gateway::{GatewaySession, Platform};
         use yonder_application::{advance_after_observe, prepare_next_attempt};
@@ -5192,13 +5823,11 @@ mod tests {
 
         let legacy = create(&mut store, "attempt-start-legacy").unwrap();
         let legacy = transition(&mut store, &legacy.id, legacy.sequence, Action::Start).unwrap();
-        assert!(
-            store
-                .events_with_steps(&legacy.id, 0, 100)
-                .unwrap()
-                .iter()
-                .all(|event| event.attempt_started.is_none())
-        );
+        assert!(store
+            .events_with_steps(&legacy.id, 0, 100)
+            .unwrap()
+            .iter()
+            .all(|event| event.attempt_started.is_none()));
 
         store
             .0
@@ -5309,7 +5938,8 @@ mod tests {
             Err(Error::Conflict)
         );
         transition(&mut store, &other.id, 1, Action::Start).unwrap();
-        let running_cancelled=cancel_pending(&mut store, AuthContext::LocalUser("desktop"), &other.id, 2).unwrap();
+        let running_cancelled =
+            cancel_pending(&mut store, AuthContext::LocalUser("desktop"), &other.id, 2).unwrap();
         assert_eq!(running_cancelled.status, Status::Cancelled);
         assert_eq!(store.get(&other.id).unwrap().status, Status::Cancelled);
         let count: i64 = store
@@ -5348,7 +5978,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            21
+            22
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -5565,11 +6195,9 @@ mod tests {
             .execute_batch("DROP TRIGGER reject_outbox;")
             .unwrap();
         drop(store);
-        assert!(
-            std::fs::read(&path)
-                .unwrap()
-                .starts_with(b"SQLite format 3\0")
-        );
+        assert!(std::fs::read(&path)
+            .unwrap()
+            .starts_with(b"SQLite format 3\0"));
         let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
         let page = list(
             &mut store,
@@ -5643,7 +6271,7 @@ mod tests {
     #[test]
     fn rest_reservation_checks_storage_and_blocks_start_without_writing() {
         use yonder_application::admission::{
-            Admission, Denied, RestDenied, StartError, reserve_rest, start,
+            reserve_rest, start, Admission, Denied, RestDenied, StartError,
         };
         let directory = std::env::temp_dir().join(format!(
             "yonder-rest-{}-{}",
@@ -5718,8 +6346,8 @@ mod tests {
 
     #[test]
     fn activity_includes_unreleased_background_work_and_unknown_sources() {
-        use yonder_application::admission::{Admission, start};
-        use yonder_application::{ActivityState, activity_state};
+        use yonder_application::admission::{start, Admission};
+        use yonder_application::{activity_state, ActivityState};
         let directory = std::env::temp_dir().join(format!(
             "yonder-activity-{}-{}",
             std::process::id(),
@@ -5786,7 +6414,7 @@ mod tests {
 
     #[test]
     fn global_running_state_ignores_pages_and_owners_and_fails_unknown() {
-        use yonder_application::{RunningState, list, recover_running, running_state};
+        use yonder_application::{list, recover_running, running_state, RunningState};
         let directory = std::env::temp_dir().join(format!(
             "yonder-running-{}-{}",
             std::process::id(),
@@ -5856,7 +6484,7 @@ mod tests {
     #[test]
     fn stopped_task_finishes_before_releasing_and_failure_keeps_permit() {
         use yonder_application::admission::{
-            Admission, Denied, FinishError, Outcome, Resource, start,
+            start, Admission, Denied, FinishError, Outcome, Resource,
         };
         let directory = std::env::temp_dir().join(format!(
             "yonder-finish-{}-{}",
@@ -5954,7 +6582,7 @@ mod tests {
 
     #[test]
     fn admitted_start_commits_before_return_and_releases_only_failed_attempt() {
-        use yonder_application::admission::{Admission, Denied, Resource, StartError, start};
+        use yonder_application::admission::{start, Admission, Denied, Resource, StartError};
         let directory = std::env::temp_dir().join(format!(
             "yonder-start-{}-{}",
             std::process::id(),
@@ -6209,18 +6837,16 @@ mod tests {
         let path = directory.join("tasks.db");
         let mut writer = SqlCipherTaskStore::open(&path, &[23; 32]).unwrap();
         let mut reader = SqlCipherTaskStore::open(&path, &[23; 32]).unwrap();
-        assert!(
-            list(
-                &mut reader,
-                AuthContext::LocalUser("local-test"),
-                None,
-                false,
-                100
-            )
-            .unwrap()
-            .tasks
-            .is_empty()
-        );
+        assert!(list(
+            &mut reader,
+            AuthContext::LocalUser("local-test"),
+            None,
+            false,
+            100
+        )
+        .unwrap()
+        .tasks
+        .is_empty());
         for index in (0..105).rev() {
             create(&mut writer, &format!("t-{index:03}")).unwrap();
         }
@@ -6297,48 +6923,40 @@ mod tests {
         .unwrap();
         assert_eq!(exact.tasks.len(), 100);
         assert!(exact.next_after_task_id.is_none());
-        assert!(
-            list(
-                &mut reader,
-                AuthContext::LocalUser("local-test"),
-                Some("z"),
-                false,
-                1
-            )
-            .unwrap()
-            .tasks
-            .is_empty()
-        );
-        assert!(
-            list(
-                &mut reader,
-                AuthContext::LocalUser("local-test"),
-                Some("../bad"),
-                false,
-                1
-            )
-            .is_err()
-        );
-        assert!(
-            list(
-                &mut reader,
-                AuthContext::LocalUser("local-test"),
-                None,
-                false,
-                0
-            )
-            .is_err()
-        );
-        assert!(
-            list(
-                &mut reader,
-                AuthContext::LocalUser("local-test"),
-                None,
-                false,
-                101
-            )
-            .is_err()
-        );
+        assert!(list(
+            &mut reader,
+            AuthContext::LocalUser("local-test"),
+            Some("z"),
+            false,
+            1
+        )
+        .unwrap()
+        .tasks
+        .is_empty());
+        assert!(list(
+            &mut reader,
+            AuthContext::LocalUser("local-test"),
+            Some("../bad"),
+            false,
+            1
+        )
+        .is_err());
+        assert!(list(
+            &mut reader,
+            AuthContext::LocalUser("local-test"),
+            None,
+            false,
+            0
+        )
+        .is_err());
+        assert!(list(
+            &mut reader,
+            AuthContext::LocalUser("local-test"),
+            None,
+            false,
+            101
+        )
+        .is_err());
         assert_eq!(
             list(
                 &mut reader,
@@ -6616,15 +7234,13 @@ mod tests {
         .unwrap();
         assert!(encoded.contains("step_declaration"));
         session.handle(&mut store, hello(3).as_bytes(), 1000);
-        assert!(
-            !String::from_utf8(
-                session
-                    .handle_encoded(&mut store, events.as_bytes(), 1000)
-                    .unwrap()
-            )
-            .unwrap()
-            .contains("step_declaration")
-        );
+        assert!(!String::from_utf8(
+            session
+                .handle_encoded(&mut store, events.as_bytes(), 1000)
+                .unwrap()
+        )
+        .unwrap()
+        .contains("step_declaration"));
         assert!(
             matches!(session.handle(&mut store, get.as_bytes(), 1000), Response::Failure { error, .. } if error.code == -32010)
         );
@@ -6676,14 +7292,14 @@ mod tests {
     #[test]
     fn execution_attempt_preparation_is_atomic_idempotent_and_step_bound() {
         use yonder_application::admission::BoundaryStopError;
-        use yonder_application::admission::{Admission, Resource, start_attempt};
+        use yonder_application::admission::{start_attempt, Admission, Resource};
         use yonder_application::computer_use::{
-            ComputerAction, ComputerUsePort, DispatchOutcome, UnknownReason, WorkTarget,
-            dispatch_prepared, record_dispatch_outcome,
+            dispatch_prepared, record_dispatch_outcome, ComputerAction, ComputerUsePort,
+            DispatchOutcome, UnknownReason, WorkTarget,
         };
         use yonder_application::{
-            AttemptConclusion, AttemptPhase, ControlKind, ExecutionAttempt, prepare_attempt,
-            request_control, stop_at_boundary,
+            prepare_attempt, request_control, stop_at_boundary, AttemptConclusion, AttemptPhase,
+            ControlKind, ExecutionAttempt,
         };
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
@@ -6953,7 +7569,7 @@ mod tests {
             Err(Error::StopRequired)
         );
         use yonder_application::work_focus::{
-            FocusFailure, FocusOutcome, WorkFocusPort, WorkRef, focus_after_takeover,
+            focus_after_takeover, FocusFailure, FocusOutcome, WorkFocusPort, WorkRef,
         };
         struct Focus;
         impl WorkFocusPort for Focus {
@@ -7247,17 +7863,17 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            21
+            22
         );
     }
 
     #[test]
     fn takeover_at_safe_boundary_persists_focus_without_recording() {
-        use yonder_application::admission::{Admission, Resource, start_attempt};
+        use yonder_application::admission::{start_attempt, Admission, Resource};
         use yonder_application::{
-            AttemptPhase, AuthContext, ControlKind, ControlPhase, ExecutionAttempt, FocusPhase,
             computer_use::DispatchOutcome,
-            work_focus::{FocusOutcome, WorkFocusPort, WorkRef, focus_takeover},
+            work_focus::{focus_takeover, FocusOutcome, WorkFocusPort, WorkRef},
+            AttemptPhase, AuthContext, ControlKind, ControlPhase, ExecutionAttempt, FocusPhase,
         };
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
@@ -7419,7 +8035,7 @@ mod tests {
         }
         store
             .0
-            .execute_batch("DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; ALTER TABLE tasks DROP COLUMN created_at; DROP TABLE task_focus_events; PRAGMA user_version=18;")
+            .execute_batch("DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; ALTER TABLE tasks DROP COLUMN created_at; DROP TABLE task_focus_events; PRAGMA user_version=18;")
             .unwrap();
         let db = store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
@@ -7440,17 +8056,17 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            21
+            22
         );
     }
 
     #[test]
     fn takeover_focus_failure_is_an_immutable_historical_fact() {
-        use yonder_application::admission::{Admission, Resource, start_attempt};
+        use yonder_application::admission::{start_attempt, Admission, Resource};
         use yonder_application::{
-            AttemptPhase, AuthContext, ControlKind, ExecutionAttempt, FocusPhase,
             computer_use::DispatchOutcome,
-            work_focus::{FocusFailure, FocusOutcome, WorkFocusPort, WorkRef, focus_takeover},
+            work_focus::{focus_takeover, FocusFailure, FocusOutcome, WorkFocusPort, WorkRef},
+            AttemptPhase, AuthContext, ControlKind, ExecutionAttempt, FocusPhase,
         };
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
@@ -7569,9 +8185,9 @@ mod tests {
 
     #[test]
     fn start_execution_routes_created_and_running_tasks() {
-        use yonder_application::admission::{Admission, Resource, start_execution};
-        use yonder_application::computer_use::{DispatchOutcome, record_dispatch_outcome};
-        use yonder_application::{AttemptPhase, ExecutionAttempt, advance_after_observe};
+        use yonder_application::admission::{start_execution, Admission, Resource};
+        use yonder_application::computer_use::{record_dispatch_outcome, DispatchOutcome};
+        use yonder_application::{advance_after_observe, AttemptPhase, ExecutionAttempt};
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         let task = store
@@ -7642,17 +8258,17 @@ mod tests {
 
     #[test]
     fn browser_reference_commits_with_observe_and_survives_later_unknown() {
-        use yonder_application::admission::{Admission, Resource, start_attempt};
+        use yonder_application::admission::{start_attempt, Admission, Resource};
         use yonder_application::browser_use::{
-            BrowserAction, BrowserOutcome, BrowserTaskRef, BrowserUsePort, execute_agent_action,
-            record_outcome,
+            execute_agent_action, record_outcome, BrowserAction, BrowserOutcome, BrowserTaskRef,
+            BrowserUsePort,
         };
         use yonder_application::computer_use::{
-            DispatchOutcome, UnknownReason, record_dispatch_outcome,
+            record_dispatch_outcome, DispatchOutcome, UnknownReason,
         };
         use yonder_application::gateway::{GatewaySession, Platform};
         use yonder_application::{
-            AttemptPhase, ExecutionAttempt, advance_after_observe, prepare_next_attempt,
+            advance_after_observe, prepare_next_attempt, AttemptPhase, ExecutionAttempt,
         };
         use yonder_protocol::{QueryResult, Response};
         let mut store =
@@ -7825,11 +8441,11 @@ mod tests {
     fn agent_cua_supervisor_completes_and_user_input_interrupts() {
         use yonder_application::admission::{Admission, Resource};
         use yonder_application::computer_use::{
-            ComputerAction, ComputerUsePort, DispatchOutcome, UnknownReason, WorkTarget,
-            WorkTargetPort, complete_agent_task, execute_agent_action,
+            complete_agent_task, execute_agent_action, ComputerAction, ComputerUsePort,
+            DispatchOutcome, UnknownReason, WorkTarget, WorkTargetPort,
         };
         use yonder_application::gateway::{GatewaySession, Platform};
-        use yonder_application::{AttemptConclusion, AuthContext, advance_after_observe};
+        use yonder_application::{advance_after_observe, AttemptConclusion, AuthContext};
         use yonder_protocol::{QueryResult, Response, TaskStatus};
         struct Target;
         impl WorkTargetPort for Target {
@@ -8040,10 +8656,10 @@ mod tests {
 
     #[test]
     fn observed_boundary_allows_next_step_without_releasing_task_permit() {
-        use yonder_application::admission::{Admission, Outcome, Resource, start_attempt};
-        use yonder_application::computer_use::{DispatchOutcome, record_dispatch_outcome};
+        use yonder_application::admission::{start_attempt, Admission, Outcome, Resource};
+        use yonder_application::computer_use::{record_dispatch_outcome, DispatchOutcome};
         use yonder_application::{
-            AttemptPhase, ExecutionAttempt, advance_after_observe, prepare_next_attempt,
+            advance_after_observe, prepare_next_attempt, AttemptPhase, ExecutionAttempt,
         };
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
@@ -8113,13 +8729,11 @@ mod tests {
             ),
             (Status::Running, advanced.sequence, Ok(true))
         );
-        assert!(
-            store
-                .events_with_steps(&task.id, 0, 100)
-                .unwrap()
-                .iter()
-                .any(|event| event.attempt_result.is_some())
-        );
+        assert!(store
+            .events_with_steps(&task.id, 0, 100)
+            .unwrap()
+            .iter()
+            .any(|event| event.attempt_result.is_some()));
         assert_eq!(
             advance_after_observe(&mut store, &task.id, &first.attempt_id).unwrap(),
             (advanced.clone(), boundary)
@@ -8225,11 +8839,11 @@ mod tests {
 
     #[test]
     fn agent_waits_only_at_observed_boundary_and_persists_reason() {
-        use yonder_application::admission::{Admission, Resource, start_attempt};
-        use yonder_application::computer_use::{DispatchOutcome, record_dispatch_outcome};
+        use yonder_application::admission::{start_attempt, Admission, Resource};
+        use yonder_application::computer_use::{record_dispatch_outcome, DispatchOutcome};
         use yonder_application::gateway::{GatewaySession, Platform};
         use yonder_application::{
-            AttemptPhase, AuthContext, ExecutionAttempt, advance_after_observe, wait_for_user,
+            advance_after_observe, wait_for_user, AttemptPhase, AuthContext, ExecutionAttempt,
         };
         use yonder_protocol::{QueryResult, Response, TaskStatus};
         let mut store =
@@ -8455,11 +9069,9 @@ mod tests {
         assert_eq!(reopened.events("task-1", 2, 1).unwrap()[0].sequence, 3);
         assert!(reopened.events("task-1", u64::MAX, 1).unwrap().is_empty());
         drop(reopened);
-        assert!(
-            !std::fs::read(&path)
-                .unwrap()
-                .starts_with(b"SQLite format 3")
-        );
+        assert!(!std::fs::read(&path)
+            .unwrap()
+            .starts_with(b"SQLite format 3"));
         assert!(SqlCipherTaskStore::open(&path, &[18; 32]).is_err());
         let opened = SqlCipherTaskStore::open(&path, &key).unwrap();
         opened.0.execute_batch("PRAGMA user_version=999;").unwrap();
@@ -8470,64 +9082,328 @@ mod tests {
     }
 
     #[test]
+    fn runtime_projection_is_atomic_contiguous_and_idempotent() {
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let task = create(&mut store, "runtime-project").unwrap();
+        let events = vec![
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 2,
+                kind: RuntimeEventKind::Activated,
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 3,
+                kind: RuntimeEventKind::StepStarted {
+                    step_id: "open".into(),
+                    label: "打开应用".into(),
+                },
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 4,
+                kind: RuntimeEventKind::StepCompleted {
+                    step_id: "open".into(),
+                },
+            },
+        ];
+        RuntimeEventProjector::project(&mut store, &events).unwrap();
+        RuntimeEventProjector::project(&mut store, &events).unwrap();
+
+        let persisted: (String, i64, i64, i64, i64) = store
+            .0
+            .query_row(
+                "SELECT state,sequence,(SELECT count(*) FROM events WHERE task_id=?1),(SELECT count(*) FROM outbox WHERE task_id=?1),(SELECT count(*) FROM task_runtime_projections WHERE task_id=?1) FROM tasks WHERE id=?1",
+                [&task.id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(persisted, ("running".into(), 4, 4, 4, 3));
+    }
+
+    #[test]
+    fn runtime_projection_rolls_back_state_event_and_outbox_together() {
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let task = create(&mut store, "runtime-rollback").unwrap();
+        store
+            .0
+            .execute_batch(
+                "CREATE TRIGGER reject_runtime_projection BEFORE INSERT ON task_runtime_projections WHEN NEW.sequence=3 BEGIN SELECT RAISE(ABORT,'test'); END;",
+            )
+            .unwrap();
+        let events = vec![
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 2,
+                kind: RuntimeEventKind::Activated,
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 3,
+                kind: RuntimeEventKind::StepStarted {
+                    step_id: "open".into(),
+                    label: "打开应用".into(),
+                },
+            },
+        ];
+        assert_eq!(
+            RuntimeEventProjector::project(&mut store, &events),
+            Err(RuntimeProjectionError::Unavailable)
+        );
+        let persisted: (String, i64, i64, i64, i64) = store
+            .0
+            .query_row(
+                "SELECT state,sequence,(SELECT count(*) FROM events WHERE task_id=?1),(SELECT count(*) FROM outbox WHERE task_id=?1),(SELECT count(*) FROM task_runtime_projections WHERE task_id=?1) FROM tasks WHERE id=?1",
+                [&task.id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(persisted, ("created".into(), 1, 1, 1, 0));
+    }
+
+    #[test]
     fn approved_command_starts_once_and_records_unknown_without_retry() {
-        use std::{collections::BTreeMap, sync::atomic::{AtomicUsize, Ordering}};
+        use std::{
+            collections::BTreeMap,
+            sync::atomic::{AtomicUsize, Ordering},
+        };
         use yonder_application::{
-            TaskSource,
             admission::Admission,
-            command::{CommandCancellation, CommandError, CommandExecution, CommandOutcome, CommandPort, CommandRequest, NeverCancel},
+            command::{
+                CommandCancellation, CommandError, CommandExecution, CommandOutcome, CommandPort,
+                CommandRequest, NeverCancel,
+            },
             command_approval::{CommandApprovalError, CommandApprovalRegistry},
             command_execution::execute_agent_command,
+            TaskSource,
         };
 
-        struct Port<'a> { calls: &'a AtomicUsize, outcome: CommandOutcome }
+        struct Port<'a> {
+            calls: &'a AtomicUsize,
+            outcome: CommandOutcome,
+        }
         impl CommandPort for Port<'_> {
-            fn execute(&self, _: &CommandRequest, _: &dyn CommandCancellation) -> Result<CommandExecution, CommandError> {
+            fn execute(
+                &self,
+                _: &CommandRequest,
+                _: &dyn CommandCancellation,
+            ) -> Result<CommandExecution, CommandError> {
                 self.calls.fetch_add(1, Ordering::Relaxed);
-                Ok(CommandExecution { outcome:self.outcome, stdout:b"safe".to_vec(), stderr:Vec::new(), stdout_truncated:false, stderr_truncated:false })
+                Ok(CommandExecution {
+                    outcome: self.outcome,
+                    stdout: b"safe".to_vec(),
+                    stderr: Vec::new(),
+                    stdout_truncated: false,
+                    stderr_truncated: false,
+                })
             }
         }
-        fn request() -> CommandRequest { CommandRequest { program:"/usr/bin/printf".into(), args:vec!["safe".into()], cwd:"/tmp".into(), env:BTreeMap::new(), timeout_ms:1000 } }
-        fn prepared(store:&mut SqliteTaskStore, key:&str)->Task {
-            let task=store.register("agent-a",key,key,Some("命令"),TaskSource::LocalAgent).unwrap();
-            store.declare_step("agent-a",&task.id,task.sequence,"run-command","执行已批准命令").unwrap().0
+        fn request() -> CommandRequest {
+            CommandRequest {
+                program: "/usr/bin/printf".into(),
+                args: vec!["safe".into()],
+                cwd: "/tmp".into(),
+                env: BTreeMap::new(),
+                timeout_ms: 1000,
+            }
+        }
+        fn prepared(store: &mut SqliteTaskStore, key: &str) -> Task {
+            let task = store
+                .register("agent-a", key, key, Some("命令"), TaskSource::LocalAgent)
+                .unwrap();
+            store
+                .declare_step(
+                    "agent-a",
+                    &task.id,
+                    task.sequence,
+                    "run-command",
+                    "执行已批准命令",
+                )
+                .unwrap()
+                .0
         }
 
-        let mut store=SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(),true).unwrap();
-        let approvals=CommandApprovalRegistry::default();
-        let gate=Admission::new(4).unwrap();
-        let calls=AtomicUsize::new(0);
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let approvals = CommandApprovalRegistry::default();
+        let gate = Admission::new(4).unwrap();
+        let calls = AtomicUsize::new(0);
 
-        let task=prepared(&mut store,"command-before-approval");
-        let pending=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),100).unwrap();
-        assert_eq!(execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Exited{exit_code:0}},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&pending.command_id,"host",101),Err(Error::StopRequired));
-        assert_eq!(calls.load(Ordering::Relaxed),0);
-        assert_eq!(store.get(&task.id).unwrap().status,Status::Created);
+        let task = prepared(&mut store, "command-before-approval");
+        let pending = approvals
+            .propose(AuthContext::Agent("agent-a"), &task, request(), 100)
+            .unwrap();
+        assert_eq!(
+            execute_agent_command(
+                &mut store,
+                &gate,
+                &approvals,
+                &Port {
+                    calls: &calls,
+                    outcome: CommandOutcome::Exited { exit_code: 0 }
+                },
+                &NeverCancel,
+                AuthContext::Agent("agent-a"),
+                &task.id,
+                task.sequence,
+                &pending.command_id,
+                "host",
+                101
+            ),
+            Err(Error::StopRequired)
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        assert_eq!(store.get(&task.id).unwrap().status, Status::Created);
         assert!(store.get_attempt(&task.id).unwrap().is_none());
 
-        let task=prepared(&mut store,"command-success");
-        let approved=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),200).unwrap();
-        approvals.approve(AuthContext::LocalUser("desktop"),&task,&approved.command_id,201).unwrap();
-        assert_eq!(execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Exited{exit_code:0}},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence+1,&approved.command_id,"host",202),Err(Error::Conflict));
-        assert!(approvals.preview_for_local(AuthContext::LocalUser("desktop"),&task,&approved.command_id,202).is_ok());
-        let executed=execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Exited{exit_code:0}},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&approved.command_id,"host",202).unwrap();
-        assert_eq!(executed.execution.stdout,b"safe");
-        assert_eq!(executed.attempt_result.conclusion,AttemptConclusion::Observed{action_succeeded:true});
-        assert_eq!(calls.load(Ordering::Relaxed),1);
-        assert_eq!(approvals.preview_for_local(AuthContext::LocalUser("desktop"),&task,&approved.command_id,203),Err(CommandApprovalError::NotFound));
+        let task = prepared(&mut store, "command-success");
+        let approved = approvals
+            .propose(AuthContext::Agent("agent-a"), &task, request(), 200)
+            .unwrap();
+        approvals
+            .approve(
+                AuthContext::LocalUser("desktop"),
+                &task,
+                &approved.command_id,
+                201,
+            )
+            .unwrap();
+        assert_eq!(
+            execute_agent_command(
+                &mut store,
+                &gate,
+                &approvals,
+                &Port {
+                    calls: &calls,
+                    outcome: CommandOutcome::Exited { exit_code: 0 }
+                },
+                &NeverCancel,
+                AuthContext::Agent("agent-a"),
+                &task.id,
+                task.sequence + 1,
+                &approved.command_id,
+                "host",
+                202
+            ),
+            Err(Error::Conflict)
+        );
+        assert!(approvals
+            .preview_for_local(
+                AuthContext::LocalUser("desktop"),
+                &task,
+                &approved.command_id,
+                202
+            )
+            .is_ok());
+        let executed = execute_agent_command(
+            &mut store,
+            &gate,
+            &approvals,
+            &Port {
+                calls: &calls,
+                outcome: CommandOutcome::Exited { exit_code: 0 },
+            },
+            &NeverCancel,
+            AuthContext::Agent("agent-a"),
+            &task.id,
+            task.sequence,
+            &approved.command_id,
+            "host",
+            202,
+        )
+        .unwrap();
+        assert_eq!(executed.execution.stdout, b"safe");
+        assert_eq!(
+            executed.attempt_result.conclusion,
+            AttemptConclusion::Observed {
+                action_succeeded: true
+            }
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            approvals.preview_for_local(
+                AuthContext::LocalUser("desktop"),
+                &task,
+                &approved.command_id,
+                203
+            ),
+            Err(CommandApprovalError::NotFound)
+        );
 
-        let task=prepared(&mut store,"command-unknown");
-        let approved=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),300).unwrap();
-        approvals.approve(AuthContext::LocalUser("desktop"),&task,&approved.command_id,301).unwrap();
-        let unknown=execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::Unknown},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&approved.command_id,"host",302).unwrap();
-        assert_eq!(unknown.attempt_result.conclusion,AttemptConclusion::Unknown{reason:yonder_application::computer_use::UnknownReason::WorkerFailed});
-        assert_eq!(calls.load(Ordering::Relaxed),2);
+        let task = prepared(&mut store, "command-unknown");
+        let approved = approvals
+            .propose(AuthContext::Agent("agent-a"), &task, request(), 300)
+            .unwrap();
+        approvals
+            .approve(
+                AuthContext::LocalUser("desktop"),
+                &task,
+                &approved.command_id,
+                301,
+            )
+            .unwrap();
+        let unknown = execute_agent_command(
+            &mut store,
+            &gate,
+            &approvals,
+            &Port {
+                calls: &calls,
+                outcome: CommandOutcome::Unknown,
+            },
+            &NeverCancel,
+            AuthContext::Agent("agent-a"),
+            &task.id,
+            task.sequence,
+            &approved.command_id,
+            "host",
+            302,
+        )
+        .unwrap();
+        assert_eq!(
+            unknown.attempt_result.conclusion,
+            AttemptConclusion::Unknown {
+                reason: yonder_application::computer_use::UnknownReason::WorkerFailed
+            }
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
 
-        let task=prepared(&mut store,"command-timeout");
-        let approved=approvals.propose(AuthContext::Agent("agent-a"),&task,request(),400).unwrap();
-        approvals.approve(AuthContext::LocalUser("desktop"),&task,&approved.command_id,401).unwrap();
-        let timed_out=execute_agent_command(&mut store,&gate,&approvals,&Port{calls:&calls,outcome:CommandOutcome::TimedOut},&NeverCancel,AuthContext::Agent("agent-a"),&task.id,task.sequence,&approved.command_id,"host",402).unwrap();
-        assert_eq!(timed_out.attempt_result.conclusion,AttemptConclusion::Observed{action_succeeded:false});
-        assert_eq!(calls.load(Ordering::Relaxed),3);
+        let task = prepared(&mut store, "command-timeout");
+        let approved = approvals
+            .propose(AuthContext::Agent("agent-a"), &task, request(), 400)
+            .unwrap();
+        approvals
+            .approve(
+                AuthContext::LocalUser("desktop"),
+                &task,
+                &approved.command_id,
+                401,
+            )
+            .unwrap();
+        let timed_out = execute_agent_command(
+            &mut store,
+            &gate,
+            &approvals,
+            &Port {
+                calls: &calls,
+                outcome: CommandOutcome::TimedOut,
+            },
+            &NeverCancel,
+            AuthContext::Agent("agent-a"),
+            &task.id,
+            task.sequence,
+            &approved.command_id,
+            "host",
+            402,
+        )
+        .unwrap();
+        assert_eq!(
+            timed_out.attempt_result.conclusion,
+            AttemptConclusion::Observed {
+                action_succeeded: false
+            }
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
     }
 }
