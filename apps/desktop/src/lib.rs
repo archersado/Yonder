@@ -112,6 +112,9 @@ impl CuaControlHub {
         active.completed_step_ids.insert(step_id.into());
         if active.executing_step_id.as_deref()==Some(step_id){active.executing_step_id=None;}
         if let Some(step)=active.presentation.planned_steps.iter_mut().find(|step|step.step_id==step_id){step.state="completed".into();}
+        if active.presentation.remaining_steps==0&&!active.presentation.planned_steps.is_empty()&&active.presentation.planned_steps.iter().all(|step|step.state=="completed"){
+            active.presentation.current_step="计划片段已完成".into();active.presentation.plan_status="complete".into();
+        }
     }
 
     pub fn mark_unverified(&self,task_id:&str,step_id:&str){
@@ -1270,6 +1273,16 @@ mod tests {
         hub.mark_unverified("task-a","step-5");
         let value=serde_json::to_value(hub.presentation().unwrap()).unwrap();
         assert_eq!(value["planned_steps"][3]["state"],"unverified");
+    }
+
+    #[test]
+    fn cua_control_hub_marks_a_fully_committed_fragment_complete() {
+        let hub=CuaControlHub::default();
+        assert!(hub.begin(CuaControlPresentation { task_id:"task-a".into(), desktop_control:true, current_step:"步骤一".into(), planned_steps:vec![CuaControlStepPresentation { step_id:"step-1".into(), label:"步骤一".into(), state:"pending".into() }], remaining_steps:0, plan_status:"available".into(), slow_brain_summary:"慢脑已提交 1 个受限步骤".into(), fast_brain_summary:"慢脑单候选直接授权".into() }));
+        hub.mark_executing("task-a","step-1");hub.mark_completed("task-a","step-1");
+        let presentation=hub.presentation().unwrap();
+        assert_eq!(presentation.current_step,"计划片段已完成");
+        assert_eq!(presentation.plan_status,"complete");
     }
 
     #[test]

@@ -1,0 +1,26 @@
+{
+  "button_found" : true,
+  "execution_found" : true,
+  "expected_size" : true,
+  "expected_top" : 50,
+  "fast_brain_found" : true,
+  "fast_decision_found" : true,
+  "message" : true,
+  "observe_only" : true,
+  "passed" : true,
+  "pid" : 96142,
+  "planned_step_found" : true,
+  "position" : [
+    575,
+    50
+  ],
+  "size" : [
+    560,
+    174
+  ],
+  "slow_brain_found" : true,
+  "step_status_found" : true,
+  "takeover_pressed" : false,
+  "top_centered_like_region" : true,
+  "visible" : true
+}

@@ -1,0 +1,17 @@
+{
+  "platform": "macos",
+  "real_driver": true,
+  "first_step_committed": false,
+  "recorded_conclusions": [
+    {
+      "phase": "unknown",
+      "action_succeeded": null,
+      "unknown_reason": "worker-failed"
+    }
+  ],
+  "projected_status": "unverified",
+  "status_icon_accessible": true,
+  "executed_disposition": "handback",
+  "task_status": "cancelled",
+  "passed": true
+}

@@ -19,3 +19,12 @@
 - 结构化投影不包含候选参数、消息正文、完整模型响应或思维链。
 
 证据见 [`步骤间接管`](../../../apps/desktop/evidence/tm-s3-fast-slow-idle-macos-20260928/README.md)与[`快慢脑投影`](../../../apps/desktop/evidence/tm-s3-fast-slow-plan-macos-20260928/README.md)。
+
+## 2026-09-29 步骤结果真实性增量
+
+- `cargo test -p yonder-application -p yonder-adapters -p yonder-desktop`：Application 45、Adapters 70、Desktop 19 项通过。Adapter 合约覆盖 `confirmed`、`refused`、`partial`、`unverifiable`、`suspected_noop`、缺失 effect 与字段矛盾；后三类及无效响应不得写成成功。
+- `node apps/desktop/check-cua-control.mjs`：绿色完成、当前执行、待核实及等待状态的可访问文案通过；Hub 回归证明不会由下一步开始反推前序成功。
+- `check-cua-dispatch-macos.py`：trycua 0.25.0 对隔离原生文本框返回 confirmed 时，原生目标值同时匹配，结果才持久化为成功。
+- `check-cua-step-status-macos.py` 经正式 `Yonda.app`、Local Socket 与真实 trycua 运行：confirmed/CAS 推进样本显示可访问绿色 ✓；另一轮 Worker 不可确认时记录 unknown、片段 HandBack 并显示可访问黄色待核实 !，没有伪造成功。两轮验证任务均经正式 `task.cancel` 清理。
+
+证据见 [`成功边界`](../../../apps/desktop/evidence/tm-s3-cua-step-status-macos-20260929/README.md) 与 [`待核实边界`](../../../apps/desktop/evidence/tm-s3-cua-step-unverified-macos-20260929/README.md)。Windows 按既有决定暂缓。

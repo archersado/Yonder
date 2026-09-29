@@ -1,0 +1,21 @@
+{
+  "platform": "macos",
+  "real_driver": true,
+  "first_step_committed": true,
+  "recorded_conclusions": [
+    {
+      "phase": "stopped",
+      "action_succeeded": true,
+      "unknown_reason": null
+    },
+    {
+      "phase": "stopped",
+      "action_succeeded": true,
+      "unknown_reason": null
+    }
+  ],
+  "completed_icon_accessible": true,
+  "executed_disposition": "fragment-complete",
+  "task_status": "cancelled",
+  "passed": true
+}
