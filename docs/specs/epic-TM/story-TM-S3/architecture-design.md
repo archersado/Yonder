@@ -37,6 +37,10 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 
 单步 `computer.step`/`computer.execute` 没有计划列表时只提供当前标签；Plan 读取失败明确标记不可用而不影响 Application 调用。UI 只渲染纯文本标签、索引和 `completed/executing/pending` 状态；不读取 action arguments、Agent payload 或任何 Adapter 原始观察数据。卡片开始、每次 Driver 派发、接管和结束均重取/清理投影，避免旧任务残留。
 
+2026-09-29步骤状态图标增量：`mark_executing`只把当前步骤置为`executing`，不再通过“已开始后续步骤”推断前序成功；Application在动作结果有效且步骤边界提交完成后显式调用默认空实现的完成投影钩子，Hub才把对应步骤置为`completed`。未知、失败、HandBack和仅能读取截图的结果均不得打勾。Hub保留已完成集合，后续同任务刷新不得把成功图标重置；列表外当前步骤仍更新独立“正在执行”文案。
+
+真实企业微信样本暴露现有 Adapter 把 `!action.isError` 错当动作成功。trycua 的 `launch_app` 只承诺后台启动，`press_key/type_text` 还会返回 `confirmed/partial/unverifiable/suspected_noop/refused` 的 effect；Adapter必须消费该有界 effect，只有 `confirmed` 可进入成功结果，`partial/unverifiable/suspected_noop`按结果待核实停止，`refused`按已知失败处理。动作后截图成功只代表 Observe 载体可读，不能提升动作结论；计划的语义后置条件未匹配前不得显示成功或连续推进。需要可见前置时计划必须显式包含`bring_to_front`，不能把后台`launch_app`伪装成已唤起。
+
 ## 架构影响
 
 本文件为规划迁移，运行时无变化；具体实施按关联 ADR 和 Proposal 声明影响，draft/design-review 不授权实施。
