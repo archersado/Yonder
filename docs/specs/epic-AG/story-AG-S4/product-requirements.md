@@ -37,6 +37,8 @@ BUA 部分复用并嵌入 ego-browser Skill 的有效操作规范；ego-lite 仍
 - SKILL-10：使用真实 Yonder Runtime 分别验证 BUA、CUA、Document、Command 成功与拒绝路径；涉及原生 UI/Driver 的平台证据遵守各能力 Story 的完成门禁。
 - SKILL-11：形象生成先锁定用户授权的角色身份，再逐状态生成、透明度/循环/连续性质检；只将通过 DS-S4 manifest 校验的包交回 Yonder，本次外发取消或失败不替换当前形象。
 - SKILL-12：Skill 只编排 Yonder 已发布的 Gateway 能力，不实现第二套快脑、慢脑、Driver 或任务状态；快慢脑交接边界以 AD-EX-01/EX-S2/AD-EX-04 为准。
+- SKILL-13：对支持计划片段的 CUA 目标，慢脑一次提交覆盖当前有界子目标的完整多步片段；每个槽位只表达一个语义步骤，同槽位候选仅作为该步骤的替代路径。正常逐步 Observe 由 Yonder/Jev 在片段内连续推进，不退化为每动作一次慢脑规划。
+- SKILL-14：CUA 目标优先使用元素或原生语义定位；元素缺失、不唯一或不可操作时才使用视觉候选，并优先作为同一计划片段的受限兜底。副作用结果 `unknown` 不得自动重试。
 
 ## 需求来源与验收映射
 
@@ -44,3 +46,4 @@ BUA 部分复用并嵌入 ego-browser Skill 的有效操作规范；ego-lite 仍
 - [产品简报](../../../../_bmad-output/planning-artifacts/briefs/brief-Yonder-2026-09-09/brief.md)「MVP 主干链路」「Task Space 与权限模型」「首批权限」→SKILL-01、05～07、10。
 - [架构主干](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/ARCHITECTURE-SPINE.md)「Agent Gateway」「CUA/BUA」「Command/File/Document」「任务、状态与恢复」→SKILL-02～08、10。
 - 2026-09-17 用户变更：为 Yonder 生成统一 Skill，包含使用 ego-lite 的 BUA、CUA、文档和命令行；BUA 部分嵌入 ego-browser Skill。用户随后要求当前只写规格，等待四类能力全部实现后再补 Skill→本 Story 的范围及实施门禁。
+- 2026-09-29 用户变更：先实施 Yonder Skill以提高慢脑生成精度；一次慢脑应给出完整计划片段，元素优先、视觉仅在元素不可用时兜底→SKILL-13～14。

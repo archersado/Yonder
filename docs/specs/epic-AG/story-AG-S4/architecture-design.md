@@ -24,15 +24,16 @@ Document 与 Command 在各自产品 Story 完成后按能力发现启用。Docu
 
 Skill 保存于发布仓库的独立目录，包内包含主入口和按需读取的 BUA/CUA/Document/Command 参考；不包含运行时凭据和用户数据。调用方始终使用 Yonder 返回的 `task_id` 与最新 `sequence`。副作用请求超时、断连或结果不明时读取任务/事件并停止，不能自动重放。
 
-### Skill 包结构候选（待审）
+### Skill 包结构（已定案）
 
 首版包结构建议保持最小，只包含 Agent 侧说明与声明式 manifest，不包含可执行代码或模型请求模板：
 
 ```text
-skill/
+skills/yonder/
   SKILL.md
   manifest.json
-  modules/
+  agents/openai.yaml
+  references/
     browser.md
     computer.md
     document.md
@@ -43,7 +44,11 @@ skill/
 
 Skill 的调用链不因快慢脑架构改变而新增旁路；任何快慢脑能力缺失都须按能力发现返回不可用，而不是由 Skill 内部模拟或代理。
 
-首次实现前需确定 Skill 包的安装位置、版本与 Yonder 协议兼容范围；这些属于实施设计，不在当前规格中猜测。Document、Command 或 BUA 受监管动作协议尚未齐备时，AG-S4保持draft，不创建实现 Proposal。
+首版版本为 `0.1.0`，最低 Yonder 协议为 `1.31`，以便使用不可变计划片段；能力仍逐项按 MCP 工具发现启用，不能只凭版本假定可用。仓库目录是发布源，安装时复制完整目录至 Agent 的 Skill 搜索路径；安装副本不得成为第二状态源。
+
+BUA、CUA、Document 与 Command 的 macOS Gateway 增量已具有独立通过证据，因此允许实施 macOS Skill。Windows保持未验证并在manifest中不声明；完整Story继续处于实施/验证态。
+
+CUA计划片段由慢脑按当前有界子目标一次生成多槽位。槽位是顺序语义步骤，候选是同一步骤的互斥实现；元素/语义候选优先，视觉候选只在元素缺失、不唯一或不可操作时作为受限兜底。Skill不缓存动作Schema，实际字段继续读取当前MCP工具定义。
 
 ## 失败与验证
 

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "yonder",
+  "skill_version": "0.1.0",
+  "yonder_protocol_min": "1.31",
+  "validated_platforms": ["macos"],
+  "required_tools": ["task_create", "task_get", "task_events"],
+  "optional_capability_tools": {
+    "browser": ["browser_execute"],
+    "computer": ["computer_step", "task_plan_submit", "task_plan_execute"],
+    "document": ["task_file_grants", "task_file_execute", "task_document_execute"],
+    "command": ["task_command_propose", "task_command_execute"]
+  },
+  "ego_browser_upstream": {
+    "name": "ego-browser",
+    "version": "2.0.0",
+    "dated": "2026-09-09",
+    "source": "installed-skill:ego-browser"
+  }
+}

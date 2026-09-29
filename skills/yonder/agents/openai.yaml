@@ -1,0 +1,6 @@
+interface:
+  display_name: "Yonder"
+  short_description: "通过 Yonder 统一执行浏览器、桌面、文档和命令任务"
+  default_prompt: "使用 $yonder，通过一个可观察的 Yonder 任务完成这个目标。"
+policy:
+  allow_implicit_invocation: true
