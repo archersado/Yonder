@@ -19,6 +19,11 @@ const launchStateConfirmed = state =>
 const bringToFrontConfirmed = result =>
   result?.exact_window_effect?.verified === true
   && result?.code === 'bring_to_front_exact_window_verified';
+const applicationFrontConfirmed = (result, targetPid) =>
+  result?.request_accepted === true
+  && result?.process_activated === true
+  && result?.observed?.front_process_matches_target === true
+  && result?.observed?.workspace_frontmost_pid === targetPid;
 const driver = sdk.CuaDriver.create(undefined);
 try {
   await driver.metadata();
@@ -68,6 +73,7 @@ try {
       }
       response.failure_stage = 'observe-before';
       const target = request.tool_name === 'bring_to_front' && launchedTarget?.task_id === request.task_id ? launchedTarget : request;
+      const actionTargetPid = target.pid;
       const args = { pid: target.pid, window_id: target.window_id, include_screenshot: false, max_elements: 100 };
       const before = await driver.callTool('get_window_state', JSON.stringify(args));
       if (!before.isError) {
@@ -100,6 +106,7 @@ try {
         }
         const launchConfirmed=request.tool_name==='launch_app' && Number.isInteger(actionResult.pid) && launchStateConfirmed(actionResult.launch_state);
         const bringConfirmed=request.tool_name==='bring_to_front' && !action.isError && bringToFrontConfirmed(actionResult);
+        const applicationFront=request.tool_name==='bring_to_front' && applicationFrontConfirmed(actionResult,actionTargetPid);
         response.action_effect=launchConfirmed||bringConfirmed?'confirmed':typeof actionResult.effect==='string'?actionResult.effect:action.isError?'refused':'unverifiable';
         response.action_known = true;
         response.action_succeeded = response.action_effect === 'confirmed';
@@ -144,7 +151,11 @@ try {
             const deadline = Date.now() + (request.tool_name === 'launch_app' ? 0 : 2000);
             do {
               const refreshed = await refreshLaunchedTarget(true);
-              response.target_visible = request.tool_name === 'bring_to_front' && !action.isError && refreshed?.visible === true;
+              response.target_visible = request.tool_name === 'bring_to_front' && refreshed?.visible === true && (bringConfirmed || applicationFront);
+              if (response.target_visible === true && applicationFront) {
+                response.action_effect = 'confirmed';
+                response.action_succeeded = true;
+              }
               if (response.target_visible === true || Date.now() >= deadline) break;
               await new Promise(resolve => setTimeout(resolve, 100));
             } while (true);
