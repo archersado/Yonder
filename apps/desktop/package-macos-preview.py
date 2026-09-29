@@ -120,6 +120,7 @@ def main():
         raise SystemExit("缺少 Node Runtime，无法封装 CUA SDK")
     shutil.copy2(node, resources / "node")
     shutil.copy2(root / "crates/adapters/src/cua_worker.mjs", resources / "cua_worker.mjs")
+    shutil.copy2(root / "crates/adapters/src/sky_cua_worker.mjs", resources / "sky_cua_worker.mjs")
     shutil.copy2(root / "crates/adapters/src/jev_worker.mjs", resources / "jev_worker.mjs")
     for package in ["@trycua/cua-driver", "@trycua/cua-driver-darwin-arm64", "@ubjs/core", "@ubjs/node", "@ubjs/node-darwin-arm64", "@typesafe-ai/sdk"]:
         shutil.copytree(modules / package, resources / "node_modules" / package)

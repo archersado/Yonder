@@ -43,13 +43,23 @@ enum ActionEffect { Confirmed,Partial,Unverifiable,SuspectedNoop,Refused }
 impl CuaWorker {
     /// 三个路径只能由可信组合根提供；SDK入口必须属于固定0.25.0包。
     pub fn new(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.25.0")
+    }
+
+    /// Sky 是外部安装的可选后端；只接受当前验证过的精确包身份。
+    pub fn new_sky(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@oai/sky", "0.7.1")
+    }
+
+    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, expected_name:&str, expected_version:&str) -> Result<Self, UnknownReason> {
         if timeout.is_zero() || timeout > Duration::from_secs(120) || [node, script, sdk].iter().any(|path| !path.is_absolute() || !path.is_file()) || !evidence.is_absolute() || !evidence.is_dir() {
             return Err(UnknownReason::InvalidInput);
         }
-        let package = sdk.parent().and_then(Path::parent).map(|path| path.join("package.json")).ok_or(UnknownReason::DependencyUnavailable)?;
-        let version = fs::read_to_string(package).ok().and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
-            .and_then(|value| value.get("version").and_then(|value| value.as_str()).map(str::to_owned));
-        if version.as_deref() != Some("0.25.0") { return Err(UnknownReason::DependencyUnavailable); }
+        let package = sdk.ancestors().take(12).map(|path| path.join("package.json")).find(|path| path.is_file()).ok_or(UnknownReason::DependencyUnavailable)?;
+        let identity = fs::read_to_string(package).ok().and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok());
+        let name = identity.as_ref().and_then(|value| value.get("name")).and_then(|value| value.as_str());
+        let version = identity.as_ref().and_then(|value| value.get("version")).and_then(|value| value.as_str());
+        if name != Some(expected_name) || version != Some(expected_version) { return Err(UnknownReason::DependencyUnavailable); }
         let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, session: Mutex::new(None) };
         worker.cleanup();Ok(worker)
     }
@@ -163,7 +173,7 @@ mod tests {
         let root=std::env::temp_dir().join(format!("yonda-cua-session-{}",std::process::id()));
         let package=root.join("node_modules/fake");
         std::fs::create_dir_all(package.join("dist")).unwrap();
-        std::fs::write(package.join("package.json"),r#"{"version":"0.25.0"}"#).unwrap();
+        std::fs::write(package.join("package.json"),r#"{"name":"@trycua/cua-driver","version":"0.25.0"}"#).unwrap();
         let sdk=package.join("dist/index.js");std::fs::write(&sdk,b"").unwrap();
         let script=root.join("worker.sh");
         std::fs::write(&script,b"count=0\nwhile IFS= read -r line; do count=$((count+1)); if [ $count -eq 1 ]; then ok=true; else ok=false; fi; printf '{\"task_id\":\"task\",\"step_id\":\"step\",\"attempt_id\":\"attempt\",\"worker_instance_id\":\"worker\",\"host_session_id\":\"host\",\"action_known\":true,\"action_succeeded\":%s,\"observe_valid\":true}\\n' $ok; done\n").unwrap();
@@ -177,6 +187,22 @@ mod tests {
         session.input.write_all(b"two\n").unwrap();session.input.flush().unwrap();
         assert!(String::from_utf8(session.output.recv_timeout(Duration::from_secs(2)).unwrap().unwrap()).unwrap().contains("\"action_succeeded\":false"));
         let mut slot=Some(session);CuaWorker::stop(&mut slot);drop(worker);std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sky_constructor_requires_exact_package_identity() {
+        let root=std::env::temp_dir().join(format!("yonda-sky-identity-{}",std::process::id()));
+        let package=root.join("node_modules/@oai/sky");
+        std::fs::create_dir_all(package.join("dist/project/cua/sky_js/src")).unwrap();
+        let sdk=package.join("dist/project/cua/sky_js/src/index.js");std::fs::write(&sdk,b"").unwrap();
+        let script=root.join("worker.mjs");std::fs::write(&script,b"").unwrap();
+        let evidence=root.join("evidence");std::fs::create_dir(&evidence).unwrap();
+        std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
+        assert!(CuaWorker::new_sky(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)).is_ok());
+        std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.8.0"}"#).unwrap();
+        assert!(matches!(CuaWorker::new_sky(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
 }

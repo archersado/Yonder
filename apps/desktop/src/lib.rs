@@ -268,6 +268,16 @@ fn macos_cua_resource_dir() -> Option<PathBuf> {
     let executable = std::env::current_exe().ok()?;
     Some(executable.parent()?.parent()?.join("Resources/cua"))
 }
+
+#[cfg(target_os = "macos")]
+fn external_sky_sdk() -> Option<PathBuf> {
+    let configured = std::env::var_os("YONDER_SKY_SDK_PATH").map(PathBuf::from);
+    let path = configured.unwrap_or_else(|| PathBuf::from(
+        "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules/@oai/sky/dist/project/cua/sky_js/src/index.js"
+    ));
+    let metadata = std::fs::symlink_metadata(&path).ok()?;
+    (path.is_absolute() && metadata.is_file() && !metadata.file_type().is_symlink()).then_some(path)
+}
 use yonder_application::{
     file::{FileCreateTargetRequest, FileReadRequest},
     file_authorization::{FileAuthorizationRegistry, FileGrantError, FileGrantPurpose, FileGrantSummary},
@@ -518,15 +528,22 @@ impl TaskHost {
             std::fs::create_dir_all(&evidence).map_err(|_| HostError::StorageUnavailable)?;
             std::fs::set_permissions(&evidence, std::fs::Permissions::from_mode(0o700))
                 .map_err(|_| HostError::StorageUnavailable)?;
-            macos_cua_resource_dir().and_then(|root| {
-                CuaWorker::new(
+            macos_cua_resource_dir().and_then(|root| match std::env::var("YONDER_CUA_DRIVER").as_deref() {
+                Ok("sky") => external_sky_sdk().and_then(|sdk| CuaWorker::new_sky(
+                    &root.join("node"),
+                    &root.join("sky_cua_worker.mjs"),
+                    &sdk,
+                    &evidence,
+                    Duration::from_secs(30),
+                ).ok()),
+                Ok("trycua") | Err(std::env::VarError::NotPresent) => CuaWorker::new(
                     &root.join("node"),
                     &root.join("cua_worker.mjs"),
                     &root.join("node_modules/@trycua/cua-driver/dist/index.js"),
                     &evidence,
                     Duration::from_secs(30),
-                )
-                .ok()
+                ).ok(),
+                _ => None,
             })
         };
         #[cfg(target_os = "macos")]

@@ -7,6 +7,13 @@
       "platforms": ["macos"]
     },
     {
+      "kind": "cua",
+      "name": "sky",
+      "platforms": ["macos"],
+      "distribution": "external",
+      "status": "experimental"
+    },
+    {
       "kind": "bua",
       "name": "ego-lite",
       "platforms": ["macos"]

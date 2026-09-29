@@ -12,10 +12,11 @@ result = {
     "jev_sdk_version": jev_package.get("version"),
     "node_present": (cua / "node").is_file(),
     "worker_matches": (cua / "cua_worker.mjs").read_bytes() == (root / "crates/adapters/src/cua_worker.mjs").read_bytes(),
+    "sky_worker_matches": (cua / "sky_cua_worker.mjs").read_bytes() == (root / "crates/adapters/src/sky_cua_worker.mjs").read_bytes(),
     "jev_worker_matches": (cua / "jev_worker.mjs").read_bytes() == (root / "crates/adapters/src/jev_worker.mjs").read_bytes(),
     "qwen_absent": not any((cua / "node_modules").rglob("*qwen*")),
 }
-result["passed"] = result["sdk_version"] == "0.25.0" and result["jev_sdk_version"] == "0.6.0" and all(result[key] for key in ("node_present", "worker_matches", "jev_worker_matches", "qwen_absent"))
+result["passed"] = result["sdk_version"] == "0.25.0" and result["jev_sdk_version"] == "0.6.0" and all(result[key] for key in ("node_present", "worker_matches", "sky_worker_matches", "jev_worker_matches", "qwen_absent"))
 evidence = root / "apps/desktop/evidence/cua-formal-runtime-20260918/result.json"
 evidence.parent.mkdir(parents=True, exist_ok=True)
 evidence.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")

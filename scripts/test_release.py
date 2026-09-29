@@ -53,6 +53,7 @@ class ReleaseManifestTest(unittest.TestCase):
             "Contents/Resources/driver-manifest.json": '{"version":"0.1.0"}\n',
             "Contents/Resources/release-contract.json": '{"version":"0.1.0"}\n',
             "Contents/Resources/cua/cua_worker.mjs": "export const worker = true;\n",
+            "Contents/Resources/cua/sky_cua_worker.mjs": "export const worker = true;\n",
             "Contents/Resources/cua/jev_worker.mjs": "export const worker = true;\n",
         }
         binary = {

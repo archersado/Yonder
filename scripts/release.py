@@ -131,6 +131,7 @@ MACOS_BUNDLE_EXACT_FILES = {
     "Contents/Resources/release-contract.json",
     "Contents/Resources/cua/node",
     "Contents/Resources/cua/cua_worker.mjs",
+    "Contents/Resources/cua/sky_cua_worker.mjs",
     "Contents/Resources/cua/jev_worker.mjs",
 }
 MACOS_BUNDLE_PREFIXES = (
@@ -172,6 +173,7 @@ OWNED_TEXT_FILES = {
     "Contents/Resources/driver-manifest.json",
     "Contents/Resources/release-contract.json",
     "Contents/Resources/cua/cua_worker.mjs",
+    "Contents/Resources/cua/sky_cua_worker.mjs",
     "Contents/Resources/cua/jev_worker.mjs",
 }
 SENSITIVE_TEXT_PATTERNS = (
