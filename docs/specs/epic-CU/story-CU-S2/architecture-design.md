@@ -67,3 +67,5 @@ Accepted AD-CU-05新增协议1.9/1.10。Application Supervisor生成完整执行
 ## 跨Space应用前置增量
 
 保持SDK动作原义：`launch_app`只启动，`bring_to_front`只前置。Worker在同一任务与SDK会话内缓存最近一次成功启动返回的bundle id、PID及最大普通窗口；每次Observe先用SDK应用清单按bundle id解析当前主进程，以容纳启动器向主进程交接PID，再仅为后续显式`bring_to_front`注入。缓存不进入协议、SQLite或日志。跨Space精确前置若被SDK拒绝，Agent可显式调用SDK的系统应用切换或Dock键盘动作并再次Observe。`target_visible`只在启动与显式前置步骤返回：后台启动按SDK契约为false；前置要求SDK已确认`bring_to_front`成功且后置窗口在屏幕上才为true。其他动作保持null，不用瞬时active或单独的on-screen状态猜测前台。进程交接、窗口重建或权限导致的Space三态未知不产生假失败。前置动作最多等待2秒吸收系统Space动画。Yonder不推断应用、不硬编码坐标、不调用系统脚本，也不把动作提交当成窗口可见。
+
+2026-09-29用户修订：企业微信等多窗口应用在跨Space前置时可能由应用自行切换内部窗口。产品步骤的目标是“可信目标应用已在前台”，不是冻结启动瞬间的窗口ID。若trycua精确窗口结果为partial，Worker只在同一次动作返回同时证明`request_accepted=true`、`process_activated=true`、前台进程与目标PID一致，并且随后按已验证bundle id刷新到当前Space可见普通窗口时，将该步骤收敛为应用级成功。缺少任一证据仍保持失败；不得仅凭用户肉眼可见、瞬时active或进程存在提升结果，也不增加第二执行栈。

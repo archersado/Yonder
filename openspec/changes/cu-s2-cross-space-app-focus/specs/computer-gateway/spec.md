@@ -18,3 +18,11 @@
 - **WHEN** SDK不能把目标窗口前置到当前Space
 - **THEN** Yonder返回动作失败且不伪报用户可见
 - **AND** Agent可显式组合SDK公布的Dock键盘动作并在每步后Observe
+
+#### Scenario: 多窗口应用切换内部窗口后应用级前置成功
+
+- **WHEN** `bring_to_front`因目标应用切换内部窗口而无法验证原窗口ID
+- **AND** SDK同次动作观察证明目标进程已成为当前工作区前台进程
+- **AND** Yonder按此前验证的bundle id刷新到当前Space可见普通窗口
+- **THEN** Yonder可将“前置目标应用”步骤判为成功并继续计划
+- **AND** 缺少任一证据时仍保持失败，不以请求接受或进程存在替代Observe
