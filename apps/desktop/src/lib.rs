@@ -69,8 +69,19 @@ impl CuaControlHub {
         let Ok(mut state) = self.0.lock() else { return false };
         if let Some(active) = state.as_mut() {
             if active.task_id != presentation.task_id { return false; }
+            let replanned = active.presentation.plan_status == "replanning" && presentation.plan_status == "available";
+            let submitted_steps = usize::from(presentation.remaining_steps).saturating_add(presentation.planned_steps.len());
             for step in &presentation.planned_steps { if step.state == "completed" { active.completed_step_ids.insert(step.step_id.clone()); } }
             for step in &mut presentation.planned_steps { if active.completed_step_ids.contains(&step.step_id) { step.state = "completed".into(); } }
+            if replanned {
+                let mut retained=active.presentation.planned_steps.iter().filter(|step|step.state=="completed").cloned().collect::<Vec<_>>();
+                for step in std::mem::take(&mut presentation.planned_steps) {
+                    if retained.iter().all(|old|old.step_id!=step.step_id){retained.push(step);}
+                }
+                if retained.len()>4 { retained=retained.split_off(retained.len()-4); }
+                presentation.planned_steps=retained;
+                presentation.slow_brain_summary=format!("慢脑已提交重新规划：{submitted_steps} 个步骤");
+            }
             active.presentation = presentation;
             active.executing_step_id = None;
             return true;
@@ -122,6 +133,23 @@ impl CuaControlHub {
         let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
         if active.executing_step_id.as_deref()==Some(step_id){active.executing_step_id=None;}
         if let Some(step)=active.presentation.planned_steps.iter_mut().find(|step|step.step_id==step_id){step.state="unverified".into();active.presentation.current_step=format!("待核实：{}",step.label);}
+    }
+
+    pub fn mark_replanning(&self,task_id:&str,reason:&str){
+        if reason.is_empty()||reason.len()>160||reason.contains('\0'){return}
+        let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
+        active.executing_step_id=None;
+        active.presentation.plan_status="replanning".into();
+        active.presentation.current_step="等待慢脑重新规划".into();
+        active.presentation.slow_brain_summary=format!("已交回慢脑：{reason}");
+        active.presentation.fast_brain_summary="快脑已停止，等待新计划".into();
+    }
+
+    pub fn mark_replan_delivery(&self,task_id:&str,state_name:&str){
+        let summary=match state_name{"accepted"=>"慢脑正在重新观察并规划","missing"=>"等待慢脑连接","ambiguous"=>"等待选择唯一慢脑会话",_=>"慢脑唤醒失败，可从任务继续"};
+        let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id&&active.presentation.plan_status=="replanning") else{return};
+        active.presentation.current_step=summary.into();
+        active.presentation.slow_brain_summary=summary.into();
     }
 
     pub fn presentation(&self) -> Option<CuaControlPresentation> {
@@ -1365,6 +1393,30 @@ mod tests {
         let presentation=hub.presentation().unwrap();
         assert_eq!(presentation.current_step,"计划片段已完成");
         assert_eq!(presentation.plan_status,"complete");
+    }
+
+    #[test]
+    fn cua_control_hub_summarizes_handback_and_replanned_fragment() {
+        let hub=CuaControlHub::default();
+        assert!(hub.begin(CuaControlPresentation { task_id:"task-a".into(), desktop_control:true, current_step:"旧步骤".into(), planned_steps:vec![
+            CuaControlStepPresentation { step_id:"old-done".into(), label:"已完成步骤".into(), state:"completed".into() },
+            CuaControlStepPresentation { step_id:"old-failed".into(), label:"失败步骤".into(), state:"unverified".into() },
+        ], remaining_steps:1, plan_status:"available".into(), slow_brain_summary:"慢脑已提交 3 个受限步骤".into(), fast_brain_summary:"等待评估".into() }));
+        hub.mark_replanning("task-a","需要慢脑重新 Observe 或规划");
+        hub.mark_replan_delivery("task-a","accepted");
+        let replanning=hub.presentation().unwrap();
+        assert_eq!(replanning.plan_status,"replanning");
+        assert_eq!(replanning.current_step,"慢脑正在重新观察并规划");
+        assert_eq!(replanning.planned_steps[1].state,"unverified");
+
+        assert!(hub.begin(CuaControlPresentation { task_id:"task-a".into(), desktop_control:true, current_step:"新步骤一".into(), planned_steps:vec![
+            CuaControlStepPresentation { step_id:"new-1".into(), label:"新步骤一".into(), state:"pending".into() },
+            CuaControlStepPresentation { step_id:"new-2".into(), label:"新步骤二".into(), state:"pending".into() },
+        ], remaining_steps:0, plan_status:"available".into(), slow_brain_summary:"慢脑已提交 2 个受限步骤".into(), fast_brain_summary:"等待评估".into() }));
+        let replanned=hub.presentation().unwrap();
+        assert_eq!(replanned.slow_brain_summary,"慢脑已提交重新规划：2 个步骤");
+        assert!(replanned.planned_steps.iter().any(|step|step.step_id=="old-done"&&step.state=="completed"));
+        assert!(replanned.planned_steps.iter().any(|step|step.step_id=="new-1"));
     }
 
     #[test]

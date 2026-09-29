@@ -6,7 +6,7 @@ use yonder_application::agent_input::{AgentInputAttachment, AgentInputParams, Ag
 pub(crate) struct Delivery { pub input: AgentInputParams, pub attachment: Option<AgentInputAttachment>, pub reply: mpsc::Sender<DeliveryOutcome> }
 
 #[derive(Clone)]
-struct SessionSink { agent_id: String, session_id: String, supports_attachment: bool, tx: tokio_mpsc::UnboundedSender<Delivery>, close: tokio_mpsc::UnboundedSender<()> }
+struct SessionSink { agent_id: String, session_id: String, supports_attachment: bool, supports_replan:bool, tx: tokio_mpsc::UnboundedSender<Delivery>, close: tokio_mpsc::UnboundedSender<()> }
 
 impl AgentInputSink for SessionSink {
     fn deliver(&self, input: AgentInputParams, attachment: Option<AgentInputAttachment>) -> DeliveryOutcome {
@@ -25,11 +25,11 @@ pub struct AgentInputHub { inner: Arc<Mutex<HubState>>, next_input: Arc<AtomicU6
 struct HubState { sessions: HashMap<String, (u64, SessionSink)>, active: Option<String> }
 
 impl AgentInputHub {
-    pub(crate) fn register(&self, agent_id: String, session_id: String, supports_attachment: bool, tx: tokio_mpsc::UnboundedSender<Delivery>, close: tokio_mpsc::UnboundedSender<()>) -> (u64, bool) {
+    pub(crate) fn register(&self, agent_id: String, session_id: String, supports_attachment: bool, supports_replan:bool, tx: tokio_mpsc::UnboundedSender<Delivery>, close: tokio_mpsc::UnboundedSender<()>) -> (u64, bool) {
         let token = self.next_session.fetch_add(1, Ordering::Relaxed) + 1;
         let connected = if let Ok(mut state) = self.inner.lock() {
             let replacing = state.sessions.contains_key(&session_id);
-            state.sessions.insert(session_id.clone(), (token, SessionSink { agent_id, session_id: session_id.clone(), supports_attachment, tx, close }));
+            state.sessions.insert(session_id.clone(), (token, SessionSink { agent_id, session_id: session_id.clone(), supports_attachment, supports_replan, tx, close }));
             if state.sessions.len() == 1 || replacing && state.active.as_deref() == Some(&session_id) { state.active = Some(session_id); }
             else if !replacing { state.active = None; }
             true
@@ -113,6 +113,29 @@ impl AgentInputHub {
         let id = format!("input_{}_{}", std::process::id(), self.next_input.fetch_add(1, Ordering::Relaxed) + 1);
         Ok(submit(&sink, &id, &sink.session_id, AgentInputSource::Voice, content, now))
     }
+
+    pub fn deliver_replan(&self, agent_id: &str, task_id: &str, sequence: &str, reason: &str) -> Result<DeliveryOutcome, &'static str> {
+        if !yonder_application::valid_id(task_id)
+            || sequence.parse::<u64>().is_err()
+            || reason.is_empty()
+            || reason.len() > 160
+            || reason.contains('\0')
+        {
+            return Err("重新规划唤醒内容无效");
+        }
+        let sink = {
+            let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
+            let mut sessions = state.sessions.values().filter(|(_, sink)| sink.agent_id == agent_id && sink.supports_replan).map(|(_, sink)| sink.clone());
+            let sink = sessions.next().ok_or("任务归属Agent未连接")?;
+            if sessions.next().is_some() { return Err("任务归属Agent存在多个会话"); }
+            sink
+        };
+        let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "系统时间不可用")?.as_millis()).map_err(|_| "系统时间不可用")?;
+        let suffix = self.next_input.fetch_add(1, Ordering::Relaxed) + 1;
+        let id = format!("replan_{}_{}", std::process::id(), suffix);
+        let content = format!("Yonder任务 {task_id} 在序号 {sequence} 已交回慢脑：{reason}。请先通过现有Gateway读取task.get与task.events取得新鲜事实，再重新规划并提交新的受限计划片段；不要自动重试结果待核实的副作用。");
+        Ok(submit(&sink, &id, &sink.session_id, AgentInputSource::Replan, &content, now))
+    }
 }
 
 #[cfg(test)]
@@ -126,9 +149,9 @@ mod tests {
         let (second,mut second_rx)=tokio_mpsc::unbounded_channel();
         let (first_close, _)=tokio_mpsc::unbounded_channel();
         let (second_close, _)=tokio_mpsc::unbounded_channel();
-        let (first_token, connected)=hub.register("agent-a".into(),"session-a".into(),false,first,first_close);
+        let (first_token, connected)=hub.register("agent-a".into(),"session-a".into(),false,false,first,first_close);
         assert!(connected && hub.connected());
-        let (second_token, _)=hub.register("agent-b".into(),"session-b".into(),true,second,second_close);
+        let (second_token, _)=hub.register("agent-b".into(),"session-b".into(),true,false,second,second_close);
         let worker=std::thread::spawn(move||{
             assert!(first_rx.try_recv().is_err());
             let delivery=second_rx.blocking_recv().unwrap();
@@ -155,7 +178,7 @@ mod tests {
         let hub=AgentInputHub::default();
         let (tx,mut rx)=tokio_mpsc::unbounded_channel();
         let (close_tx,_)=tokio_mpsc::unbounded_channel();
-        hub.register("agent-a".into(),"session-a".into(),false,tx,close_tx);
+        hub.register("agent-a".into(),"session-a".into(),false,false,tx,close_tx);
         let worker=std::thread::spawn(move||{
             let delivery=rx.blocking_recv().unwrap();
             assert_eq!(delivery.input.source,AgentInputSource::Selection);
@@ -167,11 +190,29 @@ mod tests {
     }
 
     #[test]
+    fn replan_wake_targets_only_the_unique_owner_session() {
+        let hub=AgentInputHub::default();
+        let (tx,mut rx)=tokio_mpsc::unbounded_channel();
+        let (close_tx,_)=tokio_mpsc::unbounded_channel();
+        hub.register("agent-a".into(),"session-a".into(),false,true,tx,close_tx);
+        let worker=std::thread::spawn(move||{
+            let delivery=rx.blocking_recv().unwrap();
+            assert_eq!(delivery.input.source,AgentInputSource::Replan);
+            assert!(delivery.input.content.contains("task_1")&&delivery.input.content.contains("序号 8"));
+            assert!(delivery.attachment.is_none());
+            delivery.reply.send(DeliveryOutcome::Accepted).unwrap();
+        });
+        assert_eq!(hub.deliver_replan("agent-a","task_1","8","需要慢脑重新 Observe 或规划"),Ok(DeliveryOutcome::Accepted));
+        assert_eq!(hub.deliver_replan("agent-b","task_1","8","需要慢脑重新 Observe 或规划"),Err("任务归属Agent未连接"));
+        worker.join().unwrap();
+    }
+
+    #[test]
     fn disconnect_agent_removes_its_sessions() {
         let hub = AgentInputHub::default();
         let (tx, mut rx) = tokio_mpsc::unbounded_channel();
         let (close_tx, mut close_rx) = tokio_mpsc::unbounded_channel();
-        hub.register("agent-a".into(), "session-a".into(), false, tx, close_tx);
+        hub.register("agent-a".into(), "session-a".into(), false, false, tx, close_tx);
         assert!(hub.connected());
         assert!(!hub.disconnect_agent("agent-a"));
         assert!(!hub.connected());

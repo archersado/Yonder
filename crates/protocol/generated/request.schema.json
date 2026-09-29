@@ -1359,7 +1359,8 @@
       "type": "string",
       "enum": [
         "user_input",
-        "user_input_attachment"
+        "user_input_attachment",
+        "replan_input"
       ]
     },
     "PlanCandidateParams": {

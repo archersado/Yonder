@@ -603,6 +603,19 @@ mod tests {
         assert_eq!(terminal_task_id(running.as_bytes()), None);
         assert_eq!(terminal_task_id(rejected.as_bytes()), None);
     }
+
+    #[test]
+    fn handback_response_exposes_only_bounded_replan_wake() {
+        let handback=r#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"plan","task_id":"task_1","plan_id":"plan_1","plan_version":1,"sequence":"8","disposition":"handback","handoff_reason":"需要慢脑重新 Observe 或规划"}}"#;
+        assert_eq!(replan_wake(handback.as_bytes()),Some(ReplanWake{task_id:"task_1".into(),sequence:"8".into(),reason:"需要慢脑重新 Observe 或规划".into()}));
+        let complete=handback.replace("handback","fragment-complete");
+        assert_eq!(replan_wake(complete.as_bytes()),None);
+
+        let request=r#"{"jsonrpc":"2.0","id":"r1","method":"task.plan.submit","params":{"agent_id":"agent","capability":"task.plan.submit","deadline":2000,"task_id":"task_1","expected_sequence":"8","plan_id":"plan_2","plan_version":2,"token_budget":10,"slots":[{"step_id":"step_1","label":"重新观察","candidates":[{"candidate_id":"observe","tool_name":"bring_to_front","arguments":{},"action_kind":"bring-to-front","target_ref":"target","preconditions":[{"fact":"application-ready","expected":true}],"expected_observe":[{"fact":"target-resolved","expected":true}]}]}]}}"#;
+        let accepted=r#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"plan","task_id":"task_1","plan_id":"plan_2","plan_version":2,"sequence":"9","disposition":"accepted"}}"#;
+        assert_eq!(accepted_plan_presentation_hint(request.as_bytes(),accepted.as_bytes(),"agent",1000),Some(ExecutionPresentationHint::PlanSlot{task_id:"task_1".into(),plan_id:"plan_2".into(),plan_version:2}));
+        assert_eq!(accepted_plan_presentation_hint(request.as_bytes(),accepted.as_bytes(),"other",1000),None);
+    }
 }
 
 impl<'a> GatewaySession<'a> {
@@ -1509,8 +1522,10 @@ impl<'a> GatewaySession<'a> {
                 self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
                 self.can_fail=self.can_complete&&params.protocol_version.minor>=18;
                 if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let can_replan_input = params.protocol_version.minor >= 33
+                    && params.offered_capabilities.as_deref().is_some_and(|value| value.contains(&yonder_protocol::OfferedCapability::ReplanInput));
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("支持非终态任务直接取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
@@ -1553,6 +1568,61 @@ fn plan_handoff_reason(disposition: &str) -> Option<&'static str> {
         "slow-brain-required" => Some("需要慢脑安排本机发送确认"),
         _ => None,
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReplanWake {
+    pub task_id: String,
+    pub sequence: String,
+    pub reason: String,
+}
+
+/// 只从已编码成功响应提取交回唤醒事实；调用方必须在响应写回且执行锁释放后投递。
+pub fn replan_wake(bytes: &[u8]) -> Option<ReplanWake> {
+    let yonder_protocol::Response::Success {
+        result:
+            yonder_protocol::QueryResult::Plan {
+                task_id,
+                sequence,
+                disposition,
+                handoff_reason: Some(reason),
+                ..
+            },
+        ..
+    } = yonder_protocol::decode_response(bytes).ok()?
+    else {
+        return None;
+    };
+    (disposition == "handback"
+        && crate::valid_id(&task_id)
+        && yonder_protocol::sequence(&sequence).is_ok()
+        && !reason.is_empty()
+        && reason.len() <= 160
+        && !reason.contains('\0'))
+    .then_some(ReplanWake {
+        task_id,
+        sequence,
+        reason,
+    })
+}
+
+pub fn accepted_plan_presentation_hint(
+    request: &[u8],
+    response: &[u8],
+    agent_id: &str,
+    now_ms: u64,
+) -> Option<ExecutionPresentationHint> {
+    let yonder_protocol::Request::PlanSubmit { params, .. } = yonder_protocol::decode(request).ok()? else { return None };
+    if params.agent_id != agent_id || params.deadline <= now_ms { return None; }
+    let yonder_protocol::Response::Success {
+        result: yonder_protocol::QueryResult::Plan { task_id, plan_id, plan_version, disposition, .. },
+        ..
+    } = yonder_protocol::decode_response(response).ok()? else { return None };
+    (disposition == "accepted"
+        && task_id == params.task_id
+        && plan_id == params.plan_id
+        && plan_version == params.plan_version)
+        .then_some(ExecutionPresentationHint::PlanSlot { task_id, plan_id, plan_version })
 }
 
 fn snapshot(task: crate::Task) -> TaskSnapshot {

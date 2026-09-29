@@ -1,8 +1,8 @@
 // 从 Rust 自动生成，请勿手改。
 export type Version = "2.0";
 export type Capability = "task.read" | "task.create" | "task.cancel" | "task.complete" | "task.fail" | "task.control" | "task.wait-for-user" | "task.step.declare" | "task.step.advance" | "browser.execute" | "computer.execute" | "task.plan.submit" | "task.plan.execute" | "file.grant.read" | "file.execute" | "document.execute" | "command.propose" | "command.execute";
-export type OfferedCapability = "user_input" | "user_input_attachment";
-export type AgentInputSource = "voice" | "selection";
+export type OfferedCapability = "user_input" | "user_input_attachment" | "replan_input";
+export type AgentInputSource = "voice" | "selection" | "replan";
 export type AgentAttachmentMime = "image/png" | "image/jpeg" | "image/webp";
 export type AgentAttachmentBeginParams = { attachment_id: string, session_id: string, mime: AgentAttachmentMime, byte_length: number, sha256: string, deadline: number, };
 export type AgentAttachmentChunkParams = { attachment_id: string, session_id: string, sequence: number, data_base64: string, };

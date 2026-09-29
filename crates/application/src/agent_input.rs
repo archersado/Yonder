@@ -1,6 +1,6 @@
 pub use yonder_protocol::{AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams, AgentAttachmentMime, AgentInputParams, AgentInputSource, AgentRequest, AgentResponse, Version};
 
-pub fn registration(bytes:&[u8])->Option<(String,String,bool)>{yonder_protocol::input_registration(bytes)}
+pub fn registration(bytes:&[u8])->Option<(String,String,bool,bool)>{yonder_protocol::input_registration(bytes)}
 pub fn hello_accepted(bytes:&[u8])->bool{matches!(yonder_protocol::decode_response(bytes),Ok(yonder_protocol::Response::Success{..}))}
 pub fn encode_request(request:&AgentRequest)->Result<Vec<u8>,yonder_protocol::RpcError>{yonder_protocol::encode_agent_request(request).map_err(|_|yonder_protocol::RpcError::new(-32603,"Agent输入编码失败"))}
 pub fn decode_response(bytes:&[u8])->Result<AgentResponse,yonder_protocol::RpcError>{yonder_protocol::decode_agent_response(bytes).map_err(|_|yonder_protocol::RpcError::new(-32700,"Agent确认无效"))}

@@ -232,7 +232,8 @@
       "type": "string",
       "enum": [
         "voice",
-        "selection"
+        "selection",
+        "replan"
       ]
     },
     "Version": {

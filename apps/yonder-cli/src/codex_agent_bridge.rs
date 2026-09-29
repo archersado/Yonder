@@ -356,11 +356,11 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
             deadline: now_ms()?.saturating_add(10_000),
             protocol_version: ProtocolVersion {
                 major: PROTOCOL_VERSION.major,
-                // 桥只使用 agent.input 文本通道；钉在 1.14+ 既有能力，不随新版本隐式扩权。
-                minor: 19,
+                // 交回唤醒使用1.33的replan输入来源；仍只扩展既有agent.input通道。
+                minor: PROTOCOL_VERSION.minor,
             },
             session_id: Some(thread_id.clone()),
-            offered_capabilities: Some(vec![OfferedCapability::UserInput]),
+            offered_capabilities: Some(vec![OfferedCapability::UserInput,OfferedCapability::ReplanInput]),
         },
     };
     send_yonder(&stream, &hello).await?;

@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 32 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 33 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -92,6 +92,8 @@ pub enum OfferedCapability {
     UserInput,
     #[serde(rename = "user_input_attachment")]
     UserInputAttachment,
+    #[serde(rename = "replan_input")]
+    ReplanInput,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -125,6 +127,7 @@ pub struct HelloParams {
 pub enum AgentInputSource {
     Voice,
     Selection,
+    Replan,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1622,10 +1625,15 @@ impl Request {
                     .offered_capabilities
                     .as_deref()
                     .is_some_and(|value| value.contains(&OfferedCapability::UserInputAttachment));
+                let offers_replan = params
+                    .offered_capabilities
+                    .as_deref()
+                    .is_some_and(|value| value.contains(&OfferedCapability::ReplanInput));
                 if params.session_id.is_some() != offers_input
                     || params.session_id.as_deref().is_some_and(|id| !valid_id(id))
                     || offers_input && params.protocol_version.minor < 14
                     || offers_attachment && (!offers_input || params.protocol_version.minor < 19)
+                    || offers_replan && (!offers_input || params.protocol_version.minor < 33)
                 {
                     return Err(RpcError::new(-32602, "非法Agent会话声明"));
                 }
@@ -1749,7 +1757,7 @@ pub fn decode_agent_response(bytes: &[u8]) -> Result<AgentResponse, serde_json::
     serde_json::from_slice(bytes)
 }
 
-pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool)> {
+pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool, bool)> {
     match decode(bytes).ok()? {
         Request::Hello { params, .. }
             if params.protocol_version.minor >= 14
@@ -1763,7 +1771,12 @@ pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool)> {
                     .offered_capabilities
                     .as_deref()
                     .is_some_and(|value| value.contains(&OfferedCapability::UserInputAttachment));
-            Some((params.agent_id, params.session_id?, attachments))
+            let replans = params.protocol_version.minor >= 33
+                && params
+                    .offered_capabilities
+                    .as_deref()
+                    .is_some_and(|value| value.contains(&OfferedCapability::ReplanInput));
+            Some((params.agent_id, params.session_id?, attachments, replans))
         }
         _ => None,
     }
@@ -2325,7 +2338,7 @@ mod tests {
         assert!(decode(&hello).unwrap().validate(1000).is_ok());
         assert_eq!(
             input_registration(&hello),
-            Some(("a1".into(), "s1".into(), true))
+            Some(("a1".into(), "s1".into(), true, false))
         );
 
         let begin = AgentAttachmentBeginParams {
@@ -2373,6 +2386,25 @@ mod tests {
                 .validate(1000)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn replan_input_requires_protocol_1_33_and_user_input() {
+        let hello = serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":33},"session_id":"s1","offered_capabilities":["user_input","replan_input"]}});
+        let hello = serde_json::to_vec(&hello).unwrap();
+        assert!(decode(&hello).unwrap().validate(1000).is_ok());
+        assert_eq!(
+            input_registration(&hello),
+            Some(("a1".into(), "s1".into(), false, true))
+        );
+
+        for value in [
+            serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":32},"session_id":"s1","offered_capabilities":["user_input","replan_input"]}}),
+            serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":33},"session_id":"s1","offered_capabilities":["replan_input"]}}),
+        ] {
+            let bytes = serde_json::to_vec(&value).unwrap();
+            assert!(decode(&bytes).unwrap().validate(1000).is_err());
+        }
     }
 
     #[test]
