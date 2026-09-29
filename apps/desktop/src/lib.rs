@@ -26,6 +26,7 @@ use yonder_application::{
     browser_use::BrowserUsePort,
     computer_use::{ComputerUsePort, WorkTarget, WorkTargetPort},
     command_approval::{CommandApprovalError, CommandApprovalPreview, CommandApprovalRegistry, CommandApprovalSummary},
+    execution_runtime::{ExecutionRuntime, RuntimeProjectionWorker},
     jev_config::JevConfig,
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
@@ -422,6 +423,9 @@ pub fn emit_pet_agent_connection(window: &WebviewWindow, connected: bool) {
 
 pub struct TaskHost {
     store: SqliteTaskStore,
+    // projector 必须先于 runtime 停止，避免退出时留下仍在读取 mailbox 的线程。
+    _runtime_projector: RuntimeProjectionWorker,
+    runtime: ExecutionRuntime,
     admission: Admission,
     files: ControlledFileAdapter,
     documents: OoxmlDocumentAdapter,
@@ -480,6 +484,17 @@ impl TaskHost {
             .map_err(|_| HostError::StorageUnavailable)?
             != 0
         {}
+        let runtime = ExecutionRuntime::with_defaults()
+            .map_err(|_| HostError::StorageUnavailable)?;
+        let projector_store = SqliteTaskStore::open_unencrypted(&directory.join("tasks.db"))
+            .map_err(|_| HostError::StorageUnavailable)?;
+        let runtime_projector = RuntimeProjectionWorker::start(
+            runtime.handle(),
+            projector_store,
+            64,
+            Duration::from_millis(50),
+        )
+        .map_err(|_| HostError::StorageUnavailable)?;
         // 当前只读宿主尚无执行器；后续执行必须共用此实例。
         let admission = Admission::new(4).map_err(|_| HostError::StorageUnavailable)?;
         #[cfg(target_os = "macos")]
@@ -522,6 +537,8 @@ impl TaskHost {
         });
         Ok(Self {
             store,
+            _runtime_projector: runtime_projector,
+            runtime,
             admission,
             files: ControlledFileAdapter::default(),
             documents: OoxmlDocumentAdapter,
@@ -554,6 +571,11 @@ impl TaskHost {
         self.admission
             .has_resource(yonder_application::admission::Resource::Desktop)
             .map_err(|_| HostError::StorageUnavailable)
+    }
+
+    /// 供 Gateway 执行入口注入同一个进程内 Runtime；不得据此复制第二个状态所有者。
+    pub fn execution_runtime(&self) -> yonder_application::execution_runtime::ExecutionRuntimeHandle {
+        self.runtime.handle()
     }
 
     #[cfg(target_os = "macos")]
@@ -1184,6 +1206,41 @@ impl TaskHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn task_host_projects_runtime_events_on_a_separate_sqlite_connection() {
+        let directory = std::env::temp_dir().join(format!(
+            "yonda-runtime-projector-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host = TaskHost::open(&directory).unwrap();
+        let task = host
+            .store
+            .create("runtime-task", "agent-a", yonder_application::TaskSource::LocalAgent)
+            .unwrap();
+        host.execution_runtime()
+            .apply(yonder_application::execution_runtime::RuntimeCommand::Activate {
+                task_id: task.id.clone(),
+                checkpoint: task.sequence,
+            })
+            .unwrap();
+        for _ in 0..100 {
+            let projected = host.store.get(&task.id).unwrap();
+            if projected.sequence == 2 {
+                assert_eq!(projected.status, yonder_application::Status::Running);
+                drop(host);
+                std::fs::remove_dir_all(directory).unwrap();
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("运行时事件未被异步 projector 提交");
+    }
 
     #[test]
     fn cua_control_does_not_hide_a_new_agent_task() {
