@@ -5,6 +5,8 @@ Epic: EX
 Status: implementing
 OpenSpec: ex-s2-plan-fragment-macos
 
+实施 Change：[openspec/changes/ex-s2-plan-fragment-macos/](../../../../openspec/changes/ex-s2-plan-fragment-macos/proposal.md)
+
 本轮实施 Accepted AD-AG-09 的受限 macOS CUA 计划片段基线；macOS-only 有界 Jev 决策接线已经完成并归档。Windows 原生验证及跨 Driver 的 Recipe/DSL 仍不在本轮范围。
 
 设计：[产品需求](product-requirements.md) · [架构设计](architecture-design.md) · [视觉交互设计](visual-interaction-design.md)。
