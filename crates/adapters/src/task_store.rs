@@ -3947,6 +3947,21 @@ mod tests {
                 }
             }
         }
+        struct FailingPort(Mutex<Vec<String>>);
+        impl ComputerUsePort for FailingPort {
+            fn dispatch(
+                &self,
+                _: &ExecutionAttempt,
+                _: &WorkTarget,
+                action: &ComputerAction,
+            ) -> DispatchOutcome {
+                self.0.lock().unwrap().push(action.tool_name.clone());
+                DispatchOutcome::Known {
+                    action_succeeded: false,
+                    observation: None,
+                }
+            }
+        }
         struct TakeoverPort(Mutex<Vec<String>>);
         impl ComputerUsePort for TakeoverPort {
             fn dispatch(
@@ -4101,7 +4116,7 @@ mod tests {
         let budget_port = Port(Mutex::new(Vec::new()));
         let budget_config = JevConfig {
             step_limit: 1,
-            ..config
+            ..config.clone()
         };
         let (budget_result, budget_disposition) = execute_available(
             &mut store,
@@ -4139,6 +4154,52 @@ mod tests {
             Some("计划片段步数预算已耗尽")
         );
         assert_eq!(budget_result.status, Status::Running);
+
+        let failed_task = create(&mut store, "failed-plan").unwrap();
+        let failed_fragment = PlanFragment {
+            task_id: failed_task.id.clone(),
+            plan_id: "failed-plan-v1".into(),
+            expected_sequence: failed_task.sequence,
+            ..fragment.clone()
+        };
+        let failed_submitted = store.submit_plan_fragment("a1", &failed_fragment).unwrap();
+        let failed_port = FailingPort(Mutex::new(Vec::new()));
+        let (failed_result, failed_disposition) = execute_available(
+            &mut store,
+            &Admission::new(1).unwrap(),
+            &failed_port,
+            &Target,
+            &config,
+            &MustNotChoose,
+            AuthContext::Agent("a1"),
+            &failed_task.id,
+            &failed_fragment.plan_id,
+            1,
+            failed_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
+        assert_eq!(failed_disposition, "handback");
+        assert_eq!(*failed_port.0.lock().unwrap(), vec!["launch_app"]);
+        assert_eq!(failed_result.status, Status::Running);
+        assert_eq!(
+            store
+                .get_plan_fragment(&failed_task.id, &failed_fragment.plan_id, 1)
+                .unwrap()
+                .unwrap()
+                .current_slot,
+            0
+        );
+        assert_eq!(
+            store
+                .get_presentation(&failed_task.id)
+                .unwrap()
+                .1
+                .next_intent
+                .as_deref(),
+            Some("需要慢脑重新 Observe 或规划")
+        );
 
         let takeover_task = create(&mut store, "takeover-plan").unwrap();
         let takeover_fragment = PlanFragment {

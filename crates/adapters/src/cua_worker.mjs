@@ -92,7 +92,11 @@ try {
         }
         response.failure_stage = 'action';
         const action = await driver.callTool(request.tool_name, JSON.stringify(actionArgs));
-        const actionResult = action.isError ? {} : structured(action);
+        // trycua 会用 isError=true 表达 partial/refused，但结构化正文仍携带
+        // request_accepted、前台进程和精确窗口后置事实。错误位决定动作不能
+        // 直接成功，不代表这些证据可以丢弃；应用级前置收敛仍需后续可见
+        // Observe 与这些同次动作事实共同成立。
+        const actionResult = structured(action);
         if (!action.isError && request.tool_name === 'launch_app') {
           const launched = actionResult;
           const window = launched.windows?.filter(item => Number.isInteger(item.window_id))

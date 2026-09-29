@@ -21,6 +21,7 @@
 - APP-FOCUS-03：跨Space前置必须经后置Observe证明用户当前可见；SDK拒绝时不得报告成功，可由Agent显式组合SDK公布的Dock键盘动作后再次Observe。
 - APP-FOCUS-04：不得使用硬编码Dock坐标、AppleScript或第二套桌面动作实现。
 - APP-FOCUS-05（2026-09-29用户变更）：任务意图为前置目标应用时，不要求启动瞬间记录的精确窗口ID保持不变。只有SDK后置观察同时证明目标进程成为当前工作区前台进程，且按可信bundle id刷新后存在当前Space可见普通窗口，才可把应用前置判为成功；仅请求已接受、进程已激活或任意窗口可见均不足以放行。
+- APP-FOCUS-06（2026-09-29用户澄清）：企业微信等应用在用户视角只有一个业务窗口时，WindowServer暴露的标题栏、辅助层或跨Space记录不得被解释为多个业务窗口。Driver以错误状态返回的结构化partial证据仍须被消费：若后置Observe未证明业务窗口在当前Space可见，当前片段立即停止并交回归属慢脑重新Observe或规划，不得卡在执行中，也不得伪报成功。
 
 AD-TM-08 已接受尝试准备子范围；本轮受监管派发与后置 Observe 以 [AD-CU-04](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-CU-04-SUPERVISED-DISPATCH-OBSERVE.md) 为实施决定。后文保留的 `Proposed` 是 2026-09-14 历史审阅状态。
 

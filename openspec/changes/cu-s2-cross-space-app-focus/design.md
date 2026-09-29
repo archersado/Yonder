@@ -5,3 +5,5 @@ Node Worker在同一受监管SDK会话内暂存最近一次成功`launch_app`返
 Yonder不把`launch_app`隐式组合为其他动作。SDK精确前置失败时保持失败，Agent可显式调用SDK的系统应用切换或Dock键盘导航工具后再次Observe；禁止系统脚本、硬编码Dock坐标或第二执行栈。屏幕截图不可用时，Worker用SDK `list_apps`按bundle id刷新主进程，再以`list_windows`派生可选`target_visible`。后台启动按SDK契约返回false；显式前置步骤要求`bring_to_front`成功与后置窗口可见；其他动作返回null，避免用瞬时active或单独的on-screen状态猜测前台。`on_current_space=null`保持SDK三态语义，不误判为false。前置动作最多等待2秒吸收Space动画。不返回完整SDK Payload或窗口身份。
 
 2026-09-29用户变更：当计划语义是前置应用，应用在动作中重建或切换内部窗口不应因旧窗口ID失配而永久卡住。精确窗口结果为partial时，仅允许以SDK同次返回的目标进程前台证明，加上按已验证bundle id完成的当前Space可见普通窗口刷新，共同收敛为应用级成功。请求接受、进程激活或单独可见均不是充分条件；真实目标进程未成为前台时仍失败。
+
+SDK可用`isError=true`返回带结构化字段的partial结果；Worker必须保留并校验其中的请求、进程与前台事实，不能因错误位而丢弃证据。企业微信只有一个用户可见业务窗口，WindowServer辅助记录不等同于多个业务窗口。后置刷新仍未证明当前Space可见时，步骤保持失败并立即交回慢脑；交回通过既有Gateway响应、任务事件与Outbox暴露，不在Yonder内生成第二套规划器。

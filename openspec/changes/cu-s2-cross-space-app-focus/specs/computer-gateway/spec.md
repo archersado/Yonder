@@ -26,3 +26,10 @@
 - **AND** Yonder按此前验证的bundle id刷新到当前Space可见普通窗口
 - **THEN** Yonder可将“前置目标应用”步骤判为成功并继续计划
 - **AND** 缺少任一证据时仍保持失败，不以请求接受或进程存在替代Observe
+
+#### Scenario: 单一业务窗口的辅助记录不阻塞重规划
+
+- **WHEN** 用户视角只有一个业务窗口，但Driver枚举到标题栏、辅助层或跨Space记录
+- **AND** 精确前置以错误状态返回结构化partial，且后置Observe未证明业务窗口在当前Space可见
+- **THEN** Yonder保留并校验partial证据，但不得把辅助记录解释为多个业务窗口或伪报成功
+- **AND** 当前片段停止剩余槽位并通过既有Gateway响应、事件与Outbox交回归属慢脑重新Observe或规划

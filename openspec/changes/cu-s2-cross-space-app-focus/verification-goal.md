@@ -13,3 +13,5 @@
 真实企业微信计划复现了启动后窗口重建：原 Worker 在显式 `bring_to_front` 的前置 Observe 仍使用宿主启动前目标，只在动作完成后刷新已启动应用。实现已改为动作前按已验证 bundle id 刷新 PID 与最大普通窗口，前置 Observe、SDK 参数和后置 Observe 因而使用同一新鲜目标。产品 Worker 独立样本结果为：`launch_app action_succeeded=true`、`bring_to_front action_succeeded=true`、两步 `observe_valid=true`、前置后 `target_visible=true`。
 
 正式 Gateway 四槽位样本没有伪报通过：跨 Space `bring_to_front` 期间 trycua 产生了 5 个 `left-mouse-down`，CoreGraphics 报告来源 PID=0、user-data=0；现有 HID 监控无法把它与真实物理点击可靠区分，因此任务按 `unknown/user-input` 转为 `interrupted`，未继续执行按键或发送。历史 PASS 证据保持有效，但当前系统版本上的完整跨 Space Gateway 复测属于安全阻塞；不得用时间窗口或忽略 PID=0 点击规避。Windows继续暂缓。
+
+2026-09-29 单一企业微信业务窗口复测：trycua 0.25.0 与 0.30.4 均把WindowServer辅助记录作为PID-only歧义候选；精确目标`179044`返回partial，同次证据确认目标进程及AX焦点窗口，但业务窗口仍未在当前Space可见，因此不得升级为成功。修复Worker丢弃`isError=true`结构化正文的问题后，`apps/desktop/check-cua-partial-handback.py`隔离验证证明partial证据可被消费，且仅在后置当前Space可见时收敛成功。Adapter集成回归进一步证明动作失败即停止剩余槽位、片段游标不前移并写出“需要慢脑重新 Observe 或规划”；不得在Yonder内生成语义replan。
