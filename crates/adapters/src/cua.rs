@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::{fs, io::{BufRead, BufReader, Write}, path::{Path, PathBuf}, process::{Child, ChildStdin, Command, Stdio}, sync::{Mutex, mpsc}, time::{Duration,Instant}};
+#[cfg(target_os="macos")]
+use std::ffi::CString;
 use yonder_application::{ExecutionAttempt, computer_use::{ComputerAction, ComputerObservation, ComputerUsePort, DispatchOutcome, UnknownReason, WorkTarget, WorkTargetPort}};
 
 #[cfg(target_os="macos")]
-unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; }
+unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; fn yonda_sky_app_focus(bundle_id:*const std::ffi::c_char)->i32; }
 
 #[cfg(target_os="macos")]
 pub struct MacosFrontmostTarget;
@@ -14,9 +16,12 @@ impl WorkTargetPort for MacosFrontmostTarget {
     fn frontmost(&self)->Result<WorkTarget,UnknownReason>{let(mut pid,mut window_id)=(0,0);let code=unsafe{yonda_frontmost_work_target(std::process::id() as i32,&mut pid,&mut window_id)};if code==0{Ok(WorkTarget{pid,window_id})}else{Err(if code==1{UnknownReason::DependencyUnavailable}else{UnknownReason::InvalidInput})}}
 }
 
-pub struct CuaWorker { node: PathBuf, script: PathBuf, sdk: PathBuf, evidence:PathBuf, timeout: Duration, session: Mutex<Option<WorkerSession>> }
+#[derive(Clone,Copy,Eq,PartialEq)]
+enum CuaBackend { TryCua, Sky }
 
-struct WorkerSession { child: Child, input: ChildStdin, output: mpsc::Receiver<Result<Vec<u8>, ()>> }
+pub struct CuaWorker { node: PathBuf, script: PathBuf, sdk: PathBuf, evidence:PathBuf, timeout: Duration, backend:CuaBackend, session: Mutex<Option<WorkerSession>> }
+
+struct WorkerSession { child: Child, input: ChildStdin, output: mpsc::Receiver<Result<Vec<u8>, ()>>, launched_app:Option<(String,String)> }
 
 #[derive(Serialize)]
 struct Request<'a> {
@@ -34,24 +39,27 @@ struct Response {
     #[serde(default)] screenshot_path:Option<String>,
     #[serde(default)] screenshot_mime:Option<String>,
     #[serde(default)] target_visible:Option<bool>,
+    #[serde(default)] launched_app_id:Option<String>,
 }
 
 #[derive(Clone,Copy,Deserialize)]
 #[serde(rename_all="snake_case")]
 enum ActionEffect { Confirmed,Partial,Unverifiable,SuspectedNoop,Refused }
 
+fn valid_sky_app_id(value:&str)->bool {value.len()<=255&&!value.is_empty()&&value.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-'))}
+
 impl CuaWorker {
     /// 三个路径只能由可信组合根提供；SDK入口必须属于固定0.25.0包。
     pub fn new(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.25.0")
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.25.0", CuaBackend::TryCua)
     }
 
     /// Sky 是外部安装的可选后端；只接受当前验证过的精确包身份。
     pub fn new_sky(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@oai/sky", "0.7.1")
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@oai/sky", "0.7.1", CuaBackend::Sky)
     }
 
-    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, expected_name:&str, expected_version:&str) -> Result<Self, UnknownReason> {
+    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, expected_name:&str, expected_version:&str, backend:CuaBackend) -> Result<Self, UnknownReason> {
         if timeout.is_zero() || timeout > Duration::from_secs(120) || [node, script, sdk].iter().any(|path| !path.is_absolute() || !path.is_file()) || !evidence.is_absolute() || !evidence.is_dir() {
             return Err(UnknownReason::InvalidInput);
         }
@@ -60,7 +68,7 @@ impl CuaWorker {
         let name = identity.as_ref().and_then(|value| value.get("name")).and_then(|value| value.as_str());
         let version = identity.as_ref().and_then(|value| value.get("version")).and_then(|value| value.as_str());
         if name != Some(expected_name) || version != Some(expected_version) { return Err(UnknownReason::DependencyUnavailable); }
-        let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, session: Mutex::new(None) };
+        let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, backend, session: Mutex::new(None) };
         worker.cleanup();Ok(worker)
     }
 
@@ -81,7 +89,7 @@ impl CuaWorker {
                 }
             }
         });
-        Ok(WorkerSession{child,input,output:receiver})
+        Ok(WorkerSession{child,input,output:receiver,launched_app:None})
     }
 
     fn stop(session:&mut Option<WorkerSession>){if let Some(mut session)=session.take(){let _=session.child.kill();let _=session.child.wait();}}
@@ -101,6 +109,18 @@ impl CuaWorker {
         let bytes = match serde_json::to_vec(&request) { Ok(bytes) => bytes, Err(_) => return DispatchOutcome::Unknown(UnknownReason::InvalidInput) };
         let mut slot=match self.session.lock(){Ok(slot)=>slot,Err(_)=>return DispatchOutcome::Unknown(UnknownReason::WorkerFailed)};
         if slot.is_none(){*slot=match self.start(){Ok(session)=>Some(session),Err(reason)=>return DispatchOutcome::Unknown(reason)}}
+        if self.backend==CuaBackend::Sky && action.tool_name=="launch_app" {slot.as_mut().unwrap().launched_app=None;}
+        if self.backend==CuaBackend::Sky && action.tool_name=="bring_to_front" {
+            let Some((_,bundle_id))=slot.as_ref().and_then(|session|session.launched_app.as_ref()).filter(|(task_id,_)|task_id==&attempt.task_id) else{return DispatchOutcome::Unknown(UnknownReason::InvalidInput)};
+            #[cfg(target_os="macos")]
+            {
+                let bundle_id=match CString::new(bundle_id.as_str()){Ok(value)=>value,Err(_)=>return DispatchOutcome::Unknown(UnknownReason::InvalidInput)};
+                let code=unsafe{yonda_sky_app_focus(bundle_id.as_ptr())};
+                if code!=0{return DispatchOutcome::Unknown(if code==1{UnknownReason::DependencyUnavailable}else{UnknownReason::ObserveFailed})}
+            }
+            #[cfg(not(target_os="macos"))]
+            return DispatchOutcome::Unknown(UnknownReason::DependencyUnavailable);
+        }
         if slot.as_mut().is_none_or(|session|session.input.write_all(&bytes).and_then(|_|session.input.write_all(b"\n")).and_then(|_|session.input.flush()).is_err()) {
             Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed);
         }
@@ -115,6 +135,12 @@ impl CuaWorker {
             if started.elapsed()>=self.timeout{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::TimedOut)}
         };
         let outcome=classify(attempt, &output,&self.evidence);
+        if self.backend==CuaBackend::Sky && action.tool_name=="launch_app" && matches!(outcome,DispatchOutcome::Known{action_succeeded:true,..}) {
+            let launched=serde_json::from_slice::<Response>(&output).ok().and_then(|response|response.launched_app_id)
+                .filter(|value|valid_sky_app_id(value));
+            let Some(bundle_id)=launched else{Self::stop(&mut slot);self.cleanup();return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)};
+            slot.as_mut().unwrap().launched_app=Some((attempt.task_id.clone(),bundle_id));
+        }
         if matches!(outcome,DispatchOutcome::Unknown(_)){Self::stop(&mut slot);self.cleanup()}
         outcome
     }
@@ -167,6 +193,14 @@ mod tests {
         assert_eq!(classify(&attempt, b"{}",&evidence), DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
     }
 
+    #[test]
+    fn sky_app_identity_is_bounded_and_not_a_path() {
+        assert!(valid_sky_app_id("com.tencent.WeWorkMac"));
+        assert!(!valid_sky_app_id("/Applications/WeCom.app"));
+        assert!(!valid_sky_app_id(""));
+        assert!(!valid_sky_app_id(&"a".repeat(256)));
+    }
+
     #[cfg(unix)]
     #[test]
     fn normal_actions_reuse_worker_session() {
@@ -199,7 +233,8 @@ mod tests {
         let script=root.join("worker.mjs");std::fs::write(&script,b"").unwrap();
         let evidence=root.join("evidence");std::fs::create_dir(&evidence).unwrap();
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
-        assert!(CuaWorker::new_sky(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)).is_ok());
+        let worker=CuaWorker::new_sky(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();
+        assert!(worker.backend==CuaBackend::Sky);drop(worker);
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.8.0"}"#).unwrap();
         assert!(matches!(CuaWorker::new_sky(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
         std::fs::remove_dir_all(root).unwrap();

@@ -128,6 +128,12 @@ int yonda_work_ref_focus(void *raw) {
 
 void yonda_work_ref_release(void *raw) {YondaWorkRef *ref=raw;if(!ref)return;CFRelease(ref->app);CFRelease(ref->target);CFRelease(ref->title);free(ref);}
 
+/* Driver 外挂入口：复用同一套精确窗口捕获、PID复用防护与焦点后置验证。 */
+int yonda_work_target_focus(int32_t pid,uint32_t window_id) {
+  void *raw=NULL;uint64_t sec=0,usec=0;int code=yonda_work_ref_capture(pid,window_id,&raw,&sec,&usec);
+  if(code!=0)return code;code=yonda_work_ref_focus(raw);yonda_work_ref_release(raw);return code;
+}
+
 int yonda_frontmost_work_target(int32_t self_pid,uint32_t *pid,uint32_t *window_id) {
   if(!pid||!window_id||!AXIsProcessTrusted())return 1;
   AXUIElementRef system=AXUIElementCreateSystemWide(),app=(AXUIElementRef)attribute(system,kAXFocusedApplicationAttribute),window=app?(AXUIElementRef)attribute(app,kAXFocusedWindowAttribute):NULL;pid_t focused_pid=0;CGRect focused_bounds_value=CGRectZero;

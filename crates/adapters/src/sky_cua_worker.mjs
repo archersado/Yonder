@@ -57,6 +57,7 @@ const supported = new Set([
   'click', 'drag', 'paste', 'perform_secondary_action', 'press_key', 'scroll',
   'select_text', 'set_value', 'type_text', 'launch_app', 'activate_window', 'bring_to_front',
 ]);
+let launchedTarget;
 
 function responseFor(request) {
   return {
@@ -73,6 +74,7 @@ function responseFor(request) {
     screenshot_path: null,
     screenshot_mime: null,
     target_visible: null,
+    launched_app_id: null,
     failure_stage: 'target',
   };
 }
@@ -93,7 +95,17 @@ async function targetFor(request) {
     if (sky.target !== 'mac' || typeof app !== 'string' || app.trim() === '') {
       throw new Error('launch target is unavailable');
     }
-    return { app: app.trim() };
+    const requested = app.trim();
+    const apps = await sky.list_apps();
+    const matches = apps.filter(candidate => candidate.id === requested || candidate.displayName === requested);
+    if (matches.length !== 1 || typeof matches[0].id !== 'string' || matches[0].id === '') {
+      throw new Error('canonical launch target is unavailable');
+    }
+    return { app: matches[0].id };
+  }
+  if (request.tool_name === 'bring_to_front' && sky.target === 'mac') {
+    if (launchedTarget?.task_id !== request.task_id) throw new Error('launched target is unavailable');
+    return { app: launchedTarget.app };
   }
   if (sky.target === 'mac') return { app: await macAppForPid(request.pid) };
   if (sky.target === 'linux' || sky.target === 'windows') {
@@ -154,6 +166,10 @@ async function perform(request, target) {
     await sky.get_app_state({ app: target.app, disableDiff: true });
     return;
   }
+  if (request.tool_name === 'bring_to_front' && sky.target === 'mac') {
+    // Rust 已用精确 pid/window_id 执行并验证原生 AX raise；这里仅做后置观察。
+    return;
+  }
   const name = request.tool_name === 'bring_to_front' ? 'activate_window' : request.tool_name;
   if (!supported.has(request.tool_name) || typeof sky[name] !== 'function') {
     throw new Error('tool unavailable');
@@ -167,8 +183,9 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
   const response = responseFor(request);
   try {
     const target = await targetFor(request);
+    const externalMacFocus = request.tool_name === 'bring_to_front' && sky.target === 'mac';
     let before = null;
-    if (request.tool_name !== 'launch_app') {
+    if (request.tool_name !== 'launch_app' && !externalMacFocus) {
       response.failure_stage = 'observe-before';
       before = await observe(target);
     }
@@ -178,13 +195,17 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.failure_stage = 'observe-after';
     const after = await observe(target);
     response.observe_valid = true;
-    response.target_visible = request.tool_name === 'launch_app' ? null : true;
+    response.target_visible = request.tool_name === 'launch_app' ? false : externalMacFocus ? true : null;
     const indexes = [...stateText(after).matchAll(/\[(\d+)\]/g)].map(match => Number(match[1]));
     response.element_count = Math.min(65_535, new Set(indexes).size);
-    response.action_effect = request.tool_name === 'launch_app' || fingerprint(before) !== fingerprint(after)
+    response.action_effect = request.tool_name === 'launch_app' || externalMacFocus || fingerprint(before) !== fingerprint(after)
       ? 'confirmed'
       : 'suspected_noop';
     response.action_succeeded = response.action_effect === 'confirmed';
+    if (request.tool_name === 'launch_app' && response.action_succeeded) {
+      launchedTarget = { task_id: request.task_id, app: target.app };
+      response.launched_app_id = target.app;
+    }
     await persistScreenshot(after, request, response);
     response.failure_stage = null;
   } catch {
