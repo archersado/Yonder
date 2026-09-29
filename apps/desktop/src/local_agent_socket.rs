@@ -137,9 +137,11 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?;
         let execution_hint = yonder_application::gateway::execution_presentation_hint(&frame, &agent_id, now);
         let cua_hint = yonder_application::gateway::cua_execution_presentation_hint(&frame, &agent_id, now);
-        let (response, presentation, suppress_stale_presentation, open_task_space) = {
+        let control_checkpoint = cua_hint.as_ref().and_then(|_| cua_hub.checkpoint());
+        let (response, presentation, suppress_stale_presentation, open_task_space, provisional_control) = {
             let mut locked = host.lock().map_err(|_| io::Error::other("本地Gateway不可用"))?;
             let host_ref = locked.as_mut().ok_or_else(|| io::Error::other("本地Gateway不可用"))?;
+            let mut provisional_control=false;
             if let Some(hint) = execution_hint.as_ref() {
                 let step_label = host_ref.execution_step_label(&agent_id, hint);
                 emit_pet_presentation(&pet, true, "executing", step_label.as_deref());
@@ -150,6 +152,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                 let presentation=host_ref.execution_control_presentation(&agent_id,hint,desktop_control);
                 if let Some(presentation)=presentation.filter(|presentation|presentation.task_id==*task_id) {
                     if cua_hub.begin(presentation.clone()) {
+                    provisional_control=true;
                     if let Err(error)=show_cua_control(&pet,&cua_control,&presentation) {
                         cua_hub.finish(task_id);
                         return Err(error);
@@ -163,7 +166,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             // 不得在释放锁后用动作返回前取得的 running 投影覆盖窗口命令的 paused 投影。
             let suppress_stale_presentation = cua_hint.as_ref().is_some_and(|hint|cua_hub.takeover_requested(hint_task_id(hint)));
             let presentation = host_ref.presentation().ok();
-            (response, presentation, suppress_stale_presentation, open_task_space)
+            (response, presentation, suppress_stale_presentation, open_task_space, provisional_control)
         };
         if open_task_space {
             // Local Socket 在 Tokio worker 中处理；窗口操作须回到 Cocoa 主线程，
@@ -176,6 +179,14 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                     }
                 }
             }).map_err(io::Error::other)?;
+        }
+        let accepted=response.as_ref().is_ok_and(|bytes|yonder_application::gateway::response_succeeded(bytes));
+        if provisional_control&&!accepted {
+            if let Some(previous)=control_checkpoint {
+                if cua_hub.begin(previous.clone()) { let _=show_cua_control(&pet,&cua_control,&previous); }
+            } else if let Some(hint)=cua_hint.as_ref() {
+                if cua_hub.finish(hint_task_id(hint)) { let _=cua_control.hide(); }
+            }
         }
         let response=response.map_err(|_|io::Error::other("本地Gateway调用失败"))?;
         if let Some(task_id)=yonder_application::gateway::terminal_task_id(&response) {

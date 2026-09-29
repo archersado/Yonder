@@ -67,6 +67,12 @@ pub enum ExecutionPresentationHint {
     PlanSlot { task_id: String, plan_id: String, plan_version: u64 },
 }
 
+/// 展示层只可提交已被 Gateway 接纳的预投影。JSON-RPC Failure 即使传输成功，
+/// 也不能覆盖当前任务的计划或步骤展示。
+pub fn response_succeeded(bytes: &[u8]) -> bool {
+    matches!(yonder_protocol::decode_response(bytes), Ok(Response::Success { .. }))
+}
+
 /// 只在协议校验与连接身份一致后提供当前执行请求的步骤定位信息。
 pub fn execution_presentation_hint(
     bytes: &[u8],
@@ -494,6 +500,8 @@ mod tests {
         assert!(cua_execution_presentation_hint(step,"other",1000).is_none());
         assert!(!is_execution_request(br#"{"jsonrpc":"2.0","id":"r1","method":"task.get","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"t1"}}"#));
         assert!(!is_execution_request(br#"{"method":"computer.execute"}"#));
+        assert!(response_succeeded(br#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"hello","protocol_version":{"major":1,"minor":31},"platform":"macos","capabilities":[]}}"#));
+        assert!(!response_succeeded(br#"{"jsonrpc":"2.0","id":"r1","error":{"code":-32011,"message":"conflict"}}"#));
     }
 
     #[test]

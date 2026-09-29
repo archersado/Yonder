@@ -134,6 +134,12 @@ impl CuaControlHub {
         Some(presentation)
     }
 
+    /// 请求接纳前的原始展示快照；JSON-RPC 拒绝时用于恢复，不能使用会派生
+    /// “准备执行”文案的 presentation() 作为回滚源。
+    pub fn checkpoint(&self) -> Option<CuaControlPresentation> {
+        self.0.lock().ok()?.as_ref().map(|active| active.presentation.clone())
+    }
+
     pub fn request_takeover(&self, task_id: &str) -> bool {
         let Ok(mut state) = self.0.lock() else { return false };
         let Some(active) = state.as_mut().filter(|active| active.task_id == task_id && active.presentation.desktop_control) else { return false };
@@ -1342,6 +1348,14 @@ mod tests {
         let presentation=hub.presentation().unwrap();
         assert_eq!(presentation.current_step,"计划片段已完成");
         assert_eq!(presentation.plan_status,"complete");
+    }
+
+    #[test]
+    fn cua_control_checkpoint_keeps_the_unmodified_plan_for_rejected_requests() {
+        let hub=CuaControlHub::default();
+        assert!(hub.begin(CuaControlPresentation { task_id:"task-a".into(), desktop_control:true, current_step:"步骤一".into(), planned_steps:vec![CuaControlStepPresentation { step_id:"step-1".into(), label:"步骤一".into(), state:"pending".into() }], remaining_steps:1, plan_status:"available".into(), slow_brain_summary:"慢脑已提交 2 个受限步骤".into(), fast_brain_summary:"等待评估当前步骤候选".into() }));
+        assert_eq!(hub.presentation().unwrap().current_step,"准备执行：步骤一");
+        assert_eq!(hub.checkpoint().unwrap().current_step,"步骤一");
     }
 
     #[test]
