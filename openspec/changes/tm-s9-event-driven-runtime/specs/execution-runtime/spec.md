@@ -4,6 +4,8 @@
 
 系统 MUST 由 Application 单一有界事件循环拥有活动任务状态。Driver 结果与 Observe 事件被 reducer 接受后 MUST 立即推进或 HandBack，不得等待 SQLite/Outbox 投影。
 
+CUA、BUA、Document/Office、Command 与取消/接管/交回 MUST 使用同一个 Runtime Port 和 reducer；系统 MUST NOT 为单个能力保留独立活动状态机或长期同步数据库执行路径。
+
 ### Scenario: 持久化延迟不阻塞动作链
 
 - **GIVEN** SQLite projector 被可控延迟

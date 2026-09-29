@@ -25,4 +25,4 @@
 
 ## 迁移与验证
 
-先迁移 CUA `computer.step` 与 EX-S2 `task.plan.execute`，验证 SQLite 延迟/失败不阻塞 Driver→Observe→下一步、即时顶部投影、背压暂停、取消/接管、HandBack、崩溃恢复与发送确认；随后用同一端口迁移 BUA、Document、Command。macOS 先行，Windows继续暂缓。
+实现可按能力分阶段提交，但完成口径同时覆盖 CUA、BUA、Document/Office 与 Command；任何一条仍由同步 SQLite 写入驱动时，本 Story 不得标记完成或 Archive。统一验证 SQLite 延迟/失败不阻塞 Driver→Observe→下一步、即时顶部投影、背压暂停、取消/接管、HandBack、崩溃恢复与发送确认。macOS 先行，Windows继续暂缓。
