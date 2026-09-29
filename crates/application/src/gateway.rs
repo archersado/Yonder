@@ -649,6 +649,7 @@ impl<'a> GatewaySession<'a> {
             None,
             None,
             None,
+            None,
             port,
             computer,
             targets,
@@ -664,6 +665,7 @@ impl<'a> GatewaySession<'a> {
         &mut self,
         store: &mut T,
         admission: &Admission,
+        execution_runtime: Option<&crate::execution_runtime::ExecutionRuntimeHandle>,
         file_grants: Option<&FileAuthorizationRegistry>,
         command_approvals: Option<&CommandApprovalRegistry>,
         file_port: Option<&dyn FilePort>,
@@ -935,18 +937,34 @@ impl<'a> GatewaySession<'a> {
                     targets.ok_or_else(|| RpcError::new(-32020, "桌面目标解析不可用"))?,
                 );
                 let arguments = yonder_protocol::sdk_arguments_json(&params.arguments)?;
-                let (task, result, _) = crate::computer_use::execute_agent_action(
-                    store,
-                    admission,
-                    port,
-                    targets,
-                    self.auth,
-                    &params.task_id,
-                    yonder_protocol::sequence(&params.expected_sequence)?,
-                    &params.tool_name,
-                    &arguments,
-                    host_session_id,
-                )
+                let (task, result, _) = if let Some(runtime) = execution_runtime {
+                    crate::computer_use::execute_agent_action_runtime(
+                        store,
+                        runtime,
+                        admission,
+                        port,
+                        targets,
+                        self.auth,
+                        &params.task_id,
+                        yonder_protocol::sequence(&params.expected_sequence)?,
+                        &params.tool_name,
+                        &arguments,
+                        host_session_id,
+                    )
+                } else {
+                    crate::computer_use::execute_agent_action(
+                        store,
+                        admission,
+                        port,
+                        targets,
+                        self.auth,
+                        &params.task_id,
+                        yonder_protocol::sequence(&params.expected_sequence)?,
+                        &params.tool_name,
+                        &arguments,
+                        host_session_id,
+                    )
+                }
                 .map_err(query::error)?;
                 Ok(QueryResult::Computer {
                     task: snapshot(task),
@@ -965,20 +983,38 @@ impl<'a> GatewaySession<'a> {
                     targets.ok_or_else(|| RpcError::new(-32020, "桌面目标解析不可用"))?,
                 );
                 let arguments = yonder_protocol::sdk_arguments_json(&params.arguments)?;
-                let (task, result, observation) = crate::computer_use::execute_agent_step(
-                    store,
-                    admission,
-                    port,
-                    targets,
-                    self.auth,
-                    &params.task_id,
-                    yonder_protocol::sequence(&params.expected_sequence)?,
-                    &params.step_id,
-                    &params.label,
-                    &params.tool_name,
-                    &arguments,
-                    host_session_id,
-                )
+                let (task, result, observation) = if let Some(runtime) = execution_runtime {
+                    crate::computer_use::execute_agent_step_runtime(
+                        store,
+                        runtime,
+                        admission,
+                        port,
+                        targets,
+                        self.auth,
+                        &params.task_id,
+                        yonder_protocol::sequence(&params.expected_sequence)?,
+                        &params.step_id,
+                        &params.label,
+                        &params.tool_name,
+                        &arguments,
+                        host_session_id,
+                    )
+                } else {
+                    crate::computer_use::execute_agent_step(
+                        store,
+                        admission,
+                        port,
+                        targets,
+                        self.auth,
+                        &params.task_id,
+                        yonder_protocol::sequence(&params.expected_sequence)?,
+                        &params.step_id,
+                        &params.label,
+                        &params.tool_name,
+                        &arguments,
+                        host_session_id,
+                    )
+                }
                 .map_err(query::error)?;
                 let result = attempt_result(result);
                 Ok(QueryResult::ComputerStep {
@@ -1002,13 +1038,16 @@ impl<'a> GatewaySession<'a> {
                 if !self.can_complete {
                     return Err(RpcError::new(-32010, "任务完成需要协议1.10及CUA Runtime"));
                 }
-                let task = crate::computer_use::complete_agent_task(
-                    store,
-                    admission,
-                    self.auth,
-                    &params.task_id,
-                    yonder_protocol::sequence(&params.expected_sequence)?,
-                )
+                let expected = yonder_protocol::sequence(&params.expected_sequence)?;
+                let task = if let Some(runtime) = execution_runtime {
+                    crate::computer_use::finish_agent_task_runtime(
+                        store, runtime, admission, self.auth, &params.task_id, expected, false,
+                    )
+                } else {
+                    crate::computer_use::complete_agent_task(
+                        store, admission, self.auth, &params.task_id, expected,
+                    )
+                }
                 .map_err(query::error)?;
                 if let Some(port) = computer {
                     port.end_session();
@@ -1027,13 +1066,16 @@ impl<'a> GatewaySession<'a> {
                         "任务失败终结需要协议1.18及CUA Runtime",
                     ));
                 }
-                let task = crate::computer_use::fail_agent_task(
-                    store,
-                    admission,
-                    self.auth,
-                    &params.task_id,
-                    yonder_protocol::sequence(&params.expected_sequence)?,
-                )
+                let expected = yonder_protocol::sequence(&params.expected_sequence)?;
+                let task = if let Some(runtime) = execution_runtime {
+                    crate::computer_use::finish_agent_task_runtime(
+                        store, runtime, admission, self.auth, &params.task_id, expected, true,
+                    )
+                } else {
+                    crate::computer_use::fail_agent_task(
+                        store, admission, self.auth, &params.task_id, expected,
+                    )
+                }
                 .map_err(query::error)?;
                 if let Some(port) = computer {
                     port.end_session();

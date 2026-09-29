@@ -950,10 +950,12 @@ impl TaskHost {
         let jev_config: Option<&yonder_application::jev_config::JevConfig> = None;
         #[cfg(not(target_os = "macos"))]
         let jev: Option<&dyn yonder_application::jev_runtime::JevDecisionPort> = None;
+        let execution_runtime = self.runtime.handle();
         let (response, accepted_create) = session
             .handle_encoded_with_runtimes_and_file_grants(
                 &mut self.store,
                 &self.admission,
+                Some(&execution_runtime),
                 Some(&self.file_grants),
                 Some(&self.command_approvals),
                 Some(&self.files),

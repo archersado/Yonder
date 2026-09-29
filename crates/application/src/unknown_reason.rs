@@ -3,7 +3,8 @@
 //! 字符串由 `yonder-adapters` 依同一枚举维护，三方不再各写一份转换。
 
 /// 内部有界分类；语义与 [`yonder_protocol::AttemptUnknownReason`] 一一对应。
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum UnknownReason {
     InvalidInput,
     DependencyUnavailable,

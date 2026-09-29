@@ -135,6 +135,62 @@ impl Admission {
         Ok(Permit { admission: self, task_id: task_id.into() })
     }
 
+    /// 事件驱动执行只在副作用前占用资源；生命周期由 Runtime 终态显式释放，
+    /// 不以 SQLite 提交成功与否决定是否已经开始。
+    pub fn admit_runtime(&self, task_id: &str, resources: &[Resource]) -> Result<(), Denied> {
+        if !yonder_protocol::valid_id(task_id)
+            || resources.len() > 32
+            || resources.iter().any(|resource| {
+                matches!(resource, Resource::File(id) if id.is_empty() || id.len() > 4096 || id.contains('\0'))
+            })
+        {
+            return Err(Denied::InvalidInput);
+        }
+        let mut state = self.state.lock().map_err(|_| Denied::Unavailable)?;
+        if state.rest_reserved {
+            return Err(Denied::PresentationBusy);
+        }
+        if state.desktop_taken_over && resources.contains(&Resource::Desktop) {
+            return Err(Denied::DesktopTakenOver);
+        }
+        for resource in resources {
+            if state
+                .occupied
+                .iter()
+                .any(|entry| entry.task_id != task_id && entry.resources.contains(resource))
+            {
+                return Err(Denied::ResourceBusy(resource.clone()));
+            }
+        }
+        if let Some(entry) = state
+            .occupied
+            .iter_mut()
+            .find(|entry| entry.task_id == task_id)
+        {
+            let additional = resources
+                .iter()
+                .filter(|resource| !entry.resources.contains(resource))
+                .count();
+            if entry.resources.len().saturating_add(additional) > 32 {
+                return Err(Denied::InvalidInput);
+            }
+            for resource in resources {
+                if !entry.resources.contains(resource) {
+                    entry.resources.push(resource.clone());
+                }
+            }
+            return Ok(());
+        }
+        if state.occupied.len() >= self.capacity {
+            return Err(Denied::Capacity);
+        }
+        state.occupied.push(Occupancy {
+            task_id: task_id.into(),
+            resources: resources.to_vec(),
+        });
+        Ok(())
+    }
+
     fn reserve_rest_slot(&self) -> Result<RestPermit<'_>, RestDenied> {
         let mut state = self.state.lock().map_err(|_| RestDenied::Unavailable)?;
         if state.rest_reserved || !state.occupied.is_empty() { return Err(RestDenied::Busy); }

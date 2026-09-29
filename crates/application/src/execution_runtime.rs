@@ -38,6 +38,9 @@ pub enum RuntimeStepPhase {
 pub struct RuntimeStep {
     pub step_id: String,
     pub label: String,
+    pub attempt_id: String,
+    pub worker_instance_id: String,
+    pub host_session_id: String,
     pub phase: RuntimeStepPhase,
 }
 
@@ -48,6 +51,7 @@ pub struct RuntimeSnapshot {
     pub checkpoint: u64,
     pub phase: RuntimePhase,
     pub current_step: Option<RuntimeStep>,
+    pub last_step_succeeded: Option<bool>,
     pub pending_events: usize,
 }
 
@@ -55,9 +59,22 @@ pub struct RuntimeSnapshot {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum RuntimeEventKind {
     Activated,
-    StepStarted { step_id: String, label: String },
-    StepCompleted { step_id: String },
-    StepUnverified { step_id: String, reason: String },
+    StepStarted {
+        step_id: String,
+        label: String,
+        attempt_id: String,
+        worker_instance_id: String,
+        host_session_id: String,
+    },
+    StepCompleted {
+        step_id: String,
+        action_succeeded: bool,
+    },
+    StepUnverified {
+        step_id: String,
+        reason: crate::unknown_reason::UnknownReason,
+    },
+    StepBoundaryAdvanced { step_id: String },
     HandedBack { reason: String },
     Terminal { phase: RuntimePhase },
 }
@@ -88,16 +105,21 @@ pub enum RuntimeCommand {
         task_id: String,
         step_id: String,
         label: String,
+        attempt_id: String,
+        worker_instance_id: String,
+        host_session_id: String,
     },
     CompleteStep {
         task_id: String,
         step_id: String,
+        action_succeeded: bool,
     },
     UnverifyStep {
         task_id: String,
         step_id: String,
-        reason: String,
+        reason: crate::unknown_reason::UnknownReason,
     },
+    AdvanceStepBoundary { task_id: String, step_id: String },
     HandBack {
         task_id: String,
         reason: String,
@@ -161,6 +183,110 @@ pub enum RuntimeProjectionError {
 pub struct RuntimeProjectionWorker {
     stop: Arc<AtomicBool>,
     thread: Option<thread::JoinHandle<()>>,
+}
+
+pub fn begin_attempt(
+    runtime: &ExecutionRuntimeHandle,
+    admission: &crate::admission::Admission,
+    task: &crate::Task,
+    step: &crate::StepDeclaration,
+    expected_sequence: u64,
+    worker_instance_id: &str,
+    host_session_id: &str,
+    resources: &[crate::admission::Resource],
+) -> Result<crate::ExecutionAttempt, RuntimeError> {
+    if task.id.is_empty()
+        || step.step_id.is_empty()
+        || !valid_id(worker_instance_id)
+        || !valid_id(host_session_id)
+    {
+        return Err(RuntimeError::InvalidInput);
+    }
+    let (active, resumed) = match runtime.snapshot(&task.id) {
+        Ok(snapshot) => (snapshot, true),
+        Err(RuntimeError::NotFound) => {
+            if task.sequence != expected_sequence || task.status != crate::Status::Created {
+                return Err(RuntimeError::Conflict);
+            }
+            admission
+                .admit_runtime(&task.id, resources)
+                .map_err(|_| RuntimeError::Backpressure)?;
+            (
+                runtime.apply(RuntimeCommand::Activate {
+                    task_id: task.id.clone(),
+                    checkpoint: expected_sequence,
+                })?,
+                false,
+            )
+        }
+        Err(error) => return Err(error),
+    };
+    if (resumed && active.sequence != expected_sequence) || active.phase != RuntimePhase::Running {
+        return Err(RuntimeError::Conflict);
+    }
+    admission
+        .admit_runtime(&task.id, resources)
+        .map_err(|_| RuntimeError::Backpressure)?;
+    let accepted_sequence = active
+        .sequence
+        .checked_add(1)
+        .ok_or(RuntimeError::Conflict)?;
+    let attempt = crate::ExecutionAttempt {
+        task_id: task.id.clone(),
+        step_id: step.step_id.clone(),
+        attempt_id: format!("attempt_{accepted_sequence}"),
+        worker_instance_id: worker_instance_id.into(),
+        host_session_id: host_session_id.into(),
+        phase: crate::AttemptPhase::Prepared,
+        accepted_sequence,
+    };
+    let snapshot = runtime.apply(RuntimeCommand::StartStep {
+        task_id: task.id.clone(),
+        step_id: step.step_id.clone(),
+        label: step.label.clone(),
+        attempt_id: attempt.attempt_id.clone(),
+        worker_instance_id: attempt.worker_instance_id.clone(),
+        host_session_id: attempt.host_session_id.clone(),
+    })?;
+    if snapshot.sequence != accepted_sequence {
+        return Err(RuntimeError::Conflict);
+    }
+    Ok(attempt)
+}
+
+pub fn record_attempt_outcome(
+    runtime: &ExecutionRuntimeHandle,
+    attempt: &crate::ExecutionAttempt,
+    conclusion: crate::AttemptConclusion,
+) -> Result<(RuntimeSnapshot, crate::AttemptResultRecord), RuntimeError> {
+    let snapshot = match conclusion {
+        crate::AttemptConclusion::Observed { action_succeeded } => runtime.apply(
+            RuntimeCommand::CompleteStep {
+                task_id: attempt.task_id.clone(),
+                step_id: attempt.step_id.clone(),
+                action_succeeded,
+            },
+        )?,
+        crate::AttemptConclusion::Unknown { reason } => runtime.apply(
+            RuntimeCommand::UnverifyStep {
+                task_id: attempt.task_id.clone(),
+                step_id: attempt.step_id.clone(),
+                reason,
+            },
+        )?,
+    };
+    Ok((
+        snapshot.clone(),
+        crate::AttemptResultRecord {
+            task_id: attempt.task_id.clone(),
+            step_id: attempt.step_id.clone(),
+            attempt_id: attempt.attempt_id.clone(),
+            worker_instance_id: attempt.worker_instance_id.clone(),
+            host_session_id: attempt.host_session_id.clone(),
+            conclusion,
+            result_sequence: snapshot.sequence,
+        },
+    ))
 }
 
 impl ExecutionRuntime {
@@ -383,6 +509,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     checkpoint,
                     phase: RuntimePhase::Running,
                     current_step: None,
+                    last_step_succeeded: None,
                     pending_events: 0,
                 },
                 pending: VecDeque::new(),
@@ -434,8 +561,18 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                 return Err(RuntimeError::Backpressure);
             }
             match command {
-                RuntimeCommand::StartStep { step_id, label, .. } => {
+                RuntimeCommand::StartStep {
+                    step_id,
+                    label,
+                    attempt_id,
+                    worker_instance_id,
+                    host_session_id,
+                    ..
+                } => {
                     if !valid_id(&step_id)
+                        || !valid_id(&attempt_id)
+                        || !valid_id(&worker_instance_id)
+                        || !valid_id(&host_session_id)
                         || label.is_empty()
                         || label.len() > 120
                         || task
@@ -447,29 +584,60 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                         return Err(RuntimeError::Conflict);
                     }
                     task.snapshot.phase = RuntimePhase::Running;
+                    task.snapshot.last_step_succeeded = None;
                     task.snapshot.current_step = Some(RuntimeStep {
                         step_id: step_id.clone(),
                         label: label.clone(),
+                        attempt_id: attempt_id.clone(),
+                        worker_instance_id: worker_instance_id.clone(),
+                        host_session_id: host_session_id.clone(),
                         phase: RuntimeStepPhase::Executing,
                     });
-                    append(task, RuntimeEventKind::StepStarted { step_id, label })?;
+                    append(
+                        task,
+                        RuntimeEventKind::StepStarted {
+                            step_id,
+                            label,
+                            attempt_id,
+                            worker_instance_id,
+                            host_session_id,
+                        },
+                    )?;
                 }
-                RuntimeCommand::CompleteStep { step_id, .. } => {
+                RuntimeCommand::CompleteStep {
+                    step_id,
+                    action_succeeded,
+                    ..
+                } => {
                     require_executing(task, &step_id)?;
                     task.snapshot.current_step.as_mut().unwrap().phase =
                         RuntimeStepPhase::Completed;
-                    append(task, RuntimeEventKind::StepCompleted { step_id })?;
+                    task.snapshot.last_step_succeeded = Some(action_succeeded);
+                    append(
+                        task,
+                        RuntimeEventKind::StepCompleted {
+                            step_id,
+                            action_succeeded,
+                        },
+                    )?;
                 }
                 RuntimeCommand::UnverifyStep {
                     step_id, reason, ..
                 } => {
-                    if reason.is_empty() || reason.len() > 120 {
-                        return Err(RuntimeError::InvalidInput);
-                    }
                     require_executing(task, &step_id)?;
                     task.snapshot.current_step.as_mut().unwrap().phase =
                         RuntimeStepPhase::Unverified;
+                    task.snapshot.last_step_succeeded = None;
                     append(task, RuntimeEventKind::StepUnverified { step_id, reason })?;
+                }
+                RuntimeCommand::AdvanceStepBoundary { step_id, .. } => {
+                    if !task.snapshot.current_step.as_ref().is_some_and(|step| {
+                        step.step_id == step_id && step.phase == RuntimeStepPhase::Completed
+                    }) {
+                        return Err(RuntimeError::Conflict);
+                    }
+                    task.snapshot.current_step = None;
+                    append(task, RuntimeEventKind::StepBoundaryAdvanced { step_id })?;
                 }
                 RuntimeCommand::HandBack { reason, .. } => {
                     if reason.is_empty() || reason.len() > 160 {
@@ -491,7 +659,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     task.snapshot.phase = phase.clone();
                     append(task, RuntimeEventKind::Terminal { phase })?;
                 }
-                RuntimeCommand::Activate { .. } | RuntimeCommand::Ack { .. } => unreachable!(),
+            RuntimeCommand::Activate { .. } | RuntimeCommand::Ack { .. } => unreachable!(),
             }
             Ok(task.snapshot.clone())
         }
@@ -542,6 +710,7 @@ fn command_task_id(command: &RuntimeCommand) -> &str {
         | RuntimeCommand::StartStep { task_id, .. }
         | RuntimeCommand::CompleteStep { task_id, .. }
         | RuntimeCommand::UnverifyStep { task_id, .. }
+        | RuntimeCommand::AdvanceStepBoundary { task_id, .. }
         | RuntimeCommand::HandBack { task_id, .. }
         | RuntimeCommand::Terminate { task_id, .. }
         | RuntimeCommand::Ack { task_id, .. } => task_id,
@@ -559,6 +728,17 @@ fn valid_id(value: &str) -> bool {
 mod tests {
     use super::*;
     use std::sync::atomic::AtomicUsize;
+
+    fn start_step(task_id: &str, step_id: &str, label: &str) -> RuntimeCommand {
+        RuntimeCommand::StartStep {
+            task_id: task_id.into(),
+            step_id: step_id.into(),
+            label: label.into(),
+            attempt_id: format!("attempt-{step_id}"),
+            worker_instance_id: "worker".into(),
+            host_session_id: "host".into(),
+        }
+    }
     #[test]
     fn reducer_advances_without_a_persistence_ack() {
         let runtime = ExecutionRuntime::start(8, 8).unwrap();
@@ -572,16 +752,13 @@ mod tests {
         assert_eq!(active.sequence, 8);
         assert_eq!(active.checkpoint, 7);
         handle
-            .apply(RuntimeCommand::StartStep {
-                task_id: "task-1".into(),
-                step_id: "open".into(),
-                label: "打开应用".into(),
-            })
+            .apply(start_step("task-1", "open", "打开应用"))
             .unwrap();
         let completed = handle
             .apply(RuntimeCommand::CompleteStep {
                 task_id: "task-1".into(),
                 step_id: "open".into(),
+                action_succeeded: true,
             })
             .unwrap();
         assert_eq!(completed.sequence, 10);
@@ -603,25 +780,18 @@ mod tests {
             })
             .unwrap();
         handle
-            .apply(RuntimeCommand::StartStep {
-                task_id: "task-1".into(),
-                step_id: "one".into(),
-                label: "第一步".into(),
-            })
+            .apply(start_step("task-1", "one", "第一步"))
             .unwrap();
         let result = handle
             .apply(RuntimeCommand::CompleteStep {
                 task_id: "task-1".into(),
                 step_id: "one".into(),
+                action_succeeded: true,
             })
             .unwrap();
         assert_eq!(result.pending_events, 3);
         assert_eq!(
-            handle.apply(RuntimeCommand::StartStep {
-                task_id: "task-1".into(),
-                step_id: "two".into(),
-                label: "第二步".into()
-            }),
+            handle.apply(start_step("task-1", "two", "第二步")),
             Err(RuntimeError::Backpressure)
         );
         assert_eq!(
@@ -640,18 +810,10 @@ mod tests {
             })
             .unwrap();
         handle
-            .apply(RuntimeCommand::StartStep {
-                task_id: "task-1".into(),
-                step_id: "one".into(),
-                label: "第一步".into(),
-            })
+            .apply(start_step("task-1", "one", "第一步"))
             .unwrap();
         assert!(handle
-            .apply(RuntimeCommand::StartStep {
-                task_id: "task-1".into(),
-                step_id: "two".into(),
-                label: "第二步".into()
-            })
+            .apply(start_step("task-1", "two", "第二步"))
             .is_err());
         assert_eq!(
             handle
@@ -686,17 +848,13 @@ mod tests {
             })
             .unwrap();
         handle
-            .apply(RuntimeCommand::StartStep {
-                task_id: "task-1".into(),
-                step_id: "observe".into(),
-                label: "观察".into(),
-            })
+            .apply(start_step("task-1", "observe", "观察"))
             .unwrap();
         handle
             .apply(RuntimeCommand::UnverifyStep {
                 task_id: "task-1".into(),
                 step_id: "observe".into(),
-                reason: "screenshot-unavailable".into(),
+                reason: crate::unknown_reason::UnknownReason::ObserveFailed,
             })
             .unwrap();
         let handback = handle
@@ -752,11 +910,7 @@ mod tests {
             })
             .unwrap();
         let running = handle
-            .apply(RuntimeCommand::StartStep {
-                task_id: "task-1".into(),
-                step_id: "open".into(),
-                label: "打开应用".into(),
-            })
+            .apply(start_step("task-1", "open", "打开应用"))
             .unwrap();
         assert_eq!(running.sequence, 2);
         assert_eq!(running.checkpoint, 0);
@@ -771,5 +925,73 @@ mod tests {
         }
         assert_eq!(handle.snapshot("task-1").unwrap().checkpoint, 2);
         assert!(attempts.load(Ordering::SeqCst) >= 2);
+    }
+
+    #[test]
+    fn common_attempt_lifecycle_reuses_one_runtime_for_consecutive_steps() {
+        let runtime = ExecutionRuntime::start(8, 16).unwrap();
+        let handle = runtime.handle();
+        let admission = crate::admission::Admission::new(4).unwrap();
+        let task = crate::Task {
+            id: "task-1".into(),
+            owner_agent_id: "agent-a".into(),
+            name: Some("跨能力任务".into()),
+            source: crate::TaskSource::LocalAgent,
+            status: crate::Status::Created,
+            sequence: 2,
+        };
+        let first_step = crate::StepDeclaration {
+            step_id: "first".into(),
+            label: "第一步".into(),
+            accepted_sequence: 2,
+        };
+        let first = begin_attempt(
+            &handle,
+            &admission,
+            &task,
+            &first_step,
+            2,
+            "cua_worker",
+            "host",
+            &[crate::admission::Resource::Desktop],
+        )
+        .unwrap();
+        assert_eq!(first.accepted_sequence, 4);
+        let (observed, result) = record_attempt_outcome(
+            &handle,
+            &first,
+            crate::AttemptConclusion::Observed {
+                action_succeeded: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(observed.sequence, 5);
+        assert_eq!(result.result_sequence, 5);
+        let boundary = handle
+            .apply(RuntimeCommand::AdvanceStepBoundary {
+                task_id: task.id.clone(),
+                step_id: first.step_id,
+            })
+            .unwrap();
+        assert_eq!(boundary.sequence, 6);
+
+        let second_step = crate::StepDeclaration {
+            step_id: "second".into(),
+            label: "第二步".into(),
+            accepted_sequence: 6,
+        };
+        let second = begin_attempt(
+            &handle,
+            &admission,
+            &task,
+            &second_step,
+            6,
+            "command_worker",
+            "host",
+            &[],
+        )
+        .unwrap();
+        assert_eq!(second.accepted_sequence, 7);
+        assert!(admission.holds("task-1").unwrap());
     }
 }

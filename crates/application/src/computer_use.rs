@@ -63,6 +63,217 @@ pub fn execute_agent_action(
     Ok((result_task,result,observation))
 }
 
+/// TM-S9 正式热路径：SQLite 只用于副作用前的授权/步骤快照；Driver 返回后先
+/// 进入内存 Runtime，持久化由独立 projector 完成。
+pub fn execute_agent_action_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    port: &(impl ComputerUsePort + ?Sized),
+    targets: &(impl WorkTargetPort + ?Sized),
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    tool_name: &str,
+    arguments_json: &str,
+    host_session_id: &str,
+) -> Result<(Task, AttemptResultRecord, Option<ComputerObservation>), Error> {
+    if tool_name.is_empty()
+        || tool_name.len() > 64
+        || arguments_json.is_empty()
+        || arguments_json.len() > 16 * 1024
+        || arguments_json.contains('\0')
+        || !crate::valid_id(host_session_id)
+    {
+        return Err(Error::InvalidInput);
+    }
+    if port.explicit_takeover_requested(task_id) {
+        return Err(Error::StopRequired);
+    }
+    let (task, step) = crate::get_with_step(store, auth, task_id)?;
+    let step = step.ok_or(Error::StopRequired)?;
+    if store
+        .get_control(task_id)?
+        .is_some_and(|control| control.phase == crate::ControlPhase::Pending)
+    {
+        return Err(Error::StopRequired);
+    }
+    let target = targets.frontmost().map_err(|_| Error::StopRequired)?;
+    let attempt = crate::execution_runtime::begin_attempt(
+        runtime,
+        admission,
+        &task,
+        &step,
+        expected,
+        "cua_worker",
+        host_session_id,
+        &[Resource::Desktop],
+    )
+    .map_err(runtime_error)?;
+    let action = ComputerAction {
+        tool_name: tool_name.into(),
+        arguments_json: arguments_json.into(),
+    };
+    let outcome = port.dispatch(&attempt, &target, &action);
+    let observation = match &outcome {
+        DispatchOutcome::Known { observation, .. } => observation.clone(),
+        DispatchOutcome::Unknown(_) => None,
+    };
+    let interrupted = outcome == DispatchOutcome::Unknown(UnknownReason::UserInput);
+    let conclusion = match outcome {
+        DispatchOutcome::Known {
+            action_succeeded, ..
+        } => crate::AttemptConclusion::Observed { action_succeeded },
+        DispatchOutcome::Unknown(reason) => crate::AttemptConclusion::Unknown { reason },
+    };
+    let (snapshot, result) =
+        crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
+            .map_err(runtime_error)?;
+    let mut result_task = Task {
+        status: Status::Running,
+        sequence: snapshot.sequence,
+        ..task
+    };
+    if interrupted {
+        let stopped = runtime
+            .apply(crate::execution_runtime::RuntimeCommand::Terminate {
+                task_id: task_id.into(),
+                phase: crate::execution_runtime::RuntimePhase::Interrupted,
+            })
+            .map_err(runtime_error)?;
+        result_task.status = Status::Interrupted;
+        result_task.sequence = stopped.sequence;
+        admission
+            .release_task_after_stop(task_id)
+            .map_err(|_| Error::StorageUnavailable)?;
+    }
+    Ok((result_task, result, observation))
+}
+
+pub fn execute_agent_step_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    port: &(impl ComputerUsePort + ?Sized),
+    targets: &(impl WorkTargetPort + ?Sized),
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    step_id: &str,
+    label: &str,
+    tool_name: &str,
+    arguments_json: &str,
+    host_session_id: &str,
+) -> Result<(Task, AttemptResultRecord, Option<ComputerObservation>), Error> {
+    if !crate::valid_id(step_id)
+        || label.is_empty()
+        || label.len() > 120
+        || tool_name.is_empty()
+        || tool_name.len() > 64
+        || arguments_json.is_empty()
+        || arguments_json.len() > 16 * 1024
+        || arguments_json.contains('\0')
+        || !crate::valid_id(host_session_id)
+    {
+        return Err(Error::InvalidInput);
+    }
+    if port.explicit_takeover_requested(task_id) {
+        return Err(Error::StopRequired);
+    }
+    let task = crate::get(store, task_id)?;
+    if !auth.can_read(&task) {
+        return Err(Error::NotFound);
+    }
+    if store
+        .get_control(task_id)?
+        .is_some_and(|control| control.phase == crate::ControlPhase::Pending)
+    {
+        return Err(Error::StopRequired);
+    }
+    let step = crate::StepDeclaration {
+        step_id: step_id.into(),
+        label: label.into(),
+        accepted_sequence: expected,
+    };
+    let target = targets.frontmost().map_err(|_| Error::StopRequired)?;
+    let attempt = crate::execution_runtime::begin_attempt(
+        runtime,
+        admission,
+        &task,
+        &step,
+        expected,
+        "cua_worker",
+        host_session_id,
+        &[Resource::Desktop],
+    )
+    .map_err(runtime_error)?;
+    let outcome = port.dispatch(
+        &attempt,
+        &target,
+        &ComputerAction {
+            tool_name: tool_name.into(),
+            arguments_json: arguments_json.into(),
+        },
+    );
+    let observation = match &outcome {
+        DispatchOutcome::Known { observation, .. } => observation.clone(),
+        DispatchOutcome::Unknown(_) => None,
+    };
+    let interrupted = outcome == DispatchOutcome::Unknown(UnknownReason::UserInput);
+    let conclusion = match outcome {
+        DispatchOutcome::Known {
+            action_succeeded, ..
+        } => crate::AttemptConclusion::Observed { action_succeeded },
+        DispatchOutcome::Unknown(reason) => crate::AttemptConclusion::Unknown { reason },
+    };
+    let (snapshot, result) =
+        crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
+            .map_err(runtime_error)?;
+    let (status, sequence) = if interrupted {
+        let stopped = runtime
+            .apply(crate::execution_runtime::RuntimeCommand::Terminate {
+                task_id: task_id.into(),
+                phase: crate::execution_runtime::RuntimePhase::Interrupted,
+            })
+            .map_err(runtime_error)?;
+        admission
+            .release_task_after_stop(task_id)
+            .map_err(|_| Error::StorageUnavailable)?;
+        (Status::Interrupted, stopped.sequence)
+    } else if matches!(result.conclusion, crate::AttemptConclusion::Observed { .. }) {
+        port.project_step_completed(task_id, step_id);
+        let boundary = runtime
+            .apply(crate::execution_runtime::RuntimeCommand::AdvanceStepBoundary {
+                task_id: task_id.into(),
+                step_id: step_id.into(),
+            })
+            .map_err(runtime_error)?;
+        (Status::Running, boundary.sequence)
+    } else {
+        port.project_step_unverified(task_id, step_id);
+        (Status::Running, snapshot.sequence)
+    };
+    Ok((
+        Task {
+            status,
+            sequence,
+            ..task
+        },
+        result,
+        observation,
+    ))
+}
+
+fn runtime_error(error: crate::execution_runtime::RuntimeError) -> Error {
+    match error {
+        crate::execution_runtime::RuntimeError::InvalidInput => Error::InvalidInput,
+        crate::execution_runtime::RuntimeError::Conflict => Error::Conflict,
+        crate::execution_runtime::RuntimeError::Backpressure => Error::StopRequired,
+        crate::execution_runtime::RuntimeError::NotFound => Error::NotFound,
+        crate::execution_runtime::RuntimeError::Unavailable => Error::StorageUnavailable,
+    }
+}
+
 pub fn execute_agent_step(
     store:&mut impl TaskStore,admission:&Admission,port:&(impl ComputerUsePort + ?Sized),targets:&(impl WorkTargetPort + ?Sized),auth:AuthContext<'_>,
     task_id:&str,expected:u64,step_id:&str,label:&str,tool_name:&str,arguments_json:&str,host_session_id:&str,
@@ -81,6 +292,48 @@ pub fn complete_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:A
 
 pub fn fail_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64)->Result<Task,Error>{
     finish_agent_task(store,admission,auth,task_id,expected,true)
+}
+
+pub fn finish_agent_task_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    failed: bool,
+) -> Result<Task, Error> {
+    let task = crate::get(store, task_id)?;
+    if !auth.can_read(&task) {
+        return Err(Error::NotFound);
+    }
+    let snapshot = runtime.snapshot(task_id).map_err(runtime_error)?;
+    if snapshot.sequence != expected
+        || snapshot.phase != crate::execution_runtime::RuntimePhase::Running
+        || snapshot.current_step.is_some()
+        || snapshot.last_step_succeeded != Some(!failed)
+    {
+        return Err(Error::StopRequired);
+    }
+    let phase = if failed {
+        crate::execution_runtime::RuntimePhase::Failed
+    } else {
+        crate::execution_runtime::RuntimePhase::Completed
+    };
+    let terminal = runtime
+        .apply(crate::execution_runtime::RuntimeCommand::Terminate {
+            task_id: task_id.into(),
+            phase,
+        })
+        .map_err(runtime_error)?;
+    admission
+        .release_task_after_stop(task_id)
+        .map_err(|_| Error::StorageUnavailable)?;
+    Ok(Task {
+        status: if failed { Status::Failed } else { Status::Completed },
+        sequence: terminal.sequence,
+        ..task
+    })
 }
 
 fn finish_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,failed:bool)->Result<Task,Error>{

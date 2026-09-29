@@ -259,6 +259,7 @@ fn projected_state(
         RuntimeEventKind::StepStarted { .. }
         | RuntimeEventKind::StepCompleted { .. }
         | RuntimeEventKind::StepUnverified { .. }
+        | RuntimeEventKind::StepBoundaryAdvanced { .. }
         | RuntimeEventKind::HandedBack { .. }
             if current == "running" =>
         {
@@ -353,6 +354,86 @@ impl RuntimeEventProjector for SqliteTaskStore {
                 params![event.task_id, event.sequence as i64],
             )
             .map_err(|_| RuntimeProjectionError::Unavailable)?;
+            match &event.kind {
+                RuntimeEventKind::StepStarted {
+                    step_id,
+                    label,
+                    attempt_id,
+                    worker_instance_id,
+                    host_session_id,
+                    ..
+                } => {
+                    let existing_label: Option<String> = tx
+                        .query_row(
+                            "SELECT label FROM task_steps WHERE task_id=?1 AND step_id=?2",
+                            params![event.task_id, step_id],
+                            |row| row.get(0),
+                        )
+                        .optional()
+                        .map_err(|_| RuntimeProjectionError::Unavailable)?;
+                    match existing_label {
+                        Some(existing) if existing != *label => {
+                            return Err(RuntimeProjectionError::Conflict);
+                        }
+                        Some(_) => {}
+                        None => {
+                            tx.execute(
+                                "INSERT INTO task_steps(task_id,step_id,label,accepted_sequence) VALUES(?1,?2,?3,?4)",
+                                params![event.task_id, step_id, label, event.sequence as i64],
+                            )
+                            .map_err(|_| RuntimeProjectionError::Unavailable)?;
+                        }
+                    }
+                    tx.execute(
+                        "INSERT INTO task_attempts(task_id,step_id,attempt_id,worker_instance_id,host_session_id,phase,accepted_sequence) VALUES(?1,?2,?3,?4,?5,'prepared',?6)",
+                        params![event.task_id, step_id, attempt_id, worker_instance_id, host_session_id, event.sequence as i64],
+                    )
+                    .map_err(|_| RuntimeProjectionError::Unavailable)?;
+                }
+                RuntimeEventKind::StepCompleted {
+                    step_id,
+                    action_succeeded,
+                } => {
+                    if tx
+                        .execute(
+                            "UPDATE task_attempts SET phase='observed',result_sequence=?1,action_succeeded=?2,observe_valid=1 WHERE task_id=?3 AND step_id=?4 AND phase='prepared'",
+                            params![event.sequence as i64, action_succeeded, event.task_id, step_id],
+                        )
+                        .map_err(|_| RuntimeProjectionError::Unavailable)?
+                        != 1
+                    {
+                        return Err(RuntimeProjectionError::Conflict);
+                    }
+                }
+                RuntimeEventKind::StepUnverified {
+                    step_id,
+                    reason: unknown_reason,
+                } => {
+                    if tx
+                        .execute(
+                            "UPDATE task_attempts SET phase='unknown',result_sequence=?1,observe_valid=0,unknown_reason=?2 WHERE task_id=?3 AND step_id=?4 AND phase='prepared'",
+                            params![event.sequence as i64, reason(*unknown_reason), event.task_id, step_id],
+                        )
+                        .map_err(|_| RuntimeProjectionError::Unavailable)?
+                        != 1
+                    {
+                        return Err(RuntimeProjectionError::Conflict);
+                    }
+                }
+                RuntimeEventKind::StepBoundaryAdvanced { step_id } => {
+                    if tx
+                        .execute(
+                            "UPDATE task_attempts SET phase='stopped',stop_sequence=?1 WHERE task_id=?2 AND step_id=?3 AND phase='observed'",
+                            params![event.sequence as i64, event.task_id, step_id],
+                        )
+                        .map_err(|_| RuntimeProjectionError::Unavailable)?
+                        != 1
+                    {
+                        return Err(RuntimeProjectionError::Conflict);
+                    }
+                }
+                _ => {}
+            }
             tx.execute(
                 "INSERT INTO task_runtime_projections(task_id,sequence,payload) VALUES(?1,?2,?3)",
                 params![event.task_id, event.sequence as i64, payload],
@@ -9086,24 +9167,39 @@ mod tests {
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         let task = create(&mut store, "runtime-project").unwrap();
+        let task = store
+            .declare_step("a1", &task.id, task.sequence, "open", "打开应用")
+            .unwrap()
+            .0;
         let events = vec![
             RuntimeEvent {
                 task_id: task.id.clone(),
-                sequence: 2,
+                sequence: 3,
                 kind: RuntimeEventKind::Activated,
             },
             RuntimeEvent {
                 task_id: task.id.clone(),
-                sequence: 3,
+                sequence: 4,
                 kind: RuntimeEventKind::StepStarted {
                     step_id: "open".into(),
                     label: "打开应用".into(),
+                    attempt_id: "attempt-open".into(),
+                    worker_instance_id: "worker".into(),
+                    host_session_id: "host".into(),
                 },
             },
             RuntimeEvent {
                 task_id: task.id.clone(),
-                sequence: 4,
+                sequence: 5,
                 kind: RuntimeEventKind::StepCompleted {
+                    step_id: "open".into(),
+                    action_succeeded: true,
+                },
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 6,
+                kind: RuntimeEventKind::StepBoundaryAdvanced {
                     step_id: "open".into(),
                 },
             },
@@ -9119,7 +9215,18 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
             )
             .unwrap();
-        assert_eq!(persisted, ("running".into(), 4, 4, 4, 3));
+        assert_eq!(persisted, ("running".into(), 6, 6, 6, 4));
+        assert_eq!(
+            store
+                .0
+                .query_row(
+                    "SELECT phase FROM task_attempts WHERE task_id=?1",
+                    [&task.id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "stopped"
+        );
     }
 
     #[test]
@@ -9127,24 +9234,31 @@ mod tests {
         let mut store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         let task = create(&mut store, "runtime-rollback").unwrap();
+        let task = store
+            .declare_step("a1", &task.id, task.sequence, "open", "打开应用")
+            .unwrap()
+            .0;
         store
             .0
             .execute_batch(
-                "CREATE TRIGGER reject_runtime_projection BEFORE INSERT ON task_runtime_projections WHEN NEW.sequence=3 BEGIN SELECT RAISE(ABORT,'test'); END;",
+                "CREATE TRIGGER reject_runtime_projection BEFORE INSERT ON task_runtime_projections WHEN NEW.sequence=4 BEGIN SELECT RAISE(ABORT,'test'); END;",
             )
             .unwrap();
         let events = vec![
             RuntimeEvent {
                 task_id: task.id.clone(),
-                sequence: 2,
+                sequence: 3,
                 kind: RuntimeEventKind::Activated,
             },
             RuntimeEvent {
                 task_id: task.id.clone(),
-                sequence: 3,
+                sequence: 4,
                 kind: RuntimeEventKind::StepStarted {
                     step_id: "open".into(),
                     label: "打开应用".into(),
+                    attempt_id: "attempt-open".into(),
+                    worker_instance_id: "worker".into(),
+                    host_session_id: "host".into(),
                 },
             },
         ];
@@ -9160,7 +9274,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
             )
             .unwrap();
-        assert_eq!(persisted, ("created".into(), 1, 1, 1, 0));
+        assert_eq!(persisted, ("created".into(), 2, 2, 2, 0));
     }
 
     #[test]
