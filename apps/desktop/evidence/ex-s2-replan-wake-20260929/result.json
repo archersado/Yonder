@@ -1,0 +1,22 @@
+{
+  "platform": "macos",
+  "protocol_version": "1.33",
+  "task_id": "task_e5a58104f7e2a07f5c6f18984521238c",
+  "initial_handback_sequence": "7",
+  "replan_input_received_by_codex": true,
+  "fresh_events_read": 7,
+  "replanned_fragment": {
+    "plan_id": "replan-wake-safe-followup",
+    "plan_version": 1,
+    "accepted_sequence": "8",
+    "step_count": 2
+  },
+  "floating_control": {
+    "visible": true,
+    "summary_found": true,
+    "both_replanned_steps_found": true
+  },
+  "unknown_followup_was_not_retried": true,
+  "verification_task_final_status": "cancelled",
+  "passed": true
+}

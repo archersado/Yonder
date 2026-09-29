@@ -47,3 +47,11 @@
 本样本不包含联系人、消息正文或发送动作，不启动 Recording。此前自定义文本夹具的 `type_text` 返回 `action_succeeded=false` 时，系统已正确停止连续推进并交回慢脑；该负向事实同时证明失败动作不会被当成成功槽位跨越。
 
 真实企业微信样本进一步证明单槽位正向链路：`launch_app(com.tencent.WeWorkMac)` 在 1466ms 内完成 Observe，片段返回 `fragment-complete`，任务最终 `completed`，没有消息输入、发送或 Recording。四槽位的「启动→前置→Tab→Escape」样本目前在跨 Space 前置阶段被 CU-S2 的 HID 来源分类安全中断；任务成为 `interrupted`，没有跨越失败槽位。该结果不影响隔离窗口连续执行 PASS，但企业微信真实连续样本仍保持待完成。
+
+## 2026-09-29 主动慢脑唤醒与顶部汇总证据
+
+正式 `dev` debug bundle 以协议 1.33 运行。任务 `task_e5a58104f7e2a07f5c6f18984521238c` 的无副作用失效应用样本在序号 7 产生 `handback` 后，Desktop在 Gateway 响应写回和锁释放后，经同一 AG-S5 `agent.input(source=replan)` 会话把任务号、序号及有界原因投递给唯一归属的 `codex-cli`。当前 Codex 活动 turn 实际收到输入；慢脑随后经正式 MCP/Gateway 读取 7 条新鲜事件，未重试失败动作，并提交含 2 步的 `replan-wake-safe-followup`，序号推进到 8。
+
+桥接读取活动 turn 时不再请求完整历史，而是先以 `thread/read(includeTurns=false)`读取状态，再以`thread/turns/list(limit=1, itemsView=notLoaded)`取得 steer 所需 ID。由此避免长会话完整历史超过 App Server 帧上限；隔离桥合约同时覆盖活动 turn 的 `turn/steer` 与空闲 turn 的 `turn/start`。
+
+原生 AX 验证和窗口截图证明顶部浮窗同时出现“慢脑已提交重新规划：2 个步骤”及两条新步骤；证据位于 `apps/desktop/evidence/ex-s2-replan-wake-20260929/`。后续执行中新的 TextEdit 启动尝试返回 `unknown(worker-failed)`；慢脑读取 13 条事件后没有自动重试该结果待核实的副作用，验证任务按测试清理流程取消。该后续 Driver 结果不改变本 Goal 对“交回主动唤醒、同 Gateway 重新规划、顶部汇总”的 PASS 结论，也不被记录为动作成功。
