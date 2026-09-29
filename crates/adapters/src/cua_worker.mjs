@@ -13,6 +13,12 @@ const launchStateConfirmed = state =>
   ['process_running', 'window_ready'].includes(state)
   || (state && typeof state === 'object'
     && (state.process_running === true || state.window_ready === true));
+// bring_to_front 的平台扩展结果没有通用 effect；精确窗口成功由 verified 与
+// 稳定 code 共同表达。partial/unverified 仍由 isError 收敛为 refused，不能因
+// 进程已激活或请求已接受而提升为成功。
+const bringToFrontConfirmed = result =>
+  result?.exact_window_effect?.verified === true
+  && result?.code === 'bring_to_front_exact_window_verified';
 const driver = sdk.CuaDriver.create(undefined);
 try {
   await driver.metadata();
@@ -93,7 +99,8 @@ try {
           } : undefined;
         }
         const launchConfirmed=request.tool_name==='launch_app' && Number.isInteger(actionResult.pid) && launchStateConfirmed(actionResult.launch_state);
-        response.action_effect=launchConfirmed?'confirmed':typeof actionResult.effect==='string'?actionResult.effect:action.isError?'refused':'unverifiable';
+        const bringConfirmed=request.tool_name==='bring_to_front' && !action.isError && bringToFrontConfirmed(actionResult);
+        response.action_effect=launchConfirmed||bringConfirmed?'confirmed':typeof actionResult.effect==='string'?actionResult.effect:action.isError?'refused':'unverifiable';
         response.action_known = true;
         response.action_succeeded = response.action_effect === 'confirmed';
         response.failure_stage = 'observe-after';
