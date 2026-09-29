@@ -16,6 +16,7 @@ Epic: TM
 - [TM-S6 全量运行状态查询](story-TM-S6/README.md)：AC11 数据库侧独立子项，完整收起准入仍待宿主整合。
 - [TM-S7 统一执行启动状态](story-TM-S7/README.md)：CUA、BUA、Document 与 Command 首次副作用统一进入 `running`。
 - [TM-S8 统一产品执行闭环](story-TM-S8/README.md)：用真实 Codex MCP 和正式 Yonder GUI 验收四类能力的完整产品链路。
+- [TM-S9 事件驱动执行运行时](story-TM-S9/README.md)：活动任务由内存事件循环推进，SQLite 仅作异步事后投影与恢复检查点。
 
 ## 验收与依赖
 

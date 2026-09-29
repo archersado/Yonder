@@ -25,6 +25,8 @@
 
 ## 当前研发顺序
 
+2026-09-29 新增 [TM-S9 事件驱动执行运行时](epic-TM/story-TM-S9/README.md)：按 Accepted AD-TM-23 废除“SQLite 是当前状态唯一事实源、每步同步事务后推进”。活动 CUA/BUA/Office/Command 由轻量内存事件循环推进，SQLite/events/Outbox 作为异步事后投影与恢复检查点；先迁移 CUA/计划片段。
+
 2026-09-28 新增 [TM-S8 统一产品执行闭环](epic-TM/story-TM-S8/README.md)：用户明确验收目标是可由真实慢脑运行 CUA、BUA、Office、Command 的完整产品，不再用逐步私有脚本或 Driver 探针替代。当前从 `dev` 正式 GUI 与 Codex MCP 开始 macOS 四链路验证，缺口返回所属 Story 修复；Windows继续暂缓。
 
 2026-09-24 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 保持：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。用户变更将 EX-S2 接线限定 macOS-only，Windows 与费用证据后补；`AD-EX-02` 仅接受 macOS 子路线，`ex-s2-macos-only-jev-wiring` 已通过并归档，Windows 路径仍不编译、不注册、不验证。

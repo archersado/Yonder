@@ -45,10 +45,12 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 
 ## 任务、状态与恢复
 
+2026-09-29 按 Accepted [AD-TM-23](AD-TM-23-EVENT-DRIVEN-EXECUTION-RUNTIME.md)，正式废除“SQLite 是当前状态唯一事实源、每步同步事务后推进”。活动任务由 Application 单一有界 `ExecutionRuntime` 事件循环拥有并推进；SQLite、事件表与 Outbox 是异步事后投影和重启检查点，落盘批次内部仍保持原子一致。迁移期间同一任务只允许一个可写状态所有者。
+
 - 2026-09-28 按 Accepted [AD-DS-05](AD-DS-05-NEWEST-TASK-PAGINATION.md)，任务空间以协议 1.32 请求 SQLite 按创建时间与任务 ID 倒序稳定分页；历史未知时间不伪造，前端不维护置顶副本。
 
 - Execution Session 是 Yonder 内部执行实体；ego-lite Task Space 是 BUA 外部实体；两者映射为统一 Task Status。
-- SQLite 当前状态表是唯一当前事实源，配合追加事件日志与同事务 Outbox，不采用完整 Event Sourcing。每任务 sequence 严格递增。
+- 活动任务以内存 `ExecutionRuntime` 快照为唯一当前事实源；非活动历史与重启恢复以 SQLite checkpoint 为持久事实。SQLite 配合追加事件日志与同事务 Outbox 异步投影，不采用完整 Event Sourcing。每任务逻辑 sequence 严格递增，checkpoint 只能连续前进。
 - 持久化状态、步骤、结果、错误、等待原因、恢复信息和外部引用；句柄、连接、窗口对象及订阅仅驻内存。
 - 重启后 running 转 interrupted；重新 Observe 后由外部 Agent 决定继续、跳过或局部 replan，禁止自动重试副作用未知动作。
 - 提供 task.get、task.events(after_sequence)、CLI status/watch、MCP 查询/长轮询与云端事件推送。
