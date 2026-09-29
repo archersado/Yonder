@@ -128,12 +128,14 @@ def gateway(socket_path, results, ready):
     hello = frame(connection)
     assert hello["method"] == "gateway.hello"
     assert hello["params"]["session_id"] == THREAD_ID
-    assert hello["params"]["offered_capabilities"] == ["user_input"]
-    send(connection, {"jsonrpc": "2.0", "id": "hello", "result": {"kind": "hello", "protocol_version": {"major": 1, "minor": 19}, "platform": "macos", "capabilities": []}})
+    assert hello["params"]["protocol_version"] == {"major": 1, "minor": 33}
+    assert hello["params"]["offered_capabilities"] == ["user_input", "replan_input"]
+    send(connection, {"jsonrpc": "2.0", "id": "hello", "result": {"kind": "hello", "protocol_version": {"major": 1, "minor": 33}, "platform": "macos", "capabilities": []}})
     for index in (1, 2):
         now = int(time.time() * 1000)
         request_id = f"input-{index}"
-        send(connection, {"jsonrpc": "2.0", "id": request_id, "method": "agent.input", "params": {"input_id": request_id, "session_id": THREAD_ID, "source": "voice", "content": f"contract-{index}", "created_at": now, "deadline": now + 10000}})
+        source = "voice" if index == 1 else "replan"
+        send(connection, {"jsonrpc": "2.0", "id": request_id, "method": "agent.input", "params": {"input_id": request_id, "session_id": THREAD_ID, "source": source, "content": f"contract-{index}", "created_at": now, "deadline": now + 10000}})
         response = frame(connection)
         results.append(response["id"] == request_id and response["result"]["accepted"] is True)
     connection.close()
