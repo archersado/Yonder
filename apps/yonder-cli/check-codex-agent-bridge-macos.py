@@ -88,9 +88,14 @@ def app_server(socket_path, methods, ready):
         elif method == "thread/read":
             reads += 1
             if reads == 1:
-                result = {"thread": {"status": {"type": "active"}, "turns": [{"id": "turn-active", "status": "inProgress"}]}}
+                assert message["params"]["includeTurns"] is False
+                result = {"thread": {"status": {"type": "active"}, "turns": []}}
             else:
-                result = {"thread": {"status": {"type": "idle"}, "turns": [{"id": "turn-interrupted", "status": "interrupted"}]}}
+                assert message["params"]["includeTurns"] is False
+                result = {"thread": {"status": {"type": "idle"}, "turns": []}}
+        elif method == "thread/turns/list":
+            assert message["params"] == {"threadId": THREAD_ID, "limit": 1, "sortDirection": "desc", "itemsView": "notLoaded"}
+            result = {"data": [{"id": "turn-active", "status": "inProgress", "items": []}]}
         elif method == "turn/steer":
             assert message["params"]["expectedTurnId"] == "turn-active"
             result = {"turnId": "turn-active"}
@@ -169,7 +174,7 @@ def main():
         process = subprocess.run([str(BINARY), "agent-bridge"], env=environment, capture_output=True, text=True, timeout=15)
         gateway_thread.join(timeout=5)
         app_thread.join(timeout=5)
-        expected = ["initialize", "thread/loaded/list", "thread/read", "turn/steer", "thread/read", "turn/start"]
+        expected = ["initialize", "thread/loaded/list", "thread/read", "thread/turns/list", "turn/steer", "thread/read", "turn/start"]
         passed = results == [True, True] and methods == expected
         report = {"passed": passed, "accepted": results, "methods": methods, "bridge_closed_after_gateway_eof": process.returncode != 0}
         if not passed:

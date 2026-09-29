@@ -140,7 +140,7 @@ impl CodexAppServer {
         let result = self
             .call(
                 "thread/read",
-                json!({"threadId":thread_id,"includeTurns":true}),
+                json!({"threadId":thread_id,"includeTurns":false}),
                 deadline.saturating_duration_since(Instant::now()),
             )
             .await?;
@@ -155,7 +155,16 @@ impl CodexAppServer {
         let input = json!([{"type":"text","text":content}]);
         match status {
             "active" => {
-                let turn_id = active_turn_id(thread)
+                // 不拉取整段历史；长会话的完整turn载荷会超过App Server帧上限。
+                // 只分页读取最新turn的元数据以取得steer所需的活动turn id。
+                let turns = self
+                    .call(
+                        "thread/turns/list",
+                        json!({"threadId":thread_id,"limit":1,"sortDirection":"desc","itemsView":"notLoaded"}),
+                        deadline.saturating_duration_since(Instant::now()),
+                    )
+                    .await?;
+                let turn_id = active_turn_id_from_page(&turns)
                     .ok_or_else(|| io::Error::other("Codex活动turn标识缺失"))?;
                 let result = self
                     .call(
@@ -239,12 +248,10 @@ fn read_responses(
     (receiver, reader)
 }
 
-fn active_turn_id(thread: &Value) -> Option<&str> {
-    thread
-        .get("turns")?
+fn active_turn_id_from_page(page: &Value) -> Option<&str> {
+    page.get("data")?
         .as_array()?
         .iter()
-        .rev()
         .find(|turn| turn.get("status").and_then(Value::as_str) == Some("inProgress"))?
         .get("id")?
         .as_str()
@@ -440,11 +447,13 @@ mod tests {
 
     #[test]
     fn selects_only_the_in_progress_turn() {
-        let thread = json!({"turns":[{"id":"old","status":"completed"},{"id":"active","status":"inProgress"}]});
-        assert_eq!(active_turn_id(&thread), Some("active"));
         assert_eq!(
-            active_turn_id(&json!({"turns":[{"id":"done","status":"interrupted"}]})),
+            active_turn_id_from_page(&json!({"data":[{"id":"done","status":"interrupted"}]})),
             None
+        );
+        assert_eq!(
+            active_turn_id_from_page(&json!({"data":[{"id":"active","status":"inProgress","items":[]}]})),
+            Some("active")
         );
     }
 
