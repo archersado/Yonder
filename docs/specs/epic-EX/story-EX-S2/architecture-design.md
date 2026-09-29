@@ -52,6 +52,8 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 取消、接管、用户输入先冻结快脑新决策，再按既有步骤边界停止/Observe/事务确认。副作用超时、崩溃或断连为 `unknown`，保留占用并交回慢脑；重启 running→interrupted，不能恢复旧候选、旧计划或自动重发。敏感操作继续走显式用户确认，不因高置信豁免。
 
+交回提交成功后，Desktop组合根从Gateway响应提取受限的任务ID、sequence和交回原因，在释放TaskHost锁且把响应写回调用方后，通过AG-S5现有`AgentInputHub`向唯一匹配`owner_agent_id`的已连接会话投递`source=replan`输入。输入只要求慢脑调用`task.get/task.events`取得新鲜事实并经原Gateway提交新片段，不夹带截图、正文、联系人、Driver参数或完整事件。无连接、多会话、拒绝或超时不改变任务事实、不重试副作用，只在顶部浮窗展示“等待慢脑连接/慢脑唤醒失败”。同一交回序号只投递一次；慢脑的新片段仍受身份、CAS、期限和能力校验。
+
 ## 失败与验证
 
 macOS-only 子路线验证 Application 候选/置信策略、Keychain 凭据边界、SDK Worker、组合根和 Windows 不注册。计划片段执行则另行验证 Domain、协议、SQLite/Outbox/Gateway 以及 Windows/macOS 原生取消、接管、权限、网络断连与恢复；它仍以 EX-S1、TM-S7 与完整执行层门禁为前置。

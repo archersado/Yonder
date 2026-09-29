@@ -7,3 +7,5 @@ Rust 协议是唯一模型来源，新增 `task.plan.submit` 与 `task.plan.exec
 测试覆盖协议派生、身份/CAS/版本/期限/候选校验、事务回滚、Jev 低置信交回、已观察动作与未知结果、取消/控制优先。macOS 原生验证仅在代码完整后执行；Windows 不在本 Change 验证范围。
 
 MCP 增量只增加 `task_plan_submit` 与 `task_plan_execute` 两个薄适配工具：把 MCP JSON 参数反序列化为 Rust `PlanSubmitParams`/`PlanExecuteParams`，再复用现有 `gateway()` 的协议 1.31 握手与 UDS 请求。候选嵌套结构由 Rust 协议反序列化和 Gateway 验证，CLI 不接受自由 DSL、不直接调用 Jev/Driver，也不返回完整模型请求。
+
+交回响应提交后由Desktop组合根在TaskHost锁外调用AG-S5既有`AgentInputHub`，以Rust协议新增的`source=replan`向唯一归属Agent会话投递有界唤醒文本。投递不参与动作结果事务、不阻塞Gateway执行，也不代替事件/Outbox；失败只形成短生命周期展示。顶部浮窗Hub增加`replanning`投影：交回时保留失败步骤，投递被Agent接受后显示慢脑正在规划，新`task.plan.submit`成功后从权威片段刷新计划摘要。慢脑仍从同一Gateway读取事实、提交和执行新片段。
