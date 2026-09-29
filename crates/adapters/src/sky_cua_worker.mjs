@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline';
 import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { realpath, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -59,6 +59,13 @@ const supported = new Set([
 ]);
 let launchedTarget;
 
+class WorkerFailure extends Error {
+  constructor(stage) {
+    super(stage);
+    this.stage = stage;
+  }
+}
+
 function responseFor(request) {
   return {
     task_id: request.task_id,
@@ -89,6 +96,38 @@ async function macAppForPid(pid) {
   return match[1];
 }
 
+async function runningMacAppForBundleId(bundleId) {
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync('/bin/ps', ['-axo', 'command='], {
+      encoding: 'utf8', timeout: 2_000, maxBuffer: 1024 * 1024,
+    }));
+  } catch {
+    throw new WorkerFailure('target-running-processes');
+  }
+  const rawPaths = [...new Set(stdout.split('\n').flatMap(command => {
+    const match = command.trim().match(/^(.+?\.app)(?:\/|$)/);
+    return match ? [match[1]] : [];
+  }))];
+  const paths = [...new Set((await Promise.all(rawPaths.map(path => realpath(path).catch(() => null))))
+    .filter(path => typeof path === 'string'))];
+  const matches = [];
+  for (const path of paths) {
+    try {
+      const { stdout: identifier } = await execFileAsync(
+        '/usr/bin/plutil',
+        ['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', join(path, 'Contents', 'Info.plist')],
+        { encoding: 'utf8', timeout: 2_000, maxBuffer: 4 * 1024 },
+      );
+      if (identifier.trim() === bundleId) matches.push(path);
+    } catch {
+      // 进程可能在枚举后立即退出；忽略该候选并继续收敛。
+    }
+  }
+  if (matches.length !== 1) throw new WorkerFailure('target-running-identity');
+  return matches[0];
+}
+
 async function targetFor(request) {
   if (request.tool_name === 'launch_app') {
     const app = request.arguments.app ?? request.arguments.bundle_id ?? request.arguments.path;
@@ -96,12 +135,21 @@ async function targetFor(request) {
       throw new Error('launch target is unavailable');
     }
     const requested = app.trim();
-    const apps = await sky.list_apps();
+    let apps;
+    try {
+      apps = await sky.list_apps();
+    } catch {
+      throw new WorkerFailure('target-list-apps');
+    }
     const matches = apps.filter(candidate => candidate.id === requested || candidate.displayName === requested);
     if (matches.length !== 1 || typeof matches[0].id !== 'string' || matches[0].id === '') {
-      throw new Error('canonical launch target is unavailable');
+      throw new WorkerFailure('target-canonical-app');
     }
-    return { app: matches[0].id };
+    const applicationId = matches[0].id;
+    const resolvedApp = matches[0].isRunning === true
+      ? await runningMacAppForBundleId(applicationId)
+      : applicationId;
+    return { app: resolvedApp, applicationId };
   }
   if (request.tool_name === 'bring_to_front' && sky.target === 'mac') {
     if (launchedTarget?.task_id !== request.task_id) throw new Error('launched target is unavailable');
@@ -204,11 +252,12 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.action_succeeded = response.action_effect === 'confirmed';
     if (request.tool_name === 'launch_app' && response.action_succeeded) {
       launchedTarget = { task_id: request.task_id, app: target.app };
-      response.launched_app_id = target.app;
+      response.launched_app_id = target.applicationId;
     }
     await persistScreenshot(after, request, response);
     response.failure_stage = null;
-  } catch {
+  } catch (error) {
+    if (error instanceof WorkerFailure) response.failure_stage = error.stage;
     // 不把应用名、辅助功能文本、截图或 SDK 错误正文带回宿主日志。
   }
   process.stdout.write(`${JSON.stringify(response)}\n`);

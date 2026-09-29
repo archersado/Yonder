@@ -25,7 +25,7 @@ YONDER_SKY_SDK_PATH=/absolute/path/to/@oai/sky/dist/project/cua/sky_js/src/index
 Yonder 继续以 `pid + window_id` 锁定工作目标：
 
 - macOS Sky 只接受应用标识。worker 从已锁定 PID 的进程命令解析唯一 `.app` 路径；无法解析时拒绝执行，不选择最近使用应用。
-- macOS 的 `launch_app` 使用 Sky 文档约定的 `get_app_state` 透明后台启动语义，并把 `list_apps` 返回的 canonical bundle id 只缓存在同一任务和 worker 会话内。公开 API 没有 `activate_window`，因此后续显式 `bring_to_front` 用该可信 bundle id 解析唯一运行实例及其最大普通窗口，外挂复用 Yonder 的原生 `MacWorkFocus` 精确激活并验证，再由 Sky 做后置观察；不接受 Agent 提交 PID 或窗口号替代缓存身份。
+- macOS 的 `launch_app` 使用 Sky 文档约定的 `get_app_state` 透明后台启动语义，并把 `list_apps` 返回的 canonical bundle id 只缓存在同一任务和 worker 会话内。当同一 bundle id 同时存在安装副本与 App Translocation 副本时，worker 仅可从本机运行进程和 `Info.plist` 反向解析唯一的实际 `.app` 路径供 Sky 观察；路径不接受 Agent 输入、不进入协议或日志，无法唯一收敛时拒绝执行。公开 API 没有 `activate_window`，因此后续显式 `bring_to_front` 用该可信 bundle id 解析唯一运行实例及其最大普通窗口，外挂复用 Yonder 的原生 `MacWorkFocus` 精确激活并验证，再由 Sky 对同一实际应用路径做后置观察；不接受 Agent 提交 PID、窗口号或路径替代缓存身份。
 - Linux/Windows Sky 使用窗口对象。worker 只接受 `list_windows()` 中与 `window_id` 精确相等的窗口。
 - 每个动作前后都执行观察。只有辅助功能文本或截图发生变化时才返回 `confirmed`；无变化返回 `suspected_noop`，由 Rust 侧收敛成未验证结果。
 - 截图只写入 Yonder 的 0700 evidence 目录，单文件上限 4 MiB；SDK 错误、辅助功能正文和截图不会进入宿主日志。
