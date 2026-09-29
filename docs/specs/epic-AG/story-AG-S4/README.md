@@ -2,7 +2,7 @@
 
 Story: AG-S4
 Epic: AG
-Status: implementing
+Status: verifying
 OpenSpec: ag-s4-yonder-skill
 
 ## 设计文档
@@ -20,6 +20,8 @@ BUA、CUA、Document、Command 的 macOS Gateway 增量与独立 Verification Go
 同日补充的 Skill 包结构候选已在本轮审阅后定案为仓库目录 `skills/yonder/`；版本 `0.1.0`，最低 Yonder 协议 `1.31`，运行时仍必须按实际工具发现失败关闭。
 
 BUA 继续复用 ego-lite Task Space；Skill 将 ego-browser `2.0.0` 的必要操作规则作为 BUA 子模块，但所有任务登记、身份、状态、Observe、控制和完成均由 Yonder 管理。CUA、文档和命令不得由 Skill 建立旁路执行栈。Windows能力仍暂缓，不据此宣称完整 Story Done。
+
+2026-09-29：发布源已 ff-only 合入 `dev`，并以符号链接安装至本机 Codex Skill 搜索路径；源目录与安装入口均通过官方Skill结构校验。新Agent会话的真实计划生成与四类正式Runtime样本仍待完成，Story进入`verifying`。
 
 ## OpenSpec 与验证
 

@@ -1,6 +1,6 @@
 # AG-S4 Yonder Agent Skill 独立 Verification Goal
 
-状态：结构与规格检查 PASS；本机安装、真实慢脑生成及四类产品 Runtime 样本待验证。Windows按用户决定暂缓，Change不Archive。
+状态：结构、规格与本机安装检查 PASS；真实慢脑生成及四类产品 Runtime 样本待验证。Windows按用户决定暂缓，Change不Archive。
 
 ## Goal
 
@@ -15,6 +15,7 @@
 | Agent UI元数据 | PASS | Ruby YAML解析通过；默认提示显式引用`$yonder` |
 | OpenSpec | PASS | `openspec validate ag-s4-yonder-skill --strict` |
 | 包边界 | PASS | 包内只有Markdown、JSON、YAML；无执行代码、凭据、用户数据或协议类型副本 |
+| 本机安装入口 | PASS | `~/.codex/skills/yonder`链接至合并后的仓库发布源，安装入口再次通过官方`quick_validate.py`且主入口/发现元数据可读 |
 | 架构门禁 | BASELINE BLOCKED | `scripts/check_architecture.py`因既有`TM-S9` README缺少唯一`Story:`字段失败；同一失败可在未修改的`dev@b34fd1d`复现，与本Change无关 |
 
 ## 企业微信前向样本
@@ -32,7 +33,6 @@
 
 ## 待验证
 
-- 将合并后的`skills/yonder/`安装至本机Agent Skill搜索路径并验证可发现。
 - 由新的Agent会话加载Skill，检查上述企业微信样本的真实计划输出。
 - 复用TM-S8正式Yonder GUI分别完成BUA、CUA、Document、Command样本；不得用私有脚本或Driver探针替代。
 - Windows恢复后补对等安装、发现与原生能力证据。
