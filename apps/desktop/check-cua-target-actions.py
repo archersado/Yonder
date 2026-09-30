@@ -52,15 +52,16 @@ with tempfile.TemporaryDirectory(prefix="yonda-cua-target-") as temporary:
         {**base,"step_id":"focus","attempt_id":"a1","tool_name":"click","arguments":{"_yonder_action_kind":"focus-target-search","_yonder_private_text":"宫健的分身"}},
         {**base,"step_id":"query","attempt_id":"a2","tool_name":"type_text","arguments":{"_yonder_action_kind":"enter-target-query","_yonder_private_text":"宫健的分身"}},
         {**base,"step_id":"activate","attempt_id":"a3","tool_name":"click","arguments":{"_yonder_action_kind":"activate-target","_yonder_private_text":"宫健的分身"}},
-        {**base,"step_id":"draft","attempt_id":"a4","tool_name":"type_text","arguments":{"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"hi"}},
-        {**base,"step_id":"send","attempt_id":"a5","tool_name":"click","arguments":{"_yonder_action_kind":"send-message"}},
+        {**base,"step_id":"focus-composer","attempt_id":"a4","tool_name":"click","arguments":{"_yonder_action_kind":"focus-message-composer"}},
+        {**base,"step_id":"draft","attempt_id":"a5","tool_name":"type_text","arguments":{"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"hi"}},
+        {**base,"step_id":"send","attempt_id":"a6","tool_name":"click","arguments":{"_yonder_action_kind":"send-message"}},
     ]
     run = subprocess.run(["node",str(worker),str(sdk),str(evidence)],input="".join(json.dumps(item)+"\n" for item in requests),text=True,capture_output=True,timeout=10,check=True)
     responses = [json.loads(line) for line in run.stdout.splitlines()]
     actions = [json.loads(line) for line in log.read_text().splitlines()]
 
 assert all(item["action_succeeded"] for item in responses)
-assert [item["args"].get("element_token") for item in actions] == ["search","search","contact","composer","send"]
-assert actions[1]["args"]["text"] == "宫健的分身" and actions[3]["args"]["text"] == "hi"
+assert [item["args"].get("element_token") for item in actions] == ["search","search","contact","composer","composer","send"]
+assert actions[1]["args"]["text"] == "宫健的分身" and actions[4]["args"]["text"] == "hi"
 assert all("_yonder_private_text" not in item["args"] and "_yonder_action_kind" not in item["args"] for item in actions)
-print(json.dumps({"semantic_steps":5,"element_tokens":True,"private_fields_stripped":True,"sent_after_confirmation_dispatch":True},ensure_ascii=False))
+print(json.dumps({"semantic_steps":6,"element_tokens":True,"private_fields_stripped":True,"sent_after_confirmation_dispatch":True},ensure_ascii=False))

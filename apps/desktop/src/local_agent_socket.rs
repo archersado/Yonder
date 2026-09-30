@@ -44,6 +44,7 @@ pub struct Server {
 
 impl Server {
     pub fn start(host: Arc<Mutex<Option<TaskHost>>>, path: PathBuf, pet: WebviewWindow, hub: AgentInputHub, cua_control: WebviewWindow, cua_hub: CuaControlHub) -> io::Result<Self> {
+        ensure_task_host_ready(&host)?;
         let parent = path.parent().ok_or_else(|| io::Error::other("本地Gateway路径不可用"))?;
         std::fs::create_dir_all(parent)?;
         std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
@@ -81,6 +82,22 @@ impl Server {
     fn stop(&mut self) {
         if let Some(stop) = self.stop.take() { let _ = stop.send(()); }
         if let Some(thread) = self.thread.take() { let _ = thread.join(); }
+    }
+}
+
+fn ensure_task_host_ready(host: &Arc<Mutex<Option<TaskHost>>>) -> io::Result<()> {
+    let locked = host.lock().map_err(|_| io::Error::other("本地Gateway不可用"))?;
+    if locked.is_none() { return Err(io::Error::other("TaskHost未就绪，拒绝创建本地Gateway")); }
+    Ok(())
+}
+
+#[cfg(test)]
+mod startup_tests {
+    use super::*;
+    #[test]
+    fn unavailable_task_host_is_rejected_before_socket_creation() {
+        let host=Arc::new(Mutex::new(None));
+        assert_eq!(ensure_task_host_ready(&host).unwrap_err().to_string(),"TaskHost未就绪，拒绝创建本地Gateway");
     }
 }
 

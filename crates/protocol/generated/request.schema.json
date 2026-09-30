@@ -1092,6 +1092,7 @@
         "focus-target-search",
         "enter-target-query",
         "activate-target",
+        "focus-message-composer",
         "draft-message-ref",
         "resolve-conversation",
         "draft-message",

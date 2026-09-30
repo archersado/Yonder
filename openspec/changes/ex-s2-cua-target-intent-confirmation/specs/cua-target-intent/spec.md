@@ -13,7 +13,7 @@
 
 ### Requirement: 计划必须用封闭语义逐步解析目标
 
-计划 MUST 分别表达聚焦目标入口、输入目标查询、激活目标、填写草稿和发送。Application MUST 在派发前解析引用，Worker MUST 元素优先，元素不可用时才接受慢脑依据1.34视觉证据提交的坐标候选。
+计划 MUST 分别表达聚焦目标入口、输入目标查询、激活目标、聚焦消息输入框、填写草稿和发送。Application MUST 在派发前解析引用，Worker MUST 元素优先，元素不可用时才接受慢脑依据1.34视觉证据为点击语义提交的坐标候选。文本输入 MUST NOT 携带坐标，只能使用唯一元素或消费同任务同窗口的一次性已Observe视觉焦点。
 
 #### Scenario: 元素路径可用
 
@@ -24,6 +24,20 @@
 
 - **WHEN** 前一版本因元素缺失或歧义交回临时窗口截图，慢脑提交同语义坐标候选
 - **THEN** Application仍校验动作语义与窗口绑定，Driver只执行该声明坐标并在动作后Observe
+
+#### Scenario: 视觉聚焦后输入引用文本
+
+- **WHEN** 搜索框或消息框坐标点击已在同任务、同PID、同窗口完成Observe，下一槽位使用对应文本输入语义
+- **THEN** Worker消费一次视觉焦点并在派发前注入引用文本；任务、窗口或动作类型不符时拒绝输入并交回
+
+### Requirement: 失败Desktop实例不得抢占Gateway
+
+Desktop MUST 在TaskHost成功初始化后才创建本地Gateway Socket。持有`host.lock`的正式实例存在时，新实例 MUST 失败退出且 MUST NOT 覆盖、删除或接管现有Socket。
+
+#### Scenario: 第二实例启动
+
+- **WHEN** TaskHost因宿主锁不可用而初始化失败
+- **THEN** Desktop在Socket创建前停止启动，既有Gateway保持可达
 
 ### Requirement: 发送必须由顶部本机确认一次授权
 

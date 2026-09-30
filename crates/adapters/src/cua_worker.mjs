@@ -66,6 +66,7 @@ try {
   const inventory = JSON.parse(await driver.listToolsJson());
   const tools = Array.isArray(inventory) ? inventory : inventory.tools ?? [];
   let launchedTarget;
+  let trustedVisualFocus;
   const refreshLaunchedTarget = async preferVisible => {
     if (!launchedTarget) return undefined;
     const apps = await driver.callTool('list_apps', '{}');
@@ -123,7 +124,8 @@ try {
         delete actionArgs._yonder_action_kind;
         delete actionArgs._yonder_private_text;
         const beforeElements = structured(before).elements ?? [];
-        const coordinateAction = Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        const coordinateAction = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        let trustedFocusedInput = false;
         if (semanticKind) {
           response.failure_stage = 'semantic-target';
           let selected;
@@ -135,14 +137,20 @@ try {
             const exact = beforeElements.filter(element => element.enabled !== false && element.element_token && elementText(element) === privateText);
             const partial = beforeElements.filter(element => element.enabled !== false && element.element_token && typeof privateText === 'string' && elementText(element).includes(privateText));
             selected = uniqueElement(exact) ?? uniqueElement(partial);
-          } else if (semanticKind === 'draft-message-ref') {
+          } else if (semanticKind === 'focus-message-composer' || semanticKind === 'draft-message-ref') {
             const composers = beforeElements.filter(element => textField(element) && !searchField(element));
             selected = uniqueElement(composers);
           } else if (semanticKind === 'send-message' && request.tool_name === 'click') {
             selected = uniqueElement(beforeElements.filter(element => element.enabled !== false && element.element_token && /^(发送|send)$/i.test(elementText(element))));
           }
-          if (!coordinateAction && (['focus-target-search', 'enter-target-query', 'activate-target', 'draft-message-ref'].includes(semanticKind) || (semanticKind === 'send-message' && request.tool_name === 'click'))) {
-            if (!selected || !('element_token' in properties)) {
+          if (!coordinateAction && (['focus-target-search', 'enter-target-query', 'activate-target', 'focus-message-composer', 'draft-message-ref'].includes(semanticKind) || (semanticKind === 'send-message' && request.tool_name === 'click'))) {
+            trustedFocusedInput = request.tool_name === 'type_text'
+              && trustedVisualFocus?.task_id === request.task_id
+              && trustedVisualFocus?.pid === target.pid
+              && trustedVisualFocus?.window_id === target.window_id
+              && ((semanticKind === 'enter-target-query' && trustedVisualFocus.kind === 'search')
+                || (semanticKind === 'draft-message-ref' && trustedVisualFocus.kind === 'composer'));
+            if ((!selected || !('element_token' in properties)) && !trustedFocusedInput) {
               const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
               const observed = await captureObservation(driver, tools.find(tool => tool.name === 'get_window_state'), 'get_window_state', args, screenshotPath, request.host_session_id);
               response.action_known = true;
@@ -155,7 +163,7 @@ try {
               process.stdout.write(JSON.stringify(response) + '\n');
               continue;
             }
-            actionArgs.element_token = selected.element_token;
+            if (selected && 'element_token' in properties) actionArgs.element_token = selected.element_token;
           }
           if (semanticKind === 'enter-target-query' || semanticKind === 'draft-message-ref') {
             if (typeof privateText !== 'string' || privateText.length === 0) throw new Error('private text missing');
@@ -168,7 +176,7 @@ try {
         if (!desktopScope && 'window_id' in properties && Number.isInteger(target.window_id)) actionArgs.window_id = target.window_id;
         if (!desktopScope && 'windowId' in properties && Number.isInteger(target.window_id)) actionArgs.windowId = target.window_id;
         if ('session' in properties) actionArgs.session = request.host_session_id;
-        if (!desktopScope && request.tool_name === 'type_text' && !('x' in actionArgs) && !('y' in actionArgs) && !('element_token' in actionArgs)) {
+        if (!desktopScope && request.tool_name === 'type_text' && !trustedFocusedInput && !('x' in actionArgs) && !('y' in actionArgs) && !('element_token' in actionArgs)) {
           const fields = (structured(before).elements ?? []).filter(element => /textfield|edit/i.test(element.role ?? '') && element.enabled !== false && element.element_token);
           if (fields.length !== 1) {
             // 元素缺失或不唯一时尚未执行任何副作用。只在此分支采集一次截图，
@@ -219,7 +227,7 @@ try {
         const observationTarget = request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : target;
         const observationArgs = { pid: observationTarget.pid, window_id: observationTarget.window_id, include_screenshot: false, max_elements: 100 };
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
-        const visualAction = Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        const visualAction = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
         const observe = async (descriptor, name, base) => {
           const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
           const input = { ...base };
@@ -273,6 +281,11 @@ try {
             } while (true);
           }
           response.failure_stage = null;
+          if (response.action_succeeded && response.observe_valid && coordinateAction) {
+            if (semanticKind === 'focus-target-search') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'search' };
+            if (semanticKind === 'focus-message-composer') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'composer' };
+          }
+          if (response.action_succeeded && ['enter-target-query','draft-message-ref'].includes(semanticKind)) trustedVisualFocus = undefined;
         }
       }
     } catch {

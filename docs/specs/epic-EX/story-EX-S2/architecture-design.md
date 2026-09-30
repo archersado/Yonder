@@ -40,7 +40,9 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 ## 状态与契约
 
-2026-09-30 增量将敏感消息意图放入Application拥有的有界内存Registry。Agent通过协议1.35提出意图，得到`intent_ref`与`confirmation_ref`；计划片段只引用二者。`focus-target-search`、`enter-target-query`、`activate-target`、`draft-message-ref`与`send-message`是封闭动作语义，Driver工具名和参数仍由Rust协议校验，Jev不接收敏感值或元素/坐标。
+2026-09-30 增量将敏感消息意图放入Application拥有的有界内存Registry。Agent通过协议1.35提出意图，得到`intent_ref`与`confirmation_ref`；计划片段只引用二者。协议1.36补齐`focus-message-composer`，与`focus-target-search`、`enter-target-query`、`activate-target`、`draft-message-ref`、`send-message`共同形成封闭动作语义。视觉坐标只属于`click`聚焦动作；Worker在同任务、同PID、同窗口且动作后Observe成立时登记一次性焦点，紧接的引用文本输入消费该焦点。Driver工具名和参数仍由Rust协议校验，Jev不接收敏感值或元素/坐标。
+
+Desktop组合根先成功取得`host.lock`并完成TaskHost初始化，之后才允许绑定`agent.sock`。初始化失败直接终止本实例，不创建、覆盖或删除Socket，避免失败实例切断仍在运行的正式Gateway。
 
 Application在每个槽位派发前按任务归属和期限解析引用，把目标查询或正文仅注入本次内存动作。发送槽位首先把确认切换为本机可批准；未批准时返回`awaiting-confirmation`且不派发，顶部执行浮窗展示对象与正文预览。批准后引用在派发前消费；动作成功、失败、unknown、取消或接管都不会恢复。
 

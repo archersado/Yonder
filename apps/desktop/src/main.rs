@@ -993,18 +993,14 @@ fn main() {
             pet.center()?;
             pet.show()?;
             let cua_hub = yonder_desktop::CuaControlHub::default();
-            let host = app.path().app_data_dir().ok().and_then(|path| match TaskHost::open(&path) {
-                Ok(mut host) => {
-                    #[cfg(target_os = "macos")]
-                    host.set_cua_control_hub(cua_hub.clone());
-                    Some(host)
-                },
-                Err(error) => {
-                    eprintln!("Yonder TaskHost 初始化失败：{error:?}");
-                    None
-                }
-            });
-            let host = Arc::new(Mutex::new(host));
+            let data_directory=app.path().app_data_dir()?;
+            let mut task_host=TaskHost::open(&data_directory).map_err(|error|{
+                eprintln!("Yonder TaskHost 初始化失败：{error:?}");
+                std::io::Error::other("Yonder TaskHost 初始化失败，拒绝启动本地Gateway")
+            })?;
+            #[cfg(target_os = "macos")]
+            task_host.set_cua_control_hub(cua_hub.clone());
+            let host=Arc::new(Mutex::new(Some(task_host)));
             app.manage(TaskState(Arc::clone(&host)));
             app.manage(PreviewState(Mutex::new(yonder_application::region_preview::Session::default())));
             #[cfg(target_os = "macos")]

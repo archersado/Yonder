@@ -6,4 +6,4 @@
 
 发送槽位调用Registry的`arm`。首次到达返回`awaiting-confirmation`并保持当前槽位；本机顶部浮窗读取预览并批准/拒绝。再次执行时Application在派发前`consume`，无论Driver结论如何引用均不可重放。确认不改变任务sequence，不伪造执行事实。
 
-Worker根据语义从同一可信窗口的新鲜元素中选择唯一目标；计划坐标候选带`x/y`时直接使用窗口坐标。零匹配或多匹配不执行副作用，沿1.34返回临时窗口Observation。
+Worker根据语义从同一可信窗口的新鲜元素中选择唯一目标；只有`click`语义的计划坐标候选可带`x/y`并使用窗口坐标。协议1.36的`focus-message-composer`与`focus-target-search`在坐标点击并Observe后登记同任务、同PID、同窗口的一次性焦点；紧接的`type_text`引用动作消费焦点。零匹配或多匹配不执行副作用，沿1.34返回临时窗口Observation。TaskHost未就绪时Desktop在Socket创建前失败退出。

@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 35 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 36 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -504,6 +504,7 @@ pub enum CuaActionKind {
     FocusTargetSearch,
     EnterTargetQuery,
     ActivateTarget,
+    FocusMessageComposer,
     DraftMessageRef,
     ResolveConversation,
     DraftMessage,
@@ -1895,8 +1896,8 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && valid_observe_conditions(&candidate.expected_observe)
                         && tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
                         && match candidate.action_kind {
-                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && valid_semantic_arguments(&candidate.arguments),
-                            CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.as_deref().is_none() && valid_semantic_arguments(&candidate.arguments),
+                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && valid_semantic_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
+                            CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::FocusMessageComposer | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.as_deref().is_none() && valid_semantic_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
                             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
                         }
                 })
@@ -1904,8 +1905,14 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
     })
 }
 
-fn valid_semantic_arguments(value:&serde_json::Value)->bool{
-    value.as_object().is_some_and(|arguments|arguments.is_empty() || (arguments.len()==2 && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite) && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)))
+fn valid_semantic_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_json::Value)->bool{
+    value.as_object().is_some_and(|arguments|arguments.is_empty() || (
+        tool_name == "click"
+            && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage)
+            && arguments.len()==2
+            && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+            && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+    ))
 }
 
 fn valid_observe_conditions(conditions: &[CuaObserveConditionParams]) -> bool {
@@ -1923,6 +1930,7 @@ pub fn tool_matches_action_kind(kind: CuaActionKind, tool_name: &str) -> bool {
             | (CuaActionKind::FocusTargetSearch, "click")
             | (CuaActionKind::EnterTargetQuery, "type_text")
             | (CuaActionKind::ActivateTarget, "click")
+            | (CuaActionKind::FocusMessageComposer, "click")
             | (CuaActionKind::DraftMessageRef, "type_text")
             | (CuaActionKind::ResolveConversation, "press_key")
             | (CuaActionKind::DraftMessage, "type_text")
@@ -2586,6 +2594,14 @@ mod tests {
         let mut oversized = value;
         oversized["params"]["message"] = serde_json::json!("x".repeat(4097));
         assert!(decode(&serde_json::to_vec(&oversized).unwrap()).unwrap().validate(1000).is_err());
+    }
+
+    #[test]
+    fn semantic_coordinates_are_only_allowed_for_click_tools() {
+        let coordinates=serde_json::json!({"x":10,"y":20});
+        assert!(valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
+        assert!(!valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
+        assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({})));
     }
 
     #[test]
