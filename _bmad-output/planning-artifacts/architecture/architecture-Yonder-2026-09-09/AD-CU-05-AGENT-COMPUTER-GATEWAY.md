@@ -10,7 +10,7 @@ Agent不得提交PID、窗口号、Session、target、snapshot、元素token/ind
 
 macOS目标固定为请求到达时最前方、可见、非Yonder的layer-0窗口，由宿主原生Adapter解析为内部`WorkTarget`；目标缺失或不唯一时不准备attempt。该选择规则不做语义规划、不按标题猜测、不移动窗口。单次SDK参数JSON不得超过16KiB，正文不得进入日志、事件或验证证据。
 
-Driver 使用固定 trycua SDK 0.25.0 和受监管按需 Worker。Capability 只有在 SDK、Node、辅助功能权限与目标解析可用时才为 available。2026-09-28 Accepted AD-CU-07 覆盖原 HID 自动中断：普通键鼠输入不再终止 Worker或改变任务；只有 Yonder 控制卡的显式接管意图在动作完成并 Observe 后触发安全边界暂停。历史 `unknown/user-input` 仅保留兼容读取。
+Driver 使用固定 trycua SDK 0.25.0 和受监管按需 Worker。Capability 只有在 SDK、Node、辅助功能权限与目标解析可用时才为 available。2026-09-30协议1.37允许Adapter按SDK Schema注入显式窗口target；窗口坐标点击的`unverifiable`继续交回，只有归属慢脑核验同次窗口证据后，下一片段才可消费同任务同窗口的一次性焦点凭据输入受保护引用文本。2026-09-28 Accepted AD-CU-07 覆盖原 HID 自动中断：普通键鼠输入不再终止 Worker或改变任务；只有 Yonder 控制卡的显式接管意图在动作完成并 Observe 后触发安全边界暂停。历史 `unknown/user-input` 仅保留兼容读取。
 
 2026-09-16连续动作修订（用户输入终止条款由AD-CU-07覆盖）：同一任务执行期内的CUA动作复用一个受监管Node Worker和同一个trycua Driver会话，按唯一Desktop租约串行执行；不得在连续动作中插入另一套原生动作执行器。每个动作仍独立生成attempt并强制Observe。任务完成、显式接管、超时、Worker/SDK崩溃或宿主退出时销毁该会话，后续动作只能由Agent在重新Observe并作出决策后进入新会话。macOS原生代码提供可信目标解析及已停止后人工接管的WorkRef定位；WorkRef定位不得发生在Agent CUA动作序列中。
 

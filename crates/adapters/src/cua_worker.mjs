@@ -137,8 +137,7 @@ try {
         delete actionArgs._yonder_private_text;
         const beforeElements = structured(before).elements ?? [];
         const coordinateClick = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
-        const coordinateText = request.tool_name === 'type_text' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
-        const coordinateAction = coordinateClick || coordinateText;
+        const coordinateAction = coordinateClick;
         let trustedFocusedInput = false;
         if (semanticKind) {
           response.failure_stage = 'semantic-target';
@@ -215,6 +214,10 @@ try {
           if ('element_token' in properties) actionArgs.element_token = fields[0].element_token;
         }
         response.failure_stage = 'action';
+        // 视觉焦点凭据只允许一次派发尝试。即使Driver拒绝、超时或结果不可核实，
+        // 也不能保留凭据让敏感引用文本在后续请求中隐式重放。
+        const consumedVisualFocus = trustedFocusedInput;
+        if (consumedVisualFocus) trustedVisualFocus = undefined;
         const action = await driver.callTool(request.tool_name, JSON.stringify(actionArgs));
         // trycua 会用 isError=true 表达 partial/refused，但结构化正文仍携带
         // request_accepted、前台进程和精确窗口后置事实。错误位决定动作不能
@@ -245,7 +248,7 @@ try {
         const observationTarget = request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : target;
         const observationArgs = { pid: observationTarget.pid, window_id: observationTarget.window_id, include_screenshot: false, max_elements: 100 };
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
-        const visualAction = ['click','type_text'].includes(request.tool_name) && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        const visualAction = coordinateClick || consumedVisualFocus;
         const observe = async (descriptor, name, base) => {
           const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
           const input = { ...base };
@@ -299,11 +302,10 @@ try {
             } while (true);
           }
           response.failure_stage = null;
-          if (response.action_succeeded && response.observe_valid && coordinateClick) {
+          if (!action.isError && response.observe_valid && coordinateClick && ['confirmed','unverifiable'].includes(response.action_effect)) {
             if (semanticKind === 'focus-target-search') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'search' };
             if (semanticKind === 'focus-message-composer') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'composer' };
           }
-          if (response.action_succeeded && ['enter-target-query','draft-message-ref'].includes(semanticKind)) trustedVisualFocus = undefined;
         }
       }
     } catch {

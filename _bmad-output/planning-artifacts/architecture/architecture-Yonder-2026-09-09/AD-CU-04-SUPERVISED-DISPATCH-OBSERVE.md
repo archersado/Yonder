@@ -6,6 +6,8 @@
 
 产品简报“两条执行路径”和补充材料“执行原则”要求 CUA 每一步后 Observe；架构主干规定 Driver 模型无关、单桌面租约、崩溃或超时为 `unknown` 且不得自动重试。用户已明确只使用 trycua SDK，不附带独立应用。首批只把已验证的 `@trycua/cua-driver@0.25.0` 后台 AX 文本输入接入产品 Adapter，不扩展点击、拖动、像素输入、语义规划、人工接管或 Recording。
 
+2026-09-30视觉焦点修订：固定0.25.0不具备窗口像素`type_text(x,y,text)`；协议1.37继续采用坐标点击后引用文本输入，但坐标点击返回`unverifiable`时不得提升成功或在同一片段继续。Worker仅在Driver已接受该精确窗口点击且同次窗口Observe有效时保留一次性焦点凭据，交回慢脑核验截图；下一片段的同任务同窗口受保护文本动作在派发前消费凭据，结果再次由后置Observe核验。
+
 Application 定义执行请求与结果 Port；CU Adapter 监管一个按需 Node Worker。Worker 只通过继承的 stdio 接收一次完整执行身份和内部可信目标，先 Observe 并取得唯一可编辑元素，再执行一次输入，随后无条件重新 Observe。只有动作结果已知、后置 Observe 有效且完整 task/step/attempt/Worker/host 身份一致时，才返回已知结果；超时、崩溃、断连、非法响应或 Observe 失败统一返回 `unknown`。任何失败均不自动重发动作。
 
 ## 边界与安全

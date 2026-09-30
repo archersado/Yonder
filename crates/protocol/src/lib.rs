@@ -1907,13 +1907,11 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
 
 fn valid_semantic_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_json::Value)->bool{
     value.as_object().is_some_and(|arguments|arguments.is_empty() || (
-        arguments.len()==2
+        tool_name == "click"
+            && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage)
+            && arguments.len()==2
             && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
             && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-            && ((tool_name == "click"
-                && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage))
-                || (tool_name == "type_text"
-                    && matches!(kind,CuaActionKind::EnterTargetQuery|CuaActionKind::DraftMessageRef)))
     ))
 }
 
@@ -2599,11 +2597,10 @@ mod tests {
     }
 
     #[test]
-    fn semantic_coordinates_are_limited_to_pixel_click_and_protected_text() {
+    fn semantic_coordinates_are_only_allowed_for_click_tools() {
         let coordinates=serde_json::json!({"x":10,"y":20});
         assert!(valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
-        assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
-        assert!(!valid_semantic_arguments(CuaActionKind::DraftMessage,"type_text",&coordinates));
+        assert!(!valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
         assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({})));
     }
 
