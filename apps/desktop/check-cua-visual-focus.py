@@ -27,7 +27,7 @@ export class CuaDriver {
       if(name==='list_windows')return ok({windows:[{window_id:7,is_on_screen:true,on_current_space:true,bounds:{width:800,height:600}}]});
       if(name==='get_window_state'){if(args.screenshot_out_file)await writeFile(args.screenshot_out_file,'png');return ok({elements:[]});}
       if(name==='get_desktop_state')return ok({windows:[]});
-      if(name==='click'||name==='type_text'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:'confirmed'});}
+      if(name==='click'||name==='type_text'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:0});}
       throw new Error('unexpected tool');},async shutdown(){},uniffiDestroy(){}
   };}
 }

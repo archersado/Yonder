@@ -55,6 +55,15 @@ const applicationFrontConfirmed = (result, targetPid) =>
   && result?.process_activated === true
   && result?.observed?.front_process_matches_target === true
   && result?.observed?.workspace_frontmost_pid === targetPid;
+// trycua 的原生绑定把 ActionEffect 暴露为数值枚举，而部分 JSON/MCP
+// 适配器会返回稳定字符串。两种形态来自同一 SDK 契约，必须在进入 Yonder
+// 运行时事实前归一化；否则真实点击的 Confirmed(0) 会被误判为 unverifiable。
+const actionEffect = (result, isError) => {
+  const effect = result?.effect;
+  if (typeof effect === 'string' && ['confirmed', 'partial', 'unverifiable', 'suspected-noop', 'refused'].includes(effect)) return effect;
+  return ({ 0:'confirmed', 1:'partial', 2:'unverifiable', 3:'suspected-noop', 4:'refused' })[effect]
+    ?? (isError ? 'refused' : 'unverifiable');
+};
 const elementText = element => [element.title, element.label, element.name, element.value, element.description, element.placeholder]
   .filter(value => typeof value === 'string').join(' ').trim();
 const textField = element => /textfield|edit|textbox|searchfield/i.test(element.role ?? '') && element.enabled !== false && element.element_token;
@@ -217,7 +226,7 @@ try {
         const launchConfirmed=request.tool_name==='launch_app' && Number.isInteger(actionResult.pid) && launchStateConfirmed(actionResult.launch_state);
         const bringConfirmed=request.tool_name==='bring_to_front' && !action.isError && bringToFrontConfirmed(actionResult);
         const applicationFront=request.tool_name==='bring_to_front' && applicationFrontConfirmed(actionResult,actionTargetPid);
-        response.action_effect=launchConfirmed||bringConfirmed?'confirmed':typeof actionResult.effect==='string'?actionResult.effect:action.isError?'refused':'unverifiable';
+        response.action_effect=launchConfirmed||bringConfirmed?'confirmed':actionEffect(actionResult,action.isError);
         response.action_known = true;
         response.action_succeeded = response.action_effect === 'confirmed';
         response.failure_stage = 'observe-after';
