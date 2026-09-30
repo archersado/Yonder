@@ -7,6 +7,6 @@
 ## 2026-09-30 自动化结果
 
 - Rust协议、Application、Adapter、CLI及Desktop共188项测试通过；Adapter全量首次运行有1项既有文件系统用例瞬时失败，单项立即复跑通过。
-- 隔离Worker样本完成6个元素语义动作；视觉fixture确认精确窗口target、`unverifiable`聚焦保留失败并交回、同任务同窗口焦点凭据只消费一次，且私有字段在调用SDK前剥离；元素歧义不执行副作用。
+- 隔离Worker样本完成6个元素语义动作；视觉fixture确认封闭`⌘F`搜索动作、精确窗口target、`unverifiable`聚焦保留失败并交回、同任务同窗口焦点凭据只消费一次，且私有字段在调用SDK前剥离；元素歧义不执行副作用。
 - OpenSpec严格校验、Rust派生Schema检查、Node/Python语法检查通过。全仓架构检查被既有`TM-S9`三份设计缺少标准Story字段/章节阻断，与本Change无关，未据此放宽门禁。
 - 正式签名macOS Yonder的企业微信样本仍待下一步运行，未据自动化结果提前Archive。

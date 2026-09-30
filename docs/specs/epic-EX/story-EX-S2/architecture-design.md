@@ -42,6 +42,8 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 2026-09-30 增量将敏感消息意图放入Application拥有的有界内存Registry。Agent通过协议1.35提出意图，得到`intent_ref`与`confirmation_ref`；计划片段只引用二者。协议1.36补齐`focus-message-composer`，与`focus-target-search`、`enter-target-query`、`activate-target`、`draft-message-ref`、`send-message`共同形成封闭动作语义。协议1.37为窗口动作注入SDK支持的精确窗口target，并处理固定trycua 0.25.0的像素点击`unverifiable`：Driver接受坐标点击且同次窗口Observe有效时，Worker登记一次性焦点凭据但仍交回；慢脑核验截图后，以新片段提交无坐标引用文本，Worker在派发前消费同任务同PID同窗口同语义凭据。文本结果再次由同窗口Observe核验，`unverifiable`不提升成功。Driver工具名和参数仍由Rust协议校验，Jev不接收敏感值或元素/坐标。
 
+协议1.38为企业微信会话搜索增加封闭`focus-target-search + hotkey(["cmd","f"])`候选。Rust协议同时校验动作语义、工具名和唯一参数值；Worker跳过元素解析但仍注入精确窗口target并强制后置窗口Observe。确认结果可在同片段继续；`unverifiable`只登记一次性搜索焦点并交回。该能力不是通用键盘宏，其他组合键仍被拒绝。
+
 Desktop组合根先成功取得`host.lock`并完成TaskHost初始化，之后才允许绑定`agent.sock`。初始化失败直接终止本实例，不创建、覆盖或删除Socket，避免失败实例切断仍在运行的正式Gateway。
 
 Application在每个槽位派发前按任务归属和期限解析引用，把目标查询或正文仅注入本次内存动作。发送槽位首先把确认切换为本机可批准；未批准时返回`awaiting-confirmation`且不派发，顶部执行浮窗展示对象与正文预览。批准后引用在派发前消费；动作成功、失败、unknown、取消或接管都不会恢复。

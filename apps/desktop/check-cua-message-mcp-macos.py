@@ -80,7 +80,7 @@ try:
     if not args.resume_task:
         slots.extend([
             {"step_id":"launch","label":"打开企业微信","candidates":[candidate("launch-wecom","launch_app","launch-application","wecom-app","application-ready") | {"arguments":{"bundle_id":"com.tencent.WeWorkMac"}}]},
-            {"step_id":"focus-search","label":"聚焦会话搜索","candidates":[candidate("focus-search","click","focus-target-search",target_ref,"application-ready")]},
+            {"step_id":"focus-search","label":"使用企业微信搜索快捷键聚焦会话搜索","candidates":[candidate("focus-search","hotkey","focus-target-search",target_ref,"application-ready") | {"arguments":{"keys":["cmd","f"]}}]},
             {"step_id":"enter-query","label":"输入会话目标","candidates":[candidate("enter-query","type_text","enter-target-query",target_ref,"target-resolved")]},
         ])
     elif args.focus_x is not None and args.focus_y is not None:

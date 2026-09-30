@@ -30,6 +30,11 @@
 - **WHEN** 坐标聚焦被Driver接受且同次窗口Observe有效，但效果为`unverifiable`
 - **THEN** Worker保存一次性焦点凭据并交回截图；慢脑核验后，下一片段的同任务同窗口对应文本语义在派发前消费凭据并展开引用文本，不提升前一步成功或自动重试
 
+#### Scenario: 封闭搜索快捷键
+
+- **WHEN** 企业微信计划为聚焦会话搜索提交`hotkey`候选
+- **THEN** 协议只接受`keys=["cmd","f"]`，Worker注入精确窗口target并Observe；其他组合键或附加参数在派发前拒绝
+
 ### Requirement: 失败Desktop实例不得抢占Gateway
 
 Desktop MUST 在TaskHost成功初始化后才创建本地Gateway Socket。持有`host.lock`的正式实例存在时，新实例 MUST 失败退出且 MUST NOT 覆盖、删除或接管现有Socket。

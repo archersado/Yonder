@@ -138,6 +138,13 @@ try {
         const beforeElements = structured(before).elements ?? [];
         const coordinateClick = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
         const coordinateAction = coordinateClick;
+        const semanticShortcut = semanticKind === 'focus-target-search'
+          && request.tool_name === 'hotkey'
+          && Array.isArray(actionArgs.keys)
+          && actionArgs.keys.length === 2
+          && actionArgs.keys[0] === 'cmd'
+          && actionArgs.keys[1] === 'f';
+        const focusAction = coordinateClick || semanticShortcut;
         let trustedFocusedInput = false;
         if (semanticKind) {
           response.failure_stage = 'semantic-target';
@@ -156,7 +163,7 @@ try {
           } else if (semanticKind === 'send-message' && request.tool_name === 'click') {
             selected = uniqueElement(beforeElements.filter(element => element.enabled !== false && element.element_token && /^(发送|send)$/i.test(elementText(element))));
           }
-          if (!coordinateAction && (['focus-target-search', 'enter-target-query', 'activate-target', 'focus-message-composer', 'draft-message-ref'].includes(semanticKind) || (semanticKind === 'send-message' && request.tool_name === 'click'))) {
+          if (!coordinateAction && !semanticShortcut && (['focus-target-search', 'enter-target-query', 'activate-target', 'focus-message-composer', 'draft-message-ref'].includes(semanticKind) || (semanticKind === 'send-message' && request.tool_name === 'click'))) {
             trustedFocusedInput = request.tool_name === 'type_text'
               && trustedVisualFocus?.task_id === request.task_id
               && trustedVisualFocus?.pid === target.pid
@@ -248,7 +255,7 @@ try {
         const observationTarget = request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : target;
         const observationArgs = { pid: observationTarget.pid, window_id: observationTarget.window_id, include_screenshot: false, max_elements: 100 };
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
-        const visualAction = coordinateClick || consumedVisualFocus;
+        const visualAction = focusAction || consumedVisualFocus;
         const observe = async (descriptor, name, base) => {
           const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
           const input = { ...base };
@@ -302,7 +309,7 @@ try {
             } while (true);
           }
           response.failure_stage = null;
-          if (!action.isError && response.observe_valid && coordinateClick && ['confirmed','unverifiable'].includes(response.action_effect)) {
+          if (!action.isError && response.observe_valid && focusAction && ['confirmed','unverifiable'].includes(response.action_effect)) {
             if (semanticKind === 'focus-target-search') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'search' };
             if (semanticKind === 'focus-message-composer') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'composer' };
           }
