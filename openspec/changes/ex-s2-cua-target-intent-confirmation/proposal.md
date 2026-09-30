@@ -1,6 +1,6 @@
 # Proposal：EX-S2 CUA目标意图与发送确认
 
-关联Story EX-S2、AG-S4、CU-S2及Accepted AD-AG-09。Architecture Impact：architecture-change（协议1.35意图引用、协议1.36消息框聚焦语义、Application内存Registry、计划动作语义和顶部本机确认）；不新增持久化表、任务状态、第二Planner或Driver。
+关联Story EX-S2、AG-S4、CU-S2及Accepted AD-AG-09。Architecture Impact：architecture-change（协议1.35意图引用、协议1.36消息框聚焦语义、协议1.37窗口像素文本契约、Application内存Registry、计划动作语义和顶部本机确认）；不新增持久化表、任务状态、第二Planner或Driver。
 
 ## Why
 

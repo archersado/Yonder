@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 36 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 37 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -1907,11 +1907,13 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
 
 fn valid_semantic_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_json::Value)->bool{
     value.as_object().is_some_and(|arguments|arguments.is_empty() || (
-        tool_name == "click"
-            && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage)
-            && arguments.len()==2
+        arguments.len()==2
             && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
             && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+            && ((tool_name == "click"
+                && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage))
+                || (tool_name == "type_text"
+                    && matches!(kind,CuaActionKind::EnterTargetQuery|CuaActionKind::DraftMessageRef)))
     ))
 }
 
@@ -2597,10 +2599,11 @@ mod tests {
     }
 
     #[test]
-    fn semantic_coordinates_are_only_allowed_for_click_tools() {
+    fn semantic_coordinates_are_limited_to_pixel_click_and_protected_text() {
         let coordinates=serde_json::json!({"x":10,"y":20});
         assert!(valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
-        assert!(!valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
+        assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
+        assert!(!valid_semantic_arguments(CuaActionKind::DraftMessage,"type_text",&coordinates));
         assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({})));
     }
 

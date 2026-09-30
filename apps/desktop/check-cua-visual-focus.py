@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""隔离验证无元素树时，视觉点击只授权同任务同窗口的下一次引用文本输入。"""
+"""隔离验证无元素树时，窗口像素文本使用显式target且不可核实结果会交回。"""
 import json
 import pathlib
 import subprocess
@@ -16,8 +16,8 @@ export class CuaDriver {
     async metadata(){},
     async listToolsJson(){return JSON.stringify({tools:[
       {name:'launch_app',inputSchema:{properties:{bundle_id:{}}}},
-      {name:'click',inputSchema:{properties:{pid:{},window_id:{},x:{},y:{}}}},
-      {name:'type_text',inputSchema:{properties:{pid:{},window_id:{},text:{}}}},
+      {name:'click',inputSchema:{properties:{target:{},x:{},y:{}}}},
+      {name:'type_text',inputSchema:{properties:{target:{},x:{},y:{},text:{}}}},
       {name:'get_window_state',inputSchema:{properties:{pid:{},window_id:{},include_screenshot:{},max_elements:{},screenshot_out_file:{}}}},
       {name:'get_desktop_state',inputSchema:{properties:{}}},{name:'list_apps',inputSchema:{properties:{}}},{name:'list_windows',inputSchema:{properties:{pid:{}}}}
     ]});},
@@ -27,7 +27,7 @@ export class CuaDriver {
       if(name==='list_windows')return ok({windows:[{window_id:7,is_on_screen:true,on_current_space:true,bounds:{width:800,height:600}}]});
       if(name==='get_window_state'){if(args.screenshot_out_file)await writeFile(args.screenshot_out_file,'png');return ok({elements:[]});}
       if(name==='get_desktop_state')return ok({windows:[]});
-      if(name==='click'||name==='type_text'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:0});}
+      if(name==='click'||name==='type_text'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:'unverifiable',route:'synthetic_events',delivery:{mode:'background'}});}
       throw new Error('unexpected tool');},async shutdown(){},uniffiDestroy(){}
   };}
 }
@@ -43,19 +43,20 @@ with tempfile.TemporaryDirectory(prefix="yonda-cua-visual-focus-") as temporary:
     base = {"task_id":"task","worker_instance_id":"worker","host_session_id":"host","pid":11,"window_id":12}
     requests = [
         {**base,"step_id":"launch","attempt_id":"a0","tool_name":"launch_app","arguments":{"bundle_id":"com.tencent.WeWorkMac"}},
-        {**base,"step_id":"focus-search","attempt_id":"a1","tool_name":"click","arguments":{"x":100,"y":20,"_yonder_action_kind":"focus-target-search","_yonder_private_text":"private-target"}},
-        {**base,"step_id":"query","attempt_id":"a2","tool_name":"type_text","arguments":{"_yonder_action_kind":"enter-target-query","_yonder_private_text":"private-target"}},
-        {**base,"step_id":"focus-composer","attempt_id":"a3","tool_name":"click","arguments":{"x":400,"y":500,"_yonder_action_kind":"focus-message-composer"}},
-        {**base,"step_id":"draft","attempt_id":"a4","tool_name":"type_text","arguments":{"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"private-message"}},
-        {**base,"task_id":"other-task","step_id":"untrusted","attempt_id":"a5","tool_name":"type_text","arguments":{"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"must-not-dispatch"}},
+        {**base,"step_id":"query","attempt_id":"a1","tool_name":"type_text","arguments":{"x":100,"y":20,"_yonder_action_kind":"enter-target-query","_yonder_private_text":"private-target"}},
+        {**base,"step_id":"activate","attempt_id":"a2","tool_name":"click","arguments":{"x":120,"y":80,"_yonder_action_kind":"activate-target","_yonder_private_text":"private-target"}},
+        {**base,"step_id":"draft","attempt_id":"a3","tool_name":"type_text","arguments":{"x":400,"y":500,"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"private-message"}},
+        {**base,"task_id":"other-task","step_id":"untrusted","attempt_id":"a4","tool_name":"type_text","arguments":{"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"must-not-dispatch"}},
     ]
     run = subprocess.run(["node",str(worker),str(sdk),str(evidence)],input="".join(json.dumps(item)+"\n" for item in requests),text=True,capture_output=True,timeout=10,check=True)
     responses = [json.loads(line) for line in run.stdout.splitlines()]
     actions = [json.loads(line) for line in log.read_text().splitlines()]
 
-assert all(item["action_succeeded"] for item in responses[:5]), responses
-assert responses[5]["action_succeeded"] is False and responses[5]["action_effect"] == "refused"
-assert [item["name"] for item in actions] == ["click","type_text","click","type_text"]
-assert actions[1]["args"]["text"] == "private-target" and actions[3]["args"]["text"] == "private-message"
+assert responses[0]["action_succeeded"] is True
+assert all(item["action_succeeded"] is False and item["action_effect"] == "unverifiable" and item["observe_valid"] for item in responses[1:4]), responses
+assert responses[4]["action_succeeded"] is False and responses[4]["action_effect"] == "refused"
+assert [item["name"] for item in actions] == ["type_text","click","type_text"]
+assert actions[0]["args"]["text"] == "private-target" and actions[2]["args"]["text"] == "private-message"
+assert all(item["args"]["target"] == {"kind":"window","pid":42,"window_id":7} for item in actions)
 assert all("_yonder_private_text" not in item["args"] and "_yonder_action_kind" not in item["args"] for item in actions)
-print(json.dumps({"visual_focus_once":True,"same_task_window_bound":True,"text_has_no_coordinates":True,"untrusted_input_refused":True}))
+print(json.dumps({"window_pixel_text":True,"exact_window_target":True,"unverifiable_hands_back":True,"untrusted_input_refused":True}))

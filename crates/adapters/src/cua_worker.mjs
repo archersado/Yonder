@@ -60,7 +60,10 @@ const applicationFrontConfirmed = (result, targetPid) =>
 // 运行时事实前归一化；否则真实点击的 Confirmed(0) 会被误判为 unverifiable。
 const actionEffect = (result, isError) => {
   const effect = result?.effect;
-  if (typeof effect === 'string' && ['confirmed', 'partial', 'unverifiable', 'suspected-noop', 'refused'].includes(effect)) return effect;
+  if (typeof effect === 'string') {
+    const normalized = effect.replaceAll('_', '-').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+    if (['confirmed', 'partial', 'unverifiable', 'suspected-noop', 'refused'].includes(normalized)) return normalized;
+  }
   return ({ 0:'confirmed', 1:'partial', 2:'unverifiable', 3:'suspected-noop', 4:'refused' })[effect]
     ?? (isError ? 'refused' : 'unverifiable');
 };
@@ -133,7 +136,9 @@ try {
         delete actionArgs._yonder_action_kind;
         delete actionArgs._yonder_private_text;
         const beforeElements = structured(before).elements ?? [];
-        const coordinateAction = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        const coordinateClick = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        const coordinateText = request.tool_name === 'type_text' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        const coordinateAction = coordinateClick || coordinateText;
         let trustedFocusedInput = false;
         if (semanticKind) {
           response.failure_stage = 'semantic-target';
@@ -181,9 +186,13 @@ try {
           if (semanticKind === 'send-message' && request.tool_name === 'press_key') actionArgs.key = actionArgs.key ?? 'ENTER';
         }
         const desktopScope = actionArgs.scope === 'desktop';
-        if (!desktopScope && 'pid' in properties) actionArgs.pid = target.pid;
-        if (!desktopScope && 'window_id' in properties && Number.isInteger(target.window_id)) actionArgs.window_id = target.window_id;
-        if (!desktopScope && 'windowId' in properties && Number.isInteger(target.window_id)) actionArgs.windowId = target.window_id;
+        if (!desktopScope && 'target' in properties && Number.isInteger(target.pid) && Number.isInteger(target.window_id)) {
+          actionArgs.target = { kind:'window', pid:target.pid, window_id:target.window_id };
+        } else {
+          if (!desktopScope && 'pid' in properties) actionArgs.pid = target.pid;
+          if (!desktopScope && 'window_id' in properties && Number.isInteger(target.window_id)) actionArgs.window_id = target.window_id;
+          if (!desktopScope && 'windowId' in properties && Number.isInteger(target.window_id)) actionArgs.windowId = target.window_id;
+        }
         if ('session' in properties) actionArgs.session = request.host_session_id;
         if (!desktopScope && request.tool_name === 'type_text' && !trustedFocusedInput && !('x' in actionArgs) && !('y' in actionArgs) && !('element_token' in actionArgs)) {
           const fields = (structured(before).elements ?? []).filter(element => /textfield|edit/i.test(element.role ?? '') && element.enabled !== false && element.element_token);
@@ -236,7 +245,7 @@ try {
         const observationTarget = request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : target;
         const observationArgs = { pid: observationTarget.pid, window_id: observationTarget.window_id, include_screenshot: false, max_elements: 100 };
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
-        const visualAction = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        const visualAction = ['click','type_text'].includes(request.tool_name) && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
         const observe = async (descriptor, name, base) => {
           const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
           const input = { ...base };
@@ -290,7 +299,7 @@ try {
             } while (true);
           }
           response.failure_stage = null;
-          if (response.action_succeeded && response.observe_valid && coordinateAction) {
+          if (response.action_succeeded && response.observe_valid && coordinateClick) {
             if (semanticKind === 'focus-target-search') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'search' };
             if (semanticKind === 'focus-message-composer') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'composer' };
           }

@@ -114,7 +114,7 @@ fn tools() -> Value {
             "candidate_id":{"type":"string"},
             "tool_name":{"type":"string"},
             "arguments":{"type":"object","additionalProperties":true},
-            "action_kind":{"type":"string","enum":["launch-application","bring-to-front","focus-target-search","enter-target-query","activate-target","draft-message-ref","resolve-conversation","draft-message","send-message"]},
+            "action_kind":{"type":"string","enum":["launch-application","bring-to-front","focus-target-search","enter-target-query","activate-target","focus-message-composer","draft-message-ref","resolve-conversation","draft-message","send-message"]},
             "target_ref":{"type":"string"},
             "preconditions":{"type":"array","minItems":1,"maxItems":4,"items":observe_condition.clone()},
             "expected_observe":{"type":"array","minItems":1,"maxItems":4,"items":observe_condition},

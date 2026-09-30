@@ -13,7 +13,7 @@
 
 ### Requirement: 计划必须用封闭语义逐步解析目标
 
-计划 MUST 分别表达聚焦目标入口、输入目标查询、激活目标、聚焦消息输入框、填写草稿和发送。Application MUST 在派发前解析引用，Worker MUST 元素优先，元素不可用时才接受慢脑依据1.34视觉证据为点击语义提交的坐标候选。文本输入 MUST NOT 携带坐标，只能使用唯一元素或消费同任务同窗口的一次性已Observe视觉焦点。
+计划 MUST 分别表达聚焦目标入口、输入目标查询、激活目标、聚焦消息输入框、填写草稿和发送。Application MUST 在派发前解析引用，Worker MUST 元素优先。元素不可用时，点击语义可接受慢脑依据1.34视觉证据提交的坐标候选；`enter-target-query`与`draft-message-ref`可按trycua窗口像素契约在单次`type_text`中携带坐标，其他文本语义 MUST NOT 携带坐标。
 
 #### Scenario: 元素路径可用
 
@@ -25,10 +25,10 @@
 - **WHEN** 前一版本因元素缺失或歧义交回临时窗口截图，慢脑提交同语义坐标候选
 - **THEN** Application仍校验动作语义与窗口绑定，Driver只执行该声明坐标并在动作后Observe
 
-#### Scenario: 视觉聚焦后输入引用文本
+#### Scenario: 视觉坐标输入引用文本
 
-- **WHEN** 搜索框或消息框坐标点击已在同任务、同PID、同窗口完成Observe，下一槽位使用对应文本输入语义
-- **THEN** Worker消费一次视觉焦点并在派发前注入引用文本；任务、窗口或动作类型不符时拒绝输入并交回
+- **WHEN** 慢脑依据同一可信窗口的临时截图，为搜索框或消息框提交对应文本语义与窗口坐标
+- **THEN** Worker注入显式窗口target并在同一次Driver调用中展开引用文本；`unverifiable`携同次窗口截图交回慢脑，不提升为成功或自动重试
 
 ### Requirement: 失败Desktop实例不得抢占Gateway
 
