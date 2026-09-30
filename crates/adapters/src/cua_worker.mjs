@@ -35,7 +35,7 @@ const captureObservation = async (driver, descriptor, name, base, screenshotPath
   }
   return { result, elementCount, screenshot: await persistEmbeddedScreenshot(result, screenshotPath) };
 };
-// trycua 0.25.0 的 launch_state 在不同平台实现中可能是旧版枚举字符串，
+// trycua 的 launch_state 在不同平台实现中可能是旧版枚举字符串，
 // 也可能是包含 requested/process_running/window_ready 的结构化状态。两种形态
 // 表达的是同一契约；只要 SDK 已返回可信 PID 且确认进程运行或窗口就绪，就可
 // 将 launch_app 判为已确认，不能因响应形态差异误报 observe-failed。

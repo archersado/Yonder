@@ -70,9 +70,9 @@ enum ActionEffect { Confirmed,Partial,Unverifiable,SuspectedNoop,Refused }
 fn valid_sky_app_id(value:&str)->bool {value.len()<=255&&!value.is_empty()&&value.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-'))}
 
 impl CuaWorker {
-    /// 三个路径只能由可信组合根提供；SDK入口必须属于固定0.25.0包。
+    /// 三个路径只能由可信组合根提供；SDK入口必须属于固定0.30.4包。
     pub fn new(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.25.0", CuaBackend::TryCua, None)
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.30.4", CuaBackend::TryCua, None)
     }
 
     /// Sky 是外部安装的可选后端；只接受当前验证过的精确包身份。
@@ -247,7 +247,7 @@ mod tests {
         let root=std::env::temp_dir().join(format!("yonda-cua-session-{}",std::process::id()));
         let package=root.join("node_modules/fake");
         std::fs::create_dir_all(package.join("dist")).unwrap();
-        std::fs::write(package.join("package.json"),r#"{"name":"@trycua/cua-driver","version":"0.25.0"}"#).unwrap();
+        std::fs::write(package.join("package.json"),r#"{"name":"@trycua/cua-driver","version":"0.30.4"}"#).unwrap();
         let sdk=package.join("dist/index.js");std::fs::write(&sdk,b"").unwrap();
         let script=root.join("worker.sh");
         std::fs::write(&script,b"count=0\nwhile IFS= read -r line; do count=$((count+1)); if [ $count -eq 1 ]; then ok=true; else ok=false; fi; printf '{\"task_id\":\"task\",\"step_id\":\"step\",\"attempt_id\":\"attempt\",\"worker_instance_id\":\"worker\",\"host_session_id\":\"host\",\"action_known\":true,\"action_succeeded\":%s,\"observe_valid\":true}\\n' $ok; done\n").unwrap();

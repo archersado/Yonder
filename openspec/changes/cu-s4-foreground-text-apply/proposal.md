@@ -1,6 +1,6 @@
 # Proposal：CU-S4受限前台坐标输入产品接线
 
-关联Story CU-S4与Accepted AD-CU-07。Architecture Impact：architecture-change（协议1.39计划参数、Adapter Worker动作路由）；不改SQLite、不升级trycua、不新增Driver或任务状态。
+关联Story CU-S4与Accepted AD-CU-07。Architecture Impact：architecture-change（协议1.39计划参数、Adapter Worker动作路由）；后续唯一版本升级由`cu-s4-ax-visual-fallback`承接，不改SQLite、不新增Driver或任务状态。
 
 ## Why
 
@@ -16,4 +16,4 @@ Spike证明固定trycua 0.25.0已经支持精确窗口`type_text(x,y,text,foregr
 
 ## Non-goals
 
-不升级trycua，不允许自由文本/键盘宏/桌面全局坐标，不自动重试，不修改Windows范围。
+本Change本身不升级trycua；后续Accepted AD-CU-07修订与独立Apply已改变固定版本。不允许自由文本/键盘宏/桌面全局坐标，不自动重试，不修改Windows范围。

@@ -1,6 +1,6 @@
 # Proposal：CU-S4 AX失败后的同窗口视觉降级
 
-关联Story CU-S4与Accepted AD-CU-08。Architecture Impact：architecture-change（CUA Adapter Observe路由与TM-S9运行时Observation传递）；不改SQLite、不替换Driver、不新增执行栈。
+关联Story CU-S4与Accepted AD-CU-07/08。Architecture Impact：architecture-change（CUA Adapter Observe路由、TM-S9运行时Observation传递与唯一trycua固定版本）；不改SQLite、不新增执行栈。
 
 ## Why
 
@@ -13,8 +13,9 @@
 - 通用`computer.step`窗口坐标文本由Worker强制精确target与foreground。
 - 已Observe失败步骤投影为未核实，不显示完成图标。
 - 通用桌面任务由慢脑一次提交完整计划片段，顶部浮窗展示全部槽位及执行状态。
+- 唯一trycua版本从0.25.0升级到已验证的0.30.4，以提供精确窗口快捷键的动作级foreground。
 - 建立隔离回归、Rust测试与正式QQ音乐macOS验证。
 
 ## Non-goals
 
-不截图常开、不采全桌面、不重试动作、不增加视觉模型或第二Driver、不扩大消息发送确认范围；Windows继续暂缓。
+不截图常开、不采全桌面、不重试动作、不增加视觉模型或第二Driver、不保留双版本兼容、不扩大消息发送确认范围；Windows继续暂缓。

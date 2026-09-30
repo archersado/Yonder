@@ -17,7 +17,7 @@ evidence = root / "apps/desktop/evidence/cua-dispatch-20260915/result.json"
 
 subprocess.run(["swiftc", str(fixture_src), "-o", str(fixture_bin)], check=True)
 fixture = subprocess.Popen([str(fixture_bin)], stdout=subprocess.PIPE, text=True)
-result = {"platform": "macos", "sdk_version": "0.25.0", "upstream_app_started": False, "recording_started": False, "screenshot_requested": False}
+result = {"platform": "macos", "sdk_version": "0.30.4", "upstream_app_started": False, "recording_started": False, "screenshot_requested": False}
 try:
     deadline = time.time() + 15
     state = None

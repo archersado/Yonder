@@ -8,8 +8,8 @@
 
 - 原始需求：[产品简报](../../../../_bmad-output/planning-artifacts/briefs/brief-Yonder-2026-09-09/brief.md)“产品定义”“MVP主干链路”与[补充材料](../../../../_bmad-output/planning-artifacts/briefs/brief-Yonder-2026-09-09/addendum.md)“CUA方案”，要求跨平台模型无关Driver、任务可见可控、每步后Observe。
 - 后续用户变更（2026-09-30）：以正式Yonder链路验证企业微信长步骤任务；后台动作无法推进时继续修复，并同意验证单次前台投递路线。
-- 架构约束：Accepted AD-E0-02固定0.25.0唯一Driver；Accepted AD-CU-05要求连续CUA会话不插入第二执行器；Accepted AD-AG-09要求计划片段、精确窗口target、不可核实副作用不重试。
-- 待审设计建议：以0.30.4作为唯一升级候选，先在隔离Spike验证，再决定是否替换0.25.0。不是既定产品范围。
+- 架构约束：Accepted AD-E0-02/AD-CU-07修订固定0.30.4为唯一Driver；Accepted AD-CU-05要求连续CUA会话不插入第二执行器；Accepted AD-AG-09要求计划片段、精确窗口target、不可核实副作用不重试。
+- 已接受设计：0.30.4先经隔离Spike验证，正式QQ音乐快捷键样本确认其动作级foreground为0.25.0所缺能力后，替换旧固定版本且不保留双栈。
 
 ## 验收条件
 

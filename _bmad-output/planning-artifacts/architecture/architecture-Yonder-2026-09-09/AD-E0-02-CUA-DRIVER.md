@@ -9,7 +9,9 @@
 
 2026-09-14集成边界补充以Accepted AD-CU-01为准：只集成trycua SDK，不附带上游App或可执行文件；此前独立构件核验仅保留历史证据，不再作为SDK集成前置。SDK Worker生命周期与真实原生动作验证继续推进。
 
-首版选择 `@trycua/cua-driver@0.25.0` 作为唯一 CUA Driver；Qwen CUA SDK 0.20.5 因 Windows 官方输入构件未签名而淘汰，不进入依赖树。首版范围为 Windows，macOS 对等验证移入后续 Epic。
+首版选择 trycua 作为唯一 CUA Driver；Qwen CUA SDK 0.20.5 因 Windows 官方输入构件未签名而淘汰，不进入依赖树。首版范围为 Windows，macOS 对等验证移入后续 Epic。
+
+2026-09-30 macOS产品修订（Accepted）：CU-S4正式QQ音乐样本证明0.25.0的`HotkeyInput`没有动作级foreground字段，精确窗口后台`cmd+f`只能得到失败或不可核实结果，无法满足“无需独立bring-to-front、动作后恢复”的产品约束。固定版本升级为已经同样本Spike验证的`@trycua/cua-driver@0.30.4`；仍只保留trycua单栈，SDK隔离边界、每步Observe、unknown不重试和Windows暂缓范围不变。升级依据与门禁见Accepted AD-CU-07修订。
 
 ## 证据
 

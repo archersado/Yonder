@@ -6,4 +6,4 @@
 
 关联：docs/specs/epic-DS/story-DS-S2/；openspec/changes/ds-s2-task-overview/verification-host-core.md。后续GUI必须验证本地窗口，Agent不能复用LocalUser权限。
 
-构建：`cargo build --offline --locked -p yonder-desktop -p yonder-cli`。首次在`apps/desktop/cua`执行`npm ci --ignore-scripts`安装锁定的trycua 0.25.0，再用`python3 apps/desktop/package-macos-preview.py`生成macOS debug预览；应用包仅用于研发，无正式签名发布。GUI只允许task-space本地窗口查询，验证见verification-menu-macos.md。
+构建：`cargo build --offline --locked -p yonder-desktop -p yonder-cli`。首次在`apps/desktop/cua`执行`npm ci --ignore-scripts`安装锁定的trycua 0.30.4，再用`python3 apps/desktop/package-macos-preview.py`生成macOS debug预览；应用包仅用于研发，无正式签名发布。GUI只允许task-space本地窗口查询，验证见verification-menu-macos.md。
