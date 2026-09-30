@@ -51,3 +51,12 @@
 
 - **WHEN** 协议1.40归属Agent一次提交聚焦控件、输入文本和激活控件等多个槽位
 - **THEN** 顶部浮窗显示计划总数、当前附近步骤及当前/完成/待执行状态，不显示“慢脑已提交单步执行”替代计划片段
+
+### Requirement: 搜索快捷键动作级前台投递
+
+系统 MUST 为封闭的`cmd+f`搜索聚焦注入精确窗口target与动作级foreground，且不得要求计划新增`bring_to_front`步骤。
+
+#### Scenario: 后台QQ音乐需要聚焦搜索框
+
+- **WHEN** 归属慢脑提交`focus-control + hotkey(cmd+f)`
+- **THEN** Worker对当前任务绑定窗口执行一次foreground快捷键并以后置Observe确认，动作后由Driver恢复原工作窗口

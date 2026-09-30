@@ -143,13 +143,15 @@ try {
           && Number.isFinite(actionArgs.x)
           && Number.isFinite(actionArgs.y);
         const coordinateAction = coordinateClick || coordinateText;
-        const foregroundCoordinate = coordinateAction;
         const semanticShortcut = ['focus-target-search','focus-control'].includes(semanticKind)
           && request.tool_name === 'hotkey'
           && Array.isArray(actionArgs.keys)
           && actionArgs.keys.length === 2
           && actionArgs.keys[0] === 'cmd'
           && actionArgs.keys[1] === 'f';
+        // 受限搜索快捷键和窗口坐标动作都需要动作级前台投递。它不新增
+        // bring_to_front 步骤，也不把应用长期留在前台；Driver负责动作后恢复。
+        const foregroundAction = coordinateAction || semanticShortcut;
         const focusAction = coordinateClick || semanticShortcut;
         let trustedFocusedInput = false;
         if (semanticKind) {
@@ -201,7 +203,7 @@ try {
           }
           if (semanticKind === 'send-message' && request.tool_name === 'press_key') actionArgs.key = actionArgs.key ?? 'ENTER';
         }
-        if (foregroundCoordinate) {
+        if (foregroundAction) {
           if ('delivery_mode' in properties) actionArgs.delivery_mode = 'foreground';
           else if ('deliveryMode' in properties) actionArgs.deliveryMode = 'foreground';
           else {

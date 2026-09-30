@@ -16,7 +16,7 @@ export class CuaDriver { static create(){return{
   async metadata(){},
   async listToolsJson(){return JSON.stringify({tools:[
     {name:'launch_app',inputSchema:{properties:{bundle_id:{}}}},
-    {name:'hotkey',inputSchema:{properties:{target:{},keys:{},session:{}}}},
+    {name:'hotkey',inputSchema:{properties:{target:{},keys:{},delivery_mode:{},session:{}}}},
     {name:'type_text',inputSchema:{properties:{target:{},text:{},element_token:{},session:{}}}},
     {name:'press_key',inputSchema:{properties:{target:{},key:{},session:{}}}},
     {name:'get_window_state',inputSchema:{properties:{pid:{},window_id:{},include_screenshot:{},max_elements:{},session:{}}}},
@@ -49,6 +49,7 @@ with tempfile.TemporaryDirectory(prefix="yonda-cua-generic-plan-") as temporary:
     assert all(item["action_succeeded"] is True for item in responses)
     assert [item["name"] for item in actions]==["hotkey","type_text","press_key"]
     assert all(item["args"]["target"]=={"kind":"window","pid":42,"window_id":7} for item in actions)
+    assert actions[0]["args"]["delivery_mode"]=="foreground"
     assert actions[1]["args"]["text"]=="one last kiss" and "element_token" not in actions[1]["args"]
     assert all("_yonder_action_kind" not in item["args"] for item in actions)
 

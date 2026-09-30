@@ -40,4 +40,6 @@ Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元
 
 通用桌面任务由归属慢脑从同一Gateway一次提交1～10个槽位。协议新增`focus-control`、`input-text`、`activate-control`三种封闭动作语义：聚焦只允许窗口内点击或`cmd+f`，输入只允许有界文本与可选窗口局部坐标，激活只允许窗口内点击或`ENTER/RETURN/SPACE`。Application在派发前复用同一参数校验，并把语义标记注入Worker；Agent不能提交Driver身份、session、target或投递模式。
 
+`focus-control/focus-target-search`的封闭`cmd+f`由Worker根据SDK Schema注入`delivery_mode=foreground`和精确窗口target，语义与既有坐标foreground动作一致。该投递属于单个Driver动作，不新增`bring_to_front`步骤；若Driver不支持foreground或后置Observe未确认，立即携带同窗口视觉证据交回。
+
 计划接受后，宿主从已验证片段建立全部槽位的只读内存投影，顶部浮窗展示片段总数与当前附近至多四个槽位标签；执行只移动当前槽位和完成状态，不能用`computer.step`的“慢脑单步”覆盖整个片段。每步后仍Observe；AX事实不足才走同窗口视觉降级，越界或失败则交回同一归属慢脑重规划。

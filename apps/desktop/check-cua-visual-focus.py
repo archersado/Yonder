@@ -16,7 +16,7 @@ export class CuaDriver {
     async metadata(){},
     async listToolsJson(){return JSON.stringify({tools:[
       {name:'launch_app',inputSchema:{properties:{bundle_id:{}}}},
-      {name:'hotkey',inputSchema:{properties:{target:{},keys:{}}}},
+      {name:'hotkey',inputSchema:{properties:{target:{},keys:{},delivery_mode:{}}}},
       {name:'click',inputSchema:{properties:{target:{},x:{},y:{},delivery_mode:{}}}},
       {name:'type_text',inputSchema:{properties:{target:{},text:{},x:{},y:{},delivery_mode:{}}}},
       {name:'get_window_state',inputSchema:{properties:{pid:{},window_id:{},include_screenshot:{},max_elements:{},screenshot_out_file:{}}}},
@@ -70,6 +70,7 @@ assert all(item["args"]["target"] == {"kind":"window","pid":42,"window_id":7} fo
 assert all(item["args"]["target"] == {"kind":"window","pid":11,"window_id":12} for item in actions[4:])
 assert all("x" not in item["args"] and "y" not in item["args"] for item in [actions[1],actions[3]])
 assert actions[2]["args"]["delivery_mode"] == "foreground"
+assert actions[0]["args"]["delivery_mode"] == "foreground" and actions[4]["args"]["delivery_mode"] == "foreground"
 assert actions[5]["args"]["delivery_mode"] == "foreground" and actions[5]["args"]["text"] == "private-atomic"
 assert all("_yonder_private_text" not in item["args"] and "_yonder_action_kind" not in item["args"] for item in actions)
 print(json.dumps({"closed_search_shortcut":True,"confirmed_focus_only":True,"unverifiable_focus_refused":True,"exact_window_target":True,"foreground_coordinates":True,"atomic_coordinate_text":True,"focus_consumed_once":True,"untrusted_input_refused":True}))

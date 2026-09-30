@@ -9,3 +9,5 @@ Application把`UnknownObserved.observation`与Known Observation使用同一提�
 截图继续由Adapter限定为Yonder私有目录、允许Mime与4MiB；Worker会话结束或unknown清理。协议结构不新增字段，避免为Driver内部原因建立第二模型；Agent从动作结论、unknown reason与临时截图形成新计划。
 
 协议1.40为通用桌面片段增加`focus-control/input-text/activate-control`动作种类，并在Rust唯一模型中限制工具与参数。归属慢脑经既有Gateway一次提交完整片段；Application在首步派发前形成全部槽位的宿主投影，顶部浮窗持续更新当前/完成/待执行状态。`computer.step`只保留给未协商片段能力的旧客户端。
+
+封闭`cmd+f`搜索快捷键由Worker与坐标动作一样注入`foreground`及精确窗口target，不新增`bring_to_front`槽位。Driver缺少该投递能力或动作未确认时，沿同窗口视觉降级交回。
