@@ -86,7 +86,11 @@ try:
             {"step_id":"focus-search","label":"使用企业微信搜索快捷键聚焦会话搜索","candidates":[candidate("focus-search","hotkey","focus-target-search",target_ref,"application-ready") | {"arguments":{"keys":["cmd","f"]}}]},
             {"step_id":"enter-query","label":"输入会话目标","candidates":[candidate("enter-query","type_text","enter-target-query",target_ref,"target-resolved")]},
         ])
-    elif args.focus_x is not None and args.focus_y is not None:
+    else:
+        # unknown/handback 会回收 CUA Worker；新片段不能把当时的前台窗口当成
+        # 旧目标。先以封闭 bundle id 重新建立同一应用/窗口身份，再执行视觉动作。
+        slots.append({"step_id":step_id("rebind-wecom"),"label":"重新建立企业微信窗口身份","candidates":[candidate("rebind-wecom","launch_app","launch-application","wecom-app","application-ready") | {"arguments":{"bundle_id":"com.tencent.WeWorkMac"}}]})
+    if args.resume_task and args.focus_x is not None and args.focus_y is not None:
         if args.resume_from == "search":
             slots.append({"step_id":step_id("focus-search-visual"),"label":"根据视觉证据聚焦会话搜索","candidates":[candidate("focus-search-coordinate","click","focus-target-search",target_ref,"application-ready") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
         elif args.resume_from == "target":
@@ -97,7 +101,7 @@ try:
             slots.append({"step_id":step_id("enter-query-visual"),"label":"根据视觉证据聚焦并输入会话目标","candidates":[candidate("enter-query-coordinate","type_text","enter-target-query",target_ref,"target-resolved") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
         elif args.resume_from == "draft":
             slots.append({"step_id":step_id("draft-message-visual"),"label":"根据视觉证据聚焦并填写消息草稿","candidates":[candidate("draft-message-coordinate","type_text","draft-message-ref",target_ref,"composer-ready") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
-    elif args.resume_from == "foreground":
+    elif args.resume_task and args.resume_from == "foreground":
         slots.append({"step_id":step_id("foreground-wecom"),"label":"后台投递无效后将企业微信置于前台","candidates":[candidate("foreground-wecom","bring_to_front","bring-to-front",target_ref,"application-ready")]})
     if not args.resume_task:
         slots.append({"step_id":"activate-target","label":"打开目标会话","candidates":[candidate("activate-target","click","activate-target",target_ref,"target-resolved")]})
