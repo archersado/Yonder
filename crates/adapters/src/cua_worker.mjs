@@ -137,8 +137,10 @@ try {
         delete actionArgs._yonder_private_text;
         const beforeElements = structured(before).elements ?? [];
         const coordinateClick = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        // 坐标文本既可来自受保护计划语义，也可来自 computer.step 的通用桌面
+        // 视觉重规划。两条路径都只能命中已绑定的精确窗口，并由 Worker 强制
+        // 前台投递；Agent 不能借坐标把输入改投桌面或其他应用。
         const coordinateText = request.tool_name === 'type_text'
-          && ['enter-target-query','draft-message-ref'].includes(semanticKind)
           && Number.isFinite(actionArgs.x)
           && Number.isFinite(actionArgs.y);
         const coordinateAction = coordinateClick || coordinateText;
@@ -282,7 +284,11 @@ try {
         const observationTarget = request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : target;
         const observationArgs = { pid: observationTarget.pid, window_id: observationTarget.window_id, include_screenshot: false, max_elements: 100 };
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
-        const visualAction = focusAction || coordinateText || consumedVisualFocus;
+        // Driver 已拒绝或不能确认动作时，AX 后置状态不足以支持慢脑判断。
+        // 只在这种失败路径（以及既有坐标动作）补采同一可信窗口截图；正常
+        // confirmed + AX 路径仍保持无截图的轻量执行。
+        const actionNeedsVisualFallback = response.action_effect !== 'confirmed';
+        const visualAction = focusAction || coordinateText || consumedVisualFocus || actionNeedsVisualFallback;
         const observe = async (descriptor, name, base) => {
           const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
           const input = { ...base };
@@ -291,8 +297,8 @@ try {
           if ('include_screenshot' in properties) input.include_screenshot = visualAction;
           if ('max_elements' in properties) input.max_elements = 100;
           if ('session' in properties) input.session = request.host_session_id;
-          if ('screenshot_out_file' in properties) input.screenshot_out_file = screenshotPath;
-          if ('screenshotOutFile' in properties) input.screenshotOutFile = screenshotPath;
+          if (visualAction && 'screenshot_out_file' in properties) input.screenshot_out_file = screenshotPath;
+          if (visualAction && 'screenshotOutFile' in properties) input.screenshotOutFile = screenshotPath;
           return [await driver.callTool(name, JSON.stringify(input)), properties];
         };
         // 窗口级动作必须观察同一可信窗口；全桌面截图既不能证明后台动作，
@@ -334,6 +340,24 @@ try {
               if (response.target_visible === true || Date.now() >= deadline) break;
               await new Promise(resolve => setTimeout(resolve, 100));
             } while (true);
+          }
+          // 自绘/WebView 应用可能返回空 AX 树。若本轮尚未按失败/坐标路径取得
+          // 截图，则额外做一次只读的同窗口视觉 Observe；不重放原动作，也不
+          // 降级到全桌面截图或当前前台应用。
+          if (response.element_count === 0 && !response.screenshot_path && !visualAction && windowState && !desktopScope) {
+            const visual = await captureObservation(
+              driver,
+              windowState,
+              'get_window_state',
+              observationArgs,
+              screenshotPath,
+              request.host_session_id,
+            );
+            if (!visual.result.isError) {
+              response.element_count = visual.elementCount;
+              response.screenshot_path = visual.screenshot?.path ?? null;
+              response.screenshot_mime = visual.screenshot?.mime ?? null;
+            }
           }
           response.failure_stage = unverifiedStage ?? null;
           if (!action.isError && response.observe_valid && focusAction && response.action_effect === 'confirmed') {

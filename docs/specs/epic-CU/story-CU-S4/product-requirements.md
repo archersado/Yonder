@@ -25,6 +25,10 @@
 - FGD-10：产品协议只允许`enter-target-query`与`draft-message-ref`的`type_text`携带有限`x/y`，以及既有点击语义携带`x/y`；Agent不得提交`delivery_mode`、正文或任意键盘宏。
 - FGD-11：Worker必须为上述窗口坐标动作注入同一精确窗口target与`foreground`，从意图引用瞬时展开文本；Driver未返回`confirmed`、Observe失败或原前台无法恢复时不得推进。
 - FGD-12：顶部浮窗持续展示聚焦、输入和验证步骤；只有confirmed且Observe有效才显示成功图标，普通用户输入不自动接管。
+- FGD-13：2026-09-30 后续用户变更要求解决 Yonder 定位应用内元素持续失败、而截图型 Computer Use 可继续的问题；Yonder必须保持AX优先，只在AX空/多义、目标不可操作或动作未确认时补采同一可信窗口截图。
+- FGD-14：视觉降级不得重放刚失败的动作，不得改投全桌面、当前前台或模糊同名窗口；已取得截图即使动作结论为unknown也必须返回归属慢脑。
+- FGD-15：通用桌面搜索等非发送文本可由`computer.step`提交窗口局部坐标；Worker必须注入精确窗口与foreground，Agent不得提交PID、窗口、session或Driver target。
+- FGD-16：已Observe但动作失败只到达安全边界，顶部浮窗显示未核实/失败而非成功；正常confirmed且元素充分的路径不采集截图。
 
 ## 范围与非目标
 
@@ -35,7 +39,7 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | 来源 | 验收 |
 |---|---|
 | 产品简报与补充材料 | FGD-03、FGD-04、FGD-06、FGD-07 |
-| 2026-09-30用户变更与正式样本 | FGD-02、FGD-03、FGD-04、FGD-05 |
+| 2026-09-30用户变更与正式样本 | FGD-02、FGD-03、FGD-04、FGD-05、FGD-13、FGD-14、FGD-15、FGD-16 |
 | AD-E0-02、AD-CU-05、AD-AG-09 | FGD-01、FGD-06、FGD-07、FGD-08 |
 | Windows暂缓决定 | FGD-09 |
 | Accepted AD-CU-07产品Apply | FGD-10、FGD-11、FGD-12 |

@@ -3,7 +3,7 @@
 Story: CU-S4
 Epic: CU
 Status: verifying
-OpenSpec: cu-s4-trycua-foreground-delivery-spike
+OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply、cu-s4-ax-visual-fallback
 
 ## 设计文档
 
@@ -22,3 +22,5 @@ OpenSpec: cu-s4-trycua-foreground-delivery-spike
 [OpenSpec Change](../../../../openspec/changes/cu-s4-trycua-foreground-delivery-spike/)只产生隔离证据和ADR结论。期限为2026-10-02；届时必须接受、缩小或淘汰候选路线。
 
 2026-09-30 macOS独立Goal PASS：0.25.0与0.30.4统一样本均通过，升级无新增收益，AD-CU-07接受“保留0.25.0并接入既有受限前台坐标文本能力”。产品Apply与正式Yonder企业微信复验仍待独立Change；Windows暂缓，因此Story不Archive。
+
+同日正式 QQ 音乐样本补充证明：应用启动成功后，空/不稳定 AX 树与后台动作拒绝没有产出截图，TM-S9 又丢弃 `UnknownObserved` 视觉证据，使慢脑无法按“元素失败才视觉”继续。用户明确要求修复该差距。Accepted AD-CU-08 与 `cu-s4-ax-visual-fallback` 在不引入第二执行栈的前提下补齐同窗口视觉降级；正式 QQ 音乐正向复验前 Story 继续保持 verifying。

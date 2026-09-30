@@ -20,6 +20,14 @@ pub enum DispatchOutcome {
     UnknownObserved { reason: UnknownReason, observation: ComputerObservation },
 }
 
+fn outcome_observation(outcome: &DispatchOutcome) -> Option<ComputerObservation> {
+    match outcome {
+        DispatchOutcome::Known { observation, .. } => observation.clone(),
+        DispatchOutcome::UnknownObserved { observation, .. } => Some(observation.clone()),
+        DispatchOutcome::Unknown(_) => None,
+    }
+}
+
 /// 只供可信 Application 编排；Agent/UI 不得直接构造目标或上报执行结果。
 pub trait ComputerUsePort {
     fn dispatch(&self, attempt: &ExecutionAttempt, target: &WorkTarget, action: &ComputerAction) -> DispatchOutcome;
@@ -53,7 +61,7 @@ pub fn execute_agent_action(
     let accepted=start_execution(store,admission,&task,&attempt,expected,&[Resource::Desktop]).map_err(|_|Error::StopRequired)?.1;
     let action=ComputerAction{tool_name:tool_name.into(),arguments_json:arguments_json.into()};
     let outcome=dispatch_prepared(store,port,task_id,&accepted.attempt_id,&target,&action)?;
-    let observation=match &outcome{DispatchOutcome::Known{observation,..}=>observation.clone(),DispatchOutcome::UnknownObserved{observation,..}=>Some(observation.clone()),DispatchOutcome::Unknown(_)=>None};
+    let observation=outcome_observation(&outcome);
     let interrupted=outcome==DispatchOutcome::Unknown(UnknownReason::UserInput);
     let (result_task,result)=record_dispatch_outcome(store,task_id,&accepted.attempt_id,outcome)?;
     if interrupted{
@@ -116,10 +124,7 @@ pub fn execute_agent_action_runtime(
         arguments_json: arguments_json.into(),
     };
     let outcome = port.dispatch(&attempt, &target, &action);
-    let observation = match &outcome {
-        DispatchOutcome::Known { observation, .. } => observation.clone(),
-        DispatchOutcome::Unknown(_) | DispatchOutcome::UnknownObserved { .. } => None,
-    };
+    let observation = outcome_observation(&outcome);
     let interrupted = outcome == DispatchOutcome::Unknown(UnknownReason::UserInput);
     let conclusion = match outcome {
         DispatchOutcome::Known {
@@ -216,10 +221,7 @@ pub fn execute_agent_step_runtime(
             arguments_json: arguments_json.into(),
         },
     );
-    let observation = match &outcome {
-        DispatchOutcome::Known { observation, .. } => observation.clone(),
-        DispatchOutcome::Unknown(_) | DispatchOutcome::UnknownObserved { .. } => None,
-    };
+    let observation = outcome_observation(&outcome);
     let interrupted = outcome == DispatchOutcome::Unknown(UnknownReason::UserInput);
     let conclusion = match outcome {
         DispatchOutcome::Known {
@@ -241,8 +243,12 @@ pub fn execute_agent_step_runtime(
             .release_task_after_stop(task_id)
             .map_err(|_| Error::StorageUnavailable)?;
         (Status::Interrupted, stopped.sequence)
-    } else if matches!(result.conclusion, crate::AttemptConclusion::Observed { .. }) {
-        port.project_step_completed(task_id, step_id);
+    } else if let crate::AttemptConclusion::Observed { action_succeeded } = result.conclusion {
+        if action_succeeded {
+            port.project_step_completed(task_id, step_id);
+        } else {
+            port.project_step_unverified(task_id, step_id);
+        }
         let boundary = runtime
             .apply(crate::execution_runtime::RuntimeCommand::AdvanceStepBoundary {
                 task_id: task_id.into(),
@@ -263,6 +269,40 @@ pub fn execute_agent_step_runtime(
         result,
         observation,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn observation() -> ComputerObservation {
+        ComputerObservation {
+            element_count: 0,
+            screenshot_path: Some("/private/visual-fallback.png".into()),
+            screenshot_mime: Some("image/png".into()),
+            target_visible: Some(true),
+        }
+    }
+
+    #[test]
+    fn unknown_observed_keeps_visual_evidence_for_replan() {
+        let expected = observation();
+        assert_eq!(
+            outcome_observation(&DispatchOutcome::UnknownObserved {
+                reason: UnknownReason::ObserveFailed,
+                observation: expected.clone(),
+            }),
+            Some(expected)
+        );
+    }
+
+    #[test]
+    fn unknown_without_observe_has_no_visual_evidence() {
+        assert_eq!(
+            outcome_observation(&DispatchOutcome::Unknown(UnknownReason::TimedOut)),
+            None
+        );
+    }
 }
 
 fn runtime_error(error: crate::execution_runtime::RuntimeError) -> Error {

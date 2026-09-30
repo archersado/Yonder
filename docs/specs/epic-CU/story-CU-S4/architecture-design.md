@@ -29,3 +29,9 @@ Spike在`spikes/cua-foreground-delivery/`中运行，固定比较产品当前0.2
 Accepted AD-CU-07决定保留0.25.0。Rust协议与Application只为`enter-target-query`、`draft-message-ref`的`type_text`接受恰好两个有限坐标参数；既有视觉`click`仍只接受同样的`x/y`。`delivery_mode`、target、正文和会话身份不得来自Agent。
 
 Worker在展开意图引用后，为坐标文本或点击注入SDK工具目录声明的`delivery_mode=foreground`、精确窗口target和受监管session。坐标文本是单个Driver动作，不先发独立click；动作后Observe同一窗口并保留截图。只有`confirmed + observe_valid`可推进，其他结果交回且不得建立视觉焦点凭据或重试。
+
+## AX优先与视觉降级补充（AD-CU-08）
+
+Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元素。若元素树为空，或动作结果不是`confirmed`，只对同一可信PID/window补采一次截图；正常元素路径不增加截图成本。该截图是当前失败边界的新鲜Observation，不触发动作重放，也不改变任务结论。
+
+`UnknownObserved`携带的Observation必须由TM-S9内存运行时原样返回Gateway，不能因为持久化异步化而丢弃。通用`computer.step`坐标文本复用同一精确窗口foreground注入；受保护消息计划仍从内存引用展开正文并保留发送确认，不因通用搜索场景放宽。
