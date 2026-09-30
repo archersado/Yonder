@@ -1,0 +1,10 @@
+{
+  "cua_driver": "sky-external-0.7.1",
+  "jev_sdk_version": "0.6.0",
+  "node_present": true,
+  "sky_worker_matches": true,
+  "jev_worker_matches": true,
+  "trycua_absent": true,
+  "qwen_absent": true,
+  "passed": true
+}
