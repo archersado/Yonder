@@ -55,3 +55,9 @@
 桥接读取活动 turn 时不再请求完整历史，而是先以 `thread/read(includeTurns=false)`读取状态，再以`thread/turns/list(limit=1, itemsView=notLoaded)`取得 steer 所需 ID。由此避免长会话完整历史超过 App Server 帧上限；隔离桥合约同时覆盖活动 turn 的 `turn/steer` 与空闲 turn 的 `turn/start`。
 
 原生 AX 验证和窗口截图证明顶部浮窗同时出现“慢脑已提交重新规划：2 个步骤”及两条新步骤；证据位于 `apps/desktop/evidence/ex-s2-replan-wake-20260929/`。后续执行中新的 TextEdit 启动尝试返回 `unknown(worker-failed)`；慢脑读取 13 条事件后没有自动重试该结果待核实的副作用，验证任务按测试清理流程取消。该后续 Driver 结果不改变本 Goal 对“交回主动唤醒、同 Gateway 重新规划、顶部汇总”的 PASS 结论，也不被记录为动作成功。
+
+## 2026-09-30 unknown 后重新规划执行槽证据
+
+正式企业微信样本复现了 `unknown(observe-failed)` handback 后旧 attempt 永久占据执行槽的问题。SQLite schema 23 现以独立 `handback_sequence` 保留原始 unknown 结论并形成停止投影；旧片段游标不推进，桌面任务租约不释放。Adapter 回归证明归属慢脑读取事实后，可以同一任务、同一租约、全新 step/attempt 提交和执行新片段；复用旧 step id 仍被拒绝。
+
+正式 MCP/Gateway 样本中，任务在序号 17、23、33、43 多次按新鲜截图交回并成功启动新片段，证明状态机不再卡死。Worker 回收后新片段先以封闭 bundle id 重绑企业微信，截图从错误的当前前台 VS Code 恢复为企业微信。后续 trycua 像素文本动作仍返回不可核实且截图无文本，系统继续安全交回并未发送消息；该 Driver 正向能力缺口由 CU-S4 Goal 继续跟踪。
