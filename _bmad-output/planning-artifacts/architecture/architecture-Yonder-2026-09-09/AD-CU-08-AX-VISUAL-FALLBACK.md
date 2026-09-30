@@ -9,7 +9,7 @@
 
 正式 Yonder 企业微信和 QQ 音乐样本证明：应用可以被可信启动并绑定精确窗口，但 WebView、自绘或跨进程渲染界面可能只公开空或不稳定的 AX 元素树。现有 Worker 在正常路径关闭截图；唯一元素后台动作被 Driver 拒绝或判为不可核实时，后置 Observe 仍可能只返回空元素且不携带截图。TM-S9 运行时还会丢弃 `UnknownObserved` 已取得的视觉 Observation，导致归属慢脑没有新鲜事实可用于坐标重规划。
 
-Codex Computer Use 的截图闭环不能直接成为 Yonder 的第二执行栈。Yonder 必须继续只通过已选定的 trycua Driver，并保持元素优先、精确窗口、每步 Observe、unknown 不重试和单一桌面租约。
+后续同实例对照证明 Codex Computer Use / Sky 能取得完整应用级AX transcript，而trycua仍为空。依据Accepted AD-CU-09，Sky取代trycua成为macOS唯一产品Driver；本决定的元素优先、同目标截图降级、每步Observe、unknown不重试和单一桌面租约保持不变，不保留第二执行栈。
 
 ## 决定
 

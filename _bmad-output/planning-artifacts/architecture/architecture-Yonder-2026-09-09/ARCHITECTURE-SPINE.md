@@ -91,7 +91,7 @@ Accepted [AD-EX-03](AD-EX-03-JEV-CONFIG-INTERFACE.md) 单独允许实现最小 J
 
 2026-09-16步骤边界停止增量：schema9仅允许当前observed attempt原子转stopped；暂停/接管提交paused，取消提交cancelled并保留数据。Permit在事务成功后才释放；unknown、旧身份或提交失败继续占用。外部控制协议、工作定位与Recording仍需后续规格。
 
-CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。Qwen cua-driver 与 trycua cua-driver 使用相同 Windows/macOS 黑盒用例验证，只交付胜者；OSWorld 仅作基准。Driver 由 Supervisor 按需启动；崩溃或超时将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
+CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。历史Qwen/trycua对照只保留证据；2026-09-30 Accepted [AD-CU-09](AD-CU-09-SKY-COMPUTER-USE-DRIVER.md)已把macOS产品切换为Codex Computer Use / Sky单栈，应用级AX transcript仅供受监管Worker本次定位，不持久化。Driver 由 Supervisor 按需启动；崩溃、超时或后置事实不足将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
 
 2026-09-30 CUA 元素/视觉路由见 Accepted [AD-CU-08](AD-CU-08-AX-VISUAL-FALLBACK.md)：精确窗口 AX 元素优先；空树、目标多义或动作未确认时只补采同一窗口截图并交回归属慢脑，不重放动作、不截图常开、不切换 Driver。`UnknownObserved` 的临时视觉证据必须保留到 Gateway；失败步骤不能投影为完成。协议1.40允许通用桌面任务以封闭动作提交完整有界片段，顶部浮窗在首步前显示计划总数及当前附近的有界步骤列表；不得把受支持片段退化为逐个单步执行。
 

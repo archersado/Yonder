@@ -1,9 +1,9 @@
-# CU-S4 trycua 单次前台投递升级 Spike
+# CU-S4 应用级 Computer Use Driver 收敛
 
 Story: CU-S4
 Epic: CU
 Status: verifying
-OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply、cu-s4-ax-visual-fallback
+OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply、cu-s4-ax-visual-fallback、cu-s4-sky-product-driver
 
 ## 设计文档
 
@@ -28,3 +28,5 @@ OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply�
 同日追加产品要求：通用桌面任务必须由慢脑一次提交计划片段，并在顶部浮窗显示计划总数和当前附近步骤，不能退化为“慢脑已提交单步执行”。协议1.40已增加封闭通用桌面动作语义；待正式macOS产品复验后更新Verification Goal。
 
 同日正式QQ音乐补充样本确认0.25.0的快捷键输入没有动作级foreground能力，而0.30.4具备该独占字段；AD-E0-02与AD-CU-07已修订为固定唯一0.30.4，不保留双版本执行栈。正式包回归通过前Story继续verifying。
+
+同日进一步同实例对照确认：trycua 0.30.4仍无法返回QQ音乐应用内元素，而Codex Computer Use / `@oai/sky`可读取完整应用级AX transcript。主人决定不再扩展trycua，Accepted AD-CU-09与`cu-s4-sky-product-driver`把macOS产品切换为Sky单栈；历史trycua Change保留证据但不再决定产品依赖。

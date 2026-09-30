@@ -32,6 +32,10 @@
 - FGD-17：2026-09-30 后续用户变更要求慢脑一次提交一个有界计划片段；协议支持时，通用桌面任务不得退化为逐个 `computer.step`。顶部浮窗必须在执行前显示片段总步骤数与当前附近的有界步骤列表，并持续区分已完成、执行中、待执行与交回重规划。
 - FGD-18：通用片段只增加“聚焦控件、输入文本、激活控件”三类封闭动作，映射到既有 `click/hotkey/type_text/press_key` Driver 工具；不得接受任意快捷键、任意按键、循环、分支或自由脚本。
 - FGD-19：受限`cmd+f`搜索快捷键必须与窗口坐标动作一样由Worker注入动作级foreground和精确窗口target；不得要求慢脑另插`bring_to_front`，Driver在动作后恢复原工作窗口。
+- FGD-20：2026-09-30后续用户变更要求macOS产品改用Codex Computer Use / Sky，不保留trycua生产依赖、环境选择或运行时回退。
+- FGD-21：同一任务启动应用后必须绑定唯一应用身份；每步从新鲜应用级AX transcript解析元素并优先使用`element_index`，不得复用旧index或改投当前前台。
+- FGD-22：AX transcript只用于本次运行时定位，不进入SQLite、事件、Outbox、日志或顶部浮窗；慢脑继续只接收有界Observation。
+- FGD-23：通用聚焦、输入和激活动作必须映射为Sky支持的动作并在动作后重新Observe；无法形成后置事实时交回且不自动重试。
 
 ## 范围与非目标
 
@@ -46,3 +50,4 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | AD-E0-02、AD-CU-05、AD-AG-09 | FGD-01、FGD-06、FGD-07、FGD-08 |
 | Windows暂缓决定 | FGD-09 |
 | Accepted AD-CU-07产品Apply | FGD-10、FGD-11、FGD-12 |
+| 2026-09-30 Sky单栈决定与AD-CU-09 | FGD-20、FGD-21、FGD-22、FGD-23 |

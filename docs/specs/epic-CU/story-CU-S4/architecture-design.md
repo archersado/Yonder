@@ -43,3 +43,9 @@ Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元
 `focus-control/focus-target-search`的封闭`cmd+f`由Worker根据SDK Schema注入`delivery_mode=foreground`和精确窗口target，语义与既有坐标foreground动作一致。该投递属于单个Driver动作，不新增`bring_to_front`步骤；若Driver不支持foreground或后置Observe未确认，立即携带同窗口视觉证据交回。
 
 计划接受后，宿主从已验证片段建立全部槽位的只读内存投影，顶部浮窗展示片段总数与当前附近至多四个槽位标签；执行只移动当前槽位和完成状态，不能用`computer.step`的“慢脑单步”覆盖整个片段。每步后仍Observe；AX事实不足才走同窗口视觉降级，越界或失败则交回同一归属慢脑重规划。
+
+## Sky产品单栈补充（AD-CU-09）
+
+macOS组合根只构造固定`@oai/sky@0.7.1` Worker，删除`YONDER_CUA_DRIVER`选择、trycua生产依赖和包内旧Worker。Sky包与Computer Use App由已安装的Codex/ChatGPT产品提供，Yonder只校验固定入口和包身份，不复制、不重新签名、不长期维护双栈。
+
+Worker在`launch_app`后缓存同任务的规范bundle id及实际运行App路径；后续步骤优先复用该绑定。每步调用`get_app_state(disableDiff=true)`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到`click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。

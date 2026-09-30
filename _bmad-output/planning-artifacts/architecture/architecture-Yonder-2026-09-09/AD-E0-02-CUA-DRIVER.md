@@ -13,6 +13,8 @@
 
 2026-09-30 macOS产品修订（Accepted）：CU-S4正式QQ音乐样本证明0.25.0的`HotkeyInput`没有动作级foreground字段，精确窗口后台`cmd+f`只能得到失败或不可核实结果，无法满足“无需独立bring-to-front、动作后恢复”的产品约束。固定版本升级为已经同样本Spike验证的`@trycua/cua-driver@0.30.4`；仍只保留trycua单栈，SDK隔离边界、每步Observe、unknown不重试和Windows暂缓范围不变。升级依据与门禁见Accepted AD-CU-07修订。
 
+2026-09-30后续产品决定由Accepted [AD-CU-09](AD-CU-09-SKY-COMPUTER-USE-DRIVER.md)取代上述macOS Driver结论：同一QQ音乐运行实例中trycua仍无法取得应用内元素，而Codex Computer Use / Sky可以读取完整应用级AX transcript。macOS产品改为Sky单栈并移除trycua生产接线；本文件其余Windows历史对照证据继续保留，不能外推为当前macOS实现。
+
 ## 证据
 
 两者在 Linux/Windows 的只读能力与生命周期故障语义基本一致。Qwen 对普通权限记事本输入也强制依赖未签名 worker，无法安全执行。trycua 在普通权限记事本完成 AX 文本输入，报告 `effect=confirmed`；但现代 XAML 快捷键失败。Windows WPS 为 High integrity，trycua 的 Medium integrity 输入被 UIPI 拒绝。
