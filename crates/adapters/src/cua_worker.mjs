@@ -309,7 +309,7 @@ try {
             } while (true);
           }
           response.failure_stage = null;
-          if (!action.isError && response.observe_valid && focusAction && ['confirmed','unverifiable'].includes(response.action_effect)) {
+          if (!action.isError && response.observe_valid && focusAction && response.action_effect === 'confirmed') {
             if (semanticKind === 'focus-target-search') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'search' };
             if (semanticKind === 'focus-message-composer') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'composer' };
           }
