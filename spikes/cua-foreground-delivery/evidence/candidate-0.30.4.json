@@ -1,0 +1,15 @@
+{
+  "version": "0.30.4",
+  "marker_length": 18,
+  "accessibility": true,
+  "screen_recording": true,
+  "wrong_target_rejected": true,
+  "target_unchanged_after_rejection": true,
+  "action_confirmed": true,
+  "sdk_observe_matches": true,
+  "fixture_matches": true,
+  "decoy_restored": true,
+  "after_shutdown_rejected": true,
+  "cleanup": true,
+  "passed": true
+}

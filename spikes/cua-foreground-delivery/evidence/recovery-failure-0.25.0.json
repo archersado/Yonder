@@ -1,0 +1,16 @@
+{
+  "version": "0.25.0",
+  "marker_length": 18,
+  "accessibility": true,
+  "screen_recording": true,
+  "wrong_target_rejected": true,
+  "target_unchanged_after_rejection": true,
+  "action_confirmed": false,
+  "sdk_observe_matches": false,
+  "fixture_matches": false,
+  "decoy_restored": false,
+  "after_shutdown_rejected": false,
+  "cleanup": true,
+  "passed": false,
+  "failure": "bounded-wait-timeout"
+}

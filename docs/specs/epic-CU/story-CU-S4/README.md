@@ -1,8 +1,8 @@
 # CU-S4 trycua 单次前台投递升级 Spike
 
-Story: CU-S4  
-Epic: CU  
-Status: implementing  
+Story: CU-S4
+Epic: CU
+Status: verifying
 OpenSpec: cu-s4-trycua-foreground-delivery-spike
 
 ## 设计文档
@@ -20,3 +20,5 @@ OpenSpec: cu-s4-trycua-foreground-delivery-spike
 ## OpenSpec 与验证
 
 [OpenSpec Change](../../../../openspec/changes/cu-s4-trycua-foreground-delivery-spike/)只产生隔离证据和ADR结论。期限为2026-10-02；届时必须接受、缩小或淘汰候选路线。
+
+2026-09-30 macOS独立Goal PASS：0.25.0与0.30.4统一样本均通过，升级无新增收益，AD-CU-07接受“保留0.25.0并接入既有受限前台坐标文本能力”。产品Apply与正式Yonder企业微信复验仍待独立Change；Windows暂缓，因此Story不Archive。

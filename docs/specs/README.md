@@ -262,3 +262,5 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-25 TM-S5 继续按 Accepted AD-TM-21 推进执行尝试开始历史：协议 1.25 仅按 `accepted_sequence` 对应的原 Start 事件投影不可变执行身份，1.24 隔离、越权拒绝、损坏身份与旧任务零回填回归通过；macOS 正式 Tauri 宿主、私有 Unix Socket 与原生 Task Space 证据通过。Windows 按用户决定暂缓，完整 TM-S5 仍未 Archive。
 
 2026-09-30 新增[CU-S4 trycua单次前台投递升级Spike](epic-CU/story-CU-S4/README.md)：正式企业微信样本证明0.25.0后台输入不可确认，固定0.30.4只作为限时macOS候选；AD-CU-07与Spike通过前不修改正式依赖、不恢复不可核实文本续跑。
+
+2026-09-30 CU-S4 macOS独立Goal PASS：0.25.0与0.30.4均通过精确窗口前台坐标文本、双Observe、原前台恢复、错误窗口拒绝和关闭清理；0.30.4无独占收益，AD-CU-07接受保留0.25.0，产品接线转入独立Apply Change。

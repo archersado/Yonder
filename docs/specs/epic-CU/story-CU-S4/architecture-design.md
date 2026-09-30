@@ -4,11 +4,11 @@
 
 Spike在`spikes/cua-foreground-delivery/`中运行，固定比较产品当前0.25.0与候选0.30.4。两者均只通过官方进程内SDK读取工具Schema和运行隔离样本；不连接Yonder Gateway、不读任务库、不复用产品Worker进程。
 
-0.30.4静态契约新增`ClickInput.target + position + deliveryMode`，其中`Foreground`是本Spike唯一新增候选；`hotkey`与`type_text`仍保持精确target但没有独立`deliveryMode`。因此样本必须验证前台click是否真实建立焦点，以及随后target-bound文本输入是否落在同一输入框，不能从类型存在推导可用。
+0.30.4原生类型新增`ClickInput.target + position + deliveryMode`；实际`listToolsJson/callTool`目录进一步为`click`、`hotkey`和`type_text`公开精确target、窗口坐标与`delivery_mode`。Spike优先验证`type_text(x,y,text,foreground)`能否原子建立焦点并输入，同时保留分离click路径的Schema证据；不能从字段存在推导可用。
 
 ## 统一样本
 
-隔离fixture包含一个可读焦点和值的文本框，并另开一个诱饵窗口。探针记录原前台身份，取得目标PID/窗口和新鲜窗口截图，从截图坐标执行一次前台click，随后输入固定标记`YONDER_FGD_SAMPLE`，再以独立原生控件读和SDK Observe双重验证。最后检查原前台恢复、诱饵未变化、Worker关闭和进程清理。
+隔离fixture包含一个可读焦点和值的文本框，并由独立进程打开诱饵前台窗口。探针记录诱饵身份，取得目标PID/窗口和新鲜窗口截图，从截图坐标执行一次原子前台输入固定标记`YONDER_SDK_INPUT_A`，再以独立原生控件读和SDK Observe双重验证。最后检查诱饵前台恢复、诱饵未变化、Worker关闭和进程清理。
 
 失败注入覆盖错误窗口、过期截图或坐标、目标关闭、`unverifiable`和动作后Observe失败。任何失败停止样本，不重放点击或输入。
 
