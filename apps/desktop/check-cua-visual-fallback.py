@@ -16,6 +16,7 @@ export class CuaDriver {
       async metadata() {},
       async listToolsJson() { return JSON.stringify({tools:[
         {name:'launch_app',inputSchema:{properties:{bundle_id:{}}}},
+        {name:'click',inputSchema:{properties:{pid:{},window_id:{},element_token:{}}}},
         {name:'type_text',inputSchema:{properties:{text:{},pid:{},window_id:{},element_token:{}}}},
         {name:'get_window_state',inputSchema:{properties:{pid:{},window_id:{},include_screenshot:{},max_elements:{},screenshot_out_file:{}}}},
         {name:'get_desktop_state',inputSchema:{properties:{}}},
@@ -25,7 +26,7 @@ export class CuaDriver {
       async callTool(name, encoded) {
         const args = JSON.parse(encoded);
         const ok = value => ({isError:false,structuredJson:JSON.stringify(value)});
-        if (name === 'type_text') throw new Error('side effect must not run');
+        if (name === 'type_text' || name === 'click') throw new Error('side effect must not run');
         if (name === 'launch_app') return ok({pid:42,bundle_id:'com.tencent.WeWorkMac',launch_state:'process_running',windows:[{window_id:7,bounds:{width:800,height:600}}]});
         if (name === 'list_apps') return ok({apps:[{running:true,bundle_id:'com.tencent.WeWorkMac',pid:42}]});
         if (name === 'list_windows') return ok({windows:[{window_id:7,is_on_screen:false,on_current_space:false,bounds:{width:800,height:600}}]});
@@ -70,9 +71,13 @@ with tempfile.TemporaryDirectory(prefix="yonda-cua-visual-") as temporary:
         **base, "tool_name": "type_text",
         "arguments": {"text": "contact", "delivery_mode": "background"},
     }
+    semantic = {
+        **base, "step_id": "focus-search", "attempt_id": "semantic-attempt", "tool_name": "click",
+        "arguments": {"_yonder_action_kind": "focus-target-search", "_yonder_private_text": "private-target"},
+    }
     run = subprocess.run(
         ["node", str(worker), str(sdk), str(evidence)],
-        input=json.dumps(launch) + "\n" + json.dumps(request) + "\n", text=True, capture_output=True,
+        input=json.dumps(launch) + "\n" + json.dumps(request) + "\n" + json.dumps(semantic) + "\n", text=True, capture_output=True,
         timeout=10, check=True,
     )
     responses = [json.loads(line) for line in run.stdout.splitlines()]
@@ -81,6 +86,10 @@ with tempfile.TemporaryDirectory(prefix="yonda-cua-visual-") as temporary:
     screenshot = pathlib.Path(response["screenshot_path"])
     assert screenshot.parent == evidence
     assert screenshot.is_file()
+    semantic_response = responses[2]
+    assert semantic_response["action_succeeded"] is False
+    assert semantic_response["observe_valid"] is True
+    assert pathlib.Path(semantic_response["screenshot_path"]).is_file()
 
 assert response["action_known"] is True
 assert response["action_succeeded"] is False
@@ -88,4 +97,4 @@ assert response["action_effect"] == "refused"
 assert response["observe_valid"] is True
 assert response["element_count"] == 2
 assert response["screenshot_mime"] == "image/png"
-print(json.dumps({"element_first": True, "visual_fallback": True, "trusted_background_target": True, "side_effect_executed": False}))
+print(json.dumps({"element_first": True, "visual_fallback": True, "semantic_visual_fallback": True, "trusted_background_target": True, "side_effect_executed": False}))

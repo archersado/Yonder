@@ -143,10 +143,14 @@ try {
           }
           if (!coordinateAction && (['focus-target-search', 'enter-target-query', 'activate-target', 'draft-message-ref'].includes(semanticKind) || (semanticKind === 'send-message' && request.tool_name === 'click'))) {
             if (!selected || !('element_token' in properties)) {
+              const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
+              const observed = await captureObservation(driver, tools.find(tool => tool.name === 'get_window_state'), 'get_window_state', args, screenshotPath, request.host_session_id);
               response.action_known = true;
               response.action_effect = 'refused';
-              response.observe_valid = true;
-              response.element_count = Math.min(65535, beforeElements.length);
+              response.observe_valid = !observed.result.isError;
+              response.element_count = observed.elementCount;
+              response.screenshot_path = observed.screenshot?.path ?? null;
+              response.screenshot_mime = observed.screenshot?.mime ?? null;
               response.failure_stage = 'semantic-target-ambiguous';
               process.stdout.write(JSON.stringify(response) + '\n');
               continue;
