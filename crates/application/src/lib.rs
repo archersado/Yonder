@@ -9,6 +9,7 @@ pub mod command;
 pub mod command_approval;
 pub mod command_execution;
 pub mod computer_use;
+pub mod cua_intent;
 pub mod document;
 pub mod document_execution;
 pub mod execution_runtime;

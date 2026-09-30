@@ -227,6 +227,7 @@
         "computer.execute",
         "task.plan.submit",
         "task.plan.execute",
+        "cua.intent.propose",
         "file.grant.read",
         "file.execute",
         "document.execute",
@@ -465,6 +466,33 @@
         "phase",
         "accepted_sequence",
         "stopped_sequence"
+      ]
+    },
+    "CuaIntentSummary": {
+      "type": "object",
+      "properties": {
+        "confirmation_ref": {
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "intent_ref": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "intent_ref",
+        "confirmation_ref",
+        "state",
+        "expires_at_ms"
       ]
     },
     "DocumentExecutionResult": {
@@ -870,6 +898,23 @@
           "required": [
             "kind",
             "approval"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "intent": {
+              "$ref": "#/$defs/CuaIntentSummary"
+            },
+            "kind": {
+              "type": "string",
+              "const": "cua-intent"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "intent"
           ]
         },
         {

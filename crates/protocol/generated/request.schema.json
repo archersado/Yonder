@@ -138,6 +138,31 @@
         },
         "method": {
           "type": "string",
+          "const": "task.cua.intent.propose"
+        },
+        "params": {
+          "$ref": "#/$defs/CuaIntentProposeParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "id",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
           "const": "task.file.execute"
         },
         "params": {
@@ -767,6 +792,7 @@
         "computer.execute",
         "task.plan.submit",
         "task.plan.execute",
+        "cua.intent.propose",
         "file.grant.read",
         "file.execute",
         "document.execute",
@@ -1063,9 +1089,49 @@
       "enum": [
         "launch-application",
         "bring-to-front",
+        "focus-target-search",
+        "enter-target-query",
+        "activate-target",
+        "draft-message-ref",
         "resolve-conversation",
         "draft-message",
         "send-message"
+      ]
+    },
+    "CuaIntentProposeParams": {
+      "description": "敏感收件人与正文只通过此请求进入桌面组合根的短期内存；响应不会回显正文。",
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "message": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "capability",
+        "deadline",
+        "task_id",
+        "target",
+        "message"
       ]
     },
     "CuaObserveConditionParams": {

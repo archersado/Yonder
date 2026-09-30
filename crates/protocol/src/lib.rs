@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 34 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 35 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -51,6 +51,8 @@ pub enum Capability {
     TaskPlanSubmit,
     #[serde(rename = "task.plan.execute")]
     TaskPlanExecute,
+    #[serde(rename = "cua.intent.propose")]
+    CuaIntentPropose,
     #[serde(rename = "file.grant.read")]
     FileGrantRead,
     #[serde(rename = "file.execute")]
@@ -499,6 +501,10 @@ pub struct ComputerStepParams {
 pub enum CuaActionKind {
     LaunchApplication,
     BringToFront,
+    FocusTargetSearch,
+    EnterTargetQuery,
+    ActivateTarget,
+    DraftMessageRef,
     ResolveConversation,
     DraftMessage,
     SendMessage,
@@ -580,6 +586,20 @@ pub struct PlanExecuteParams {
     pub plan_id: String,
     #[ts(type = "number")]
     pub plan_version: u64,
+}
+
+/// 敏感收件人与正文只通过此请求进入桌面组合根的短期内存；响应不会回显正文。
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct CuaIntentProposeParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub target: String,
+    pub message: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -690,6 +710,8 @@ pub enum Request {
     PlanSubmit { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: PlanSubmitParams },
     #[serde(rename = "task.plan.execute")]
     PlanExecute { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: PlanExecuteParams },
+    #[serde(rename = "task.cua.intent.propose")]
+    CuaIntentPropose { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: CuaIntentProposeParams },
     #[serde(rename = "task.file.execute")]
     FileExecute {
         jsonrpc: Version,
@@ -1168,6 +1190,17 @@ pub struct CommandApprovalSummary {
     pub expires_at_ms: u64,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct CuaIntentSummary {
+    pub intent_ref: String,
+    pub confirmation_ref: String,
+    pub state: String,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub expires_at_ms: u64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum CommandExecutionOutcome {
@@ -1227,6 +1260,7 @@ pub enum QueryResult {
     FileExecution { execution: FileExecutionResult },
     DocumentExecution { execution: DocumentExecutionResult },
     CommandApproval { approval: CommandApprovalSummary },
+    CuaIntent { intent: CuaIntentSummary },
     CommandExecution { execution: CommandExecutionResult },
     Step {
         task: TaskSnapshot,
@@ -1333,6 +1367,7 @@ impl Request {
             Self::ComputerExecute { params, .. } => &params.agent_id,
             Self::PlanSubmit { params, .. } => &params.agent_id,
             Self::PlanExecute { params, .. } => &params.agent_id,
+            Self::CuaIntentPropose { params, .. } => &params.agent_id,
             Self::FileExecute { params, .. } => &params.agent_id,
             Self::DocumentExecute { params, .. } => &params.agent_id,
             Self::CommandPropose { params, .. } => &params.agent_id,
@@ -1361,6 +1396,7 @@ impl Request {
             | Self::ComputerExecute { request_id, .. }
             | Self::PlanSubmit { request_id, .. }
             | Self::PlanExecute { request_id, .. }
+            | Self::CuaIntentPropose { request_id, .. }
             | Self::FileExecute { request_id, .. }
             | Self::DocumentExecute { request_id, .. }
             | Self::CommandPropose { request_id, .. }
@@ -1391,6 +1427,7 @@ impl Request {
             Self::ComputerExecute { params, .. } => params.capability,
             Self::PlanSubmit { params, .. } => params.capability,
             Self::PlanExecute { params, .. } => params.capability,
+            Self::CuaIntentPropose { params, .. } => params.capability,
             Self::FileExecute { params, .. } => params.capability,
             Self::DocumentExecute { params, .. } => params.capability,
             Self::CommandPropose { params, .. } => params.capability,
@@ -1424,6 +1461,8 @@ impl Request {
                 Capability::TaskPlanSubmit
             } else if matches!(self, Self::PlanExecute { .. }) {
                 Capability::TaskPlanExecute
+            } else if matches!(self, Self::CuaIntentPropose { .. }) {
+                Capability::CuaIntentPropose
             } else if matches!(self, Self::FileExecute { .. }) {
                 Capability::FileExecute
             } else if matches!(self, Self::DocumentExecute { .. }) {
@@ -1516,6 +1555,13 @@ impl Request {
             Self::PlanExecute { params, .. } => {
                 if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.plan_id) || params.plan_version == 0 {
                     return Err(RpcError::new(-32602, "非法计划片段执行参数"));
+                }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+            }
+            Self::CuaIntentPropose { params, .. } => {
+                if params.target.trim().is_empty() || params.target.len() > 256 || params.target.contains('\0')
+                    || params.message.trim().is_empty() || params.message.len() > 4 * 1024 || params.message.contains('\0') {
+                    return Err(RpcError::new(-32602, "非法 CUA 敏感意图参数"));
                 }
                 (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
             }
@@ -1850,6 +1896,7 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
                         && match candidate.action_kind {
                             CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && candidate.arguments.as_object().is_some_and(|arguments| arguments.is_empty()),
+                            CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.as_deref().is_none() && candidate.arguments.as_object().is_some_and(|arguments| arguments.is_empty()),
                             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
                         }
                 })
@@ -1869,9 +1916,14 @@ pub fn tool_matches_action_kind(kind: CuaActionKind, tool_name: &str) -> bool {
         (kind, tool_name),
         (CuaActionKind::LaunchApplication, "launch_app")
             | (CuaActionKind::BringToFront, "bring_to_front")
+            | (CuaActionKind::FocusTargetSearch, "click")
+            | (CuaActionKind::EnterTargetQuery, "type_text")
+            | (CuaActionKind::ActivateTarget, "click")
+            | (CuaActionKind::DraftMessageRef, "type_text")
             | (CuaActionKind::ResolveConversation, "press_key")
             | (CuaActionKind::DraftMessage, "type_text")
             | (CuaActionKind::SendMessage, "press_key")
+            | (CuaActionKind::SendMessage, "click")
     )
 }
 
@@ -1936,6 +1988,7 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         PlanSlotParams::decl(&config),
         PlanSubmitParams::decl(&config),
         PlanExecuteParams::decl(&config),
+        CuaIntentProposeParams::decl(&config),
         FileGrantPurpose::decl(&config),
         FileGrantSummary::decl(&config),
         FileOperation::decl(&config),
@@ -1970,6 +2023,7 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         FileExecutionResult::decl(&config),
         DocumentExecutionResult::decl(&config),
         CommandApprovalSummary::decl(&config),
+        CuaIntentSummary::decl(&config),
         CommandExecutionOutcome::decl(&config),
         CommandExecutionResult::decl(&config),
         TaskEvent::decl(&config),
@@ -2514,6 +2568,20 @@ mod tests {
         }
         let mut wrong=execute; wrong["params"]["capability"]=serde_json::json!("command.propose");
         assert!(decode(&serde_json::to_vec(&wrong).unwrap()).unwrap().validate(1000).is_err());
+    }
+
+    #[test]
+    fn cua_intent_contract_bounds_sensitive_input_and_response_only_returns_refs() {
+        let value = serde_json::json!({"jsonrpc":"2.0","id":"i1","method":"task.cua.intent.propose","params":{"agent_id":"agent-a","capability":"cua.intent.propose","deadline":2000,"task_id":"task-1","target":"宫健的分身","message":"hi"}});
+        let request = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(request.validate(1000).is_ok());
+        assert!(matches!(request, Request::CuaIntentPropose { .. }));
+        let response = Response::Success { jsonrpc:Version::V2, id:"i1".into(), result:QueryResult::CuaIntent { intent:CuaIntentSummary { intent_ref:"cua_intent_1".into(), confirmation_ref:"cua_confirmation_1".into(), state:"prepared".into(), expires_at_ms:2000 } } };
+        let encoded = serde_json::to_string(&response).unwrap();
+        assert!(!encoded.contains("宫健") && !encoded.contains("\"hi\""));
+        let mut oversized = value;
+        oversized["params"]["message"] = serde_json::json!("x".repeat(4097));
+        assert!(decode(&serde_json::to_vec(&oversized).unwrap()).unwrap().validate(1000).is_err());
     }
 
     #[test]

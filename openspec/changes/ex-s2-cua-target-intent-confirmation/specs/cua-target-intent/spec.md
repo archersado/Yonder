@@ -1,0 +1,40 @@
+# CUA Target Intent Delta Specification
+
+## ADDED Requirements
+
+### Requirement: 敏感消息意图必须使用有界内存引用
+
+系统 MUST 允许归属Agent经Gateway提出目标与正文，并只返回不透明意图/确认引用。目标与正文 MUST NOT 进入计划、SQLite、事件、Outbox、日志或Jev请求。
+
+#### Scenario: 提出消息意图
+
+- **WHEN** 归属Agent为活动任务提交合法目标与正文
+- **THEN** Application在有界内存中保存并返回两个任务绑定引用，Gateway响应不回显敏感值
+
+### Requirement: 计划必须用封闭语义逐步解析目标
+
+计划 MUST 分别表达聚焦目标入口、输入目标查询、激活目标、填写草稿和发送。Application MUST 在派发前解析引用，Worker MUST 元素优先，元素不可用时才接受慢脑依据1.34视觉证据提交的坐标候选。
+
+#### Scenario: 元素路径可用
+
+- **WHEN** 同一可信窗口存在唯一匹配元素
+- **THEN** Worker使用元素完成当前语义动作且不请求视觉定位
+
+#### Scenario: 使用视觉坐标候选
+
+- **WHEN** 前一版本因元素缺失或歧义交回临时窗口截图，慢脑提交同语义坐标候选
+- **THEN** Application仍校验动作语义与窗口绑定，Driver只执行该声明坐标并在动作后Observe
+
+### Requirement: 发送必须由顶部本机确认一次授权
+
+系统 MUST 仅在执行到发送槽位时允许顶部执行浮窗展示发送预览。只有本机用户可批准或拒绝；批准引用在副作用派发前消费一次，任何结果都不得恢复或自动重试。
+
+#### Scenario: 尚未批准
+
+- **WHEN** 计划到达发送槽位且确认尚未批准
+- **THEN** 原动作不执行，计划返回`awaiting-confirmation`并保持槽位，顶部浮窗显示预览与操作按钮
+
+#### Scenario: 批准后结果未知
+
+- **WHEN** 用户批准后发送动作返回超时、断连或`unknown`
+- **THEN** 确认引用保持已消费，计划交回慢脑核实，系统不自动重发

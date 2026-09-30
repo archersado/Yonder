@@ -40,6 +40,10 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 ## 状态与契约
 
+2026-09-30 增量将敏感消息意图放入Application拥有的有界内存Registry。Agent通过协议1.35提出意图，得到`intent_ref`与`confirmation_ref`；计划片段只引用二者。`focus-target-search`、`enter-target-query`、`activate-target`、`draft-message-ref`与`send-message`是封闭动作语义，Driver工具名和参数仍由Rust协议校验，Jev不接收敏感值或元素/坐标。
+
+Application在每个槽位派发前按任务归属和期限解析引用，把目标查询或正文仅注入本次内存动作。发送槽位首先把确认切换为本机可批准；未批准时返回`awaiting-confirmation`且不派发，顶部执行浮窗展示对象与正文预览。批准后引用在派发前消费；动作成功、失败、unknown、取消或接管都不会恢复。
+
 2026-09-28 用户变更将 CUA 候选从“工具名与参数”扩展为受限语义声明：`action_kind`、不含敏感值的 `target_ref`、`preconditions`、`expected_observe` 与可选 `confirmation_ref`。Rust 协议仍是唯一来源；Jev 请求只获得动作语义、当前 Observe 的有界摘要及预期条件，不获得接收人、正文、截图或 Driver 参数。Application 在选择前复核前置条件，在选择后解析一次性本地确认并交给既有 CUA Driver；确认不存在、过期、取消或 Observe 不符均交回归属 Agent。发送等敏感副作用不得把确认值、接收人或正文写入片段 JSON、任务事件、Outbox、日志或模型请求。
 
 执行时以有界内存日志承载交回原因、慢脑唤醒和展示投影，后台按序写 SQLite/Outbox；这些异步写入不阻塞 CUA 槽位或慢脑消费。SQLite 已投影状态仍是重启后唯一可恢复事实；未投影记录在重启后按 `unknown`/`interrupted` 处理，禁止重放副作用。快脑持有的 Observe/目标引用只在当前执行身份和有效期内使用。派发前复核最小持久化检查点、授权、租约、目标新鲜度及用户控制标记。动作结束强制 Observe；目标达成须独立验证，不能只信 Jev `DONE`。偏离、低置信、无候选、参数不足、预算耗尽转为「待慢脑 replan」的内存交回事实，具体状态映射复用 TM，不增第二状态机。

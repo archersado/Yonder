@@ -135,6 +135,10 @@ pub fn execute_one(
 fn action_kind_label(kind:yonder_protocol::CuaActionKind)->&'static str{match kind{
     yonder_protocol::CuaActionKind::LaunchApplication=>"打开应用",
     yonder_protocol::CuaActionKind::BringToFront=>"前置目标窗口",
+    yonder_protocol::CuaActionKind::FocusTargetSearch=>"聚焦会话搜索",
+    yonder_protocol::CuaActionKind::EnterTargetQuery=>"输入会话目标",
+    yonder_protocol::CuaActionKind::ActivateTarget=>"打开目标会话",
+    yonder_protocol::CuaActionKind::DraftMessageRef=>"填写受保护消息草稿",
     yonder_protocol::CuaActionKind::ResolveConversation=>"定位目标会话",
     yonder_protocol::CuaActionKind::DraftMessage=>"填写消息草稿",
     yonder_protocol::CuaActionKind::SendMessage=>"发送消息",
