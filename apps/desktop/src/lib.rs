@@ -26,6 +26,7 @@ use yonder_application::{
     browser_use::BrowserUsePort,
     computer_use::{ComputerUsePort, WorkTarget, WorkTargetPort},
     command_approval::{CommandApprovalError, CommandApprovalPreview, CommandApprovalRegistry, CommandApprovalSummary},
+    cua_intent::{CuaIntentError, CuaIntentPreview, CuaIntentRegistry, CuaIntentSummary},
     execution_runtime::{ExecutionRuntime, RuntimeProjectionWorker},
     jev_config::JevConfig,
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
@@ -351,6 +352,18 @@ impl From<CommandApprovalError> for CommandApprovalHostError {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum CuaIntentHostError { InvalidInput, NotFound, PermissionDenied, Expired, Rejected, Capacity, StorageUnavailable }
+
+impl From<CuaIntentError> for CuaIntentHostError {
+    fn from(value:CuaIntentError)->Self{match value{
+        CuaIntentError::InvalidInput=>Self::InvalidInput,CuaIntentError::NotFound=>Self::NotFound,
+        CuaIntentError::PermissionDenied=>Self::PermissionDenied,CuaIntentError::Expired=>Self::Expired,
+        CuaIntentError::Rejected=>Self::Rejected,CuaIntentError::Capacity=>Self::Capacity,
+        CuaIntentError::Unavailable=>Self::StorageUnavailable,
+    }}
+}
+
+#[derive(Debug, PartialEq)]
 pub enum FileGrantHostError {
     InvalidInput,
     NotFound,
@@ -476,6 +489,7 @@ pub struct TaskHost {
     commands: StructuredCommandAdapter,
     file_grants: FileAuthorizationRegistry,
     command_approvals: CommandApprovalRegistry,
+    cua_intents: CuaIntentRegistry,
     listening_pending: bool,
     listening_until: Option<Instant>,
     task_space_open_pending: bool,
@@ -596,6 +610,7 @@ impl TaskHost {
             commands: StructuredCommandAdapter,
             file_grants: FileAuthorizationRegistry::default(),
             command_approvals: CommandApprovalRegistry::default(),
+            cua_intents: CuaIntentRegistry::default(),
             listening_pending: false,
             listening_until: None,
             task_space_open_pending: false,
@@ -661,6 +676,9 @@ impl TaskHost {
                 .revoke_owner(AuthContext::LocalUser("desktop"), agent_id)
                 .map_err(|_| HostError::StorageUnavailable)?;
             self.command_approvals
+                .revoke_owner(AuthContext::LocalUser("desktop"), agent_id)
+                .map_err(|_| HostError::StorageUnavailable)?;
+            self.cua_intents
                 .revoke_owner(AuthContext::LocalUser("desktop"), agent_id)
                 .map_err(|_| HostError::StorageUnavailable)?;
         }
@@ -911,6 +929,26 @@ impl TaskHost {
         self.command_approvals.reject(AuthContext::LocalUser("desktop"),&task,command_id,now_ms).map_err(Into::into)
     }
 
+    pub fn list_cua_intents(&mut self, task_id:&str, now_ms:u64)->Result<Vec<CuaIntentSummary>,CuaIntentHostError>{
+        let task=self.store.get(task_id).map_err(|_|CuaIntentHostError::NotFound)?;
+        self.cua_intents.list_for_local(AuthContext::LocalUser("desktop"),&task,now_ms).map_err(Into::into)
+    }
+
+    pub fn preview_cua_intent(&mut self, task_id:&str, intent_ref:&str, now_ms:u64)->Result<CuaIntentPreview,CuaIntentHostError>{
+        let task=self.store.get(task_id).map_err(|_|CuaIntentHostError::NotFound)?;
+        self.cua_intents.preview_for_local(AuthContext::LocalUser("desktop"),&task,intent_ref,now_ms).map_err(Into::into)
+    }
+
+    pub fn approve_cua_intent(&mut self, task_id:&str, intent_ref:&str, now_ms:u64)->Result<CuaIntentSummary,CuaIntentHostError>{
+        let task=self.store.get(task_id).map_err(|_|CuaIntentHostError::NotFound)?;
+        self.cua_intents.approve(AuthContext::LocalUser("desktop"),&task,intent_ref,now_ms).map_err(Into::into)
+    }
+
+    pub fn reject_cua_intent(&mut self, task_id:&str, intent_ref:&str, now_ms:u64)->Result<(),CuaIntentHostError>{
+        let task=self.store.get(task_id).map_err(|_|CuaIntentHostError::NotFound)?;
+        self.cua_intents.reject(AuthContext::LocalUser("desktop"),&task,intent_ref,now_ms).map_err(Into::into)
+    }
+
     /// Task Space中的显式用户操作；引用、序号和所有权均从可信存储复核。
     pub fn user_browser_handoff(&mut self, task_id: &str, expected: u64) -> Result<(), HostError> {
         if !yonder_application::valid_id(task_id) {
@@ -1009,6 +1047,7 @@ impl TaskHost {
                 Some(&execution_runtime),
                 Some(&self.file_grants),
                 Some(&self.command_approvals),
+                Some(&self.cua_intents),
                 Some(&self.files),
                 Some(&self.documents),
                 commands,
@@ -1590,6 +1629,29 @@ mod tests {
         }
         std::fs::remove_dir(directory.join("observations")).unwrap();
         std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cua_intent_gateway_returns_only_refs_and_local_preview_owns_sensitive_values() {
+        let directory=std::env::temp_dir().join(format!("yonda-cua-intent-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host=TaskHost::open(&directory).unwrap();let now=1_000_000_000_000;
+        host.register_agent("agent-a",now).unwrap();
+        let task=host.store.register("agent-a","cua-intent","发送消息",Some("测试"),yonder_application::TaskSource::LocalAgent).unwrap();
+        let mut session=yonder_application::gateway::GatewaySession::new(AuthContext::Agent("agent-a"),yonder_application::gateway::Platform::Macos);
+        let hello=format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"agent-a","capability":"task.read","deadline":{},"protocol_version":{{"major":1,"minor":35}}}}}}"#,now+2_000);
+        let response=String::from_utf8(host.query_session(&mut session,hello.as_bytes(),now+10).unwrap()).unwrap();
+        assert!(response.contains("cua.intent.propose"));
+        let propose=format!(r#"{{"jsonrpc":"2.0","id":"intent","method":"task.cua.intent.propose","params":{{"agent_id":"agent-a","capability":"cua.intent.propose","deadline":{},"task_id":"{}","target":"宫健的分身","message":"hi"}}}}"#,now+2_000,task.id);
+        let response=String::from_utf8(host.query_session(&mut session,propose.as_bytes(),now+11).unwrap()).unwrap();
+        assert!(response.contains("cua_intent_")&&response.contains("cua_confirmation_")&&!response.contains("宫健")&&!response.contains("\"hi\""));
+        let summary:serde_json::Value=serde_json::from_str(&response).unwrap();
+        let intent_ref=summary["result"]["intent"]["intent_ref"].as_str().unwrap();
+        assert_eq!(host.preview_cua_intent(&task.id,intent_ref,now+12),Err(CuaIntentHostError::PermissionDenied),"发送槽位前不得向 UI 暴露预览");
+        host.set_agent_status("agent-a",AgentRegistrationStatus::Disabled,now+13).unwrap();
+        assert!(host.list_cua_intents(&task.id,now+14).unwrap().is_empty());
+        drop(host);for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}std::fs::remove_dir(directory.join("observations")).unwrap();std::fs::remove_dir(directory).unwrap();
     }
 
     #[cfg(target_os = "macos")]

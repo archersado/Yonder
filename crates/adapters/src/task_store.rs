@@ -4076,6 +4076,7 @@ mod tests {
             &Target,
             &config,
             &MustNotChoose,
+            None,
             AuthContext::Agent("a1"),
             &created.id,
             &fragment.plan_id,
@@ -4125,6 +4126,7 @@ mod tests {
             &Target,
             &budget_config,
             &MustNotChoose,
+            None,
             AuthContext::Agent("a1"),
             &budget_task.id,
             &budget_fragment.plan_id,
@@ -4171,6 +4173,7 @@ mod tests {
             &Target,
             &config,
             &MustNotChoose,
+            None,
             AuthContext::Agent("a1"),
             &failed_task.id,
             &failed_fragment.plan_id,
@@ -4222,6 +4225,7 @@ mod tests {
                 ..budget_config.clone()
             },
             &MustNotChoose,
+            None,
             AuthContext::Agent("a1"),
             &takeover_task.id,
             &takeover_fragment.plan_id,
@@ -4261,6 +4265,7 @@ mod tests {
                 ..budget_config
             },
             &MustNotChoose,
+            None,
             AuthContext::Agent("a1"),
             &pending_task.id,
             &pending_fragment.plan_id,
@@ -4280,6 +4285,36 @@ mod tests {
                 .current_slot,
             0
         );
+
+        struct IntentPort(Mutex<Vec<String>>);
+        impl ComputerUsePort for IntentPort {
+            fn dispatch(&self,_:&ExecutionAttempt,_:&WorkTarget,action:&ComputerAction)->DispatchOutcome{
+                self.0.lock().unwrap().push(action.arguments_json.clone());
+                DispatchOutcome::Known{action_succeeded:true,observation:None}
+            }
+        }
+        let intent_task=create(&mut store,"protected-intent-plan").unwrap();
+        let intents=yonder_application::cua_intent::CuaIntentRegistry::default();
+        let intent=intents.propose(AuthContext::Agent("a1"),&intent_task,"宫健的分身".into(),"hi".into(),100).unwrap();
+        let mut draft=candidate("draft","type_text",yonder_protocol::CuaActionKind::DraftMessageRef);
+        draft.target_ref=intent.intent_ref.clone();
+        let mut send=candidate("send","press_key",yonder_protocol::CuaActionKind::SendMessage);
+        send.target_ref=intent.intent_ref.clone();send.confirmation_ref=Some(intent.confirmation_ref.clone());
+        let protected_fragment=PlanFragment{task_id:intent_task.id.clone(),plan_id:"protected-intent-v1".into(),plan_version:1,expected_sequence:intent_task.sequence,deadline_ms:2_000,token_budget:100,slots:vec![PlanSlot{step_id:"draft".into(),label:"填写草稿".into(),candidates:vec![draft]},PlanSlot{step_id:"send".into(),label:"发送消息".into(),candidates:vec![send]}]};
+        let protected_submitted=store.submit_plan_fragment("a1",&protected_fragment).unwrap();
+        let intent_port=IntentPort(Mutex::new(Vec::new()));
+        let intent_admission=Admission::new(1).unwrap();
+        let (awaiting,disposition,_)=execute_available(&mut store,&intent_admission,&intent_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&intent_task.id,&protected_fragment.plan_id,1,protected_submitted.sequence,1_000,"host").unwrap();
+        assert_eq!(disposition,"awaiting-confirmation");
+        let dispatched=intent_port.0.lock().unwrap();
+        assert_eq!(dispatched.len(),1);assert!(dispatched[0].contains("hi")&&dispatched[0].contains("draft-message-ref"));drop(dispatched);
+        let stored=store.get_plan_fragment(&intent_task.id,&protected_fragment.plan_id,1).unwrap().unwrap();
+        assert!(stored.fragment.slots.iter().all(|slot|slot.candidates.iter().all(|candidate|candidate.arguments_json=="{}")));
+        let preview=intents.preview_for_local(AuthContext::LocalUser("desktop"),&awaiting,&intent.intent_ref,1_001).unwrap();assert_eq!(preview.target,"宫健的分身");
+        intents.approve(AuthContext::LocalUser("desktop"),&awaiting,&intent.intent_ref,1_002).unwrap();
+        let (_,disposition,_)=execute_available(&mut store,&intent_admission,&intent_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&intent_task.id,&protected_fragment.plan_id,1,awaiting.sequence,1_003,"host").unwrap();
+        assert_eq!(disposition,"fragment-complete");assert_eq!(intent_port.0.lock().unwrap().len(),2);
+        assert_eq!(intents.consume_send(AuthContext::Agent("a1"),&store.get(&intent_task.id).unwrap(),&intent.intent_ref,&intent.confirmation_ref,1_004),Err(yonder_application::cua_intent::CuaIntentError::NotFound));
     }
 
     #[test]

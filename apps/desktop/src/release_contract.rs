@@ -46,7 +46,7 @@ mod tests {
     fn mismatched_contract_is_rejected() {
         let contract = r#"{
             "version": "0.1.0",
-            "protocol": {"major": 1, "minor": 34},
+            "protocol": {"major": 1, "minor": 35},
             "sqlite_schema": 13
         }"#;
         assert_eq!(validate_contract(contract).unwrap_err(), "SQLite schema 与发布契约不一致");

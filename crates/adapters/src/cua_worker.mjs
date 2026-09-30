@@ -55,6 +55,11 @@ const applicationFrontConfirmed = (result, targetPid) =>
   && result?.process_activated === true
   && result?.observed?.front_process_matches_target === true
   && result?.observed?.workspace_frontmost_pid === targetPid;
+const elementText = element => [element.title, element.label, element.name, element.value, element.description, element.placeholder]
+  .filter(value => typeof value === 'string').join(' ').trim();
+const textField = element => /textfield|edit|textbox|searchfield/i.test(element.role ?? '') && element.enabled !== false && element.element_token;
+const searchField = element => textField(element) && /search|搜索|查找/i.test(elementText(element));
+const uniqueElement = elements => elements.length === 1 ? elements[0] : undefined;
 const driver = sdk.CuaDriver.create(undefined);
 try {
   await driver.metadata();
@@ -113,12 +118,53 @@ try {
         const schema = descriptor.inputSchema ?? descriptor.input_schema ?? {};
         const properties = schema.properties ?? {};
         const actionArgs = { ...request.arguments };
+        const semanticKind = actionArgs._yonder_action_kind;
+        const privateText = actionArgs._yonder_private_text;
+        delete actionArgs._yonder_action_kind;
+        delete actionArgs._yonder_private_text;
+        const beforeElements = structured(before).elements ?? [];
+        const coordinateAction = Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
+        if (semanticKind) {
+          response.failure_stage = 'semantic-target';
+          let selected;
+          if (semanticKind === 'focus-target-search' || semanticKind === 'enter-target-query') {
+            const explicit = beforeElements.filter(searchField);
+            const allFields = beforeElements.filter(textField);
+            selected = uniqueElement(explicit) ?? uniqueElement(allFields);
+          } else if (semanticKind === 'activate-target') {
+            const exact = beforeElements.filter(element => element.enabled !== false && element.element_token && elementText(element) === privateText);
+            const partial = beforeElements.filter(element => element.enabled !== false && element.element_token && typeof privateText === 'string' && elementText(element).includes(privateText));
+            selected = uniqueElement(exact) ?? uniqueElement(partial);
+          } else if (semanticKind === 'draft-message-ref') {
+            const composers = beforeElements.filter(element => textField(element) && !searchField(element));
+            selected = uniqueElement(composers);
+          } else if (semanticKind === 'send-message' && request.tool_name === 'click') {
+            selected = uniqueElement(beforeElements.filter(element => element.enabled !== false && element.element_token && /^(发送|send)$/i.test(elementText(element))));
+          }
+          if (!coordinateAction && (['focus-target-search', 'enter-target-query', 'activate-target', 'draft-message-ref'].includes(semanticKind) || (semanticKind === 'send-message' && request.tool_name === 'click'))) {
+            if (!selected || !('element_token' in properties)) {
+              response.action_known = true;
+              response.action_effect = 'refused';
+              response.observe_valid = true;
+              response.element_count = Math.min(65535, beforeElements.length);
+              response.failure_stage = 'semantic-target-ambiguous';
+              process.stdout.write(JSON.stringify(response) + '\n');
+              continue;
+            }
+            actionArgs.element_token = selected.element_token;
+          }
+          if (semanticKind === 'enter-target-query' || semanticKind === 'draft-message-ref') {
+            if (typeof privateText !== 'string' || privateText.length === 0) throw new Error('private text missing');
+            actionArgs.text = privateText;
+          }
+          if (semanticKind === 'send-message' && request.tool_name === 'press_key') actionArgs.key = actionArgs.key ?? 'ENTER';
+        }
         const desktopScope = actionArgs.scope === 'desktop';
         if (!desktopScope && 'pid' in properties) actionArgs.pid = target.pid;
         if (!desktopScope && 'window_id' in properties && Number.isInteger(target.window_id)) actionArgs.window_id = target.window_id;
         if (!desktopScope && 'windowId' in properties && Number.isInteger(target.window_id)) actionArgs.windowId = target.window_id;
         if ('session' in properties) actionArgs.session = request.host_session_id;
-        if (!desktopScope && request.tool_name === 'type_text' && !('x' in actionArgs) && !('y' in actionArgs)) {
+        if (!desktopScope && request.tool_name === 'type_text' && !('x' in actionArgs) && !('y' in actionArgs) && !('element_token' in actionArgs)) {
           const fields = (structured(before).elements ?? []).filter(element => /textfield|edit/i.test(element.role ?? '') && element.enabled !== false && element.element_token);
           if (fields.length !== 1) {
             // 元素缺失或不唯一时尚未执行任何副作用。只在此分支采集一次截图，

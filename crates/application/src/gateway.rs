@@ -11,6 +11,7 @@ use crate::{
     document_execution,
     file_authorization::{FileAuthorizationRegistry, FileGrantPurpose},
     command_approval::CommandApprovalRegistry,
+    cua_intent::{CuaIntentRegistry, CuaIntentState},
     command::{CommandOutcome, CommandPort, NeverCancel},
     command_execution,
     jev_config::JevConfig,
@@ -139,6 +140,7 @@ fn is_agent_write_request(request: &Request) -> bool {
             | Request::ComputerStep { .. }
             | Request::PlanSubmit { .. }
             | Request::PlanExecute { .. }
+            | Request::CuaIntentPropose { .. }
             | Request::FileExecute { .. }
             | Request::DocumentExecute { .. }
             | Request::CommandPropose { .. }
@@ -309,6 +311,7 @@ pub struct GatewaySession<'a> {
     can_plan_submit: bool,
     can_plan_execute: bool,
     can_plan_visual_observation: bool,
+    can_cua_intent_propose: bool,
     browser_available: bool,
     can_computer: bool,
     can_computer_step: bool,
@@ -321,6 +324,7 @@ pub struct GatewaySession<'a> {
     document_execution_available: bool,
     command_approval_available: bool,
     command_execution_available: bool,
+    cua_intent_available: bool,
     /// 仅在一次同步 `handle` 调用期间传递给桌面组合根，不是协议或核心状态。
     last_create_was_new: bool,
 }
@@ -672,6 +676,7 @@ impl<'a> GatewaySession<'a> {
             None,
             None,
             None,
+            None,
             port,
             computer,
             targets,
@@ -690,6 +695,7 @@ impl<'a> GatewaySession<'a> {
         execution_runtime: Option<&crate::execution_runtime::ExecutionRuntimeHandle>,
         file_grants: Option<&FileAuthorizationRegistry>,
         command_approvals: Option<&CommandApprovalRegistry>,
+        cua_intents: Option<&CuaIntentRegistry>,
         file_port: Option<&dyn FilePort>,
         documents: Option<&dyn DocumentPort>,
         command_port: Option<&dyn CommandPort>,
@@ -714,11 +720,12 @@ impl<'a> GatewaySession<'a> {
         self.document_execution_available = file_grants.is_some() && file_port.is_some() && documents.is_some();
         self.command_approval_available = command_approvals.is_some();
         self.command_execution_available = command_approvals.is_some() && command_port.is_some();
+        self.cua_intent_available = cua_intents.is_some();
         let request = match yonder_protocol::decode(bytes) {
             Ok(request) => request,
             Err(_) => return self.handle_encoded_with_create_signal(store, bytes, now_ms),
         };
-        if is_agent_write_request(&request) || matches!(request, Request::FileGrants { .. } | Request::FileExecute { .. } | Request::DocumentExecute { .. } | Request::CommandPropose { .. } | Request::CommandExecute { .. }) {
+        if is_agent_write_request(&request) || matches!(request, Request::FileGrants { .. } | Request::FileExecute { .. } | Request::DocumentExecute { .. } | Request::CommandPropose { .. } | Request::CommandExecute { .. } | Request::CuaIntentPropose { .. }) {
             let id = request.request_id().to_owned();
             if store
                 .authorize_agent_write(self.auth.agent_id(), now_ms)
@@ -743,6 +750,7 @@ impl<'a> GatewaySession<'a> {
                 | Request::ComputerStep { .. }
                 | Request::PlanSubmit { .. }
                 | Request::PlanExecute { .. }
+                | Request::CuaIntentPropose { .. }
                 | Request::FileExecute { .. }
                 | Request::DocumentExecute { .. }
                 | Request::CommandPropose { .. }
@@ -762,13 +770,20 @@ impl<'a> GatewaySession<'a> {
                 let task = crate::plan_fragment::submit(store, self.auth, &params).map_err(query::error)?;
                 Ok(QueryResult::Plan { task_id: task.id, plan_id: params.plan_id, plan_version: params.plan_version, sequence: task.sequence.to_string(), disposition: "accepted".into(), handoff_reason: None, observation: None })
             }
+            Request::CuaIntentPropose { params, .. } => {
+                if !self.negotiated || !self.can_cua_intent_propose { return Err(RpcError::new(-32010, "CUA 敏感意图提议需要协议1.35及本机内存入口")); }
+                let task=crate::get(store,&params.task_id).map_err(query::error)?;
+                let intent=cua_intents.ok_or_else(||RpcError::new(-32020,"CUA 敏感意图入口不可用"))?.propose(self.auth,&task,params.target,params.message,now_ms).map_err(|_|RpcError::new(-32003,"CUA 敏感意图提议被拒绝"))?;
+                let state=match intent.state { CuaIntentState::Prepared=>"prepared", CuaIntentState::AwaitingUser=>"awaiting-user", CuaIntentState::Approved=>"approved" };
+                Ok(QueryResult::CuaIntent { intent:yonder_protocol::CuaIntentSummary { intent_ref:intent.intent_ref, confirmation_ref:intent.confirmation_ref, state:state.into(), expires_at_ms:intent.expires_at_ms } })
+            }
             Request::PlanExecute { params, .. } => {
                 if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
                 if !self.can_plan_execute { return Err(RpcError::new(-32010, "计划片段执行需要协议1.31及可用的macOS CUA运行时")); }
                 let config=jev_config.ok_or_else(||RpcError::new(-32020,"Jev计划执行组合根不可用"))?;
                 let jev=jev.ok_or_else(||RpcError::new(-32020,"Jev计划执行组合根不可用"))?;
                 let (computer,targets)=(computer.ok_or_else(||RpcError::new(-32020,"CUA Runtime不可用"))?,targets.ok_or_else(||RpcError::new(-32020,"桌面目标解析不可用"))?);
-                let (task,disposition,observation)=crate::plan_fragment::execute_available(store,admission,computer,targets,config,jev,self.auth,&params.task_id,&params.plan_id,params.plan_version,yonder_protocol::sequence(&params.expected_sequence)?,now_ms,host_session_id).map_err(query::error)?;
+                let (task,disposition,observation)=crate::plan_fragment::execute_available(store,admission,computer,targets,config,jev,cua_intents,self.auth,&params.task_id,&params.plan_id,params.plan_version,yonder_protocol::sequence(&params.expected_sequence)?,now_ms,host_session_id).map_err(query::error)?;
                 let handoff_reason = plan_handoff_reason(disposition).map(str::to_owned);
                 Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into(), handoff_reason, observation:self.can_plan_visual_observation.then_some(observation).flatten().map(|value| ProtocolComputerObservation { element_count:value.element_count, screenshot_path:value.screenshot_path, screenshot_mime:value.screenshot_mime, target_visible:value.target_visible }) })
             },
@@ -1157,6 +1172,7 @@ impl<'a> GatewaySession<'a> {
             can_plan_submit: false,
             can_plan_execute: false,
             can_plan_visual_observation: false,
+            can_cua_intent_propose: false,
             browser_available: false,
             can_computer: false,
             can_computer_step: false,
@@ -1168,6 +1184,7 @@ impl<'a> GatewaySession<'a> {
             file_execution_available: false,
             document_execution_available: false,
             command_approval_available: false,
+            cua_intent_available: false,
             command_execution_available: false,
             last_create_was_new: false,
         }
@@ -1522,13 +1539,14 @@ impl<'a> GatewaySession<'a> {
                 self.can_plan_submit=self.negotiated&&params.protocol_version.minor>=31&&store.supports_plan_fragments();
                 self.can_plan_execute=self.can_plan_submit&&self.can_computer&&matches!(self.platform,Platform::Macos);
                 self.can_plan_visual_observation=self.can_plan_execute&&params.protocol_version.minor>=34;
+                self.can_cua_intent_propose=self.negotiated&&params.protocol_version.minor>=35&&self.cua_intent_available&&matches!(self.platform,Platform::Macos);
                 self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
                 self.can_fail=self.can_complete&&params.protocol_version.minor>=18;
                 if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
                 let can_replan_input = params.protocol_version.minor >= 33
                     && params.offered_capabilities.as_deref().is_some_and(|value| value.contains(&yonder_protocol::OfferedCapability::ReplanInput));
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("支持非终态任务直接取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
@@ -1546,6 +1564,7 @@ impl<'a> GatewaySession<'a> {
                 if params.protocol_version.minor>=30 && self.command_approval_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CommandExecute,version:ProtocolVersion{major:1,minor:30},availability:if self.can_command_execute{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_command_execute).then(||"macOS命令运行时不可用".into())}); }
                 if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanSubmit,version:ProtocolVersion{major:1,minor:31},availability:if self.can_plan_submit{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_submit).then(||"计划片段存储不可用".into())}); }
                 if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanExecute,version:ProtocolVersion{major:1,minor:if self.can_plan_visual_observation{34}else{31}},availability:if self.can_plan_execute{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_execute).then(||"macOS CUA运行时或辅助功能权限不可用".into())}); }
+                if params.protocol_version.minor>=35 && self.cua_intent_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CuaIntentPropose,version:ProtocolVersion{major:1,minor:35},availability:if self.can_cua_intent_propose{Availability::Available}else{Availability::TemporarilyUnavailable},reason:(!self.can_cua_intent_propose).then(||"本机 CUA 敏感意图入口不可用".into())}); }
                 return Ok(QueryResult::Hello { protocol_version: version, platform: self.platform, capabilities });
             }
             Err(RpcError::new(-32002, "请先完成 Gateway 握手"))

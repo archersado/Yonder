@@ -2,7 +2,7 @@ use interprocess::local_socket::{GenericFilePath, ToFsName, tokio::{Stream, prel
 use serde_json::{Value, json};
 use std::{env, io::{self, BufRead, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, HelloParams, ListParams, PlanExecuteParams, PlanSlotParams, PlanSubmitParams, PROTOCOL_VERSION, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
+use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, CuaIntentProposeParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, HelloParams, ListParams, PlanExecuteParams, PlanSlotParams, PlanSubmitParams, PROTOCOL_VERSION, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
 
 mod codex_agent_bridge;
 
@@ -87,6 +87,7 @@ fn request(name: &str, args: &Value, id: String, deadline: u64, agent_id: &str) 
         "computer_step" => { let arguments=args.get("arguments").filter(|value|value.is_object()).cloned().ok_or("缺少参数：arguments")?;let (jsonrpc,request_id)=base(); Ok(Request::ComputerStep { jsonrpc,request_id,params:ComputerStepParams { agent_id:agent_id.into(),capability:Capability::ComputerExecute,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),step_id:field(args,"step_id")?.into(),label:field(args,"label")?.into(),tool_name:field(args,"tool_name")?.into(),arguments } }) },
         "task_plan_submit" => { let slots=serde_json::from_value::<Vec<PlanSlotParams>>(args.get("slots").cloned().ok_or("缺少参数：slots")?).map_err(|_|"计划槽位无效")?;let (jsonrpc,request_id)=base();Ok(Request::PlanSubmit{jsonrpc,request_id,params:PlanSubmitParams{agent_id:agent_id.into(),capability:Capability::TaskPlanSubmit,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),plan_id:field(args,"plan_id")?.into(),plan_version:args.get("plan_version").and_then(Value::as_u64).ok_or("缺少参数：plan_version")?,token_budget:args.get("token_budget").and_then(Value::as_u64).ok_or("缺少参数：token_budget")?.try_into().map_err(|_|"token_budget无效")?,slots}})},
         "task_plan_execute" => { let (jsonrpc,request_id)=base();Ok(Request::PlanExecute{jsonrpc,request_id,params:PlanExecuteParams{agent_id:agent_id.into(),capability:Capability::TaskPlanExecute,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),plan_id:field(args,"plan_id")?.into(),plan_version:args.get("plan_version").and_then(Value::as_u64).ok_or("缺少参数：plan_version")?}})},
+        "task_cua_intent_propose" => { let (jsonrpc,request_id)=base();Ok(Request::CuaIntentPropose{jsonrpc,request_id,params:CuaIntentProposeParams{agent_id:agent_id.into(),capability:Capability::CuaIntentPropose,deadline,task_id:field(args,"task_id")?.into(),target:field(args,"target")?.into(),message:field(args,"message")?.into()}})},
         "task_complete" => { let (jsonrpc,request_id)=base(); Ok(Request::Complete { jsonrpc,request_id,params:CompleteParams { agent_id:agent_id.into(),capability:Capability::TaskComplete,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into() } }) },
         "task_fail" => { let (jsonrpc,request_id)=base(); Ok(Request::Fail { jsonrpc,request_id,params:CompleteParams { agent_id:agent_id.into(),capability:Capability::TaskFail,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into() } }) },
         "task_wait_for_user" => { let (jsonrpc,request_id)=base(); Ok(Request::WaitForUser { jsonrpc,request_id,params:WaitForUserParams { agent_id:agent_id.into(),capability:Capability::TaskWaitForUser,deadline,task_id:field(args,"task_id")?.into(),expected_sequence:field(args,"expected_sequence")?.into(),reason:field(args,"reason")?.into() } }) },
@@ -113,7 +114,7 @@ fn tools() -> Value {
             "candidate_id":{"type":"string"},
             "tool_name":{"type":"string"},
             "arguments":{"type":"object","additionalProperties":true},
-            "action_kind":{"type":"string","enum":["launch-application","bring-to-front","resolve-conversation","draft-message","send-message"]},
+            "action_kind":{"type":"string","enum":["launch-application","bring-to-front","focus-target-search","enter-target-query","activate-target","draft-message-ref","resolve-conversation","draft-message","send-message"]},
             "target_ref":{"type":"string"},
             "preconditions":{"type":"array","minItems":1,"maxItems":4,"items":observe_condition.clone()},
             "expected_observe":{"type":"array","minItems":1,"maxItems":4,"items":observe_condition},
@@ -150,6 +151,7 @@ fn tools() -> Value {
         ,{"name":"computer_step","description":"由Yonder一次完成步骤声明、CUA动作、Observe和步骤推进","inputSchema":object(vec!["task_id","expected_sequence","step_id","label","tool_name","arguments"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"step_id":{"type":"string"},"label":{"type":"string"},"tool_name":{"type":"string"},"arguments":{"type":"object","additionalProperties":true}}))}
         ,{"name":"task_plan_submit","description":"由慢脑向Yonder提交绑定当前任务的受限CUA计划片段；候选须使用协议定义的动作语义、前置条件与预期Observe","inputSchema":object(vec!["task_id","expected_sequence","plan_id","plan_version","token_budget","slots"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"plan_id":{"type":"string"},"plan_version":{"type":"integer","minimum":1},"token_budget":{"type":"integer","minimum":1,"maximum":10000},"slots":{"type":"array","minItems":1,"maxItems":10,"items":plan_slot}}))}
         ,{"name":"task_plan_execute","description":"执行当前任务已接受的不可变计划片段；Yonder在片段内调用Jev有界选择并连续执行，每步强制Observe","inputSchema":object(vec!["task_id","expected_sequence","plan_id","plan_version"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"plan_id":{"type":"string"},"plan_version":{"type":"integer","minimum":1}}))}
+        ,{"name":"task_cua_intent_propose","description":"将 CUA 收件人与消息正文放入 Yonder 短期内存并返回计划可用的不透明引用；响应不回显正文","inputSchema":object(vec!["task_id","target","message"],json!({"task_id":{"type":"string"},"target":{"type":"string","minLength":1,"maxLength":256},"message":{"type":"string","minLength":1,"maxLength":4096}}))}
         ,{"name":"task_complete","description":"完成已Observe并推进边界的CUA任务","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))}
         ,{"name":"task_fail","description":"终结最新已Observe失败并推进边界的CUA任务","inputSchema":object(vec!["task_id","expected_sequence"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"}}))}
         ,{"name":"task_wait_for_user","description":"在已Observe并推进的步骤边界等待用户处理","inputSchema":object(vec!["task_id","expected_sequence","reason"],json!({"task_id":{"type":"string"},"expected_sequence":{"type":"string"},"reason":{"type":"string","minLength":1,"maxLength":512}}))}
@@ -281,11 +283,13 @@ mod tests {
         });
         assert!(matches!(request("task_plan_submit",&plan,"r11".into(),2000,"agent-a").unwrap(),Request::PlanSubmit { params:PlanSubmitParams { capability:Capability::TaskPlanSubmit,.. },.. }));
         assert!(matches!(request("task_plan_execute",&json!({"task_id":"task-1","expected_sequence":"5","plan_id":"plan-1","plan_version":1}),"r12".into(),2000,"agent-a").unwrap(),Request::PlanExecute { params:PlanExecuteParams { capability:Capability::TaskPlanExecute,.. },.. }));
-        assert_eq!(names.len(),22);
+        assert!(matches!(request("task_cua_intent_propose",&json!({"task_id":"task-1","target":"宫健的分身","message":"hi"}),"r13".into(),2000,"agent-a").unwrap(),Request::CuaIntentPropose { params:CuaIntentProposeParams { capability:Capability::CuaIntentPropose,.. },.. }));
+        assert_eq!(names.len(),23);
         assert!(names.contains(&"task_command_propose"));
         assert!(names.contains(&"task_command_execute"));
         assert!(names.contains(&"task_plan_submit"));
         assert!(names.contains(&"task_plan_execute"));
+        assert!(names.contains(&"task_cua_intent_propose"));
         assert!(!names.contains(&"computer_execute"));
     }
 }

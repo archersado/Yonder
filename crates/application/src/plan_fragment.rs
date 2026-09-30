@@ -75,7 +75,7 @@ pub fn submit(
 pub fn execute_one(
     store: &mut impl crate::TaskStore, admission: &crate::admission::Admission,
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
-    config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized),
+    config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized), intents: Option<&crate::cua_intent::CuaIntentRegistry>,
     auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str,
 ) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
     if !matches!(auth, crate::AuthContext::Agent(_)) { return Err(crate::Error::PermissionDenied); }
@@ -98,14 +98,39 @@ pub fn execute_one(
         format!("Jev 已从 {} 个候选中选择：{}",slot.candidates.len(),action_kind_label(action.action_kind))
     };
     computer.project_decision(task_id,&slot.step_id,&slot.label,&decision);
-    // `SendMessage` 的正文与收件人只能存在于本机一次性确认载荷中；受限
-    // 片段本身刻意没有该载荷。确认组合根尚未交付时必须交回，绝不能把空
-    // 参数派发为一个不可解释的按键操作，更不能猜测或重试发送。
-    if matches!(action.action_kind, yonder_protocol::CuaActionKind::SendMessage) {
-        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑安排本机发送确认")?;
-        return Ok((task, "slow-brain-required", None));
+    let current_task=store.get(task_id)?;
+    let mut arguments:serde_json::Value=serde_json::from_str(&action.arguments_json).map_err(|_|crate::Error::InvalidInput)?;
+    let fields=arguments.as_object_mut().ok_or(crate::Error::InvalidInput)?;
+    let semantic=match action.action_kind {
+        yonder_protocol::CuaActionKind::FocusTargetSearch=>Some(("focus-target-search",Some(crate::cua_intent::CuaIntentText::Target))),
+        yonder_protocol::CuaActionKind::EnterTargetQuery=>Some(("enter-target-query",Some(crate::cua_intent::CuaIntentText::Target))),
+        yonder_protocol::CuaActionKind::ActivateTarget=>Some(("activate-target",Some(crate::cua_intent::CuaIntentText::Target))),
+        yonder_protocol::CuaActionKind::DraftMessageRef=>Some(("draft-message-ref",Some(crate::cua_intent::CuaIntentText::Message))),
+        yonder_protocol::CuaActionKind::SendMessage=>Some(("send-message",None)),
+        _=>None,
+    };
+    if let Some((kind,text))=semantic {
+        let registry=intents.ok_or(crate::Error::StorageUnavailable)?;
+        fields.insert("_yonder_action_kind".into(),serde_json::Value::String(kind.into()));
+        if let Some(text)=text {
+            let private=registry.resolve_text(auth,&current_task,&action.target_ref,text,now_ms).map_err(cua_intent_error)?;
+            fields.insert("_yonder_private_text".into(),serde_json::Value::String(private));
+        }
     }
-    let (task,result,observation)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
+    // 到达发送槽位才开放顶部本机确认。批准在 Driver 派发前消费；后续任何
+    // unknown/超时都不会恢复引用，因此不会隐式重试副作用。
+    if matches!(action.action_kind, yonder_protocol::CuaActionKind::SendMessage) {
+        let registry=intents.ok_or(crate::Error::StorageUnavailable)?;
+        let confirmation=action.confirmation_ref.as_deref().ok_or(crate::Error::InvalidInput)?;
+        let state=registry.arm(auth,&current_task,&action.target_ref,confirmation,now_ms).map_err(cua_intent_error)?.state;
+        if state != crate::cua_intent::CuaIntentState::Approved {
+            computer.project_decision(task_id,&slot.step_id,&slot.label,"等待用户在顶部浮窗确认发送");
+            return Ok((current_task,"awaiting-confirmation",None));
+        }
+        registry.consume_send(auth,&current_task,&action.target_ref,confirmation,now_ms).map_err(cua_intent_error)?;
+    }
+    let runtime_arguments=serde_json::to_string(&arguments).map_err(|_|crate::Error::InvalidInput)?;
+    let (task,result,observation)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?;
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
         computer.project_step_unverified(task_id,&slot.step_id);
         // user-input 会把任务原子地转为 interrupted，并已写入事件/Outbox；此时
@@ -150,7 +175,7 @@ fn action_kind_label(kind:yonder_protocol::CuaActionKind)->&'static str{match ki
 pub fn execute_available(
     store: &mut impl crate::TaskStore, admission: &crate::admission::Admission,
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
-    config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized),
+    config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized), intents: Option<&crate::cua_intent::CuaIntentRegistry>,
     auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str,
 ) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
     let initial = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
@@ -171,7 +196,7 @@ pub fn execute_available(
             return Ok((store.get(task_id)?, "takeover-requested", None));
         }
         let (task, disposition, observation) = execute_one(
-            store, admission, computer, targets, config, jev, auth, task_id, plan_id,
+            store, admission, computer, targets, config, jev, intents, auth, task_id, plan_id,
             plan_version, sequence, now_ms, host_session_id,
         )?;
         sequence = task.sequence;
@@ -191,6 +216,14 @@ pub fn execute_available(
     )?;
     Ok((task, "handback", None))
 }
+
+fn cua_intent_error(error:crate::cua_intent::CuaIntentError)->crate::Error{match error{
+    crate::cua_intent::CuaIntentError::InvalidInput=>crate::Error::InvalidInput,
+    crate::cua_intent::CuaIntentError::PermissionDenied=>crate::Error::PermissionDenied,
+    crate::cua_intent::CuaIntentError::NotFound|crate::cua_intent::CuaIntentError::Expired=>crate::Error::NotFound,
+    crate::cua_intent::CuaIntentError::Rejected=>crate::Error::StopRequired,
+    crate::cua_intent::CuaIntentError::Capacity|crate::cua_intent::CuaIntentError::Unavailable=>crate::Error::StorageUnavailable,
+}}
 
 pub fn validate(fragment: &PlanFragment) -> Result<(), crate::Error> {
     if !valid_id(&fragment.plan_id) || !valid_id(&fragment.task_id)
@@ -226,10 +259,13 @@ fn valid_candidate(candidate: &CandidateAction) -> bool {
         && valid_observe_conditions(&candidate.expected_observe)
         && yonder_protocol::tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
         && match candidate.action_kind {
-            yonder_protocol::CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && candidate.arguments_json == "{}",
+            yonder_protocol::CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && semantic_arguments(&candidate.arguments_json),
+            yonder_protocol::CuaActionKind::FocusTargetSearch | yonder_protocol::CuaActionKind::EnterTargetQuery | yonder_protocol::CuaActionKind::ActivateTarget | yonder_protocol::CuaActionKind::DraftMessageRef => candidate.confirmation_ref.is_none() && semantic_arguments(&candidate.arguments_json),
             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
         }
 }
+
+fn semantic_arguments(value:&str)->bool{serde_json::from_str::<serde_json::Value>(value).is_ok_and(|value|value.as_object().is_some_and(|arguments|arguments.is_empty()||(arguments.len()==2&&arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)&&arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))))}
 
 fn valid_observe_conditions(conditions: &[yonder_protocol::CuaObserveConditionParams]) -> bool {
     let mut facts = std::collections::HashSet::new();

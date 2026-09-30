@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "name": "yonder",
-  "skill_version": "0.1.0",
-  "yonder_protocol_min": "1.31",
+  "skill_version": "0.2.0",
+  "yonder_protocol_min": "1.35",
   "validated_platforms": ["macos"],
   "required_tools": ["task_create", "task_get", "task_events"],
   "optional_capability_tools": {
     "browser": ["browser_execute"],
-    "computer": ["computer_step", "task_plan_submit", "task_plan_execute"],
+    "computer": ["computer_step", "task_cua_intent_propose", "task_plan_submit", "task_plan_execute"],
     "document": ["task_file_grants", "task_file_execute", "task_document_execute"],
     "command": ["task_command_propose", "task_command_execute"]
   },

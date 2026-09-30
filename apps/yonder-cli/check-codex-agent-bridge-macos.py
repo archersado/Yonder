@@ -133,9 +133,9 @@ def gateway(socket_path, results, ready):
     hello = frame(connection)
     assert hello["method"] == "gateway.hello"
     assert hello["params"]["session_id"] == THREAD_ID
-    assert hello["params"]["protocol_version"] == {"major": 1, "minor": 34}
+    assert hello["params"]["protocol_version"] == {"major": 1, "minor": 35}
     assert hello["params"]["offered_capabilities"] == ["user_input", "replan_input"]
-    send(connection, {"jsonrpc": "2.0", "id": "hello", "result": {"kind": "hello", "protocol_version": {"major": 1, "minor": 34}, "platform": "macos", "capabilities": []}})
+    send(connection, {"jsonrpc": "2.0", "id": "hello", "result": {"kind": "hello", "protocol_version": {"major": 1, "minor": 35}, "platform": "macos", "capabilities": []}})
     for index in (1, 2):
         now = int(time.time() * 1000)
         request_id = f"input-{index}"

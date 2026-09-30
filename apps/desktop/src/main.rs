@@ -27,6 +27,14 @@ struct CommandApprovalSummaryView { command_id: String, state: &'static str, exp
 #[serde(rename_all = "camelCase")]
 struct CommandApprovalPreviewView { command_id: String, program: String, args: Vec<String>, cwd: String, env: BTreeMap<String,String>, timeout_ms: u64, expires_at_ms: u64 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CuaIntentPreviewView { intent_ref:String, confirmation_ref:String, target:String, message:String, expires_at_ms:u64 }
+
+fn cua_intent_preview_view(value:yonder_application::cua_intent::CuaIntentPreview)->CuaIntentPreviewView{
+    CuaIntentPreviewView{intent_ref:value.intent_ref,confirmation_ref:value.confirmation_ref,target:value.target,message:value.message,expires_at_ms:value.expires_at_ms}
+}
+
 fn command_approval_summary_view(value: yonder_application::command_approval::CommandApprovalSummary) -> CommandApprovalSummaryView {
     use yonder_application::command_approval::CommandApprovalState;
     CommandApprovalSummaryView{command_id:value.command_id,state:match value.state{CommandApprovalState::AwaitingUser=>"awaiting-user",CommandApprovalState::Approved=>"approved"},expires_at_ms:value.expires_at_ms}
@@ -611,6 +619,25 @@ fn cua_control_presentation(window:WebviewWindow,hub:State<'_,yonder_desktop::Cu
 }
 
 #[tauri::command]
+async fn cua_intent_confirmation(window:WebviewWindow,state:State<'_,TaskState>,task_id:String)->Result<Option<CuaIntentPreviewView>,String>{
+    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
+    let host=Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;let host=host.as_mut().ok_or("任务存储未就绪")?;let Some(summary)=host.list_cua_intents(&task_id,now).map_err(|_|"发送确认不可用".to_owned())?.into_iter().find(|value|value.state==yonder_application::cua_intent::CuaIntentState::AwaitingUser)else{return Ok(None)};host.preview_cua_intent(&task_id,&summary.intent_ref,now).map(cua_intent_preview_view).map(Some).map_err(|_|"发送确认预览不可用".to_owned())}).await.map_err(|_|"发送确认读取中断".to_owned())?
+}
+
+#[tauri::command]
+async fn cua_intent_approve(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,intent_ref:String)->Result<(),String>{
+    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
+    let host=Arc::clone(&state.0);tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.approve_cua_intent(&task_id,&intent_ref,now).map(|_|()).map_err(|_|"发送批准失败".to_owned())}).await.map_err(|_|"发送批准中断".to_owned())?
+}
+
+#[tauri::command]
+async fn cua_intent_reject(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,intent_ref:String)->Result<(),String>{
+    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
+    let host=Arc::clone(&state.0);tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.reject_cua_intent(&task_id,&intent_ref,now).map_err(|_|"发送拒绝失败".to_owned())}).await.map_err(|_|"发送拒绝中断".to_owned())?
+}
+
+#[tauri::command]
 async fn task_confirm(
     window: WebviewWindow,
     state: State<'_, TaskState>,
@@ -936,7 +963,7 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, cua_control_takeover, cua_control_presentation, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, cua_control_takeover, cua_control_presentation, cua_intent_confirmation, cua_intent_approve, cua_intent_reject, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
         .setup(|app| {
             release_contract::validate()?;
             #[cfg(target_os = "macos")]

@@ -288,6 +288,14 @@ impl CuaIntentRegistry {
         intents.remove(intent_ref);
         Ok(())
     }
+
+    pub fn revoke_owner(&self, auth: AuthContext<'_>, owner: &str) -> Result<usize, CuaIntentError> {
+        require_local(auth)?;
+        let mut intents = self.intents.lock().map_err(|_| CuaIntentError::Unavailable)?;
+        let count = intents.len();
+        intents.retain(|_, value| value.owner_agent_id != owner);
+        Ok(count - intents.len())
+    }
 }
 
 fn fetch(

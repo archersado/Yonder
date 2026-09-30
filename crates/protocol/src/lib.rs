@@ -1895,13 +1895,17 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && valid_observe_conditions(&candidate.expected_observe)
                         && tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
                         && match candidate.action_kind {
-                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && candidate.arguments.as_object().is_some_and(|arguments| arguments.is_empty()),
-                            CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.as_deref().is_none() && candidate.arguments.as_object().is_some_and(|arguments| arguments.is_empty()),
+                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && valid_semantic_arguments(&candidate.arguments),
+                            CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.as_deref().is_none() && valid_semantic_arguments(&candidate.arguments),
                             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
                         }
                 })
             }
     })
+}
+
+fn valid_semantic_arguments(value:&serde_json::Value)->bool{
+    value.as_object().is_some_and(|arguments|arguments.is_empty() || (arguments.len()==2 && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite) && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)))
 }
 
 fn valid_observe_conditions(conditions: &[CuaObserveConditionParams]) -> bool {
