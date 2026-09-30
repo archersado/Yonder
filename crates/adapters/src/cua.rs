@@ -195,7 +195,7 @@ fn classify(attempt: &ExecutionAttempt, output: &[u8], evidence:&Path) -> Dispat
         _=>return DispatchOutcome::Unknown(UnknownReason::InvalidResponse),
     };
     let observation=ComputerObservation{element_count:response.element_count,screenshot_path:screenshot.as_ref().map(|value|value.0.clone()),screenshot_mime:screenshot.map(|value|value.1),target_visible:response.target_visible};
-    if matches!(effect,ActionEffect::Partial|ActionEffect::Unverifiable|ActionEffect::SuspectedNoop){return DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation }}
+    if matches!(effect,ActionEffect::Partial|ActionEffect::Unverifiable|ActionEffect::SuspectedNoop){#[cfg(debug_assertions)] eprintln!("cua worker unverified at {}",response.failure_stage.as_deref().unwrap_or("action-unconfirmed"));return DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation }}
     DispatchOutcome::Known { action_succeeded: matches!(effect,ActionEffect::Confirmed), observation:Some(observation) }
 }
 
