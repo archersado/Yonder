@@ -23,7 +23,7 @@ use yonder_application::{
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 22;
+pub const SQLITE_SCHEMA_VERSION: i64 = 23;
 
 fn now_ms() -> Result<i64, Error> {
     let value = SystemTime::now()
@@ -482,7 +482,7 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
         ]
         .contains(&schema)
         {
@@ -528,7 +528,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
         ]
         .contains(&schema)
         {
@@ -616,6 +616,10 @@ impl SqliteTaskStore {
         }
         if schema < 22 {
             tx.execute_batch(include_str!("task_runtime_projection_schema.sql"))
+                .map_err(storage)?;
+        }
+        if schema < 23 {
+            tx.execute_batch(include_str!("task_unknown_handback_schema.sql"))
                 .map_err(storage)?;
         }
         // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
@@ -1151,6 +1155,14 @@ impl TaskStore for SqliteTaskStore {
         tx.execute(
             "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
             params![task_id, next as i64],
+        )
+        .map_err(storage)?;
+        // unknown 结论永久保留，但已经交回慢脑的 Driver attempt 必须释放步骤
+        // 执行槽。以同一个 handback 序号关闭 attempt，归属 Agent 才能读取
+        // unknown/Observe 后提交新的受限片段；这不会推进旧片段或重放副作用。
+        tx.execute(
+            "UPDATE task_attempts SET handback_sequence=?1 WHERE task_id=?2 AND phase='unknown' AND result_sequence IS NOT NULL AND handback_sequence IS NULL",
+            params![next as i64, task_id],
         )
         .map_err(storage)?;
         tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![task_id,next as i64,format!(r#"{{"next_intent":{}}}"#, serde_json::to_string(reason).map_err(|_| Error::StorageUnavailable)?) ]).map_err(storage)?;
@@ -1692,10 +1704,10 @@ impl TaskStore for SqliteTaskStore {
             return Err(Error::StopRequired);
         }
         if task.status == Status::Running {
-            let previous: Option<(String,Option<String>,i64)> = tx.query_row("SELECT phase,control_id,COALESCE(stop_sequence,0) FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[&requested.task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
+            let previous: Option<(String,Option<String>,i64)> = tx.query_row("SELECT phase,control_id,COALESCE(stop_sequence,handback_sequence,0) FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[&requested.task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
             let step_sequence = u64::try_from(current_step.as_ref().unwrap().1)
                 .map_err(|_| Error::StorageUnavailable)?;
-            if !matches!(previous,Some((ref phase,None,stop)) if phase=="stopped" && step_sequence > u64::try_from(stop).unwrap_or(u64::MAX))
+            if !matches!(previous,Some((ref phase,None,stop)) if matches!(phase.as_str(),"stopped"|"unknown") && stop>0 && step_sequence > u64::try_from(stop).unwrap_or(u64::MAX))
             {
                 return Err(Error::StopRequired);
             }
@@ -1730,12 +1742,13 @@ impl TaskStore for SqliteTaskStore {
     }
 
     fn get_attempt(&mut self, task_id: &str) -> Result<Option<ExecutionAttempt>, Error> {
-        let row: Option<(String,String,String,String,String,i64)> = self.0.query_row("SELECT step_id,attempt_id,worker_instance_id,host_session_id,phase,accepted_sequence FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1", [task_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?))).optional().map_err(storage)?;
+        let row: Option<(String,String,String,String,String,i64,Option<i64>)> = self.0.query_row("SELECT step_id,attempt_id,worker_instance_id,host_session_id,phase,accepted_sequence,handback_sequence FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1", [task_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional().map_err(storage)?;
         row.map(
-            |(step_id, attempt_id, worker_instance_id, host_session_id, phase, accepted)| {
+            |(step_id, attempt_id, worker_instance_id, host_session_id, phase, accepted, handback)| {
                 let phase = match phase.as_str() {
                     "prepared" => AttemptPhase::Prepared,
                     "observed" => AttemptPhase::Observed,
+                    "unknown" if handback.is_some() => AttemptPhase::Stopped,
                     "unknown" => AttemptPhase::Unknown,
                     "stopped" => AttemptPhase::Stopped,
                     _ => return Err(Error::StorageUnavailable),
@@ -2662,7 +2675,7 @@ impl TaskStore for SqliteTaskStore {
             return Err(Error::Conflict);
         }
         if current.status == Status::Running {
-            let boundary: Option<(String,Option<String>)> = tx.query_row("SELECT phase,control_id FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[task_id],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(storage)?;
+            let boundary: Option<(String,Option<String>,Option<i64>)> = tx.query_row("SELECT phase,control_id,handback_sequence FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
             let pending: i64 = tx
                 .query_row(
                     "SELECT count(*) FROM task_controls WHERE task_id=?1 AND phase='pending'",
@@ -2670,7 +2683,7 @@ impl TaskStore for SqliteTaskStore {
                     |r| r.get(0),
                 )
                 .map_err(storage)?;
-            if !matches!(boundary,Some((ref phase,None)) if phase=="stopped") || pending != 0 {
+            if !matches!(boundary,Some((ref phase,None,handback)) if phase=="stopped" || phase=="unknown" && handback.is_some()) || pending != 0 {
                 return Err(Error::StopRequired);
             }
         }
@@ -3916,7 +3929,8 @@ mod tests {
         use yonder_application::{
             admission::Admission,
             computer_use::{
-                ComputerAction, ComputerUsePort, DispatchOutcome, WorkTarget, WorkTargetPort,
+                ComputerAction, ComputerObservation, ComputerUsePort, DispatchOutcome, WorkTarget,
+                WorkTargetPort,
             },
             jev_config::{JevCapability, JevServiceMode, JEV_REMOTE_ENDPOINT},
             jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
@@ -3959,6 +3973,25 @@ mod tests {
                 DispatchOutcome::Known {
                     action_succeeded: false,
                     observation: None,
+                }
+            }
+        }
+        struct UnknownPort;
+        impl ComputerUsePort for UnknownPort {
+            fn dispatch(
+                &self,
+                _: &ExecutionAttempt,
+                _: &WorkTarget,
+                _: &ComputerAction,
+            ) -> DispatchOutcome {
+                DispatchOutcome::UnknownObserved {
+                    reason: UnknownReason::ObserveFailed,
+                    observation: ComputerObservation {
+                        element_count: 0,
+                        screenshot_path: None,
+                        screenshot_mime: None,
+                        target_visible: None,
+                    },
                 }
             }
         }
@@ -4203,6 +4236,91 @@ mod tests {
                 .as_deref(),
             Some("需要慢脑重新 Observe 或规划")
         );
+
+        let unknown_task = create(&mut store, "unknown-replan").unwrap();
+        let unknown_fragment = PlanFragment {
+            task_id: unknown_task.id.clone(),
+            plan_id: "unknown-plan-v1".into(),
+            expected_sequence: unknown_task.sequence,
+            slots: vec![PlanSlot {
+                step_id: "unknown-input".into(),
+                label: "输入结果待核实".into(),
+                candidates: vec![candidate(
+                    "unknown-action",
+                    "launch_app",
+                    yonder_protocol::CuaActionKind::LaunchApplication,
+                )],
+            }],
+            ..fragment.clone()
+        };
+        let unknown_submitted = store
+            .submit_plan_fragment("a1", &unknown_fragment)
+            .unwrap();
+        let unknown_admission = Admission::new(1).unwrap();
+        let (unknown_result, unknown_disposition, _) = execute_available(
+            &mut store,
+            &unknown_admission,
+            &UnknownPort,
+            &Target,
+            &config,
+            &MustNotChoose,
+            None,
+            AuthContext::Agent("a1"),
+            &unknown_task.id,
+            &unknown_fragment.plan_id,
+            1,
+            unknown_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
+        assert_eq!(unknown_disposition, "handback");
+        assert_eq!(
+            store.get_attempt(&unknown_task.id).unwrap().unwrap().phase,
+            AttemptPhase::Stopped
+        );
+        assert_eq!(
+            store.get_attempt_result(&unknown_task.id).unwrap().unwrap().conclusion,
+            AttemptConclusion::Unknown {
+                reason: UnknownReason::ObserveFailed
+            }
+        );
+
+        let replan = PlanFragment {
+            task_id: unknown_task.id.clone(),
+            plan_id: "unknown-plan-v2".into(),
+            plan_version: 2,
+            expected_sequence: unknown_result.sequence,
+            slots: vec![PlanSlot {
+                step_id: "reobserve".into(),
+                label: "依据新鲜事实重新观察".into(),
+                candidates: vec![candidate(
+                    "reobserve-window",
+                    "bring_to_front",
+                    yonder_protocol::CuaActionKind::BringToFront,
+                )],
+            }],
+            ..fragment.clone()
+        };
+        let replan_submitted = store.submit_plan_fragment("a1", &replan).unwrap();
+        let (_, replan_disposition, _) = execute_available(
+            &mut store,
+            &unknown_admission,
+            &Port(Mutex::new(Vec::new())),
+            &Target,
+            &config,
+            &MustNotChoose,
+            None,
+            AuthContext::Agent("a1"),
+            &unknown_task.id,
+            &replan.plan_id,
+            2,
+            replan_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
+        assert_eq!(replan_disposition, "fragment-complete");
 
         let takeover_task = create(&mut store, "takeover-plan").unwrap();
         let takeover_fragment = PlanFragment {
@@ -4691,7 +4809,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            22
+            23
         );
         drop(store);
         for rejected in [
@@ -4737,7 +4855,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 22);
+        assert_eq!(version, 23);
     }
 
     #[test]
@@ -4746,7 +4864,7 @@ mod tests {
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
         store
             .0
-            .execute_batch("DROP TABLE task_audit_quota_state; PRAGMA user_version=22;")
+            .execute_batch("DROP TABLE task_audit_quota_state; PRAGMA user_version=23;")
             .unwrap();
         let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
         assert_eq!(
@@ -4765,7 +4883,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            22
+            23
         );
         assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
     }
@@ -4780,7 +4898,7 @@ mod tests {
                 "DROP TABLE task_user_confirmations;
              DROP TABLE task_artifact_manifest_items;
              DROP TABLE task_artifact_manifests;
-             PRAGMA user_version=22;",
+             PRAGMA user_version=23;",
             )
             .unwrap();
         let mut recovered = SqliteTaskStore::initialize(store.0, true).unwrap();
@@ -4802,7 +4920,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            22
+            23
         );
     }
 
@@ -4815,7 +4933,7 @@ mod tests {
             .execute_batch(
                 "DROP TABLE task_user_confirmations;
              DROP TABLE task_artifact_manifest_items;
-             PRAGMA user_version=22;",
+             PRAGMA user_version=23;",
             )
             .unwrap();
         assert!(matches!(
@@ -4923,7 +5041,7 @@ mod tests {
 
         let old_store =
             SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
-        old_store.0.execute_batch("DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; PRAGMA user_version=14;").unwrap();
+        old_store.0.execute_batch("DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; DROP TABLE task_focus_events; DROP TABLE task_presentation_events; DROP TABLE task_user_confirmations; DROP TABLE task_artifact_manifest_items; DROP TABLE task_artifact_manifests; DROP TABLE task_audit_quota_state; DROP TABLE agent_registry; DROP TABLE jev_config; ALTER TABLE tasks DROP COLUMN created_at; ALTER TABLE tasks DROP COLUMN source; ALTER TABLE tasks DROP COLUMN observation_step_id; ALTER TABLE tasks DROP COLUMN observation_result; ALTER TABLE tasks DROP COLUMN observation_summary; ALTER TABLE tasks DROP COLUMN next_intent; DROP INDEX task_attempt_active; ALTER TABLE task_attempts DROP COLUMN handback_sequence; CREATE UNIQUE INDEX task_attempt_active ON task_attempts(task_id) WHERE phase!='stopped'; PRAGMA user_version=14;").unwrap();
         old_store.0.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence) VALUES ('legacy','a1','created',1)", []).unwrap();
         let db = old_store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
@@ -6163,7 +6281,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            22
+            23
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -8048,7 +8166,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            22
+            23
         );
     }
 
@@ -8220,7 +8338,7 @@ mod tests {
         }
         store
             .0
-            .execute_batch("DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; ALTER TABLE tasks DROP COLUMN created_at; DROP TABLE task_focus_events; PRAGMA user_version=18;")
+            .execute_batch("DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; ALTER TABLE tasks DROP COLUMN created_at; DROP TABLE task_focus_events; DROP INDEX task_attempt_active; ALTER TABLE task_attempts DROP COLUMN handback_sequence; CREATE UNIQUE INDEX task_attempt_active ON task_attempts(task_id) WHERE phase!='stopped'; PRAGMA user_version=18;")
             .unwrap();
         let db = store.0;
         let mut store = SqliteTaskStore::initialize(db, true).unwrap();
@@ -8241,7 +8359,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            22
+            23
         );
     }
 

@@ -27,6 +27,8 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 2026-09-30 前台坐标输入补充（Accepted AD-CU-07）：协议1.39允许`enter-target-query`与`draft-message-ref`的`type_text`候选携带恰好`x/y`。Agent不得提交正文、target、session或delivery mode；Application解析意图引用后，Worker为同一精确窗口强制注入`foreground`并在单个Driver动作内聚焦输入。既有视觉click同样使用动作级foreground。只有`confirmed + observe_valid`推进，其他结果交回且不得重试或建立焦点凭据。
 
+2026-09-30 unknown 交回边界补充（正式样本反馈，已接受）：Driver 动作结论为 `unknown` 时，结论、原因和同次可用 Observe 证据必须原样保留，旧片段游标不得推进，副作用不得自动重试；但交回事件提交必须同时把该次 attempt 关闭为停止边界，不能让已结束的 Worker attempt 永久占据单槽位。归属慢脑读取 `task.get/task.events` 与交回证据后，才可从原 Gateway 提交新片段；新片段产生新的 step/attempt 身份并重新通过授权、租约和 Observe，不得把旧 `unknown` 提升为成功。
+
 ## 待决问题
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。
@@ -80,7 +82,7 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 - 片段执行中的每个动作都沿用现有授权、确认、租约、文件锁和停止确认；
 - 用户取消、接管或输入立即冻结后续片段决策；
 - Observe 偏离、目标丢失、低置信、权限不足或预算耗尽时暂停并交回慢脑；
-- `unknown` 必须保留占用并交回慢脑重新决策，不得自动重试；
+- `unknown` 必须保留结论与交回依据；交回提交时关闭旧 attempt、释放执行槽但不推进旧片段，由慢脑读取新鲜事实后重新决策，不得自动重试；
 - 片段内的回退候选必须事先声明并经 Application 校验，不得由快脑临时生成；
 - 片段执行不绕过敏感操作确认，也不降低既有的安全和隐私约束。
 

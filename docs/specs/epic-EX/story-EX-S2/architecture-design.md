@@ -60,7 +60,7 @@ Application在每个槽位派发前按任务归属和期限解析引用，把目
 
 产品 MCP 必须从同一 Rust 协议类型构造 `task.plan.submit` 与 `task.plan.execute` 请求，直接转发到既有私有 UDS Gateway；不得在 CLI 重写计划校验、执行循环或 Jev 选择。MCP schema 只镜像协议字段，Gateway 继续负责身份、版本、CAS、期限、候选和能力检查。该入口使 Codex 成为真实慢脑，不创建第二 Agent 通道。
 
-取消、接管、用户输入先冻结快脑新决策，再按既有步骤边界停止/Observe/事务确认。副作用超时、崩溃或断连为 `unknown`，保留占用并交回慢脑；重启 running→interrupted，不能恢复旧候选、旧计划或自动重发。敏感操作继续走显式用户确认，不因高置信豁免。
+取消、接管、用户输入先冻结快脑新决策，再按既有步骤边界停止/Observe/事务确认。副作用超时、崩溃或断连为 `unknown`，原样保留结论且不推进旧片段；handback 与旧 attempt 的停止边界在同一事务提交，避免已结束 Worker attempt 永久占据执行槽。慢脑读取新鲜事实后只能以新 step/attempt 提交新片段，不能恢复旧候选、旧计划或自动重发。重启 running→interrupted。敏感操作继续走显式用户确认，不因高置信豁免。
 
 交回提交成功后，Desktop组合根从Gateway响应提取受限的任务ID、sequence和交回原因，在释放TaskHost锁且把响应写回调用方后，通过AG-S5现有`AgentInputHub`向唯一匹配`owner_agent_id`的已连接会话投递`source=replan`输入。输入只要求慢脑调用`task.get/task.events`取得新鲜事实并经原Gateway提交新片段，不夹带截图、正文、联系人、Driver参数或完整事件。无连接、多会话、拒绝或超时不改变任务事实、不重试副作用，只在顶部浮窗展示“等待慢脑连接/慢脑唤醒失败”。同一交回序号只投递一次；慢脑的新片段仍受身份、CAS、期限和能力校验。
 
