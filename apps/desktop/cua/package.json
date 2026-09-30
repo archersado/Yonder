@@ -3,7 +3,6 @@
   "private": true,
   "version": "0.1.0",
   "dependencies": {
-    "@trycua/cua-driver": "0.30.4",
     "@typesafe-ai/sdk": "0.6.0"
   }
 }

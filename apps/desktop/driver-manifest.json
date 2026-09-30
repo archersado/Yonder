@@ -3,15 +3,10 @@
   "drivers": [
     {
       "kind": "cua",
-      "name": "trycua",
-      "platforms": ["macos"]
-    },
-    {
-      "kind": "cua",
       "name": "sky",
       "platforms": ["macos"],
       "distribution": "external",
-      "status": "experimental"
+      "status": "product"
     },
     {
       "kind": "bua",

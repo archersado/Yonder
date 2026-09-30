@@ -570,23 +570,13 @@ impl TaskHost {
             std::fs::create_dir_all(&evidence).map_err(|_| HostError::StorageUnavailable)?;
             std::fs::set_permissions(&evidence, std::fs::Permissions::from_mode(0o700))
                 .map_err(|_| HostError::StorageUnavailable)?;
-            macos_cua_resource_dir().and_then(|root| match std::env::var("YONDER_CUA_DRIVER").as_deref() {
-                Ok("sky") => external_sky_sdk().and_then(|sdk| CuaWorker::new_sky(
+            macos_cua_resource_dir().and_then(|root| external_sky_sdk().and_then(|sdk| CuaWorker::new(
                     &root.join("node"),
                     &root.join("sky_cua_worker.mjs"),
                     &sdk,
                     &evidence,
                     Duration::from_secs(30),
-                ).ok()),
-                Ok("trycua") | Err(std::env::VarError::NotPresent) => CuaWorker::new(
-                    &root.join("node"),
-                    &root.join("cua_worker.mjs"),
-                    &root.join("node_modules/@trycua/cua-driver/dist/index.js"),
-                    &evidence,
-                    Duration::from_secs(30),
-                ).ok(),
-                _ => None,
-            })
+                ).ok()))
         };
         #[cfg(target_os = "macos")]
         let jev = macos_cua_resource_dir().and_then(|root| {

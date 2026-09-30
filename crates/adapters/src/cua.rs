@@ -16,9 +16,6 @@ impl WorkTargetPort for MacosFrontmostTarget {
     fn frontmost(&self)->Result<WorkTarget,UnknownReason>{let(mut pid,mut window_id)=(0,0);let code=unsafe{yonda_frontmost_work_target(std::process::id() as i32,&mut pid,&mut window_id)};if code==0{Ok(WorkTarget{pid,window_id})}else{Err(if code==1{UnknownReason::DependencyUnavailable}else{UnknownReason::InvalidInput})}}
 }
 
-#[derive(Clone,Copy,Eq,PartialEq)]
-enum CuaBackend { TryCua, Sky }
-
 /// 只由已验证 Driver 身份构造；Agent/UI 不能提供或覆盖应用/窗口身份。
 pub struct WindowActivationTarget { application_id:String, window_id:Option<u64> }
 impl WindowActivationTarget {
@@ -40,7 +37,7 @@ impl WindowActivationPort for MacosWindowActivator {
     }
 }
 
-pub struct CuaWorker { node: PathBuf, script: PathBuf, sdk: PathBuf, evidence:PathBuf, timeout: Duration, backend:CuaBackend, window_activation:Option<Box<dyn WindowActivationPort>>, session: Mutex<Option<WorkerSession>> }
+pub struct CuaWorker { node: PathBuf, script: PathBuf, sdk: PathBuf, evidence:PathBuf, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>, session: Mutex<Option<WorkerSession>> }
 
 struct WorkerSession { child: Child, input: ChildStdin, output: mpsc::Receiver<Result<Vec<u8>, ()>>, launched_app:Option<(String,String)> }
 
@@ -70,21 +67,16 @@ enum ActionEffect { Confirmed,Partial,Unverifiable,SuspectedNoop,Refused }
 fn valid_sky_app_id(value:&str)->bool {value.len()<=255&&!value.is_empty()&&value.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-'))}
 
 impl CuaWorker {
-    /// 三个路径只能由可信组合根提供；SDK入口必须属于固定0.30.4包。
+    /// 三个路径只能由可信组合根提供；SDK入口必须属于固定Sky包。
     pub fn new(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@trycua/cua-driver", "0.30.4", CuaBackend::TryCua, None)
-    }
-
-    /// Sky 是外部安装的可选后端；只接受当前验证过的精确包身份。
-    pub fn new_sky(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
         #[cfg(target_os="macos")]
         let window_activation=Some(Box::new(MacosWindowActivator) as Box<dyn WindowActivationPort>);
         #[cfg(not(target_os="macos"))]
         let window_activation=None;
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, "@oai/sky", "0.7.1", CuaBackend::Sky, window_activation)
+        Self::new_for_sdk(node, script, sdk, evidence, timeout, window_activation)
     }
 
-    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, expected_name:&str, expected_version:&str, backend:CuaBackend, window_activation:Option<Box<dyn WindowActivationPort>>) -> Result<Self, UnknownReason> {
+    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>) -> Result<Self, UnknownReason> {
         if timeout.is_zero() || timeout > Duration::from_secs(120) || [node, script, sdk].iter().any(|path| !path.is_absolute() || !path.is_file()) || !evidence.is_absolute() || !evidence.is_dir() {
             return Err(UnknownReason::InvalidInput);
         }
@@ -92,8 +84,8 @@ impl CuaWorker {
         let identity = fs::read_to_string(package).ok().and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok());
         let name = identity.as_ref().and_then(|value| value.get("name")).and_then(|value| value.as_str());
         let version = identity.as_ref().and_then(|value| value.get("version")).and_then(|value| value.as_str());
-        if name != Some(expected_name) || version != Some(expected_version) { return Err(UnknownReason::DependencyUnavailable); }
-        let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, backend, window_activation, session: Mutex::new(None) };
+        if name != Some("@oai/sky") || version != Some("0.7.1") { return Err(UnknownReason::DependencyUnavailable); }
+        let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, window_activation, session: Mutex::new(None) };
         worker.cleanup();Ok(worker)
     }
 
@@ -134,8 +126,8 @@ impl CuaWorker {
         let bytes = match serde_json::to_vec(&request) { Ok(bytes) => bytes, Err(_) => return DispatchOutcome::Unknown(UnknownReason::InvalidInput) };
         let mut slot=match self.session.lock(){Ok(slot)=>slot,Err(_)=>return DispatchOutcome::Unknown(UnknownReason::WorkerFailed)};
         if slot.is_none(){*slot=match self.start(){Ok(session)=>Some(session),Err(reason)=>return DispatchOutcome::Unknown(reason)}}
-        if self.backend==CuaBackend::Sky && action.tool_name=="launch_app" {slot.as_mut().unwrap().launched_app=None;}
-        if self.backend==CuaBackend::Sky && action.tool_name=="bring_to_front" {
+        if action.tool_name=="launch_app" {slot.as_mut().unwrap().launched_app=None;}
+        if action.tool_name=="bring_to_front" {
             if let Some(port)=self.window_activation.as_deref(){if let Err(reason)=activate_cached_window(port,slot.as_ref().and_then(|session|session.launched_app.as_ref()),&attempt.task_id){return DispatchOutcome::Unknown(reason)}}
         }
         if slot.as_mut().is_none_or(|session|session.input.write_all(&bytes).and_then(|_|session.input.write_all(b"\n")).and_then(|_|session.input.flush()).is_err()) {
@@ -152,7 +144,7 @@ impl CuaWorker {
             if started.elapsed()>=self.timeout{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::TimedOut)}
         };
         let outcome=classify(attempt, &output,&self.evidence);
-        if self.backend==CuaBackend::Sky && action.tool_name=="launch_app" && matches!(outcome,DispatchOutcome::Known{action_succeeded:true,..}) {
+        if action.tool_name=="launch_app" && matches!(outcome,DispatchOutcome::Known{action_succeeded:true,..}) {
             let launched=serde_json::from_slice::<Response>(&output).ok().and_then(|response|response.launched_app_id)
                 .filter(|value|valid_sky_app_id(value));
             let Some(bundle_id)=launched else{Self::stop(&mut slot);self.cleanup();return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)};
@@ -247,7 +239,7 @@ mod tests {
         let root=std::env::temp_dir().join(format!("yonda-cua-session-{}",std::process::id()));
         let package=root.join("node_modules/fake");
         std::fs::create_dir_all(package.join("dist")).unwrap();
-        std::fs::write(package.join("package.json"),r#"{"name":"@trycua/cua-driver","version":"0.30.4"}"#).unwrap();
+        std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
         let sdk=package.join("dist/index.js");std::fs::write(&sdk,b"").unwrap();
         let script=root.join("worker.sh");
         std::fs::write(&script,b"count=0\nwhile IFS= read -r line; do count=$((count+1)); if [ $count -eq 1 ]; then ok=true; else ok=false; fi; printf '{\"task_id\":\"task\",\"step_id\":\"step\",\"attempt_id\":\"attempt\",\"worker_instance_id\":\"worker\",\"host_session_id\":\"host\",\"action_known\":true,\"action_succeeded\":%s,\"observe_valid\":true}\\n' $ok; done\n").unwrap();
@@ -273,10 +265,9 @@ mod tests {
         let script=root.join("worker.mjs");std::fs::write(&script,b"").unwrap();
         let evidence=root.join("evidence");std::fs::create_dir(&evidence).unwrap();
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
-        let worker=CuaWorker::new_sky(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();
-        assert!(worker.backend==CuaBackend::Sky);drop(worker);
+        let worker=CuaWorker::new(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();drop(worker);
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.8.0"}"#).unwrap();
-        assert!(matches!(CuaWorker::new_sky(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
+        assert!(matches!(CuaWorker::new(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
         std::fs::remove_dir_all(root).unwrap();
     }
 

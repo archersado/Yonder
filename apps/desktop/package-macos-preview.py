@@ -87,7 +87,7 @@ def main():
     bundle = root / f"target/{profile}/Yonda.app"
     if not binary.is_file() or not cli.is_file():
         raise SystemExit("请先编译 yonder-desktop 与 yonder CLI")
-    if not (modules / "@trycua/cua-driver/dist/index.js").is_file():
+    if not (modules / "@typesafe-ai/sdk/dist/index.mjs").is_file():
         raise SystemExit("请先在 apps/desktop/cua 执行 npm ci --ignore-scripts")
     if args.release and args.identity == "-" and not args.allow_adhoc:
         raise SystemExit("release 产物必须提供正式 codesign 身份")
@@ -119,10 +119,9 @@ def main():
     if not node:
         raise SystemExit("缺少 Node Runtime，无法封装 CUA SDK")
     shutil.copy2(node, resources / "node")
-    shutil.copy2(root / "crates/adapters/src/cua_worker.mjs", resources / "cua_worker.mjs")
     shutil.copy2(root / "crates/adapters/src/sky_cua_worker.mjs", resources / "sky_cua_worker.mjs")
     shutil.copy2(root / "crates/adapters/src/jev_worker.mjs", resources / "jev_worker.mjs")
-    for package in ["@trycua/cua-driver", "@trycua/cua-driver-darwin-arm64", "@ubjs/core", "@ubjs/node", "@ubjs/node-darwin-arm64", "@typesafe-ai/sdk"]:
+    for package in ["@typesafe-ai/sdk"]:
         shutil.copytree(modules / package, resources / "node_modules" / package)
     shutil.copy2(desktop / "release-contract.json", bundle / "Contents/Resources/release-contract.json")
     shutil.copy2(desktop / "driver-manifest.json", bundle / "Contents/Resources/driver-manifest.json")

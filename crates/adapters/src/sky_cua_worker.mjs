@@ -1,11 +1,11 @@
 import { createInterface } from 'node:readline';
 import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { realpath, writeFile } from 'node:fs/promises';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -54,8 +54,8 @@ const nodeReplShim = {
 const { sky } = await import(pathToFileURL(process.argv[2]).href);
 globalThis.nodeRepl = nodeReplShim;
 const supported = new Set([
-  'click', 'drag', 'paste', 'perform_secondary_action', 'press_key', 'scroll',
-  'select_text', 'set_value', 'type_text', 'launch_app', 'activate_window', 'bring_to_front',
+  'click', 'drag', 'perform_secondary_action', 'press_key', 'scroll',
+  'select_text', 'set_value', 'type_text',
 ]);
 let launchedTarget;
 
@@ -151,6 +151,9 @@ async function targetFor(request) {
       : applicationId;
     return { app: resolvedApp, applicationId };
   }
+  if (sky.target === 'mac' && launchedTarget?.task_id === request.task_id) {
+    return { app: launchedTarget.app };
+  }
   if (request.tool_name === 'bring_to_front' && sky.target === 'mac') {
     if (launchedTarget?.task_id !== request.task_id) throw new Error('launched target is unavailable');
     return { app: launchedTarget.app };
@@ -185,18 +188,51 @@ function fingerprint(state) {
   return `${stateText(state)}\n${screenshotUrl(state) ?? ''}`;
 }
 
+function transcriptElements(state) {
+  const elements = [];
+  for (const line of stateText(state).split('\n')) {
+    const match = line.match(/^\s*(?:\[(\d+)\]|(\d+))\s+(.+)$/);
+    if (match) elements.push({ index: Number(match[1] ?? match[2]), text: match[3].trim() });
+  }
+  return elements;
+}
+
+function uniqueElement(state, predicate) {
+  const matches = transcriptElements(state).filter(element => predicate(element.text.toLocaleLowerCase()));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function searchField(state) {
+  return uniqueElement(state, text => {
+    const editable = text.includes('文本框') || text.includes('text field') || text.includes('textfield') || text.includes('search field');
+    const search = text.includes('搜索') || text.includes('search');
+    return editable && search;
+  });
+}
+
 async function persistScreenshot(state, request, response) {
   const url = screenshotUrl(state);
   if (typeof url !== 'string') return;
   const match = url.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if (!match) return;
-  const bytes = Buffer.from(match[2], 'base64');
+  let mime;
+  let bytes;
+  if (match) {
+    mime = match[1];
+    bytes = Buffer.from(match[2], 'base64');
+  } else if (url.startsWith('file://')) {
+    const path = fileURLToPath(url);
+    if (!path.endsWith('.png')) return;
+    mime = 'image/png';
+    bytes = await readFile(path);
+  } else {
+    return;
+  }
   if (bytes.length === 0 || bytes.length > 4 * 1024 * 1024) return;
-  const extension = match[1] === 'image/png' ? 'png' : match[1] === 'image/jpeg' ? 'jpg' : 'webp';
+  const extension = mime === 'image/png' ? 'png' : mime === 'image/jpeg' ? 'jpg' : 'webp';
   const path = join(evidence, `${request.task_id}-${request.attempt_id}.${extension}`);
   await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
   response.screenshot_path = path;
-  response.screenshot_mime = match[1];
+  response.screenshot_mime = mime;
 }
 
 function actionArguments(request, target) {
@@ -204,11 +240,18 @@ function actionArguments(request, target) {
   delete args.pid;
   delete args.window_id;
   delete args.app;
+  delete args._yonder_action_kind;
+  delete args._yonder_private_text;
   if (target.app) args.app = target.app;
   return args;
 }
 
-async function perform(request, target) {
+function privateText(request) {
+  const value = request.arguments._yonder_private_text ?? request.arguments.text;
+  return typeof value === 'string' && value.length <= 4096 ? value : null;
+}
+
+async function perform(request, target, before) {
   if (request.tool_name === 'launch_app') {
     // macOS Sky 将启动封装在 get_app_state 中，且不会把应用抢到前台。
     await sky.get_app_state({ app: target.app, disableDiff: true });
@@ -218,11 +261,43 @@ async function perform(request, target) {
     // Yonder WindowActivationPort 已执行并验证原生 AX raise；这里仅做后置观察。
     return;
   }
-  const name = request.tool_name === 'bring_to_front' ? 'activate_window' : request.tool_name;
-  if (!supported.has(request.tool_name) || typeof sky[name] !== 'function') {
+  const semantic = request.arguments._yonder_action_kind;
+  if (sky.target === 'mac' && ['focus-target-search', 'focus-control'].includes(semantic)) {
+    const element = searchField(before);
+    if (!element) throw new WorkerFailure('target-semantic-element');
+    await sky.click({ ...target, element_index: element.index });
+    return { kind: 'element-present', index: element.index };
+  }
+  if (sky.target === 'mac' && ['enter-target-query', 'input-text'].includes(semantic)) {
+    const element = searchField(before);
+    const value = privateText(request);
+    if (!element || value == null) throw new WorkerFailure('target-semantic-element');
+    await sky.set_value({ ...target, element_index: element.index, value });
+    return { kind: 'text-present', value };
+  }
+  if (request.tool_name === 'hotkey') {
+    const keys = request.arguments.keys;
+    if (!Array.isArray(keys) || keys.join('+').toLowerCase() !== 'cmd+f') throw new WorkerFailure('target-semantic-key');
+    await sky.press_key({ ...target, key: 'super+f' });
+    return { kind: 'changed' };
+  }
+  const name = request.tool_name;
+  if (!supported.has(name) || typeof sky[name] !== 'function') {
     throw new Error('tool unavailable');
   }
-  await sky[name](actionArguments(request, target));
+  const args = actionArguments(request, target);
+  if (name === 'press_key' && typeof args.key === 'string' && ['ENTER', 'RETURN'].includes(args.key.toUpperCase())) args.key = 'Return';
+  await sky[name](args);
+  return { kind: 'changed' };
+}
+
+function actionConfirmed(expectation, before, after) {
+  if (!expectation) return true;
+  if (expectation.kind === 'element-present') {
+    return transcriptElements(after).some(element => element.index === expectation.index);
+  }
+  if (expectation.kind === 'text-present') return stateText(after).includes(expectation.value);
+  return fingerprint(before) !== fingerprint(after);
 }
 
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
@@ -238,15 +313,14 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       before = await observe(target);
     }
     response.failure_stage = 'action';
-    await perform(request, target);
+    const expectation = await perform(request, target, before);
     response.action_known = true;
     response.failure_stage = 'observe-after';
     const after = await observe(target);
     response.observe_valid = true;
     response.target_visible = request.tool_name === 'launch_app' ? false : externalMacFocus ? true : null;
-    const indexes = [...stateText(after).matchAll(/\[(\d+)\]/g)].map(match => Number(match[1]));
-    response.element_count = Math.min(65_535, new Set(indexes).size);
-    response.action_effect = request.tool_name === 'launch_app' || externalMacFocus || fingerprint(before) !== fingerprint(after)
+    response.element_count = Math.min(65_535, transcriptElements(after).length);
+    response.action_effect = request.tool_name === 'launch_app' || externalMacFocus || actionConfirmed(expectation, before, after)
       ? 'confirmed'
       : 'suspected_noop';
     response.action_succeeded = response.action_effect === 'confirmed';

@@ -1,6 +1,6 @@
 # Sky CUA driver
 
-Yonder 将 Sky 作为 `ComputerUsePort` 的可选执行后端，而不是把 ChatGPT/Codex 应用或其原生服务嵌入产品。默认 driver 仍是 `trycua`；设置 `YONDER_CUA_DRIVER=sky` 后，组合根改用 `sky_cua_worker.mjs`，选择失败时关闭 CUA，不静默回退到另一个 driver。
+Yonder 将 Sky 作为 macOS `ComputerUsePort` 的唯一产品执行后端，而不是把 ChatGPT/Codex 应用或其原生服务嵌入产品。组合根固定使用 `sky_cua_worker.mjs`；依赖或身份校验失败时关闭 CUA，不回退到另一个 driver。
 
 ## 运行边界
 
@@ -10,15 +10,14 @@ Yonder 将 Sky 作为 `ComputerUsePort` 的可选执行后端，而不是把 Cha
 - worker 禁用 Sky 的环境分析网络请求。应用策略和服务端禁止列表仍先于动作执行。
 - Yonder 的任务准入是 worker 的授权边界。Sky 要求的 session elicitation 只承接这次已批准的执行，不扩大任务、目标应用或步骤范围。
 
-## 选择方式
+## 研发覆盖路径
 
 ```sh
-YONDER_CUA_DRIVER=sky \
 YONDER_SKY_SDK_PATH=/absolute/path/to/@oai/sky/dist/project/cua/sky_js/src/index.js \
 /path/to/Yonda.app/Contents/MacOS/yonder-desktop
 ```
 
-不设置 `YONDER_CUA_DRIVER` 或显式设为 `trycua` 时，行为与原实现一致。任何其他值都会禁用 CUA。`YONDER_SKY_SDK_PATH` 必须是绝对路径、普通文件且不能是符号链接；包名和版本必须精确匹配。
+`YONDER_SKY_SDK_PATH` 仅用于研发时指定受信任安装位置，必须是绝对路径、普通文件且不能是符号链接；包名和版本必须精确匹配。正式组合根没有Driver选择开关。
 
 ## 目标绑定和结果确认
 
@@ -28,7 +27,7 @@ Yonder 继续以 `pid + window_id` 锁定工作目标：
 - macOS 的 `launch_app` 使用 Sky 文档约定的 `get_app_state` 透明后台启动语义，并把 `list_apps` 返回的 canonical bundle id 只缓存在同一任务和 worker 会话内。当同一 bundle id 同时存在安装副本与 App Translocation 副本时，worker 仅可从本机运行进程和 `Info.plist` 反向解析唯一的实际 `.app` 路径供 Sky 观察；路径不接受 Agent 输入、不进入协议或日志，无法唯一收敛时拒绝执行。
 - `bring_to_front` 统一桥接到 Yonder 的 `WindowActivationPort::activate_window`。macOS 平台实现用上述可信 bundle id 解析唯一运行实例及其最大普通窗口，复用原生 `MacWorkFocus` 精确激活并验证，再由 Sky 对同一实际应用路径做后置观察；Linux/Windows 实现可委托各自的 `sky.activate_window({ window })`。不接受 Agent 提交 PID、窗口号或路径替代缓存身份。
 - Linux/Windows Sky 使用窗口对象。worker 只接受 `list_windows()` 中与 `window_id` 精确相等的窗口。
-- 每个动作前后都执行观察。只有辅助功能文本或截图发生变化时才返回 `confirmed`；无变化返回 `suspected_noop`，由 Rust 侧收敛成未验证结果。
+- 每个动作前后都执行观察。Worker从本次应用级AX transcript解析新鲜元素index，语义输入还须由后置transcript确认目标值；无法定位或确认时返回未验证结果。
 - 截图只写入 Yonder 的 0700 evidence 目录，单文件上限 4 MiB；SDK 错误、辅助功能正文和截图不会进入宿主日志。
 
 ## 平台状态

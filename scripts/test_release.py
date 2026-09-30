@@ -10,8 +10,8 @@ class ReleaseManifestTest(unittest.TestCase):
     def test_repository_freezes_current_release_versions(self):
         manifest = collect_manifest(Path(__file__).resolve().parents[1], include_artifacts=False)
         self.assertEqual(manifest["version"], "0.1.0")
-        self.assertEqual(manifest["protocol"], {"major": 1, "minor": 29})
-        self.assertEqual(manifest["sqlite_schema"], 19)
+        self.assertEqual(manifest["protocol"], {"major": 1, "minor": 40})
+        self.assertEqual(manifest["sqlite_schema"], 23)
         self.assertEqual({driver["kind"] for driver in manifest["drivers"]}, {"cua", "bua"})
         self.assertIn("release_contract", manifest["sources"])
 
@@ -52,7 +52,6 @@ class ReleaseManifestTest(unittest.TestCase):
             "Contents/Resources/channel.json": '{"channel":"dev"}\n',
             "Contents/Resources/driver-manifest.json": '{"version":"0.1.0"}\n',
             "Contents/Resources/release-contract.json": '{"version":"0.1.0"}\n',
-            "Contents/Resources/cua/cua_worker.mjs": "export const worker = true;\n",
             "Contents/Resources/cua/sky_cua_worker.mjs": "export const worker = true;\n",
             "Contents/Resources/cua/jev_worker.mjs": "export const worker = true;\n",
         }

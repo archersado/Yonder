@@ -33,7 +33,7 @@ def workspace_versions(root):
 
 
 def protocol_version(root):
-    source = read_text(root / "crates/application/src/gateway.rs")
+    source = read_text(root / "crates/protocol/src/lib.rs")
     match = re.search(
         r"pub const PROTOCOL_VERSION:\s*ProtocolVersion\s*=\s*ProtocolVersion\s*\{"
         r"\s*major:\s*([0-9]+),\s*minor:\s*([0-9]+)",
@@ -130,7 +130,6 @@ MACOS_BUNDLE_EXACT_FILES = {
     "Contents/Resources/driver-manifest.json",
     "Contents/Resources/release-contract.json",
     "Contents/Resources/cua/node",
-    "Contents/Resources/cua/cua_worker.mjs",
     "Contents/Resources/cua/sky_cua_worker.mjs",
     "Contents/Resources/cua/jev_worker.mjs",
 }
@@ -172,7 +171,6 @@ OWNED_TEXT_FILES = {
     "Contents/Resources/channel.json",
     "Contents/Resources/driver-manifest.json",
     "Contents/Resources/release-contract.json",
-    "Contents/Resources/cua/cua_worker.mjs",
     "Contents/Resources/cua/sky_cua_worker.mjs",
     "Contents/Resources/cua/jev_worker.mjs",
 }
