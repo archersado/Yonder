@@ -159,6 +159,7 @@ impl CuaWorker {
             slot.as_mut().unwrap().launched_app=Some((attempt.task_id.clone(),bundle_id));
         }
         if matches!(outcome,DispatchOutcome::Unknown(_)){Self::stop(&mut slot);self.cleanup()}
+        if matches!(outcome,DispatchOutcome::UnknownObserved { .. }){Self::stop(&mut slot)}
         outcome
     }
 }
@@ -188,13 +189,14 @@ fn classify(attempt: &ExecutionAttempt, output: &[u8], evidence:&Path) -> Dispat
     if !response.observe_valid { #[cfg(debug_assertions)] eprintln!("cua worker failed at {}",response.failure_stage.as_deref().unwrap_or("unknown")); return DispatchOutcome::Unknown(UnknownReason::ObserveFailed); }
     let effect=match response.action_effect{Some(effect)=>effect,None=>return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)};
     if response.action_succeeded!=matches!(effect,ActionEffect::Confirmed){return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}
-    if matches!(effect,ActionEffect::Partial|ActionEffect::Unverifiable|ActionEffect::SuspectedNoop){return DispatchOutcome::Unknown(UnknownReason::ObserveFailed)}
     let screenshot=match (response.screenshot_path,response.screenshot_mime){
         (Some(path),Some(mime)) if matches!(mime.as_str(),"image/png"|"image/jpeg"|"image/webp")=>{let path=PathBuf::from(path);let valid=path.parent()==Some(evidence)&&std::fs::symlink_metadata(&path).is_ok_and(|value|value.file_type().is_file()&&value.len()<=4*1024*1024);if !valid{return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}Some((path.to_string_lossy().into_owned(),mime))},
         (None,None)=>None,
         _=>return DispatchOutcome::Unknown(UnknownReason::InvalidResponse),
     };
-    DispatchOutcome::Known { action_succeeded: matches!(effect,ActionEffect::Confirmed), observation:Some(ComputerObservation{element_count:response.element_count,screenshot_path:screenshot.as_ref().map(|value|value.0.clone()),screenshot_mime:screenshot.map(|value|value.1),target_visible:response.target_visible}) }
+    let observation=ComputerObservation{element_count:response.element_count,screenshot_path:screenshot.as_ref().map(|value|value.0.clone()),screenshot_mime:screenshot.map(|value|value.1),target_visible:response.target_visible};
+    if matches!(effect,ActionEffect::Partial|ActionEffect::Unverifiable|ActionEffect::SuspectedNoop){return DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation }}
+    DispatchOutcome::Known { action_succeeded: matches!(effect,ActionEffect::Confirmed), observation:Some(observation) }
 }
 
 #[cfg(test)]
@@ -215,7 +217,7 @@ mod tests {
         assert_eq!(classify(&attempt, response("worker", true,true,"confirmed").as_bytes(),&evidence), DispatchOutcome::Known { action_succeeded: true, observation:Some(ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,target_visible:None}) });
         assert_eq!(classify(&attempt, response("old", true,true,"confirmed").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::IdentityMismatch));
         assert_eq!(classify(&attempt, response("worker", false,true,"confirmed").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::ObserveFailed));
-        assert_eq!(classify(&attempt, response("worker", true,false,"unverifiable").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::ObserveFailed));
+        assert_eq!(classify(&attempt, response("worker", true,false,"unverifiable").as_bytes(),&evidence), DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation:ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,target_visible:None} });
         assert_eq!(classify(&attempt, response("worker", true,false,"refused").as_bytes(),&evidence), DispatchOutcome::Known { action_succeeded:false, observation:Some(ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,target_visible:None}) });
         assert_eq!(classify(&attempt, response("worker", true,true,"unverifiable").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
         assert_eq!(classify(&attempt, b"{}",&evidence), DispatchOutcome::Unknown(UnknownReason::InvalidResponse));

@@ -17,6 +17,7 @@ pub type UnknownReason = crate::unknown_reason::UnknownReason;
 pub enum DispatchOutcome {
     Known { action_succeeded: bool, observation:Option<ComputerObservation> },
     Unknown(UnknownReason),
+    UnknownObserved { reason: UnknownReason, observation: ComputerObservation },
 }
 
 /// 只供可信 Application 编排；Agent/UI 不得直接构造目标或上报执行结果。
@@ -52,7 +53,7 @@ pub fn execute_agent_action(
     let accepted=start_execution(store,admission,&task,&attempt,expected,&[Resource::Desktop]).map_err(|_|Error::StopRequired)?.1;
     let action=ComputerAction{tool_name:tool_name.into(),arguments_json:arguments_json.into()};
     let outcome=dispatch_prepared(store,port,task_id,&accepted.attempt_id,&target,&action)?;
-    let observation=match &outcome{DispatchOutcome::Known{observation,..}=>observation.clone(),DispatchOutcome::Unknown(_)=>None};
+    let observation=match &outcome{DispatchOutcome::Known{observation,..}=>observation.clone(),DispatchOutcome::UnknownObserved{observation,..}=>Some(observation.clone()),DispatchOutcome::Unknown(_)=>None};
     let interrupted=outcome==DispatchOutcome::Unknown(UnknownReason::UserInput);
     let (result_task,result)=record_dispatch_outcome(store,task_id,&accepted.attempt_id,outcome)?;
     if interrupted{
@@ -117,14 +118,14 @@ pub fn execute_agent_action_runtime(
     let outcome = port.dispatch(&attempt, &target, &action);
     let observation = match &outcome {
         DispatchOutcome::Known { observation, .. } => observation.clone(),
-        DispatchOutcome::Unknown(_) => None,
+        DispatchOutcome::Unknown(_) | DispatchOutcome::UnknownObserved { .. } => None,
     };
     let interrupted = outcome == DispatchOutcome::Unknown(UnknownReason::UserInput);
     let conclusion = match outcome {
         DispatchOutcome::Known {
             action_succeeded, ..
         } => crate::AttemptConclusion::Observed { action_succeeded },
-        DispatchOutcome::Unknown(reason) => crate::AttemptConclusion::Unknown { reason },
+        DispatchOutcome::Unknown(reason) | DispatchOutcome::UnknownObserved { reason, .. } => crate::AttemptConclusion::Unknown { reason },
     };
     let (snapshot, result) =
         crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
@@ -217,14 +218,14 @@ pub fn execute_agent_step_runtime(
     );
     let observation = match &outcome {
         DispatchOutcome::Known { observation, .. } => observation.clone(),
-        DispatchOutcome::Unknown(_) => None,
+        DispatchOutcome::Unknown(_) | DispatchOutcome::UnknownObserved { .. } => None,
     };
     let interrupted = outcome == DispatchOutcome::Unknown(UnknownReason::UserInput);
     let conclusion = match outcome {
         DispatchOutcome::Known {
             action_succeeded, ..
         } => crate::AttemptConclusion::Observed { action_succeeded },
-        DispatchOutcome::Unknown(reason) => crate::AttemptConclusion::Unknown { reason },
+        DispatchOutcome::Unknown(reason) | DispatchOutcome::UnknownObserved { reason, .. } => crate::AttemptConclusion::Unknown { reason },
     };
     let (snapshot, result) =
         crate::execution_runtime::record_attempt_outcome(runtime, &attempt, conclusion)
@@ -354,7 +355,7 @@ pub fn record_dispatch_outcome(store: &mut impl crate::TaskStore, task_id: &str,
     let attempt = store.get_attempt(task_id)?.filter(|attempt| attempt.attempt_id == attempt_id).ok_or(crate::Error::Conflict)?;
     let conclusion = match outcome {
         DispatchOutcome::Known { action_succeeded, .. } => crate::AttemptConclusion::Observed { action_succeeded },
-        DispatchOutcome::Unknown(reason) => crate::AttemptConclusion::Unknown { reason },
+        DispatchOutcome::Unknown(reason) | DispatchOutcome::UnknownObserved { reason, .. } => crate::AttemptConclusion::Unknown { reason },
     };
     store.record_attempt_result(&attempt, task.sequence, conclusion)
 }

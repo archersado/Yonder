@@ -77,20 +77,20 @@ pub fn execute_one(
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
     config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized),
     auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str,
-) -> Result<(crate::Task, &'static str), crate::Error> {
+) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
     if !matches!(auth, crate::AuthContext::Agent(_)) { return Err(crate::Error::PermissionDenied); }
-    if computer.explicit_takeover_requested(task_id) { return Ok((store.get(task_id)?, "takeover-requested")); }
+    if computer.explicit_takeover_requested(task_id) { return Ok((store.get(task_id)?, "takeover-requested", None)); }
     let stored=store.get_plan_fragment(task_id,plan_id,plan_version)?.ok_or(crate::Error::NotFound)?;
     if stored.owner_agent_id != auth.agent_id() || stored.fragment.deadline_ms <= now_ms || expected != store.get(task_id)?.sequence { return Err(crate::Error::Conflict); }
     let index=usize::from(stored.current_slot);
-    if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete")); }
+    if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete", None)); }
     let slot=&stored.fragment.slots[index];
     computer.project_decision(task_id,&slot.step_id,&slot.label,&format!("正在评估 {} 个受支持候选",slot.candidates.len()));
     let choice=select(config,jev,&stored.fragment,index).map_err(|_|crate::Error::StopRequired)?;
     let Selection::Dispatch(action)=choice else {
         computer.project_decision(task_id,&slot.step_id,&slot.label,"已交回慢脑重新观察或规划");
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑重新 Observe 或规划")?;
-        return Ok((task, "handback"));
+        return Ok((task, "handback", None));
     };
     let decision = if slot.candidates.len()==1 {
         format!("慢脑单候选直接授权：{}",action_kind_label(action.action_kind))
@@ -103,24 +103,24 @@ pub fn execute_one(
     // 参数派发为一个不可解释的按键操作，更不能猜测或重试发送。
     if matches!(action.action_kind, yonder_protocol::CuaActionKind::SendMessage) {
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑安排本机发送确认")?;
-        return Ok((task, "slow-brain-required"));
+        return Ok((task, "slow-brain-required", None));
     }
-    let (task,result,_)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
+    let (task,result,observation)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&action.arguments_json,host_session_id)?;
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
         computer.project_step_unverified(task_id,&slot.step_id);
         // user-input 会把任务原子地转为 interrupted，并已写入事件/Outbox；此时
         // 不得再把片段交回写成第二次状态迁移，否则会掩盖中断事实并触发 CAS 冲突。
         if !matches!(task.status, crate::Status::Created | crate::Status::Running) {
-            return Ok((task, "handback"));
+            return Ok((task, "handback", observation));
         }
         match store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"需要慢脑重新 Observe 或规划") {
-            Ok(task) => return Ok((task,"handback")),
+            Ok(task) => return Ok((task,"handback",observation)),
             // 用户输入可在 unknown 结果落库后、交回事件写入前原子地中断任务。
             // 此时保留已写入的 interrupted 事实，不能用过期 CAS 再写第二个交回。
             Err(crate::Error::Conflict) => {
                 let current=store.get(task_id)?;
                 if !matches!(current.status, crate::Status::Created | crate::Status::Running) {
-                    return Ok((current,"handback"));
+                    return Ok((current,"handback",observation));
                 }
                 return Err(crate::Error::Conflict);
             }
@@ -129,7 +129,7 @@ pub fn execute_one(
     }
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
     computer.project_step_completed(task_id,&slot.step_id);
-    Ok((task,"advanced"))
+    Ok((task,"advanced",observation))
 }
 
 fn action_kind_label(kind:yonder_protocol::CuaActionKind)->&'static str{match kind{
@@ -148,7 +148,7 @@ pub fn execute_available(
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
     config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized),
     auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str,
-) -> Result<(crate::Task, &'static str), crate::Error> {
+) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
     let initial = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
     if initial.owner_agent_id != auth.agent_id()
         || initial.fragment.deadline_ms <= now_ms
@@ -158,34 +158,34 @@ pub fn execute_available(
     }
     let remaining = initial.fragment.slots.len().saturating_sub(usize::from(initial.current_slot));
     if remaining == 0 {
-        return Ok((store.get(task_id)?, "fragment-complete"));
+        return Ok((store.get(task_id)?, "fragment-complete", None));
     }
     let allowed = remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));
     let mut sequence = expected;
     for _ in 0..allowed {
         if computer.explicit_takeover_requested(task_id) {
-            return Ok((store.get(task_id)?, "takeover-requested"));
+            return Ok((store.get(task_id)?, "takeover-requested", None));
         }
-        let (task, disposition) = execute_one(
+        let (task, disposition, observation) = execute_one(
             store, admission, computer, targets, config, jev, auth, task_id, plan_id,
             plan_version, sequence, now_ms, host_session_id,
         )?;
         sequence = task.sequence;
         if disposition != "advanced" {
-            return Ok((task, disposition));
+            return Ok((task, disposition, observation));
         }
         if computer.explicit_takeover_requested(task_id) {
-            return Ok((task, "takeover-requested"));
+            return Ok((task, "takeover-requested", None));
         }
         let current = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
         if usize::from(current.current_slot) >= current.fragment.slots.len() {
-            return Ok((task, "fragment-complete"));
+            return Ok((task, "fragment-complete", observation));
         }
     }
     let task = store.hand_back_plan_fragment(
         task_id, plan_id, plan_version, sequence, "计划片段步数预算已耗尽",
     )?;
-    Ok((task, "handback"))
+    Ok((task, "handback", None))
 }
 
 pub fn validate(fragment: &PlanFragment) -> Result<(), crate::Error> {

@@ -15,6 +15,8 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 2026-09-29 交回唤醒修订（用户变更，已接受）：仅写入handback/Outbox但不唤醒归属慢脑会让产品停在“等待重新规划”。Desktop在`task.plan.execute`响应已提交后，必须通过AG-S5既有双向`agent.input`会话向唯一匹配的归属Agent会话投递有界`replan`输入；不得直连模型、复用其他Agent会话或在Driver内调用慢脑。投递发生在Gateway响应写回及执行锁释放之后，不阻塞执行热路径；无连接、多会话歧义、拒绝或超时只更新展示为等待/唤醒失败，不自动重试副作用。慢脑仍须读取任务快照/事件并从原Gateway提交新片段。顶部浮窗连续展示“已交回及最小原因→慢脑正在重新规划→慢脑已提交N步新计划”，不展示模型思维链、原始Observe、正文、联系人或完整Payload。Rust协议为`AgentInputSource`增加`replan`，Schema与TypeScript继续由Rust单一生成。
 
+2026-09-30 元素优先/视觉证据修订（用户变更，已接受）：Application与CUA Driver在动作前优先使用同一可信窗口的新鲜AX/UIA元素；只有目标缺失或不唯一且动作尚未派发时，才允许采集一次窗口级临时截图并随`task.plan.execute`交回响应返回。该截图不进入计划、SQLite、事件、Outbox、日志或Jev请求，任务终结或Worker回收时清理。窗口级动作及其后置Observe继续绑定同一可信应用/窗口，不得退回当前前台桌面；视觉证据只交给归属慢脑形成下一版受限候选，Yonder不内置视觉Planner。协议1.34只扩展临时Observation响应，不在本修订中扩大副作用动作集合或发送确认权限。
+
 ## 待决问题
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。

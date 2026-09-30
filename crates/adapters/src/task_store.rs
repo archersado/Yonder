@@ -4069,7 +4069,7 @@ mod tests {
             capabilities: vec![JevCapability::Cua],
         };
         let port = Port(Mutex::new(Vec::new()));
-        let (task, disposition) = execute_available(
+        let (task, disposition, _) = execute_available(
             &mut store,
             &Admission::new(1).unwrap(),
             &port,
@@ -4118,7 +4118,7 @@ mod tests {
             step_limit: 1,
             ..config.clone()
         };
-        let (budget_result, budget_disposition) = execute_available(
+        let (budget_result, budget_disposition, _) = execute_available(
             &mut store,
             &Admission::new(1).unwrap(),
             &budget_port,
@@ -4164,7 +4164,7 @@ mod tests {
         };
         let failed_submitted = store.submit_plan_fragment("a1", &failed_fragment).unwrap();
         let failed_port = FailingPort(Mutex::new(Vec::new()));
-        let (failed_result, failed_disposition) = execute_available(
+        let (failed_result, failed_disposition, _) = execute_available(
             &mut store,
             &Admission::new(1).unwrap(),
             &failed_port,
@@ -4212,7 +4212,7 @@ mod tests {
             .submit_plan_fragment("a1", &takeover_fragment)
             .unwrap();
         let takeover_port = TakeoverPort(Mutex::new(Vec::new()));
-        let (takeover_result, takeover_disposition) = execute_available(
+        let (takeover_result, takeover_disposition, _) = execute_available(
             &mut store,
             &Admission::new(1).unwrap(),
             &takeover_port,
@@ -4251,7 +4251,7 @@ mod tests {
             ..takeover_fragment
         };
         let pending_submitted = store.submit_plan_fragment("a1", &pending_fragment).unwrap();
-        let (pending_result, pending_disposition) = execute_available(
+        let (pending_result, pending_disposition, _) = execute_available(
             &mut store,
             &Admission::new(1).unwrap(),
             &PendingTakeoverPort,

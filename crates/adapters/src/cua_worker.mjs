@@ -5,6 +5,37 @@ import { pathToFileURL } from 'node:url';
 
 const sdk = await import(pathToFileURL(process.argv[2]).href);
 const structured = value => value.structuredJson ? JSON.parse(value.structuredJson) : JSON.parse(value.rawJson ?? '{}').structuredContent ?? {};
+const captureObservation = async (driver, descriptor, name, base, screenshotPath, session) => {
+  const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
+  const input = { ...base };
+  if ('include_screenshot' in properties) input.include_screenshot = true;
+  if ('max_elements' in properties) input.max_elements = 100;
+  if ('session' in properties) input.session = session;
+  if ('screenshot_out_file' in properties) input.screenshot_out_file = screenshotPath;
+  if ('screenshotOutFile' in properties) input.screenshotOutFile = screenshotPath;
+  const result = await driver.callTool(name, JSON.stringify(input));
+  if (result.isError) return { result, elementCount: 0, screenshot: null };
+  const state = structured(result);
+  const elementCount = Math.min(65535, Array.isArray(state.elements) ? state.elements.length : Array.isArray(state.windows) ? state.windows.length : 0);
+  if ('screenshot_out_file' in properties || 'screenshotOutFile' in properties) {
+    const metadata = await stat(screenshotPath).catch(() => null);
+    if (metadata?.isFile() && metadata.size <= 4 * 1024 * 1024) {
+      return { result, elementCount, screenshot: { path: screenshotPath, mime: 'image/png' } };
+    }
+  } else {
+    const image = result.images?.[0];
+    if (image && ['image/png', 'image/jpeg', 'image/webp'].includes(image.mimeType)) {
+      const bytes = Buffer.from(image.dataBase64, 'base64');
+      if (bytes.length <= 4 * 1024 * 1024) {
+        const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/jpeg' ? 'jpg' : 'webp';
+        const path = screenshotPath.replace(/\.png$/, `.${extension}`);
+        await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
+        return { result, elementCount, screenshot: { path, mime: image.mimeType } };
+      }
+    }
+  }
+  return { result, elementCount, screenshot: null };
+};
 // trycua 0.25.0 的 launch_state 在不同平台实现中可能是旧版枚举字符串，
 // 也可能是包含 requested/process_running/window_ready 的结构化状态。两种形态
 // 表达的是同一契约；只要 SDK 已返回可信 PID 且确认进程运行或窗口就绪，就可
@@ -67,12 +98,14 @@ try {
     try {
       const descriptor = tools.find(tool => tool.name === request.tool_name);
       if (!descriptor) throw new Error('tool unavailable');
-      if (request.tool_name === 'bring_to_front' && launchedTarget?.task_id === request.task_id) {
+      if (request.tool_name !== 'launch_app' && launchedTarget?.task_id === request.task_id) {
         response.failure_stage = 'target-refresh';
         await refreshLaunchedTarget(false);
       }
       response.failure_stage = 'observe-before';
-      const target = request.tool_name === 'bring_to_front' && launchedTarget?.task_id === request.task_id ? launchedTarget : request;
+      // launch_app之后的同任务窗口级动作继续绑定Driver返回的可信应用身份。
+      // 这不会前置窗口；desktop scope仍由SDK自行解析当前桌面。
+      const target = request.tool_name !== 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : request;
       const actionTargetPid = target.pid;
       const args = { pid: target.pid, window_id: target.window_id, include_screenshot: false, max_elements: 100 };
       const before = await driver.callTool('get_window_state', JSON.stringify(args));
@@ -87,7 +120,22 @@ try {
         if ('session' in properties) actionArgs.session = request.host_session_id;
         if (!desktopScope && request.tool_name === 'type_text' && !('x' in actionArgs) && !('y' in actionArgs)) {
           const fields = (structured(before).elements ?? []).filter(element => /textfield|edit/i.test(element.role ?? '') && element.enabled !== false && element.element_token);
-          if (fields.length !== 1) throw new Error('editable target unavailable');
+          if (fields.length !== 1) {
+            // 元素缺失或不唯一时尚未执行任何副作用。只在此分支采集一次截图，
+            // 让归属慢脑按视觉证据提交坐标动作；正常元素路径不请求截图。
+            response.failure_stage = 'visual-fallback-observe';
+            const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
+            const observed = await captureObservation(driver, tools.find(tool => tool.name === 'get_window_state'), 'get_window_state', args, screenshotPath, request.host_session_id);
+            response.action_known = true;
+            response.action_effect = 'refused';
+            response.observe_valid = !observed.result.isError;
+            response.element_count = observed.elementCount;
+            response.screenshot_path = observed.screenshot?.path ?? null;
+            response.screenshot_mime = observed.screenshot?.mime ?? null;
+            if (response.observe_valid && response.screenshot_path) response.failure_stage = null;
+            process.stdout.write(JSON.stringify(response) + '\n');
+            continue;
+          }
           if ('element_token' in properties) actionArgs.element_token = fields[0].element_token;
         }
         response.failure_stage = 'action';
@@ -116,19 +164,29 @@ try {
         response.action_succeeded = response.action_effect === 'confirmed';
         response.failure_stage = 'observe-after';
         const desktop = tools.find(tool => tool.name === 'get_desktop_state');
+        const windowState = tools.find(tool => tool.name === 'get_window_state');
+        if (request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id) await refreshLaunchedTarget(false);
+        const observationTarget = request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : target;
+        const observationArgs = { pid: observationTarget.pid, window_id: observationTarget.window_id, include_screenshot: false, max_elements: 100 };
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
+        const visualAction = Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
         const observe = async (descriptor, name, base) => {
           const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
           const input = { ...base };
-          if ('include_screenshot' in properties) input.include_screenshot = true;
+          // 元素动作的后置核验只读取结构化状态；坐标动作才需要窗口截图验证。
+          // 这样正常元素路径不会因为通用Observe而隐式升级成视觉路径。
+          if ('include_screenshot' in properties) input.include_screenshot = visualAction;
           if ('max_elements' in properties) input.max_elements = 100;
           if ('session' in properties) input.session = request.host_session_id;
           if ('screenshot_out_file' in properties) input.screenshot_out_file = screenshotPath;
           if ('screenshotOutFile' in properties) input.screenshotOutFile = screenshotPath;
           return [await driver.callTool(name, JSON.stringify(input)), properties];
         };
-        let [after, afterProperties] = desktop ? await observe(desktop, 'get_desktop_state', {}) : await observe(tools.find(tool => tool.name === 'get_window_state'), 'get_window_state', args);
-        if (after.isError && desktop) [after, afterProperties] = await observe(tools.find(tool => tool.name === 'get_window_state'), 'get_window_state', args);
+        // 窗口级动作必须观察同一可信窗口；全桌面截图既不能证明后台动作，
+        // 也会把视觉重规划引向当时的前台应用。只有显式desktop scope才观察桌面。
+        let [after, afterProperties] = desktopScope && desktop
+          ? await observe(desktop, 'get_desktop_state', {})
+          : await observe(windowState, 'get_window_state', observationArgs);
         response.observe_valid = !after.isError;
         if (response.observe_valid) {
           const state = structured(after);

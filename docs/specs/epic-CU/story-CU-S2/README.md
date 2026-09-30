@@ -7,6 +7,7 @@ OpenSpec: cu-s2-supervised-dispatch-observe
 Work Focus Increment: [cu-s2-native-work-focus](../../../../openspec/changes/cu-s2-native-work-focus/proposal.md)
 Agent Gateway Increment: [cu-s2-agent-computer-gateway](../../../../openspec/changes/cu-s2-agent-computer-gateway/proposal.md)
 Cross-Space App Focus Increment: [cu-s2-cross-space-app-focus](../../../../openspec/changes/cu-s2-cross-space-app-focus/proposal.md)
+Element/Visual Observation Increment: [cu-s2-element-visual-observation](../../../../openspec/changes/cu-s2-element-visual-observation/proposal.md)
 
 ## 设计文档
 

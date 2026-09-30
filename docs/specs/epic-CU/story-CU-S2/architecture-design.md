@@ -62,7 +62,13 @@ Accepted AD-CU-05新增协议1.9/1.10。Application Supervisor生成完整执行
 
 2026-09-16连续会话补充：`CuaWorker`在任务执行期内惰性启动一个Node子进程，Node只创建一次trycua Driver并逐行处理动作；Rust在唯一Desktop租约下串行请求并逐动作校验身份、超时、用户输入和后置Observe。正常步骤间不关闭Driver；任务完成或unknown边界立即终止子进程，下一次准入重新创建。原生WorkRef只服务已停止后的人工接管，不与Agent CUA序列交错。
 
-协议1.12的`computer.step`是Application组合用例，不新增执行栈：依次复用既有declare、execute/result和advance事务，任一步失败都保留已提交事实供重试或恢复。MCP默认只暴露该粗粒度CUA入口，1.11接口仅兼容旧客户端。Worker后置Observe优先调用SDK `get_desktop_state`并请求截图；仅把元素数量及最多4MiB图片写入受控临时文件后返回路径，完整结构化结果不跨Gateway。Node仍是固定SDK Adapter，不能接受Agent代码。
+协议1.12的`computer.step`是Application组合用例，不新增执行栈：依次复用既有declare、execute/result与advance事务，任一步失败都保留已提交事实供重试或恢复。MCP默认只暴露该粗粒度CUA入口，1.11接口仅兼容旧客户端。Worker后置Observe优先调用SDK `get_desktop_state`并请求截图；仅把元素数量及最多4MiB图片写入受控临时文件后返回路径，完整结构化结果不跨Gateway。Node仍是固定SDK Adapter，不能接受Agent代码。
+
+2026-09-29目标解析增量：Worker先以不含截图的`get_window_state`读取AX/UIA元素，并只在元素唯一可解析时注入可信`element_token`。若目标元素缺失或不唯一，Worker不得调用副作用工具；它改为执行一次包含截图的只读Observe，返回`refused + observe_valid`及受控临时图片，并由Application通过协议1.34把该证据随本次计划执行响应交给归属慢脑。慢脑可据此提交带动作语义的坐标候选；Yonder不内置第二套视觉规划器，也不在元素可用时追加视觉定位截图。截图生命周期、隐私排除和4MiB上限沿用既有Computer Observation约束。
+
+同一Worker会话中，`launch_app`返回并经Driver验证的bundle id、PID和窗口身份同时作为后续窗口级后台动作的可信目标；每步动作前按bundle id刷新进程与普通窗口，但不激活应用。仅`scope=desktop`保留SDK自行解析桌面的语义。这样后台键盘、文本输入和视觉兜底观察不会误落到当时的前台应用。
+
+动作后Observe按动作作用域选择：窗口级动作调用同一PID/window id的`get_window_state`；只有显式桌面动作调用`get_desktop_state`。不得先抓全桌面再以窗口观察兜底，因为一次有效但错误作用域的桌面截图会污染后台任务的视觉重规划。
 
 ## 跨Space应用前置增量
 

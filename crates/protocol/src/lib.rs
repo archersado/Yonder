@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 33 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 34 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -1265,6 +1265,9 @@ pub enum QueryResult {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         handoff_reason: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        observation: Option<ComputerObservation>,
     },
 }
 
@@ -2525,6 +2528,30 @@ mod tests {
                 "生成产物过期：{name}"
             );
         }
+    }
+
+    #[test]
+    fn plan_handback_can_return_ephemeral_visual_observation() {
+        let response = Response::Success {
+            jsonrpc: Version::V2,
+            id: "plan-1".into(),
+            result: QueryResult::Plan {
+                task_id: "task-1".into(),
+                plan_id: "plan-1".into(),
+                plan_version: 1,
+                sequence: "7".into(),
+                disposition: "handback".into(),
+                handoff_reason: Some("需要慢脑视觉重规划".into()),
+                observation: Some(ComputerObservation {
+                    element_count: 2,
+                    screenshot_path: Some("/tmp/yonder-evidence/task-attempt.png".into()),
+                    screenshot_mime: Some("image/png".into()),
+                    target_visible: None,
+                }),
+            },
+        };
+        let encoded = serde_json::to_vec(&response).unwrap();
+        assert_eq!(decode_response(&encoded).unwrap(), response);
     }
 }
 
