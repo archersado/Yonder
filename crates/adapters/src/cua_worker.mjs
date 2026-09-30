@@ -5,6 +5,16 @@ import { pathToFileURL } from 'node:url';
 
 const sdk = await import(pathToFileURL(process.argv[2]).href);
 const structured = value => value.structuredJson ? JSON.parse(value.structuredJson) : JSON.parse(value.rawJson ?? '{}').structuredContent ?? {};
+const persistEmbeddedScreenshot = async (result, screenshotPath) => {
+  const image = result.images?.[0];
+  if (!image || !['image/png', 'image/jpeg', 'image/webp'].includes(image.mimeType)) return null;
+  const bytes = Buffer.from(image.dataBase64, 'base64');
+  if (bytes.length > 4 * 1024 * 1024) return null;
+  const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/jpeg' ? 'jpg' : 'webp';
+  const path = screenshotPath.replace(/\.png$/, `.${extension}`);
+  await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
+  return { path, mime: image.mimeType };
+};
 const captureObservation = async (driver, descriptor, name, base, screenshotPath, session) => {
   const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
   const input = { ...base };
@@ -22,19 +32,8 @@ const captureObservation = async (driver, descriptor, name, base, screenshotPath
     if (metadata?.isFile() && metadata.size <= 4 * 1024 * 1024) {
       return { result, elementCount, screenshot: { path: screenshotPath, mime: 'image/png' } };
     }
-  } else {
-    const image = result.images?.[0];
-    if (image && ['image/png', 'image/jpeg', 'image/webp'].includes(image.mimeType)) {
-      const bytes = Buffer.from(image.dataBase64, 'base64');
-      if (bytes.length <= 4 * 1024 * 1024) {
-        const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/jpeg' ? 'jpg' : 'webp';
-        const path = screenshotPath.replace(/\.png$/, `.${extension}`);
-        await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
-        return { result, elementCount, screenshot: { path, mime: image.mimeType } };
-      }
-    }
   }
-  return { result, elementCount, screenshot: null };
+  return { result, elementCount, screenshot: await persistEmbeddedScreenshot(result, screenshotPath) };
 };
 // trycua 0.25.0 的 launch_state 在不同平台实现中可能是旧版枚举字符串，
 // 也可能是包含 requested/process_running/window_ready 的结构化状态。两种形态
@@ -145,7 +144,7 @@ try {
           && Number.isFinite(actionArgs.y);
         const coordinateAction = coordinateClick || coordinateText;
         const foregroundCoordinate = coordinateAction;
-        const semanticShortcut = semanticKind === 'focus-target-search'
+        const semanticShortcut = ['focus-target-search','focus-control'].includes(semanticKind)
           && request.tool_name === 'hotkey'
           && Array.isArray(actionArgs.keys)
           && actionArgs.keys.length === 2
@@ -156,7 +155,7 @@ try {
         if (semanticKind) {
           response.failure_stage = 'semantic-target';
           let selected;
-          if (semanticKind === 'focus-target-search' || semanticKind === 'enter-target-query') {
+          if (['focus-target-search','enter-target-query','focus-control','input-text'].includes(semanticKind)) {
             const explicit = beforeElements.filter(searchField);
             const allFields = beforeElements.filter(textField);
             selected = uniqueElement(explicit) ?? uniqueElement(allFields);
@@ -170,13 +169,17 @@ try {
           } else if (semanticKind === 'send-message' && request.tool_name === 'click') {
             selected = uniqueElement(beforeElements.filter(element => element.enabled !== false && element.element_token && /^(发送|send)$/i.test(elementText(element))));
           }
-          if (!coordinateAction && !semanticShortcut && (['focus-target-search', 'enter-target-query', 'activate-target', 'focus-message-composer', 'draft-message-ref'].includes(semanticKind) || (semanticKind === 'send-message' && request.tool_name === 'click'))) {
+          const semanticElementAction = ['focus-target-search', 'enter-target-query', 'focus-control', 'input-text', 'activate-target', 'focus-message-composer', 'draft-message-ref'].includes(semanticKind)
+            || (semanticKind === 'activate-control' && request.tool_name === 'click')
+            || (semanticKind === 'send-message' && request.tool_name === 'click');
+          if (!coordinateAction && !semanticShortcut && semanticElementAction) {
             trustedFocusedInput = request.tool_name === 'type_text'
               && trustedVisualFocus?.task_id === request.task_id
               && trustedVisualFocus?.pid === target.pid
               && trustedVisualFocus?.window_id === target.window_id
               && ((semanticKind === 'enter-target-query' && trustedVisualFocus.kind === 'search')
-                || (semanticKind === 'draft-message-ref' && trustedVisualFocus.kind === 'composer'));
+                || (semanticKind === 'draft-message-ref' && trustedVisualFocus.kind === 'composer')
+                || (semanticKind === 'input-text' && trustedVisualFocus.kind === 'control'));
             if ((!selected || !('element_token' in properties)) && !trustedFocusedInput) {
               const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
               const observed = await captureObservation(driver, tools.find(tool => tool.name === 'get_window_state'), 'get_window_state', args, screenshotPath, request.host_session_id);
@@ -316,17 +319,11 @@ try {
               response.screenshot_path = screenshotPath;
               response.screenshot_mime = 'image/png';
             }
-          } else {
-            const image = after.images?.[0];
-            if (image && ['image/png', 'image/jpeg', 'image/webp'].includes(image.mimeType)) {
-            const bytes = Buffer.from(image.dataBase64, 'base64');
-            if (bytes.length <= 4 * 1024 * 1024) {
-              const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/jpeg' ? 'jpg' : 'webp';
-              response.screenshot_path = join(process.argv[3], `${request.task_id}-${request.attempt_id}.${extension}`);
-              response.screenshot_mime = image.mimeType;
-              await writeFile(response.screenshot_path, bytes, { flag: 'wx', mode: 0o600 });
-            }
-            }
+          }
+          if (!response.screenshot_path) {
+            const embedded = await persistEmbeddedScreenshot(after, screenshotPath);
+            response.screenshot_path = embedded?.path ?? null;
+            response.screenshot_mime = embedded?.mime ?? null;
           }
           if (launchedTarget?.task_id === request.task_id && ['launch_app', 'bring_to_front'].includes(request.tool_name)) {
             const deadline = Date.now() + (request.tool_name === 'launch_app' ? 0 : 2000);
@@ -363,6 +360,7 @@ try {
           if (!action.isError && response.observe_valid && focusAction && response.action_effect === 'confirmed') {
             if (semanticKind === 'focus-target-search') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'search' };
             if (semanticKind === 'focus-message-composer') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'composer' };
+            if (semanticKind === 'focus-control') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'control' };
           }
         }
       }

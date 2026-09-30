@@ -19,6 +19,7 @@ Codex Computer Use 的截图闭环不能直接成为 Yonder 的第二执行栈�
 4. Agent 可依据该临时窗口截图提交窗口局部坐标动作。通用 `computer.step` 的坐标 `type_text` 与受保护计划坐标文本一样，由 Worker 注入精确窗口 target、受监管 session 和 `foreground`；Agent 仍不能提供 PID、window、session、snapshot 或 element token。
 5. 已 Observe 但动作失败只表示到达安全步骤边界，不得在顶部浮窗显示成功图标；`unknown` 保持未核实并交回。两者均不得自动重试。
 6. 截图继续位于 Yonder 私有临时目录，受既有大小、类型、清理与协议版本门禁约束；日志、事件和顶部浮窗不显示截图、输入正文、AX 树或完整 Driver Payload。
+7. 协议 1.40 为非特定应用的桌面计划新增封闭的“聚焦控件、输入文本、激活控件”语义。归属慢脑必须从同一 Gateway 一次提交完整有界片段；宿主在派发首步前投影全部槽位，并按AD-CU-07在顶部浮窗显示总数及当前附近至多四步，后续只更新步骤状态。支持 1.40 时不得为了兼容而把片段拆成多个 `computer.step`。
 
 ## 排除项
 

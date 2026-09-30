@@ -102,6 +102,9 @@ pub fn execute_one(
     let mut arguments:serde_json::Value=serde_json::from_str(&action.arguments_json).map_err(|_|crate::Error::InvalidInput)?;
     let fields=arguments.as_object_mut().ok_or(crate::Error::InvalidInput)?;
     let semantic=match action.action_kind {
+        yonder_protocol::CuaActionKind::FocusControl=>Some(("focus-control",None)),
+        yonder_protocol::CuaActionKind::InputText=>Some(("input-text",None)),
+        yonder_protocol::CuaActionKind::ActivateControl=>Some(("activate-control",None)),
         yonder_protocol::CuaActionKind::FocusTargetSearch=>Some(("focus-target-search",Some(crate::cua_intent::CuaIntentText::Target))),
         yonder_protocol::CuaActionKind::EnterTargetQuery=>Some(("enter-target-query",Some(crate::cua_intent::CuaIntentText::Target))),
         yonder_protocol::CuaActionKind::ActivateTarget=>Some(("activate-target",Some(crate::cua_intent::CuaIntentText::Target))),
@@ -111,9 +114,9 @@ pub fn execute_one(
         _=>None,
     };
     if let Some((kind,text))=semantic {
-        let registry=intents.ok_or(crate::Error::StorageUnavailable)?;
         fields.insert("_yonder_action_kind".into(),serde_json::Value::String(kind.into()));
         if let Some(text)=text {
+            let registry=intents.ok_or(crate::Error::StorageUnavailable)?;
             let private=registry.resolve_text(auth,&current_task,&action.target_ref,text,now_ms).map_err(cua_intent_error)?;
             fields.insert("_yonder_private_text".into(),serde_json::Value::String(private));
         }
@@ -161,6 +164,9 @@ pub fn execute_one(
 fn action_kind_label(kind:yonder_protocol::CuaActionKind)->&'static str{match kind{
     yonder_protocol::CuaActionKind::LaunchApplication=>"打开应用",
     yonder_protocol::CuaActionKind::BringToFront=>"前置目标窗口",
+    yonder_protocol::CuaActionKind::FocusControl=>"聚焦控件",
+    yonder_protocol::CuaActionKind::InputText=>"输入文本",
+    yonder_protocol::CuaActionKind::ActivateControl=>"激活控件",
     yonder_protocol::CuaActionKind::FocusTargetSearch=>"聚焦会话搜索",
     yonder_protocol::CuaActionKind::EnterTargetQuery=>"输入会话目标",
     yonder_protocol::CuaActionKind::ActivateTarget=>"打开目标会话",
@@ -262,12 +268,12 @@ fn valid_candidate(candidate: &CandidateAction) -> bool {
         && yonder_protocol::tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
         && match candidate.action_kind {
             yonder_protocol::CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && semantic_arguments(candidate.action_kind,&candidate.tool_name,&candidate.arguments_json),
-            yonder_protocol::CuaActionKind::FocusTargetSearch | yonder_protocol::CuaActionKind::EnterTargetQuery | yonder_protocol::CuaActionKind::ActivateTarget | yonder_protocol::CuaActionKind::FocusMessageComposer | yonder_protocol::CuaActionKind::DraftMessageRef => candidate.confirmation_ref.is_none() && semantic_arguments(candidate.action_kind,&candidate.tool_name,&candidate.arguments_json),
+            yonder_protocol::CuaActionKind::FocusControl | yonder_protocol::CuaActionKind::InputText | yonder_protocol::CuaActionKind::ActivateControl | yonder_protocol::CuaActionKind::FocusTargetSearch | yonder_protocol::CuaActionKind::EnterTargetQuery | yonder_protocol::CuaActionKind::ActivateTarget | yonder_protocol::CuaActionKind::FocusMessageComposer | yonder_protocol::CuaActionKind::DraftMessageRef => candidate.confirmation_ref.is_none() && semantic_arguments(candidate.action_kind,&candidate.tool_name,&candidate.arguments_json),
             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
         }
 }
 
-fn semantic_arguments(kind:yonder_protocol::CuaActionKind,tool_name:&str,value:&str)->bool{serde_json::from_str::<serde_json::Value>(value).is_ok_and(|value|value.as_object().is_some_and(|arguments|arguments.is_empty()||(tool_name=="click"&&matches!(kind,yonder_protocol::CuaActionKind::FocusTargetSearch|yonder_protocol::CuaActionKind::ActivateTarget|yonder_protocol::CuaActionKind::FocusMessageComposer|yonder_protocol::CuaActionKind::SendMessage)&&arguments.len()==2&&arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)&&arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))||(tool_name=="type_text"&&matches!(kind,yonder_protocol::CuaActionKind::EnterTargetQuery|yonder_protocol::CuaActionKind::DraftMessageRef)&&arguments.len()==2&&arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)&&arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))||(tool_name=="hotkey"&&matches!(kind,yonder_protocol::CuaActionKind::FocusTargetSearch)&&arguments.len()==1&&arguments.get("keys").and_then(serde_json::Value::as_array).is_some_and(|keys|keys.len()==2&&keys[0]=="cmd"&&keys[1]=="f"))))}
+fn semantic_arguments(kind:yonder_protocol::CuaActionKind,tool_name:&str,value:&str)->bool{serde_json::from_str::<serde_json::Value>(value).is_ok_and(|value|yonder_protocol::valid_plan_action_arguments(kind,tool_name,&value))}
 
 fn valid_observe_conditions(conditions: &[yonder_protocol::CuaObserveConditionParams]) -> bool {
     let mut facts = std::collections::HashSet::new();
@@ -319,4 +325,5 @@ mod tests {
     #[test] fn rejects_free_form_or_oversized_fragment() { let mut value=fragment(); value.slots[0].candidates[0].tool_name="Shell".into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment(); value.slots=vec![]; assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn send_candidate_requires_opaque_confirmation_and_no_body() { let mut value=fragment(); value.slots[0].candidates[0].action_kind=yonder_protocol::CuaActionKind::SendMessage; value.slots[0].candidates[0].tool_name="press_key".into(); value.slots[0].candidates[0].confirmation_ref=Some("confirm-1".into()); assert_eq!(validate(&value),Ok(())); value.slots[0].candidates[0].arguments_json=r#"{\"text\":\"hi\"}"#.into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn coordinates_are_only_valid_for_bounded_semantic_actions() { let mut value=fragment(); {let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::EnterTargetQuery;candidate.tool_name="type_text".into();candidate.target_ref="intent-1".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"x":10,"y":20,"delivery_mode":"foreground"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput));{let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::FocusTargetSearch;candidate.tool_name="click".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));{let candidate=&mut value.slots[0].candidates[0];candidate.tool_name="hotkey".into();candidate.arguments_json=r#"{"keys":["cmd","f"]}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"keys":["cmd","q"]}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
+    #[test] fn generic_desktop_plan_actions_are_bounded() { let mut value=fragment(); {let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::InputText;candidate.tool_name="type_text".into();candidate.arguments_json=r#"{"text":"one last kiss"}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"text":"one last kiss","delivery_mode":"foreground"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput));{let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::ActivateControl;candidate.tool_name="press_key".into();candidate.arguments_json=r#"{"key":"ENTER"}"#.into();}assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"key":"DELETE"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
 }

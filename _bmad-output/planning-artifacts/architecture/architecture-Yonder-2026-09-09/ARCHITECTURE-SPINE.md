@@ -93,7 +93,7 @@ Accepted [AD-EX-03](AD-EX-03-JEV-CONFIG-INTERFACE.md) 单独允许实现最小 J
 
 CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。Qwen cua-driver 与 trycua cua-driver 使用相同 Windows/macOS 黑盒用例验证，只交付胜者；OSWorld 仅作基准。Driver 由 Supervisor 按需启动；崩溃或超时将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
 
-2026-09-30 CUA 元素/视觉路由见 Accepted [AD-CU-08](AD-CU-08-AX-VISUAL-FALLBACK.md)：精确窗口 AX 元素优先；空树、目标多义或动作未确认时只补采同一窗口截图并交回归属慢脑，不重放动作、不截图常开、不切换 Driver。`UnknownObserved` 的临时视觉证据必须保留到 Gateway；失败步骤不能投影为完成。
+2026-09-30 CUA 元素/视觉路由见 Accepted [AD-CU-08](AD-CU-08-AX-VISUAL-FALLBACK.md)：精确窗口 AX 元素优先；空树、目标多义或动作未确认时只补采同一窗口截图并交回归属慢脑，不重放动作、不截图常开、不切换 Driver。`UnknownObserved` 的临时视觉证据必须保留到 Gateway；失败步骤不能投影为完成。协议1.40允许通用桌面任务以封闭动作提交完整有界片段，顶部浮窗在首步前显示计划总数及当前附近的有界步骤列表；不得把受支持片段退化为逐个单步执行。
 
 BUA Bridge 直接调用 ego-lite/ego-browser，保存 external_task_ref 并映射状态，不复制 Task Space。只有经 Yonder 调用才保证桌宠收到状态。由于 ego-lite 当前没有 Windows Runtime，Windows 首版 BUA 为 `capability_unavailable`；不得自动回退到 CUA 或另一套浏览器引擎。
 

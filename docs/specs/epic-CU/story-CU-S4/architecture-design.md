@@ -35,3 +35,9 @@ Worker在展开意图引用后，为坐标文本或点击注入SDK工具目录�
 Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元素。若元素树为空，或动作结果不是`confirmed`，只对同一可信PID/window补采一次截图；正常元素路径不增加截图成本。该截图是当前失败边界的新鲜Observation，不触发动作重放，也不改变任务结论。
 
 `UnknownObserved`携带的Observation必须由TM-S9内存运行时原样返回Gateway，不能因为持久化异步化而丢弃。通用`computer.step`坐标文本复用同一精确窗口foreground注入；受保护消息计划仍从内存引用展开正文并保留发送确认，不因通用搜索场景放宽。
+
+## 通用桌面计划片段补充（协议1.40）
+
+通用桌面任务由归属慢脑从同一Gateway一次提交1～10个槽位。协议新增`focus-control`、`input-text`、`activate-control`三种封闭动作语义：聚焦只允许窗口内点击或`cmd+f`，输入只允许有界文本与可选窗口局部坐标，激活只允许窗口内点击或`ENTER/RETURN/SPACE`。Application在派发前复用同一参数校验，并把语义标记注入Worker；Agent不能提交Driver身份、session、target或投递模式。
+
+计划接受后，宿主从已验证片段建立全部槽位的只读内存投影，顶部浮窗展示片段总数与当前附近至多四个槽位标签；执行只移动当前槽位和完成状态，不能用`computer.step`的“慢脑单步”覆盖整个片段。每步后仍Observe；AX事实不足才走同窗口视觉降级，越界或失败则交回同一归属慢脑重规划。

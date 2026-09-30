@@ -8,7 +8,7 @@ CUA 只走 Yonder 的组合步骤或计划片段入口。不要直接调用 tryc
 2. 若发现 `task_plan_submit` 与 `task_plan_execute`，为当前有界子目标一次生成完整多步片段：启动或恢复应用、定位工作对象、准备内容、等待确认、执行副作用、验证结果分别作为必要槽位。不要把整个片段退化为一个动作。
 3. 每个槽位可以有多个完成同一语义步骤的候选。例如元素定位为首选，元素缺失或不唯一时才提供视觉候选；不要把“点击、输入、发送”塞进同一槽位作为互斥候选。
 4. 计划提交成功后，使用返回的新序号调用 `task_plan_execute`。Yonder/Jev 在片段内选择、执行并逐步 Observe；慢脑不要在每步之间抢回规划权。
-5. Runtime 不支持计划片段时才使用 `computer_step`，并明确这是兼容路径。每次调用仍由 Yonder完成步骤声明、动作、Observe和推进。
+5. Runtime 不支持计划片段时才使用 `computer_step`，并明确这是兼容路径。协议1.40支持通用桌面任务时，必须一次提交完整有界片段，并使用`focus-control`、`input-text`、`activate-control`等Schema实际公开的动作种类；不得把片段拆成多个单步。每次调用仍由 Yonder完成步骤声明、动作、Observe和推进。
 
 ## Observe 与重规划
 

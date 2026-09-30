@@ -7,3 +7,5 @@
 Application把`UnknownObserved.observation`与Known Observation使用同一提取函数返回Gateway。unknown结论、任务序号和重规划边界不变。运行时仅在`action_succeeded=true`时投影成功；已Observe失败仍可推进到安全边界，但投影为未核实。
 
 截图继续由Adapter限定为Yonder私有目录、允许Mime与4MiB；Worker会话结束或unknown清理。协议结构不新增字段，避免为Driver内部原因建立第二模型；Agent从动作结论、unknown reason与临时截图形成新计划。
+
+协议1.40为通用桌面片段增加`focus-control/input-text/activate-control`动作种类，并在Rust唯一模型中限制工具与参数。归属慢脑经既有Gateway一次提交完整片段；Application在首步派发前形成全部槽位的宿主投影，顶部浮窗持续更新当前/完成/待执行状态。`computer.step`只保留给未协商片段能力的旧客户端。

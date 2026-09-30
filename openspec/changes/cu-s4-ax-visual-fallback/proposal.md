@@ -12,6 +12,7 @@
 - 已取得的`UnknownObserved`视觉证据穿透内存运行时返回Gateway。
 - 通用`computer.step`窗口坐标文本由Worker强制精确target与foreground。
 - 已Observe失败步骤投影为未核实，不显示完成图标。
+- 通用桌面任务由慢脑一次提交完整计划片段，顶部浮窗展示全部槽位及执行状态。
 - 建立隔离回归、Rust测试与正式QQ音乐macOS验证。
 
 ## Non-goals

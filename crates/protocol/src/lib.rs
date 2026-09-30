@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 39 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 40 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -501,6 +501,9 @@ pub struct ComputerStepParams {
 pub enum CuaActionKind {
     LaunchApplication,
     BringToFront,
+    FocusControl,
+    InputText,
+    ActivateControl,
     FocusTargetSearch,
     EnterTargetQuery,
     ActivateTarget,
@@ -1896,8 +1899,8 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && valid_observe_conditions(&candidate.expected_observe)
                         && tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
                         && match candidate.action_kind {
-                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && valid_semantic_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
-                            CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::FocusMessageComposer | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.as_deref().is_none() && valid_semantic_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
+                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && valid_plan_action_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
+                            CuaActionKind::FocusControl | CuaActionKind::InputText | CuaActionKind::ActivateControl | CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::FocusMessageComposer | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.is_none() && valid_plan_action_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
                             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
                         }
                 })
@@ -1905,17 +1908,26 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
     })
 }
 
-fn valid_semantic_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_json::Value)->bool{
-    value.as_object().is_some_and(|arguments|arguments.is_empty() || (tool_name == "click"
+pub fn valid_plan_action_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_json::Value)->bool{
+    let Some(arguments)=value.as_object() else{return false};
+    let coordinates=||arguments.len()==2
+        && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+        && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite);
+    let search_hotkey=||arguments.len()==1&&arguments.get("keys").and_then(serde_json::Value::as_array).is_some_and(|keys|keys.len()==2&&keys[0]=="cmd"&&keys[1]=="f");
+    match kind {
+        CuaActionKind::FocusControl => (tool_name=="click"&&(arguments.is_empty()||coordinates()))||(tool_name=="hotkey"&&search_hotkey()),
+        CuaActionKind::InputText => tool_name=="type_text"
+            && arguments.get("text").and_then(serde_json::Value::as_str).is_some_and(|text|!text.is_empty()&&text.len()<=4096)
+            && (arguments.len()==1||(arguments.len()==3&&arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)&&arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))),
+        CuaActionKind::ActivateControl => (tool_name=="click"&&(arguments.is_empty()||coordinates()))||(tool_name=="press_key"&&arguments.len()==1&&arguments.get("key").and_then(serde_json::Value::as_str).is_some_and(|key|matches!(key,"ENTER"|"RETURN"|"SPACE"))),
+        _ => arguments.is_empty() || (tool_name == "click"
             && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage)
-            && arguments.len()==2
-            && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-            && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))
+            && coordinates())
         || (tool_name=="type_text" && matches!(kind,CuaActionKind::EnterTargetQuery|CuaActionKind::DraftMessageRef) && arguments.len()==2
             && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
             && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))
-        || (tool_name=="hotkey" && matches!(kind,CuaActionKind::FocusTargetSearch) && arguments.len()==1
-            && arguments.get("keys").and_then(serde_json::Value::as_array).is_some_and(|keys|keys.len()==2&&keys[0]=="cmd"&&keys[1]=="f")))
+        || (tool_name=="hotkey" && matches!(kind,CuaActionKind::FocusTargetSearch) && search_hotkey()),
+    }
 }
 
 fn valid_observe_conditions(conditions: &[CuaObserveConditionParams]) -> bool {
@@ -1930,6 +1942,11 @@ pub fn tool_matches_action_kind(kind: CuaActionKind, tool_name: &str) -> bool {
         (kind, tool_name),
         (CuaActionKind::LaunchApplication, "launch_app")
             | (CuaActionKind::BringToFront, "bring_to_front")
+            | (CuaActionKind::FocusControl, "click")
+            | (CuaActionKind::FocusControl, "hotkey")
+            | (CuaActionKind::InputText, "type_text")
+            | (CuaActionKind::ActivateControl, "click")
+            | (CuaActionKind::ActivateControl, "press_key")
             | (CuaActionKind::FocusTargetSearch, "click")
             | (CuaActionKind::FocusTargetSearch, "hotkey")
             | (CuaActionKind::EnterTargetQuery, "type_text")
@@ -2603,14 +2620,19 @@ mod tests {
     #[test]
     fn semantic_coordinates_are_only_allowed_for_bounded_actions() {
         let coordinates=serde_json::json!({"x":10,"y":20});
-        assert!(valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
-        assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
-        assert!(valid_semantic_arguments(CuaActionKind::DraftMessageRef,"type_text",&coordinates));
-        assert!(!valid_semantic_arguments(CuaActionKind::ActivateTarget,"type_text",&coordinates));
-        assert!(!valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({"x":10,"y":20,"delivery_mode":"foreground"})));
-        assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({})));
-        assert!(valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","f"]})));
-        assert!(!valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","q"]})));
+        assert!(valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
+        assert!(valid_plan_action_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
+        assert!(valid_plan_action_arguments(CuaActionKind::DraftMessageRef,"type_text",&coordinates));
+        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateTarget,"type_text",&coordinates));
+        assert!(!valid_plan_action_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({"x":10,"y":20,"delivery_mode":"foreground"})));
+        assert!(valid_plan_action_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({})));
+        assert!(valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","f"]})));
+        assert!(!valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","q"]})));
+        assert!(valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&coordinates));
+        assert!(valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":"one last kiss","x":10,"y":20})));
+        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"ENTER"})));
+        assert!(!valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":""})));
+        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"DELETE"})));
     }
 
     #[test]

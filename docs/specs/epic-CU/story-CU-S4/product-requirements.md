@@ -29,6 +29,8 @@
 - FGD-14：视觉降级不得重放刚失败的动作，不得改投全桌面、当前前台或模糊同名窗口；已取得截图即使动作结论为unknown也必须返回归属慢脑。
 - FGD-15：通用桌面搜索等非发送文本可由`computer.step`提交窗口局部坐标；Worker必须注入精确窗口与foreground，Agent不得提交PID、窗口、session或Driver target。
 - FGD-16：已Observe但动作失败只到达安全边界，顶部浮窗显示未核实/失败而非成功；正常confirmed且元素充分的路径不采集截图。
+- FGD-17：2026-09-30 后续用户变更要求慢脑一次提交一个有界计划片段；协议支持时，通用桌面任务不得退化为逐个 `computer.step`。顶部浮窗必须在执行前显示片段总步骤数与当前附近的有界步骤列表，并持续区分已完成、执行中、待执行与交回重规划。
+- FGD-18：通用片段只增加“聚焦控件、输入文本、激活控件”三类封闭动作，映射到既有 `click/hotkey/type_text/press_key` Driver 工具；不得接受任意快捷键、任意按键、循环、分支或自由脚本。
 
 ## 范围与非目标
 
@@ -39,7 +41,7 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | 来源 | 验收 |
 |---|---|
 | 产品简报与补充材料 | FGD-03、FGD-04、FGD-06、FGD-07 |
-| 2026-09-30用户变更与正式样本 | FGD-02、FGD-03、FGD-04、FGD-05、FGD-13、FGD-14、FGD-15、FGD-16 |
+| 2026-09-30用户变更与正式样本 | FGD-02、FGD-03、FGD-04、FGD-05、FGD-13、FGD-14、FGD-15、FGD-16、FGD-17、FGD-18 |
 | AD-E0-02、AD-CU-05、AD-AG-09 | FGD-01、FGD-06、FGD-07、FGD-08 |
 | Windows暂缓决定 | FGD-09 |
 | Accepted AD-CU-07产品Apply | FGD-10、FGD-11、FGD-12 |

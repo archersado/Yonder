@@ -1089,6 +1089,9 @@
       "enum": [
         "launch-application",
         "bring-to-front",
+        "focus-control",
+        "input-text",
+        "activate-control",
         "focus-target-search",
         "enter-target-query",
         "activate-target",

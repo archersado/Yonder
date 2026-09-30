@@ -12,6 +12,7 @@ sdk_source = r'''
 import { appendFile, writeFile } from 'node:fs/promises';
 const logPath = __LOG_PATH__;
 let boundTreeReads = 0;
+let visualReads = 0;
 export class CuaDriver {
   static create() { return {
     async metadata(){},
@@ -24,12 +25,13 @@ export class CuaDriver {
       {name:'list_windows',inputSchema:{properties:{pid:{}}}}
     ]});},
     async callTool(name,encoded){
-      const args=JSON.parse(encoded); const ok=value=>({isError:false,structuredJson:JSON.stringify(value)});
+      const args=JSON.parse(encoded); const ok=(value,images=[])=>({isError:false,structuredJson:JSON.stringify(value),images});
       if(name==='launch_app')return ok({pid:42,bundle_id:'com.example.VisualApp',launch_state:'process_running',windows:[{window_id:7,bounds:{width:800,height:600}}]});
       if(name==='list_apps')return ok({apps:[{running:true,bundle_id:'com.example.VisualApp',pid:42}]});
       if(name==='list_windows')return ok({windows:[{window_id:7,is_on_screen:true,on_current_space:true,bounds:{width:800,height:600}}]});
       if(name==='get_desktop_state')return ok({windows:[]});
       if(name==='get_window_state'){
+        if(args.include_screenshot===true&&visualReads++===0){return ok({elements:[]},[{mimeType:'image/png',dataBase64:'iVBORw=='}]);}
         if(args.include_screenshot===true){await writeFile(args.screenshot_out_file,Buffer.from([137,80,78,71]));}
         const firstBoundRead = args.pid === 42 && args.include_screenshot !== true && boundTreeReads++ === 0;
         return ok({elements: args.include_screenshot===true || firstBoundRead ? [] : [{role:'textfield',enabled:true,element_token:'field'}]});
