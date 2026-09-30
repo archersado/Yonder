@@ -20,7 +20,7 @@ parser.add_argument("--intent-ref")
 parser.add_argument("--confirmation-ref")
 parser.add_argument("--focus-x", type=float)
 parser.add_argument("--focus-y", type=float)
-parser.add_argument("--resume-from", choices=["search","query","target","composer","draft","send"], default="search")
+parser.add_argument("--resume-from", choices=["foreground","search","query","target","composer","draft","send"], default="search")
 parser.add_argument("--confirmation-timeout", type=int, default=120)
 args = parser.parse_args()
 if args.resume_task:
@@ -90,6 +90,8 @@ try:
             slots.append({"step_id":"activate-target-visual","label":"根据视觉证据打开目标会话","candidates":[candidate("activate-target-coordinate","click","activate-target",target_ref,"target-resolved") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
         elif args.resume_from == "composer":
             slots.append({"step_id":"focus-composer-visual","label":"根据视觉证据聚焦消息输入框","candidates":[candidate("focus-composer-coordinate","click","focus-message-composer",target_ref,"composer-ready") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
+    elif args.resume_from == "foreground":
+        slots.append({"step_id":"foreground-wecom","label":"后台投递无效后将企业微信置于前台","candidates":[candidate("foreground-wecom","bring_to_front","bring-to-front",target_ref,"application-ready")]})
     if not args.resume_task:
         slots.append({"step_id":"activate-target","label":"打开目标会话","candidates":[candidate("activate-target","click","activate-target",target_ref,"target-resolved")]})
     if not args.resume_task:
