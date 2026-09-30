@@ -269,8 +269,9 @@ try {
         const applicationFront=request.tool_name==='bring_to_front' && applicationFrontConfirmed(actionResult,actionTargetPid);
         response.action_effect=launchConfirmed||bringConfirmed?'confirmed':actionEffect(actionResult,action.isError);
         const escalationReason = actionResult?.escalation?.reason;
+        let unverifiedStage;
         if (['partial','unverifiable','suspected-noop'].includes(response.action_effect)) {
-          response.failure_stage = `action-${response.action_effect}-${typeof escalationReason === 'string' ? escalationReason : 'unconfirmed'}`;
+          unverifiedStage = `action-${response.action_effect}-${typeof escalationReason === 'string' ? escalationReason : 'unconfirmed'}`;
         }
         response.action_known = true;
         response.action_succeeded = response.action_effect === 'confirmed';
@@ -334,7 +335,7 @@ try {
               await new Promise(resolve => setTimeout(resolve, 100));
             } while (true);
           }
-          if (!['partial','unverifiable','suspected-noop'].includes(response.action_effect)) response.failure_stage = null;
+          response.failure_stage = unverifiedStage ?? null;
           if (!action.isError && response.observe_valid && focusAction && response.action_effect === 'confirmed') {
             if (semanticKind === 'focus-target-search') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'search' };
             if (semanticKind === 'focus-message-composer') trustedVisualFocus = { task_id:request.task_id, pid:target.pid, window_id:target.window_id, kind:'composer' };
