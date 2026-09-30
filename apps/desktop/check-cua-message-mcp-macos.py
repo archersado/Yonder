@@ -63,7 +63,7 @@ def candidate(candidate_id, tool_name, action_kind, target_ref, fact, confirmati
     return value
 
 task_id = args.resume_task
-preserve_task = False
+preserve_task = bool(args.resume_task)
 try:
     rpc("initialize", {"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"yonder-formal-verification","version":"1"}})
     if args.resume_task:
