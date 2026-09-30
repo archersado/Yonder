@@ -22,4 +22,10 @@ Spike在`spikes/cua-foreground-delivery/`中运行，固定比较产品当前0.2
 
 ## 架构影响
 
-关联Proposed [AD-CU-07](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-CU-07-TRYCUA-FOREGROUND-DELIVERY.md)。Spike阶段Architecture Impact为`none`；通过后若替换产品版本，必须先接受ADR并建立独立Apply Change，单版本迁移Adapter/Worker/打包与验证。
+关联Accepted [AD-CU-07](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-CU-07-TRYCUA-FOREGROUND-DELIVERY.md)。Spike阶段Architecture Impact为`none`；产品接线通过独立Apply Change修改协议与Adapter Worker，不替换SDK版本。
+
+## 产品Apply（协议1.39）
+
+Accepted AD-CU-07决定保留0.25.0。Rust协议与Application只为`enter-target-query`、`draft-message-ref`的`type_text`接受恰好两个有限坐标参数；既有视觉`click`仍只接受同样的`x/y`。`delivery_mode`、target、正文和会话身份不得来自Agent。
+
+Worker在展开意图引用后，为坐标文本或点击注入SDK工具目录声明的`delivery_mode=foreground`、精确窗口target和受监管session。坐标文本是单个Driver动作，不先发独立click；动作后Observe同一窗口并保留截图。只有`confirmed + observe_valid`可推进，其他结果交回且不得建立视觉焦点凭据或重试。

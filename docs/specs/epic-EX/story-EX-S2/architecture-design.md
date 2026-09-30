@@ -44,6 +44,8 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 协议1.38为企业微信会话搜索增加封闭`focus-target-search + hotkey(["cmd","f"])`候选。Rust协议同时校验动作语义、工具名和唯一参数值；Worker跳过元素解析但仍注入精确窗口target并强制后置窗口Observe。确认结果可在同片段继续；`unverifiable`直接交回且不登记焦点。该能力不是通用键盘宏，其他组合键仍被拒绝。
 
+协议1.39依据Accepted AD-CU-07开放两个受保护文本语义的有限`x/y`。Worker瞬时解析引用，为坐标`type_text`及视觉`click`强制注入精确窗口target和`foreground`；Agent不能控制delivery mode或正文。动作级前台投递由Driver恢复原前台，Yonder仍以后置同窗口Observe与confirmed共同决定推进。
+
 Desktop组合根先成功取得`host.lock`并完成TaskHost初始化，之后才允许绑定`agent.sock`。初始化失败直接终止本实例，不创建、覆盖或删除Socket，避免失败实例切断仍在运行的正式Gateway。
 
 Application在每个槽位派发前按任务归属和期限解析引用，把目标查询或正文仅注入本次内存动作。发送槽位首先把确认切换为本机可批准；未批准时返回`awaiting-confirmation`且不派发，顶部执行浮窗展示对象与正文预览。批准后引用在派发前消费；动作成功、失败、unknown、取消或接管都不会恢复。

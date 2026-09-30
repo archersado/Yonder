@@ -17,8 +17,8 @@ export class CuaDriver {
     async listToolsJson(){return JSON.stringify({tools:[
       {name:'launch_app',inputSchema:{properties:{bundle_id:{}}}},
       {name:'hotkey',inputSchema:{properties:{target:{},keys:{}}}},
-      {name:'click',inputSchema:{properties:{target:{},x:{},y:{}}}},
-      {name:'type_text',inputSchema:{properties:{target:{},text:{}}}},
+      {name:'click',inputSchema:{properties:{target:{},x:{},y:{},delivery_mode:{}}}},
+      {name:'type_text',inputSchema:{properties:{target:{},text:{},x:{},y:{},delivery_mode:{}}}},
       {name:'get_window_state',inputSchema:{properties:{pid:{},window_id:{},include_screenshot:{},max_elements:{},screenshot_out_file:{}}}},
       {name:'get_desktop_state',inputSchema:{properties:{}}},{name:'list_apps',inputSchema:{properties:{}}},{name:'list_windows',inputSchema:{properties:{pid:{}}}}
     ]});},
@@ -31,7 +31,7 @@ export class CuaDriver {
       if(name==='get_desktop_state')return ok({windows:[]});
       if(name==='hotkey'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:this.hotkeys++===0?'confirmed':'unverifiable',route:'synthetic_events',delivery:{mode:'background'}});}
       if(name==='click'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:'confirmed',route:'synthetic_events',delivery:{mode:'background'}});}
-      if(name==='type_text'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:'unverifiable',route:'synthetic_events',delivery:{mode:'background'}});}
+      if(name==='type_text'){await appendFile(logPath,JSON.stringify({name,args})+'\n');return ok({effect:Number.isFinite(args.x)&&Number.isFinite(args.y)?'confirmed':'unverifiable',route:'synthetic_events',delivery:{mode:args.delivery_mode??'background'}});}
       throw new Error('unexpected tool');},async shutdown(){},uniffiDestroy(){}
   };}
 }
@@ -53,6 +53,7 @@ with tempfile.TemporaryDirectory(prefix="yonda-cua-visual-focus-") as temporary:
         {**base,"step_id":"draft","attempt_id":"a4","tool_name":"type_text","arguments":{"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"private-message"}},
         {**base,"task_id":"other-task","step_id":"unverified-focus","attempt_id":"a5","tool_name":"hotkey","arguments":{"keys":["cmd","f"],"_yonder_action_kind":"focus-target-search"}},
         {**base,"task_id":"other-task","step_id":"untrusted","attempt_id":"a6","tool_name":"type_text","arguments":{"_yonder_action_kind":"enter-target-query","_yonder_private_text":"must-not-dispatch"}},
+        {**base,"task_id":"atomic-task","step_id":"atomic-draft","attempt_id":"a7","tool_name":"type_text","arguments":{"x":400,"y":500,"_yonder_action_kind":"draft-message-ref","_yonder_private_text":"private-atomic"}},
     ]
     run = subprocess.run(["node",str(worker),str(sdk),str(evidence)],input="".join(json.dumps(item)+"\n" for item in requests),text=True,capture_output=True,timeout=10,check=True)
     responses = [json.loads(line) for line in run.stdout.splitlines()]
@@ -62,10 +63,13 @@ assert responses[0]["action_succeeded"] is True
 assert responses[1]["action_succeeded"] is True and responses[3]["action_succeeded"] is True
 assert all(responses[index]["action_succeeded"] is False and responses[index]["action_effect"] == "unverifiable" and responses[index]["observe_valid"] for index in [2,4,5]), responses
 assert responses[6]["action_succeeded"] is False and responses[6]["action_effect"] == "refused"
-assert [item["name"] for item in actions] == ["hotkey","type_text","click","type_text","hotkey"]
+assert responses[7]["action_succeeded"] is True and responses[7]["observe_valid"] is True
+assert [item["name"] for item in actions] == ["hotkey","type_text","click","type_text","hotkey","type_text"]
 assert actions[1]["args"]["text"] == "private-target" and actions[3]["args"]["text"] == "private-message"
 assert all(item["args"]["target"] == {"kind":"window","pid":42,"window_id":7} for item in actions[:4])
-assert actions[4]["args"]["target"] == {"kind":"window","pid":11,"window_id":12}
+assert all(item["args"]["target"] == {"kind":"window","pid":11,"window_id":12} for item in actions[4:])
 assert all("x" not in item["args"] and "y" not in item["args"] for item in [actions[1],actions[3]])
+assert actions[2]["args"]["delivery_mode"] == "foreground"
+assert actions[5]["args"]["delivery_mode"] == "foreground" and actions[5]["args"]["text"] == "private-atomic"
 assert all("_yonder_private_text" not in item["args"] and "_yonder_action_kind" not in item["args"] for item in actions)
-print(json.dumps({"closed_search_shortcut":True,"confirmed_focus_only":True,"unverifiable_focus_refused":True,"exact_window_target":True,"focus_consumed_once":True,"untrusted_input_refused":True}))
+print(json.dumps({"closed_search_shortcut":True,"confirmed_focus_only":True,"unverifiable_focus_refused":True,"exact_window_target":True,"foreground_coordinates":True,"atomic_coordinate_text":True,"focus_consumed_once":True,"untrusted_input_refused":True}))

@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 38 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 39 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -1911,6 +1911,9 @@ fn valid_semantic_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_jso
             && arguments.len()==2
             && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
             && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))
+        || (tool_name=="type_text" && matches!(kind,CuaActionKind::EnterTargetQuery|CuaActionKind::DraftMessageRef) && arguments.len()==2
+            && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+            && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))
         || (tool_name=="hotkey" && matches!(kind,CuaActionKind::FocusTargetSearch) && arguments.len()==1
             && arguments.get("keys").and_then(serde_json::Value::as_array).is_some_and(|keys|keys.len()==2&&keys[0]=="cmd"&&keys[1]=="f")))
 }
@@ -2598,10 +2601,13 @@ mod tests {
     }
 
     #[test]
-    fn semantic_coordinates_are_only_allowed_for_click_tools() {
+    fn semantic_coordinates_are_only_allowed_for_bounded_actions() {
         let coordinates=serde_json::json!({"x":10,"y":20});
         assert!(valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
-        assert!(!valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
+        assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
+        assert!(valid_semantic_arguments(CuaActionKind::DraftMessageRef,"type_text",&coordinates));
+        assert!(!valid_semantic_arguments(CuaActionKind::ActivateTarget,"type_text",&coordinates));
+        assert!(!valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({"x":10,"y":20,"delivery_mode":"foreground"})));
         assert!(valid_semantic_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({})));
         assert!(valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","f"]})));
         assert!(!valid_semantic_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","q"]})));

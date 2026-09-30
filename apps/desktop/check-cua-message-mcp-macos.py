@@ -90,6 +90,10 @@ try:
             slots.append({"step_id":"activate-target-visual","label":"根据视觉证据打开目标会话","candidates":[candidate("activate-target-coordinate","click","activate-target",target_ref,"target-resolved") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
         elif args.resume_from == "composer":
             slots.append({"step_id":"focus-composer-visual","label":"根据视觉证据聚焦消息输入框","candidates":[candidate("focus-composer-coordinate","click","focus-message-composer",target_ref,"composer-ready") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
+        elif args.resume_from == "query":
+            slots.append({"step_id":"enter-query-visual","label":"根据视觉证据聚焦并输入会话目标","candidates":[candidate("enter-query-coordinate","type_text","enter-target-query",target_ref,"target-resolved") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
+        elif args.resume_from == "draft":
+            slots.append({"step_id":"draft-message-visual","label":"根据视觉证据聚焦并填写消息草稿","candidates":[candidate("draft-message-coordinate","type_text","draft-message-ref",target_ref,"composer-ready") | {"arguments":{"x":args.focus_x,"y":args.focus_y}}]})
     elif args.resume_from == "foreground":
         slots.append({"step_id":"foreground-wecom","label":"后台投递无效后将企业微信置于前台","candidates":[candidate("foreground-wecom","bring_to_front","bring-to-front",target_ref,"application-ready")]})
     if not args.resume_task:
@@ -98,9 +102,9 @@ try:
         slots.append({"step_id":"focus-composer","label":"聚焦消息输入框","candidates":[candidate("focus-composer","click","focus-message-composer",target_ref,"composer-ready")]})
     if not args.resume_task:
         slots.append({"step_id":"draft-message","label":"填写消息草稿","candidates":[candidate("draft-message","type_text","draft-message-ref",target_ref,"composer-ready")]})
-    elif args.resume_from == "query":
+    elif args.resume_from == "query" and args.focus_x is None:
         slots.append({"step_id":"enter-query-visual","label":"向已核验焦点输入会话目标","candidates":[candidate("enter-query-focused","type_text","enter-target-query",target_ref,"target-resolved")]})
-    elif args.resume_from == "draft":
+    elif args.resume_from == "draft" and args.focus_x is None:
         slots.append({"step_id":"draft-message-visual","label":"向已核验焦点填写消息草稿","candidates":[candidate("draft-message-focused","type_text","draft-message-ref",target_ref,"composer-ready")]})
     if not args.resume_task or args.resume_from == "send":
         slots.append({"step_id":"send-message","label":"确认并发送消息","candidates":[candidate("send-enter","press_key","send-message",target_ref,"delivery-confirmed",confirmation_ref)]})

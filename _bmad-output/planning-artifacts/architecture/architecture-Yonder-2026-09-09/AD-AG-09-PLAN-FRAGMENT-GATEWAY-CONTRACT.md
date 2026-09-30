@@ -25,6 +25,8 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 2026-09-30 搜索快捷键补充（正式样本反馈，已接受）：协议1.38允许`focus-target-search`语义使用唯一封闭快捷键候选`hotkey({keys:["cmd","f"]})`。该候选仍注入同一精确窗口target，不能携带其他组合键、文本或自由参数；只用于目标应用已知支持的会话搜索入口。动作后必须执行同窗口Observe；只有Driver明确确认才建立一次性搜索焦点凭据，`unverifiable`直接交回。不得把快捷键泛化为任意键盘宏，应用未声明该语义时继续使用元素/视觉路径。
 
+2026-09-30 前台坐标输入补充（Accepted AD-CU-07）：协议1.39允许`enter-target-query`与`draft-message-ref`的`type_text`候选携带恰好`x/y`。Agent不得提交正文、target、session或delivery mode；Application解析意图引用后，Worker为同一精确窗口强制注入`foreground`并在单个Driver动作内聚焦输入。既有视觉click同样使用动作级foreground。只有`confirmed + observe_valid`推进，其他结果交回且不得重试或建立焦点凭据。
+
 ## 待决问题
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。

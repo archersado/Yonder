@@ -22,6 +22,9 @@
 - FGD-07：Worker关闭后拒绝新动作且无子进程残留；不引入第二CUA栈或常驻服务。
 - FGD-08：升级候选必须兼容Yonder的`listToolsJson/callTool`SDK边界，或明确列出最小单版本迁移；不得长期兼容两套生产参数。
 - FGD-09：Windows证据暂缓并明确标记未验证；macOS通过不得外推Windows。
+- FGD-10：产品协议只允许`enter-target-query`与`draft-message-ref`的`type_text`携带有限`x/y`，以及既有点击语义携带`x/y`；Agent不得提交`delivery_mode`、正文或任意键盘宏。
+- FGD-11：Worker必须为上述窗口坐标动作注入同一精确窗口target与`foreground`，从意图引用瞬时展开文本；Driver未返回`confirmed`、Observe失败或原前台无法恢复时不得推进。
+- FGD-12：顶部浮窗持续展示聚焦、输入和验证步骤；只有confirmed且Observe有效才显示成功图标，普通用户输入不自动接管。
 
 ## 范围与非目标
 
@@ -35,3 +38,4 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | 2026-09-30用户变更与正式样本 | FGD-02、FGD-03、FGD-04、FGD-05 |
 | AD-E0-02、AD-CU-05、AD-AG-09 | FGD-01、FGD-06、FGD-07、FGD-08 |
 | Windows暂缓决定 | FGD-09 |
+| Accepted AD-CU-07产品Apply | FGD-10、FGD-11、FGD-12 |

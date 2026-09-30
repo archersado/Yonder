@@ -137,7 +137,12 @@ try {
         delete actionArgs._yonder_private_text;
         const beforeElements = structured(before).elements ?? [];
         const coordinateClick = request.tool_name === 'click' && Number.isFinite(actionArgs.x) && Number.isFinite(actionArgs.y);
-        const coordinateAction = coordinateClick;
+        const coordinateText = request.tool_name === 'type_text'
+          && ['enter-target-query','draft-message-ref'].includes(semanticKind)
+          && Number.isFinite(actionArgs.x)
+          && Number.isFinite(actionArgs.y);
+        const coordinateAction = coordinateClick || coordinateText;
+        const foregroundCoordinate = coordinateAction;
         const semanticShortcut = semanticKind === 'focus-target-search'
           && request.tool_name === 'hotkey'
           && Array.isArray(actionArgs.keys)
@@ -190,6 +195,23 @@ try {
             actionArgs.text = privateText;
           }
           if (semanticKind === 'send-message' && request.tool_name === 'press_key') actionArgs.key = actionArgs.key ?? 'ENTER';
+        }
+        if (foregroundCoordinate) {
+          if ('delivery_mode' in properties) actionArgs.delivery_mode = 'foreground';
+          else if ('deliveryMode' in properties) actionArgs.deliveryMode = 'foreground';
+          else {
+            const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
+            const observed = await captureObservation(driver, tools.find(tool => tool.name === 'get_window_state'), 'get_window_state', args, screenshotPath, request.host_session_id);
+            response.action_known = true;
+            response.action_effect = 'refused';
+            response.observe_valid = !observed.result.isError;
+            response.element_count = observed.elementCount;
+            response.screenshot_path = observed.screenshot?.path ?? null;
+            response.screenshot_mime = observed.screenshot?.mime ?? null;
+            response.failure_stage = 'foreground-delivery-unavailable';
+            process.stdout.write(JSON.stringify(response) + '\n');
+            continue;
+          }
         }
         const desktopScope = actionArgs.scope === 'desktop';
         if (!desktopScope && 'target' in properties && Number.isInteger(target.pid) && Number.isInteger(target.window_id)) {
@@ -255,7 +277,7 @@ try {
         const observationTarget = request.tool_name === 'launch_app' && launchedTarget?.task_id === request.task_id ? launchedTarget : target;
         const observationArgs = { pid: observationTarget.pid, window_id: observationTarget.window_id, include_screenshot: false, max_elements: 100 };
         const screenshotPath = join(process.argv[3], `${request.task_id}-${request.attempt_id}.png`);
-        const visualAction = focusAction || consumedVisualFocus;
+        const visualAction = focusAction || coordinateText || consumedVisualFocus;
         const observe = async (descriptor, name, base) => {
           const properties = (descriptor?.inputSchema ?? descriptor?.input_schema ?? {}).properties ?? {};
           const input = { ...base };
