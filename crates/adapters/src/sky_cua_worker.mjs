@@ -66,6 +66,26 @@ class WorkerFailure extends Error {
   }
 }
 
+function boundedFailureStage(error, fallback) {
+  const messages = [];
+  let current = error;
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    messages.push(current.message);
+    current = current.cause;
+  }
+  const message = messages.join(' ').toLocaleLowerCase();
+  if (message.includes('api version mismatch') || message.includes('incompatible')) return 'transport-version-mismatch';
+  if (message.includes('permission denied') || message.includes('operation not permitted')) return 'transport-permission';
+  if (message.includes('closed before response')) return 'transport-closed';
+  if (message.includes('connection refused')) return 'transport-refused';
+  if (message.includes('native pipe')) return 'transport-native-pipe';
+  if (message.includes('service startup')) return 'transport-service-startup';
+  if (message.includes('policy')) return 'target-policy';
+  if (message.includes('approved') || message.includes('approval')) return 'target-approval';
+  if (message.includes('timed out')) return 'transport-timeout';
+  return fallback;
+}
+
 function responseFor(request) {
   return {
     task_id: request.task_id,
@@ -138,8 +158,8 @@ async function targetFor(request) {
     let apps;
     try {
       apps = await sky.list_apps();
-    } catch {
-      throw new WorkerFailure('target-list-apps');
+    } catch (error) {
+      throw new WorkerFailure(boundedFailureStage(error, 'target-list-apps'));
     }
     const matches = apps.filter(candidate => candidate.id === requested || candidate.displayName === requested);
     if (matches.length !== 1 || typeof matches[0].id !== 'string' || matches[0].id === '') {

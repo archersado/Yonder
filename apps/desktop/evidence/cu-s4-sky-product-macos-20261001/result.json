@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-01",
+  "platform": "macos",
+  "driver": "@oai/sky@0.7.1",
+  "package_audit": "passed",
+  "isolated_worker": "passed",
+  "desktop_tests": 36,
+  "adapter_tests": 75,
+  "release_audit_tests": 7,
+  "formal_gateway_tasks": 6,
+  "formal_plan_slots": 5,
+  "formal_first_step": "launch",
+  "formal_disposition": "handback",
+  "formal_unknown_reason": "worker-failed",
+  "bounded_failure_stage": "transport-closed",
+  "desktop_actions_after_failure": 0,
+  "all_verification_tasks_cancelled": true,
+  "transcript_persisted": false,
+  "passed": false,
+  "next_phase": "apply"
+}

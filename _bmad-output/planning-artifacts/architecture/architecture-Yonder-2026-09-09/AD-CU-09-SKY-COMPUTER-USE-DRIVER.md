@@ -31,3 +31,9 @@
 - 隔离 Worker 测试证明应用级 transcript 元素计数、语义动作映射、任务目标绑定、动作后重新 Observe 与敏感字段清理。
 - 正式 Yonder Gateway 的 QQ 音乐多步骤计划能读取搜索元素并推进；失败时携带新鲜同应用 Observation 交回。
 - 独立 Verification Goal 复核包边界、Adapter 合约和 macOS 原生证据；Windows 项明确 deferred。
+
+## 2026-10-01实施门禁
+
+正式产品验证发现新的不可绕过边界：`@oai/sky`的macOS服务只接受ChatGPT/Codex可信宿主通道；Yonder直接连接同版本native-pipe会在ping响应前被关闭，阶段为`transport-closed`。SDK/服务版本和二进制哈希一致，Codex CUA REPL仍可正常读取同一QQ音乐实例，故不是应用AX或版本缺失问题。
+
+因此本决定只保留目标架构，不授权当前直接native-pipe实现进入dev。产品接线必须使用OpenAI正式支持、可由第三方产品调用的Broker/授权接口；不得伪造trusted RPC、复制签名/entitlement、依赖ChatGPT内部父进程，或以trycua回退形成双栈。在该接口可得并通过独立Goal前，CUA能力保持现有dev实现，`cu-s4-sky-product-driver`返回Apply。

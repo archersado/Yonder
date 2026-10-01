@@ -30,3 +30,5 @@ OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply�
 同日正式QQ音乐补充样本确认0.25.0的快捷键输入没有动作级foreground能力，而0.30.4具备该独占字段；AD-E0-02与AD-CU-07已修订为固定唯一0.30.4，不保留双版本执行栈。正式包回归通过前Story继续verifying。
 
 同日进一步同实例对照确认：trycua 0.30.4仍无法返回QQ音乐应用内元素，而Codex Computer Use / `@oai/sky`可读取完整应用级AX transcript。主人决定不再扩展trycua，Accepted AD-CU-09与`cu-s4-sky-product-driver`把macOS产品切换为Sky单栈；历史trycua Change保留证据但不再决定产品依赖。
+
+2026-10-01产品接线验证返回Apply：Sky-only包和隔离Worker已通过，但正式Yonder不属于ChatGPT/Codex可信宿主，native-pipe握手被服务关闭；六次Gateway样本均在首步安全交回且已取消。该分支不得合入dev，Story继续verifying；需先取得OpenAI支持的外部Broker/授权接口或重新做Driver决策。
