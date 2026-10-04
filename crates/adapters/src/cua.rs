@@ -181,7 +181,9 @@ impl CuaWorker {
             slot.as_mut().unwrap().launched_app=Some((attempt.task_id.clone(),bundle_id));
         }
         if matches!(outcome,DispatchOutcome::Unknown(_)){Self::stop(&mut slot);self.cleanup()}
-        if matches!(outcome,DispatchOutcome::UnknownObserved { .. }){Self::stop(&mut slot)}
+        // UnknownObserved 已有动作后的新鲜观察，外部慢脑会据此通过同一 Gateway
+        // replan。保留同任务的 Worker 会话和已验证应用绑定，避免重规划被迫重走
+        // launch 并在动态窗口切换后丢失当前页面；无观察的 Unknown 才重置会话。
         outcome
     }
 }
@@ -261,6 +263,13 @@ mod tests {
         assert_eq!(*port.0.lock().unwrap(),vec!["com.tencent.WeWorkMac"]);
         assert_eq!(activate_cached_window(&port,Some(&launched),"task-b"),Err(UnknownReason::InvalidInput));
         assert_eq!(activate_cached_window(&port,None,"task-a"),Err(UnknownReason::InvalidInput));
+    }
+
+    #[test]
+    fn observed_handback_is_distinct_from_unobserved_worker_failure() {
+        let observation=ComputerObservation{element_count:1,screenshot_path:None,screenshot_mime:None,target_visible:Some(true)};
+        assert!(matches!(DispatchOutcome::Unknown(UnknownReason::WorkerFailed),DispatchOutcome::Unknown(_)));
+        assert!(!matches!(DispatchOutcome::UnknownObserved{reason:UnknownReason::ObserveFailed,observation},DispatchOutcome::Unknown(_)));
     }
 
     #[cfg(unix)]

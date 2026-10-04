@@ -142,12 +142,25 @@ function boundedFailureStage(error, fallback) {
   return fallback;
 }
 
-const bridge = new SkyMcpBridge(bridgePath);
+let bridge;
 let bridgeFailureStage = null;
 try {
+  bridge = new SkyMcpBridge(bridgePath);
   await bridge.start();
 } catch (error) {
   bridgeFailureStage = boundedFailureStage(error, 'transport-mcp-handshake');
+}
+
+async function refreshBridge() {
+  bridge?.close();
+  const fresh = new SkyMcpBridge(bridgePath);
+  try {
+    await fresh.start();
+  } catch (error) {
+    fresh.close();
+    throw new WorkerFailure(boundedFailureStage(error, 'transport-mcp-handshake'));
+  }
+  bridge = fresh;
 }
 
 function resultText(result) {
@@ -259,6 +272,26 @@ async function runningMacAppForBundleId(bundleId) {
   return matches[0];
 }
 
+function canonicalListedApp(matches) {
+  if (matches.length === 1) return matches[0];
+  const running = matches.filter(candidate => candidate.isRunning === true);
+  if (running.length === 1) return running[0];
+  const installed = matches.filter(candidate => typeof candidate.path === 'string'
+    && (candidate.path.startsWith('/Applications/') || candidate.path.startsWith('/System/Applications/')));
+  return installed.length === 1 ? installed[0] : null;
+}
+
+async function bindRunningTarget(target) {
+  try {
+    return { ...target, app: await runningMacAppForBundleId(target.applicationId) };
+  } catch {
+    // 某些隔离夹具和未发生进程切换的普通应用没有可枚举的新实例；此时保留
+    // Sky 已经验证过的完整路径。正式 macOS App Translocation 实例会在这里
+    // 收敛到唯一运行路径，后续动作不再用安装源路径或歧义 bundle id。
+    return target;
+  }
+}
+
 async function targetFor(request) {
   if (request.tool_name === 'launch_app') {
     const app = request.arguments.app ?? request.arguments.bundle_id ?? request.arguments.path;
@@ -273,13 +306,19 @@ async function targetFor(request) {
       throw new WorkerFailure(boundedFailureStage(error, 'target-list-apps'));
     }
     const matches = apps.filter(candidate => candidate.id === requested || candidate.displayName === requested);
-    if (matches.length !== 1 || typeof matches[0].id !== 'string' || matches[0].id === '') {
+    const selected = canonicalListedApp(matches);
+    if (!selected || typeof selected.id !== 'string' || selected.id === '') {
       throw new WorkerFailure('target-canonical-app');
     }
-    const applicationId = matches[0].id;
-    const resolvedApp = matches[0].isRunning === true && typeof matches[0].path === 'string'
-      ? matches[0].path
-      : matches[0].isRunning === true ? await runningMacAppForBundleId(applicationId) : applicationId;
+    const applicationId = selected.id;
+    // Sky 的动作工具要求 app 能唯一解析。即使应用尚未运行，list_apps 返回的
+    // 完整路径也比 bundle id 更稳定：同一 bundle id 可能同时存在于 DMG、
+    // App Translocation 和 /Applications，启动后再使用 bundle id 会变成歧义目标。
+    const listedPath = typeof selected.path === 'string' && selected.path.trim() !== ''
+      ? selected.path.trim()
+      : null;
+    const resolvedApp = listedPath
+      ?? (selected.isRunning === true ? await runningMacAppForBundleId(applicationId) : applicationId);
     return { app: resolvedApp, applicationId };
   }
   if (launchedTarget?.task_id === request.task_id) {
@@ -293,7 +332,15 @@ async function targetFor(request) {
 }
 
 async function observe(target) {
-  return getAppState(target.app, target.applicationId);
+  try {
+    return await getAppState(target.app, target.applicationId);
+  } catch (error) {
+    // 页面/窗口切换会让官方 MCP Client 的只读窗口引用失效。只在 Observe
+    // 阶段重建签名 Client 并重读一次；动作调用从不在未知结果后自动重试。
+    if (!(error instanceof WorkerFailure) || error.stage !== 'target-window-unavailable') throw error;
+    await refreshBridge();
+    return getAppState(target.app, target.applicationId);
+  }
 }
 
 function stateText(state) {
@@ -382,11 +429,15 @@ async function perform(request, target, before) {
     return;
   }
   if (request.tool_name === 'bring_to_front') {
-    // Yonder WindowActivationPort 已执行并验证原生 AX raise；这里仅做后置观察。
+    // Yonder WindowActivationPort 已执行并验证原生 AX raise。原生置前会改变
+    // WindowServer 的 key-window 绑定；旧的签名 MCP Client 仍可能保留置前前
+    // 的截图坐标映射。此处只重建 Client 并由后续 Observe 重新绑定窗口，绝不
+    // 重试已经完成的置前或任何副作用动作。
+    await refreshBridge();
     return;
   }
   const semantic = request.arguments._yonder_action_kind;
-  if (['focus-target-search', 'focus-control'].includes(semantic)) {
+  if (request.tool_name === 'click' && ['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);
     if (!element) throw new WorkerFailure('target-semantic-element');
     await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
@@ -396,8 +447,22 @@ async function perform(request, target, before) {
     const element = searchField(before);
     const value = privateText(request);
     if (value == null) throw new WorkerFailure('target-semantic-element');
+    if (Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
+      // 慢脑只有在 AX 元素缺失或属性写入不可信时才提交截图坐标。坐标已由
+      // 协议限制为 input-text 语义；先聚焦该点，再发送字面文本，并由动作后
+      // Observe 交给慢脑核验。这里不隐式清空、不重试，也不猜测其他控件。
+      await callAction('click', { app: target.app, x: request.arguments.x, y: request.arguments.y }, target.applicationId);
+      await callAction('type_text', { app: target.app, text: value }, target.applicationId);
+      return { kind: 'text-present', value };
+    }
     if (element) {
-      await callAction('set_value', { app: target.app, element_index: String(element.index), value }, target.applicationId);
+      // QQ 音乐等自绘文本框会让 AX set_value 报告成功但不刷新界面；而
+      // type_text 也不一定覆盖已选文本。显式聚焦、全选并删除选区后再键入，
+      // 每个调用只执行一次；任一调用失败都会以未知结果交回，不自动重试。
+      await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
+      await callAction('press_key', { app: target.app, key: 'super+a' }, target.applicationId);
+      await callAction('press_key', { app: target.app, key: 'BackSpace' }, target.applicationId);
+      await callAction('type_text', { app: target.app, text: value }, target.applicationId);
       return { kind: 'text-present', value };
     }
     await callAction('type_text', { app: target.app, text: value }, target.applicationId);
@@ -425,7 +490,12 @@ function actionConfirmed(expectation, before, after) {
   if (expectation.kind === 'element-present') {
     return transcriptElements(after).some(element => element.index === expectation.index);
   }
-  if (expectation.kind === 'text-present') return stateText(after).includes(expectation.value);
+  if (expectation.kind === 'text-present') {
+    // AXValue 与自绘界面可能分裂（QQ 音乐已复现：AX 报告新值但截图仍是
+    // 旧值）。Driver 没有可靠视觉断言时必须交回带截图的 UnknownObserved，
+    // 由慢脑读取新鲜事实后决定下一片段，不能凭 AX 自报继续副作用链。
+    return false;
+  }
   return fingerprint(before) !== fingerprint(after);
 }
 
@@ -435,7 +505,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
   const response = responseFor(request);
   try {
     if (bridgeFailureStage) throw new WorkerFailure(bridgeFailureStage);
-    const target = await targetFor(request);
+    let target = await targetFor(request);
     const externalMacFocus = request.tool_name === 'bring_to_front';
     let before = null;
     if (request.tool_name !== 'launch_app' && !externalMacFocus) {
@@ -445,6 +515,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.failure_stage = 'action';
     const expectation = await perform(request, target, before);
     response.action_known = true;
+    if (request.tool_name === 'launch_app') target = await bindRunningTarget(target);
     response.failure_stage = 'observe-after';
     const after = await observe(target);
     response.observe_valid = true;

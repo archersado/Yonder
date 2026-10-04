@@ -28,7 +28,13 @@ static int window_info(pid_t pid, uint32_t window_id, CFStringRef *title, CGRect
     CFDictionaryRef item=CFArrayGetValueAtIndex(list,i); int64_t owner=0,identifier=0,layer=1;
     if(!number(item,kCGWindowOwnerPID,&owner)||!number(item,kCGWindowNumber,&identifier)||!number(item,kCGWindowLayer,&layer)||owner!=pid||identifier!=window_id||layer!=0)continue;
     CFStringRef name=CFDictionaryGetValue(item,kCGWindowName); CFDictionaryRef raw=CFDictionaryGetValue(item,kCGWindowBounds);
-    if(name&&CFGetTypeID(name)==CFStringGetTypeID()&&CFStringGetLength(name)>0&&raw&&CGRectMakeWithDictionaryRepresentation(raw,bounds)) {if(title)*title=CFRetain(name);found=1;} break;
+    if(raw&&CGRectMakeWithDictionaryRepresentation(raw,bounds)) {
+      // Chromium/混合应用的主窗口可能没有 CGWindowName（QQ 音乐即如此）。
+      // 空标题仍可与精确 pid/window_id、边界及 AXWindowNumber 联合映射；若 AX
+      // 无窗口号且存在多个同框空标题窗口，mapping 仍会因歧义而拒绝。
+      CFStringRef resolved=name&&CFGetTypeID(name)==CFStringGetTypeID()?name:CFSTR("");
+      if(title)*title=CFRetain(resolved);found=1;
+    } break;
   }
   CFRelease(list); return found;
 }
@@ -75,9 +81,9 @@ static int mapping(AXUIElementRef app, CFStringRef title, CGRect bounds, uint32_
   int matches=0;AXUIElementRef first_match=NULL;int matched_window_number=0;*retained_present=0;
   for(CFIndex i=0;i<CFArrayGetCount(windows);i++){
     AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);if(retained&&CFEqual(item,retained))*retained_present=1;
-    CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CGRect frame;
+    CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CFStringRef resolved_title=item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()?item_title:CFSTR("");CGRect frame;
     uint32_t actual_window_id=0;int has_window_number=ax_window_number(item,&actual_window_id);
-    if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!has_window_number||actual_window_id==window_id)){
+    if(CFEqual(resolved_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!has_window_number||actual_window_id==window_id)){
       if(has_window_number&&actual_window_id==window_id){matched_window_number=1;matches=1;}
       else if(!matched_window_number&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;}
     }
@@ -94,8 +100,8 @@ int yonda_work_ref_capture(int32_t pid, uint32_t window_id, void **output, uint6
   do {
     CFArrayRef windows=(CFArrayRef)attribute(app,kAXWindowsAttribute);int matches=0;AXUIElementRef first_match=NULL;int matched_window_number=0;
     if(windows&&CFGetTypeID(windows)==CFArrayGetTypeID())for(CFIndex i=0;i<CFArrayGetCount(windows);i++){
-      AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CGRect frame;uint32_t actual_window_id=0;int has_window_number=ax_window_number(item,&actual_window_id);
-      if(item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()&&CFEqual(item_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!has_window_number||actual_window_id==window_id)){
+      AXUIElementRef item=(AXUIElementRef)CFArrayGetValueAtIndex(windows,i);CFStringRef item_title=(CFStringRef)attribute(item,kAXTitleAttribute);CFStringRef resolved_title=item_title&&CFGetTypeID(item_title)==CFStringGetTypeID()?item_title:CFSTR("");CGRect frame;uint32_t actual_window_id=0;int has_window_number=ax_window_number(item,&actual_window_id);
+      if(CFEqual(resolved_title,title)&&ax_frame(item,&frame)&&same(frame,bounds)&&(!has_window_number||actual_window_id==window_id)){
         if(has_window_number&&actual_window_id==window_id&&!matched_window_number){matched_window_number=1;matches=1;target=item;}
         else if(!has_window_number&&!matched_window_number&&(!first_match||!CFEqual(item,first_match))){first_match=item;matches++;target=item;}
       }

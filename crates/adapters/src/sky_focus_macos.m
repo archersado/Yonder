@@ -20,7 +20,18 @@ int yonda_activate_window_for_app(const char *raw_bundle_id) {
     NSMutableArray<NSRunningApplication *> *running=[NSMutableArray array];
     for(NSRunningApplication *app in listed)if(!app.terminated&&app.processIdentifier>0)[running addObject:app];
     if(running.count!=1)return 4;
-    pid_t pid=running.firstObject.processIdentifier;
+    NSRunningApplication *application=running.firstObject;
+    pid_t pid=application.processIdentifier;
+    // 部分混合应用在后台时 AXWindows 为空。先发出公开的应用级激活请求，
+    // 再把 AXFrontmost 设为 true，使这类应用真正发布 AXWindows；随后仍由
+    // yonda_work_target_focus 对精确窗口执行 AX raise 并验证后置条件。
+    // 两个调用的返回值都只代表请求已接收，不能替代后面的窗口验证。
+    [application activateWithOptions:NSApplicationActivateAllWindows];
+    AXUIElementRef ax_application=AXUIElementCreateApplication(pid);
+    if(ax_application){
+      AXUIElementSetAttributeValue(ax_application,kAXFrontmostAttribute,kCFBooleanTrue);
+      CFRelease(ax_application);
+    }
     CFArrayRef raw=CGWindowListCopyWindowInfo(kCGWindowListOptionAll,kCGNullWindowID);
     if(!raw)return 3;
     NSArray *windows=CFBridgingRelease(raw);uint32_t selected=0;double largest=0;

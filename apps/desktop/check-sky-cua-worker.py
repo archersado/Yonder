@@ -39,9 +39,10 @@ for line in sys.stdin:
         args = request['params']['arguments']
         if name == 'list_apps':
             value = [
-                {'id':'com.tencent.QQMusicMac','displayName':'QQ音乐','isRunning':False},
-                {'id':'com.apple.calculator','displayName':'计算器','isRunning':False},
-                {'id':'com.yonder.no-window','displayName':'无窗口夹具','isRunning':False},
+                {'id':'com.yonder.fixture.music','displayName':'QQ音乐','path':'/Applications/QQMusic.app','isRunning':False},
+                {'id':'com.yonder.fixture.music','displayName':'QQ音乐','path':'/Volumes/QQMusic/QQMusic.app','isRunning':False},
+                {'id':'com.yonder.fixture.calculator','displayName':'计算器','path':'/System/Applications/Calculator.app','isRunning':False},
+                {'id':'com.yonder.fixture.no-window','displayName':'无窗口夹具','path':'/Applications/NoWindow.app','isRunning':False},
             ]
             result = {'content':[{'type':'text','text':json.dumps(value, ensure_ascii=False)}]}
         elif name == 'get_app_state':
@@ -51,13 +52,15 @@ for line in sys.stdin:
                 approved = approval.get('result', {}).get('action') == 'accept'
                 with open(log, 'a', encoding='utf-8') as output:
                     output.write(json.dumps({'approval':approved}, ensure_ascii=False)+'\\n')
-            state = calculator_text if args['app'] == 'com.apple.calculator' else text
-            result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]} if args['app'] == 'com.yonder.no-window' else ({'content':[{'type':'text','text':state}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]})
+            state = calculator_text if args['app'].endswith('Calculator.app') else text
+            result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]} if args['app'].endswith('NoWindow.app') else ({'content':[{'type':'text','text':state}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]})
         else:
             with open(log, 'a', encoding='utf-8') as output:
                 output.write(json.dumps({'name':name,'args':args}, ensure_ascii=False)+'\\n')
             if name == 'set_value':
                 text = f\"1 文本框 搜索 {args['value']}\\n2 按钮 播放\"
+            elif name == 'type_text' and args['app'].endswith('QQMusic.app'):
+                text = f\"1 文本框 搜索 {args['text']}\\n2 按钮 播放\"
             elif name == 'press_key':
                 text += '\\n3 文本 搜索结果'
             elif name == 'type_text':
@@ -95,13 +98,14 @@ for line in sys.stdin:
         process.stdin.flush()
         return json.loads(process.stdout.readline())
 
-    launched = request("launch", "launch_app", {"bundle_id": "com.tencent.QQMusicMac"})
+    launched = request("launch", "launch_app", {"bundle_id": "com.yonder.fixture.music"})
     focused = request("focus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
     entered = request("input", "type_text", {"text": "one last kiss", "_yonder_action_kind": "input-text"})
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
-    calculator_launched = request("calculator-launch", "launch_app", {"bundle_id": "com.apple.calculator"})
+    visual_entered = request("visual-input", "type_text", {"text": "visual query", "x": 10, "y": 20, "_yonder_action_kind": "input-text"})
+    calculator_launched = request("calculator-launch", "launch_app", {"bundle_id": "com.yonder.fixture.calculator"})
     calculator_input = request("calculator-input", "type_text", {"text": "1+1", "_yonder_action_kind": "input-text"})
-    unavailable = request("unavailable", "launch_app", {"bundle_id": "com.yonder.no-window"})
+    unavailable = request("unavailable", "launch_app", {"bundle_id": "com.yonder.fixture.no-window"})
     process.terminate()
     process.wait(timeout=5)
 
@@ -109,13 +113,21 @@ for line in sys.stdin:
     assert records[0] == {"rogue_approval": False}
     assert records[1] == {"approval": True}
     actions = records[2:]
-    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, entered, activated, calculator_launched, calculator_input))
+    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, calculator_launched, calculator_input))
+    assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (entered, visual_entered))
     assert launched["element_count"] == 2 and activated["element_count"] == 3
-    assert [item["name"] for item in actions] == ["click", "set_value", "press_key", "type_text"]
-    assert actions[0]["args"]["element_index"] == "1"
+    assert [item["name"] for item in actions] == ["press_key", "click", "press_key", "press_key", "type_text", "press_key", "click", "type_text", "type_text"]
+    assert actions[0]["args"]["key"] == "super+f"
     assert actions[1]["args"]["element_index"] == "1"
-    assert actions[2]["args"]["key"] == "Return"
-    assert actions[3]["args"]["text"] == "1+1"
+    assert actions[2]["args"]["key"] == "super+a"
+    assert actions[3]["args"]["key"] == "BackSpace"
+    assert actions[4]["args"]["text"] == "one last kiss"
+    assert actions[5]["args"]["key"] == "Return"
+    assert actions[6]["args"]["x"] == 10 and actions[6]["args"]["y"] == 20
+    assert actions[7]["args"]["text"] == "visual query"
+    assert actions[8]["args"]["text"] == "1+1"
+    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:8])
+    assert actions[8]["args"]["app"] == "/System/Applications/Calculator.app"
     assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)
     print(json.dumps({
