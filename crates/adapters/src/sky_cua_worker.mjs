@@ -18,8 +18,7 @@ class SkyMcpBridge {
   constructor(path) {
     this.nextId = 1;
     this.pending = new Map();
-    this.approvedAppId = null;
-    this.approvedPrompt = null;
+    this.activeApprovalAppId = null;
     this.process = spawn(path, ['mcp'], { stdio: ['pipe', 'pipe', 'ignore'] });
     this.lines = createInterface({ input: this.process.stdout, crlfDelay: Infinity });
     this.lines.on('line', line => this.receive(line));
@@ -34,8 +33,7 @@ class SkyMcpBridge {
     if (typeof message.method === 'string' && message.id != null) {
       const params = message.params;
       const accepted = message.method === 'elicitation/create'
-        && typeof this.approvedAppId === 'string'
-        && params?.message === this.approvedPrompt
+        && typeof this.activeApprovalAppId === 'string'
         && params?.requestedSchema?.type === 'object'
         && Object.keys(params?.requestedSchema?.properties ?? {}).length === 0;
       this.process.stdin.write(`${JSON.stringify({
@@ -90,15 +88,15 @@ class SkyMcpBridge {
     this.notify('notifications/initialized', {});
   }
 
-  async callTool(name, args) {
-    const result = await this.request('tools/call', { name, arguments: args });
-    if (!result || result.isError === true || !Array.isArray(result.content)) throw new Error('MCP tool failed');
-    return result;
-  }
-
-  authorizeApp(appId, displayName) {
-    this.approvedAppId = appId;
-    this.approvedPrompt = `Allow ChatGPT to use ${displayName}?`;
+  async callTool(name, args, approvalAppId = null) {
+    this.activeApprovalAppId = approvalAppId;
+    try {
+      const result = await this.request('tools/call', { name, arguments: args });
+      if (!result || result.isError === true || !Array.isArray(result.content)) throw new Error('MCP tool failed');
+      return result;
+    } finally {
+      this.activeApprovalAppId = null;
+    }
   }
 
   close() {
@@ -181,12 +179,12 @@ function stateFromResult(result, app) {
   return { app: structured?.app ?? app, text, screenshot };
 }
 
-async function getAppState(app) {
-  return stateFromResult(await bridge.callTool('get_app_state', { app }), app);
+async function getAppState(app, applicationId) {
+  return stateFromResult(await bridge.callTool('get_app_state', { app }, applicationId), app);
 }
 
-async function callAction(name, args) {
-  await bridge.callTool(name, args);
+async function callAction(name, args, applicationId) {
+  await bridge.callTool(name, args, applicationId);
 }
 
 function responseFor(request) {
@@ -269,24 +267,23 @@ async function targetFor(request) {
       throw new WorkerFailure('target-canonical-app');
     }
     const applicationId = matches[0].id;
-    bridge.authorizeApp(applicationId, matches[0].displayName);
     const resolvedApp = matches[0].isRunning === true && typeof matches[0].path === 'string'
       ? matches[0].path
       : matches[0].isRunning === true ? await runningMacAppForBundleId(applicationId) : applicationId;
     return { app: resolvedApp, applicationId };
   }
   if (launchedTarget?.task_id === request.task_id) {
-    return { app: launchedTarget.app };
+    return { app: launchedTarget.app, applicationId: launchedTarget.applicationId };
   }
   if (request.tool_name === 'bring_to_front') {
     if (launchedTarget?.task_id !== request.task_id) throw new Error('launched target is unavailable');
-    return { app: launchedTarget.app };
+    return { app: launchedTarget.app, applicationId: launchedTarget.applicationId };
   }
   return { app: await macAppForPid(request.pid) };
 }
 
 async function observe(target) {
-  return getAppState(target.app);
+  return getAppState(target.app, target.applicationId);
 }
 
 function stateText(state) {
@@ -356,6 +353,7 @@ function actionArguments(request, target) {
   delete args.pid;
   delete args.window_id;
   delete args.app;
+  delete args.applicationId;
   delete args._yonder_action_kind;
   delete args._yonder_private_text;
   if (target.app) args.app = target.app;
@@ -370,7 +368,7 @@ function privateText(request) {
 async function perform(request, target, before) {
   if (request.tool_name === 'launch_app') {
     // macOS Sky 将启动封装在 get_app_state 中，且不会把应用抢到前台。
-    await getAppState(target.app);
+    await getAppState(target.app, target.applicationId);
     return;
   }
   if (request.tool_name === 'bring_to_front') {
@@ -381,20 +379,24 @@ async function perform(request, target, before) {
   if (['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);
     if (!element) throw new WorkerFailure('target-semantic-element');
-    await callAction('click', { ...target, element_index: String(element.index) });
+    await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
     return { kind: 'element-present', index: element.index };
   }
   if (['enter-target-query', 'input-text'].includes(semantic)) {
     const element = searchField(before);
     const value = privateText(request);
-    if (!element || value == null) throw new WorkerFailure('target-semantic-element');
-    await callAction('set_value', { ...target, element_index: String(element.index), value });
-    return { kind: 'text-present', value };
+    if (value == null) throw new WorkerFailure('target-semantic-element');
+    if (element) {
+      await callAction('set_value', { app: target.app, element_index: String(element.index), value }, target.applicationId);
+      return { kind: 'text-present', value };
+    }
+    await callAction('type_text', { app: target.app, text: value }, target.applicationId);
+    return { kind: 'changed' };
   }
   if (request.tool_name === 'hotkey') {
     const keys = request.arguments.keys;
     if (!Array.isArray(keys) || keys.join('+').toLowerCase() !== 'cmd+f') throw new WorkerFailure('target-semantic-key');
-    await callAction('press_key', { ...target, key: 'super+f' });
+    await callAction('press_key', { app: target.app, key: 'super+f' }, target.applicationId);
     return { kind: 'changed' };
   }
   const name = request.tool_name;
@@ -404,7 +406,7 @@ async function perform(request, target, before) {
   const args = actionArguments(request, target);
   if (args.element_index != null) args.element_index = String(args.element_index);
   if (name === 'press_key' && typeof args.key === 'string' && ['ENTER', 'RETURN'].includes(args.key.toUpperCase())) args.key = 'Return';
-  await callAction(name, args);
+  await callAction(name, args, target.applicationId);
   return { kind: 'changed' };
 }
 
@@ -443,7 +445,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       : 'suspected_noop';
     response.action_succeeded = response.action_effect === 'confirmed';
     if (request.tool_name === 'launch_app' && response.action_succeeded) {
-      launchedTarget = { task_id: request.task_id, app: target.app };
+      launchedTarget = { task_id: request.task_id, app: target.app, applicationId: target.applicationId };
       response.launched_app_id = target.applicationId;
     }
     await persistScreenshot(after, request, response);
