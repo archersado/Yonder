@@ -36,4 +36,6 @@
 
 正式产品验证发现新的不可绕过边界：`@oai/sky`的macOS服务只接受ChatGPT/Codex可信宿主通道；Yonder直接连接同版本native-pipe会在ping响应前被关闭，阶段为`transport-closed`。SDK/服务版本和二进制哈希一致，Codex CUA REPL仍可正常读取同一QQ音乐实例，故不是应用AX或版本缺失问题。
 
-因此本决定只保留目标架构，不授权当前直接native-pipe实现进入dev。产品接线必须使用OpenAI正式支持、可由第三方产品调用的Broker/授权接口；不得伪造trusted RPC、复制签名/entitlement、依赖ChatGPT内部父进程，或以trycua回退形成双栈。在该接口可得并通过独立Goal前，CUA能力保持现有dev实现，`cu-s4-sky-product-driver`返回Apply。
+因此本决定禁止Yonder直接连接native-pipe。随后在同一固定Sky包内发现官方签名的`SkyComputerUseClient ... mcp`桥接程序：它公开标准MCP stdio的`list_apps/get_app_state/click/set_value/press_key/...`工具，并持有服务要求的OpenAI Team ID与App Group entitlement。产品接线改为“Yonder受监管Worker → 固定身份的签名MCP Client → Sky服务”，Yonder本身无需也不得伪造OpenAI签名；桥接仍是同一Sky Driver的transport，不是第二Agent或第二执行栈。
+
+组合根必须从已验证`@oai/sky@0.7.1`包相对定位该Client，校验普通文件、包版本及固定发布身份；Worker只通过stdio MCP调用并监管其生命周期，不直连Socket、不依赖ChatGPT父进程、不复制签名/entitlement。该桥接通过独立Goal前，`cu-s4-sky-product-driver`仍处于Apply。

@@ -11,6 +11,15 @@
 - **WHEN** 固定Sky入口或包身份校验失败
 - **THEN** CUA capability为unavailable，且不启动其他CUA Driver
 
+### Requirement: 使用官方签名MCP桥接
+
+系统 MUST 通过固定Sky包提供的官方签名`SkyComputerUseClient mcp`访问Computer Use服务；Yonder不得直接连接服务Socket或伪造OpenAI entitlement。
+
+#### Scenario: Yonder执行Sky动作
+
+- **WHEN** 受监管Worker需要列举应用、Observe或执行动作
+- **THEN** Worker只通过同一签名Client的MCP stdio工具调用，并在会话结束时关闭该Client
+
 ### Requirement: 新鲜应用级AX元素优先
 
 系统 MUST 对同任务绑定的唯一应用在每步前后读取新鲜AX transcript，并优先使用当前`element_index`执行。

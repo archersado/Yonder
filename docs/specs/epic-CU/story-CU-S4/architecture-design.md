@@ -46,6 +46,6 @@ Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元
 
 ## Sky产品单栈补充（AD-CU-09）
 
-macOS组合根只构造固定`@oai/sky@0.7.1` Worker，删除`YONDER_CUA_DRIVER`选择、trycua生产依赖和包内旧Worker。Sky包与Computer Use App由已安装的Codex/ChatGPT产品提供，Yonder只校验固定入口和包身份，不复制、不重新签名、不长期维护双栈。
+macOS组合根只构造固定`@oai/sky@0.7.1` Worker，删除`YONDER_CUA_DRIVER`选择、trycua生产依赖和包内旧Worker。Sky包与Computer Use App由已安装的Codex/ChatGPT产品提供，Yonder从固定包相对定位官方签名`SkyComputerUseClient mcp`，校验包身份后以受监管stdio子进程调用；不复制、不重新签名、不直连Computer Use Socket、不长期维护双栈。
 
-Worker在`launch_app`后缓存同任务的规范bundle id及实际运行App路径；后续步骤优先复用该绑定。每步调用`get_app_state(disableDiff=true)`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到`click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。
+Worker在`launch_app`后缓存同任务的规范bundle id及实际运行App路径；后续步骤优先复用该绑定。每步经签名MCP Client调用`get_app_state`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到MCP `click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。
