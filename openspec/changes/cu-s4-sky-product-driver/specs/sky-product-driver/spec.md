@@ -44,6 +44,11 @@
 - **WHEN** 已绑定应用不存在唯一搜索文本框且计划候选为通用`input-text`
 - **THEN** Worker可对该应用执行`type_text`，但只在动作后应用状态发生变化时确认成功
 
+#### Scenario: 锁屏或目标窗口不可观察
+
+- **WHEN** 签名Client返回固定`cgWindowNotFound`错误
+- **THEN** Worker返回有界`target-window-unavailable`阶段并交回，不记录原始错误且不继续动作
+
 ### Requirement: AX transcript不持久化
 
 系统 MUST 仅在Worker内使用AX transcript；不得写入任务状态、事件、Outbox、日志或顶部浮窗。
