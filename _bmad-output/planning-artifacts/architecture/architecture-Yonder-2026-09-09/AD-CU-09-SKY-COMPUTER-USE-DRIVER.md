@@ -38,4 +38,6 @@
 
 因此本决定禁止Yonder直接连接native-pipe。随后在同一固定Sky包内发现官方签名的`SkyComputerUseClient ... mcp`桥接程序：它公开标准MCP stdio的`list_apps/get_app_state/click/set_value/press_key/...`工具，并持有服务要求的OpenAI Team ID与App Group entitlement。产品接线改为“Yonder受监管Worker → 固定身份的签名MCP Client → Sky服务”，Yonder本身无需也不得伪造OpenAI签名；桥接仍是同一Sky Driver的transport，不是第二Agent或第二执行栈。
 
-组合根必须从已验证`@oai/sky@0.7.1`包相对定位该Client，校验普通文件、包版本及固定发布身份；Worker只通过stdio MCP调用并监管其生命周期，不直连Socket、不依赖ChatGPT父进程、不复制签名/entitlement。该桥接通过独立Goal前，`cu-s4-sky-product-driver`仍处于Apply。
+组合根必须从已验证`@oai/sky@0.7.1`包相对定位该Client及同发行物的OpenAI签名Node，校验普通文件、包版本、Team ID、Client identifier与App Group。Sky Client还会验证直接父进程的固定OpenAI Team ID，因此只能由该签名Node运行受监管Worker并派生Client；Yonder不得用自身、通用Node或shell直接派生Client。Worker只通过stdio MCP调用并监管其生命周期，不直连Socket、不依赖ChatGPT GUI父进程、不复制签名/entitlement。
+
+Client发出的应用使用elicitation只允许由同一任务已校验`launch_app`的唯一规范bundle id与显示名收敛：Worker仅接受固定版本生成的空对象Schema和精确应用提示，且只返回会话级accept；其他server request一律decline。该授权不替代Yonder对发送、删除等副作用的确认。该桥接通过独立Goal前，`cu-s4-sky-product-driver`仍处于Apply。

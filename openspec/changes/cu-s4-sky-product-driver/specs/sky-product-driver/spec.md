@@ -18,7 +18,12 @@
 #### Scenario: Yonder执行Sky动作
 
 - **WHEN** 受监管Worker需要列举应用、Observe或执行动作
-- **THEN** Worker只通过同一签名Client的MCP stdio工具调用，并在会话结束时关闭该Client
+- **THEN** 同发行物的OpenAI签名Node运行Worker，Worker只通过同一签名Client的MCP stdio工具调用，并在会话结束时关闭该Client
+
+#### Scenario: Client请求应用使用授权
+
+- **WHEN** Client为当前任务已收敛的唯一`launch_app`目标发出固定空Schema elicitation
+- **THEN** Worker只接受该应用的会话访问；目标或Schema不匹配时拒绝，且不由此放行发送等副作用
 
 ### Requirement: 新鲜应用级AX元素优先
 

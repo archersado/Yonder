@@ -8,4 +8,4 @@
 - [ ] 建立并通过独立Verification Goal
 - [ ] Windows对等验证（依用户决定暂缓）
 
-2026-10-01正式验证返回Apply：包边界与隔离Worker通过，但正式Yonder在`list_apps`前的Sky native-pipe握手被服务关闭，阶段为`transport-closed`。同版本Codex CUA REPL可用，说明能力受ChatGPT/Codex可信宿主通道约束；在取得OpenAI支持的外部Broker/授权接线前不得把本Change合入dev或宣称产品链路通过。
+2026-10-01正式验证返回Apply：包边界与隔离Worker通过，但正式Yonder在`list_apps`前的Sky native-pipe握手被服务关闭，阶段为`transport-closed`。2026-10-04进一步确认固定Sky发行物提供官方签名MCP Client，且Client要求OpenAI Team ID父进程；同发行物签名Node派生Client的`list_apps/get_app_state`已通过隔离探针。产品实现改走该签名MCP桥，仍须完成正式Gateway与独立Goal后才能合入dev。

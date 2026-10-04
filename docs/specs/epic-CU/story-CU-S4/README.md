@@ -31,4 +31,6 @@ OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply�
 
 同日进一步同实例对照确认：trycua 0.30.4仍无法返回QQ音乐应用内元素，而Codex Computer Use / `@oai/sky`可读取完整应用级AX transcript。主人决定不再扩展trycua，Accepted AD-CU-09与`cu-s4-sky-product-driver`把macOS产品切换为Sky单栈；历史trycua Change保留证据但不再决定产品依赖。
 
-2026-10-01产品接线验证返回Apply：Sky-only包和隔离Worker已通过，但正式Yonder不属于ChatGPT/Codex可信宿主，native-pipe握手被服务关闭；六次Gateway样本均在首步安全交回且已取消。该分支不得合入dev，Story继续verifying；需先取得OpenAI支持的外部Broker/授权接口或重新做Driver决策。
+2026-10-01产品接线验证返回Apply：Sky-only包和隔离Worker已通过，但正式Yonder不属于ChatGPT/Codex可信宿主，native-pipe握手被服务关闭；六次Gateway样本均在首步安全交回且已取消。
+
+2026-10-04在固定Sky发行物内确认官方签名`SkyComputerUseClient mcp`及其父进程Team ID要求。同发行物OpenAI签名Node派生Client后，`list_apps/get_app_state`隔离探针已取得QQ音乐41个AX元素和截图；当前改为正式桥接实施，Story继续verifying，仍不得在Gateway与独立Goal通过前Archive。
