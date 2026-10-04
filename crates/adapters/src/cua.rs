@@ -77,7 +77,7 @@ fn valid_sky_release_identity(node:&Path,bridge:&Path)->bool {
     let (Ok(node_identity),Ok(identity),Ok(entitlements))=(node_identity,identity,entitlements) else{return false};
     let node_identity=String::from_utf8_lossy(&node_identity.stderr);
     let identity=String::from_utf8_lossy(&identity.stderr);
-    let entitlements=String::from_utf8_lossy(&entitlements.stderr);
+    let entitlements=format!("{}{}",String::from_utf8_lossy(&entitlements.stdout),String::from_utf8_lossy(&entitlements.stderr));
     node_identity.contains("Identifier=node") && node_identity.contains("TeamIdentifier=2DC432GLL2")
         && identity.contains("Identifier=com.openai.sky.CUAService.cli")
         && identity.contains("TeamIdentifier=2DC432GLL2")

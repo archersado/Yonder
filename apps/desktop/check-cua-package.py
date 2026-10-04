@@ -36,7 +36,7 @@ result = {
     "sky_node_identifier_valid": bool(sky_node_identity and "Identifier=node" in sky_node_identity.stderr),
     "sky_bridge_team": "2DC432GLL2" if sky_identity and "TeamIdentifier=2DC432GLL2" in sky_identity.stderr else None,
     "sky_bridge_identifier_valid": bool(sky_identity and "Identifier=com.openai.sky.CUAService.cli" in sky_identity.stderr),
-    "sky_bridge_app_group_valid": bool(sky_entitlements and "2DC432GLL2.com.openai.sky.CUAService" in sky_entitlements.stderr),
+    "sky_bridge_app_group_valid": bool(sky_entitlements and "2DC432GLL2.com.openai.sky.CUAService" in (sky_entitlements.stdout + sky_entitlements.stderr)),
 }
 result["passed"] = result["jev_sdk_version"] == "0.6.0" and result["sky_bridge_version"] == "0.7.1" and all(result[key] for key in ("node_present", "sky_worker_matches", "jev_worker_matches", "trycua_absent", "qwen_absent", "sky_node_team", "sky_node_identifier_valid", "sky_bridge_team", "sky_bridge_identifier_valid", "sky_bridge_app_group_valid"))
 evidence = root / "apps/desktop/evidence/cu-s4-sky-package-20260930/result.json"
