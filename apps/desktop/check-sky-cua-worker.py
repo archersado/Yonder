@@ -41,6 +41,7 @@ for line in sys.stdin:
             value = [
                 {'id':'com.tencent.QQMusicMac','displayName':'QQ音乐','isRunning':False},
                 {'id':'com.apple.calculator','displayName':'计算器','isRunning':False},
+                {'id':'com.yonder.no-window','displayName':'无窗口夹具','isRunning':False},
             ]
             result = {'content':[{'type':'text','text':json.dumps(value, ensure_ascii=False)}]}
         elif name == 'get_app_state':
@@ -51,7 +52,7 @@ for line in sys.stdin:
                 with open(log, 'a', encoding='utf-8') as output:
                     output.write(json.dumps({'approval':approved}, ensure_ascii=False)+'\\n')
             state = calculator_text if args['app'] == 'com.apple.calculator' else text
-            result = {'content':[{'type':'text','text':state}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]}
+            result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]} if args['app'] == 'com.yonder.no-window' else ({'content':[{'type':'text','text':state}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]})
         else:
             with open(log, 'a', encoding='utf-8') as output:
                 output.write(json.dumps({'name':name,'args':args}, ensure_ascii=False)+'\\n')
@@ -100,6 +101,7 @@ for line in sys.stdin:
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
     calculator_launched = request("calculator-launch", "launch_app", {"bundle_id": "com.apple.calculator"})
     calculator_input = request("calculator-input", "type_text", {"text": "1+1", "_yonder_action_kind": "input-text"})
+    unavailable = request("unavailable", "launch_app", {"bundle_id": "com.yonder.no-window"})
     process.terminate()
     process.wait(timeout=5)
 
@@ -114,6 +116,7 @@ for line in sys.stdin:
     assert actions[1]["args"]["element_index"] == "1"
     assert actions[2]["args"]["key"] == "Return"
     assert actions[3]["args"]["text"] == "1+1"
+    assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)
     print(json.dumps({
         "driver": "sky",

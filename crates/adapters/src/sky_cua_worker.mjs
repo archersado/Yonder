@@ -92,7 +92,17 @@ class SkyMcpBridge {
     this.activeApprovalAppId = approvalAppId;
     try {
       const result = await this.request('tools/call', { name, arguments: args });
-      if (!result || result.isError === true || !Array.isArray(result.content)) throw new Error('MCP tool failed');
+      if (!result || !Array.isArray(result.content)) throw new Error('MCP tool failed');
+      if (result.isError === true) {
+        const failure = resultText(result).toLocaleLowerCase();
+        if (failure.includes('cgwindownotfound') || failure.includes('error -10005')) {
+          throw new WorkerFailure('target-window-unavailable');
+        }
+        if (failure.includes('sender process is not authenticated')) {
+          throw new WorkerFailure('transport-authentication');
+        }
+        throw new Error('MCP tool failed');
+      }
       return result;
     } finally {
       this.activeApprovalAppId = null;
