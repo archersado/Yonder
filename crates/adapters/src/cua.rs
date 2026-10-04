@@ -37,7 +37,7 @@ impl WindowActivationPort for MacosWindowActivator {
     }
 }
 
-pub struct CuaWorker { node: PathBuf, script: PathBuf, sdk: PathBuf, evidence:PathBuf, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>, session: Mutex<Option<WorkerSession>> }
+pub struct CuaWorker { node: PathBuf, script: PathBuf, bridge: PathBuf, evidence:PathBuf, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>, session: Mutex<Option<WorkerSession>> }
 
 struct WorkerSession { child: Child, input: ChildStdin, output: mpsc::Receiver<Result<Vec<u8>, ()>>, launched_app:Option<(String,String)> }
 
@@ -66,31 +66,61 @@ enum ActionEffect { Confirmed,Partial,Unverifiable,SuspectedNoop,Refused }
 
 fn valid_sky_app_id(value:&str)->bool {value.len()<=255&&!value.is_empty()&&value.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-'))}
 
+#[cfg(all(target_os="macos",not(test)))]
+fn valid_sky_release_identity(node:&Path,bridge:&Path)->bool {
+    for path in [node,bridge] {
+        if !Command::new("/usr/bin/codesign").args(["--verify","--strict","--verbose=0"]).arg(path).status().is_ok_and(|status|status.success()){return false}
+    }
+    let node_identity=Command::new("/usr/bin/codesign").args(["-dv","--verbose=4"]).arg(node).output();
+    let identity=Command::new("/usr/bin/codesign").args(["-dv","--verbose=4"]).arg(bridge).output();
+    let entitlements=Command::new("/usr/bin/codesign").args(["-d","--entitlements",":-"]).arg(bridge).output();
+    let (Ok(node_identity),Ok(identity),Ok(entitlements))=(node_identity,identity,entitlements) else{return false};
+    let node_identity=String::from_utf8_lossy(&node_identity.stderr);
+    let identity=String::from_utf8_lossy(&identity.stderr);
+    let entitlements=String::from_utf8_lossy(&entitlements.stderr);
+    node_identity.contains("Identifier=node") && node_identity.contains("TeamIdentifier=2DC432GLL2")
+        && identity.contains("Identifier=com.openai.sky.CUAService.cli")
+        && identity.contains("TeamIdentifier=2DC432GLL2")
+        && entitlements.contains("2DC432GLL2.com.openai.sky.CUAService")
+}
+
+#[cfg(any(not(target_os="macos"),test))]
+fn valid_sky_release_identity(_node:&Path,_bridge:&Path)->bool {true}
+
 impl CuaWorker {
     /// 三个路径只能由可信组合根提供；SDK入口必须属于固定Sky包。
-    pub fn new(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
+    pub fn new(script: &Path, sdk: &Path, evidence:&Path, timeout: Duration) -> Result<Self, UnknownReason> {
         #[cfg(target_os="macos")]
         let window_activation=Some(Box::new(MacosWindowActivator) as Box<dyn WindowActivationPort>);
         #[cfg(not(target_os="macos"))]
         let window_activation=None;
-        Self::new_for_sdk(node, script, sdk, evidence, timeout, window_activation)
+        Self::new_for_sdk(script, sdk, evidence, timeout, window_activation)
     }
 
-    fn new_for_sdk(node: &Path, script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>) -> Result<Self, UnknownReason> {
-        if timeout.is_zero() || timeout > Duration::from_secs(120) || [node, script, sdk].iter().any(|path| !path.is_absolute() || !path.is_file()) || !evidence.is_absolute() || !evidence.is_dir() {
+    fn new_for_sdk(script: &Path, sdk: &Path, evidence:&Path, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>) -> Result<Self, UnknownReason> {
+        if timeout.is_zero() || timeout > Duration::from_secs(120) || [script, sdk].iter().any(|path| !path.is_absolute() || !path.is_file()) || !evidence.is_absolute() || !evidence.is_dir() {
             return Err(UnknownReason::InvalidInput);
         }
         let package = sdk.ancestors().take(12).map(|path| path.join("package.json")).find(|path| path.is_file()).ok_or(UnknownReason::DependencyUnavailable)?;
-        let identity = fs::read_to_string(package).ok().and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok());
+        let identity = fs::read_to_string(&package).ok().and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok());
         let name = identity.as_ref().and_then(|value| value.get("name")).and_then(|value| value.as_str());
         let version = identity.as_ref().and_then(|value| value.get("version")).and_then(|value| value.as_str());
         if name != Some("@oai/sky") || version != Some("0.7.1") { return Err(UnknownReason::DependencyUnavailable); }
-        let worker=Self { node: node.into(), script: script.into(), sdk: sdk.into(), evidence:evidence.into(), timeout, window_activation, session: Mutex::new(None) };
+        let package_root=package.parent().ok_or(UnknownReason::DependencyUnavailable)?;
+        let runtime_root=package_root.ancestors().nth(4).ok_or(UnknownReason::DependencyUnavailable)?;
+        let node=runtime_root.join("bin/node");
+        let bridge=package_root.join("Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient");
+        let node_metadata=fs::symlink_metadata(&node).map_err(|_|UnknownReason::DependencyUnavailable)?;
+        let bridge_metadata=fs::symlink_metadata(&bridge).map_err(|_|UnknownReason::DependencyUnavailable)?;
+        if !node.is_absolute() || !node_metadata.is_file() || node_metadata.file_type().is_symlink()
+            || !bridge.is_absolute() || !bridge_metadata.is_file() || bridge_metadata.file_type().is_symlink()
+            || !valid_sky_release_identity(&node,&bridge){return Err(UnknownReason::DependencyUnavailable)}
+        let worker=Self { node, script: script.into(), bridge, evidence:evidence.into(), timeout, window_activation, session: Mutex::new(None) };
         worker.cleanup();Ok(worker)
     }
 
     fn start(&self) -> Result<WorkerSession, UnknownReason> {
-        let mut child=Command::new(&self.node).arg(&self.script).arg(&self.sdk).arg(&self.evidence)
+        let mut child=Command::new(&self.node).arg(&self.script).arg(&self.bridge).arg(&self.evidence)
             .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().map_err(|_|UnknownReason::WorkerFailed)?;
         let input=child.stdin.take().ok_or(UnknownReason::WorkerFailed)?;
         let output=child.stdout.take().ok_or(UnknownReason::WorkerFailed)?;
@@ -237,14 +267,19 @@ mod tests {
     #[test]
     fn normal_actions_reuse_worker_session() {
         let root=std::env::temp_dir().join(format!("yonda-cua-session-{}",std::process::id()));
-        let package=root.join("node_modules/fake");
+        let runtime=root.join("cua_node");
+        let package=runtime.join("lib/node_modules/@oai/sky");
         std::fs::create_dir_all(package.join("dist")).unwrap();
+        std::fs::create_dir_all(runtime.join("bin")).unwrap();
+        let node=runtime.join("bin/node");std::fs::write(&node,b"#!/bin/sh\nexec /bin/sh \"$@\"\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;std::fs::set_permissions(&node,std::fs::Permissions::from_mode(0o700)).unwrap();
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
         let sdk=package.join("dist/index.js");std::fs::write(&sdk,b"").unwrap();
+        let bridge=package.join("Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS");std::fs::create_dir_all(&bridge).unwrap();std::fs::write(bridge.join("SkyComputerUseClient"),b"").unwrap();
         let script=root.join("worker.sh");
         std::fs::write(&script,b"count=0\nwhile IFS= read -r line; do count=$((count+1)); if [ $count -eq 1 ]; then ok=true; else ok=false; fi; printf '{\"task_id\":\"task\",\"step_id\":\"step\",\"attempt_id\":\"attempt\",\"worker_instance_id\":\"worker\",\"host_session_id\":\"host\",\"action_known\":true,\"action_succeeded\":%s,\"observe_valid\":true}\\n' $ok; done\n").unwrap();
         let evidence=root.join("evidence");std::fs::create_dir(&evidence).unwrap();
-        let worker=CuaWorker::new(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();
+        let worker=CuaWorker::new(&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();
         let screenshot=evidence.join("task-attempt.png");std::fs::write(&screenshot,b"png").unwrap();
         worker.end_session();assert!(!screenshot.exists());
         let mut session=worker.start().unwrap();
@@ -259,15 +294,18 @@ mod tests {
     #[test]
     fn sky_constructor_requires_exact_package_identity() {
         let root=std::env::temp_dir().join(format!("yonda-sky-identity-{}",std::process::id()));
-        let package=root.join("node_modules/@oai/sky");
+        let runtime=root.join("cua_node");
+        let package=runtime.join("lib/node_modules/@oai/sky");
         std::fs::create_dir_all(package.join("dist/project/cua/sky_js/src")).unwrap();
+        std::fs::create_dir_all(runtime.join("bin")).unwrap();std::fs::write(runtime.join("bin/node"),b"").unwrap();
         let sdk=package.join("dist/project/cua/sky_js/src/index.js");std::fs::write(&sdk,b"").unwrap();
+        let bridge=package.join("Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS");std::fs::create_dir_all(&bridge).unwrap();std::fs::write(bridge.join("SkyComputerUseClient"),b"").unwrap();
         let script=root.join("worker.mjs");std::fs::write(&script,b"").unwrap();
         let evidence=root.join("evidence");std::fs::create_dir(&evidence).unwrap();
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
-        let worker=CuaWorker::new(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();drop(worker);
+        let worker=CuaWorker::new(&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();drop(worker);
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.8.0"}"#).unwrap();
-        assert!(matches!(CuaWorker::new(Path::new("/bin/sh"),&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
+        assert!(matches!(CuaWorker::new(&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
         std::fs::remove_dir_all(root).unwrap();
     }
 

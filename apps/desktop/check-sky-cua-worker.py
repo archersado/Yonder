@@ -13,36 +13,53 @@ worker = root / "crates/adapters/src/sky_cua_worker.mjs"
 
 with tempfile.TemporaryDirectory(prefix="yonder-sky-worker-") as directory:
     fixture = pathlib.Path(directory)
-    package = fixture / "node_modules/@oai/sky"
-    package.mkdir(parents=True)
+    bridge = fixture / "SkyComputerUseClient"
     log = fixture / "actions.jsonl"
     evidence = fixture / "evidence"
     evidence.mkdir()
-    (package / "package.json").write_text(
-        json.dumps({"name": "@oai/sky", "version": "0.7.1", "type": "module"}),
-        encoding="utf-8",
-    )
-    (package / "index.js").write_text(
-        """
-import { appendFile } from 'node:fs/promises';
-const log = process.env.YONDER_SKY_TEST_LOG;
-let text = '1 文本框 搜索\\n2 按钮 播放';
-async function record(name,args){await appendFile(log,JSON.stringify({name,args})+'\\n');}
-export const sky={
-  target:'mac',
-  async list_apps(){return [{id:'com.tencent.QQMusicMac',displayName:'QQ音乐',isRunning:false}]},
-  async get_app_state(){return {app:'com.tencent.QQMusicMac',text,screenshot:null}},
-  async click(args){await record('click',args)},
-  async set_value(args){await record('set_value',args);text=`1 文本框 搜索 ${args.value}\\n2 按钮 播放`},
-  async press_key(args){await record('press_key',args);text+='\\n3 文本 搜索结果'}
-};
+    bridge.write_text(
+        """#!/usr/bin/env python3
+import json, os, sys
+text = '1 文本框 搜索\\n2 按钮 播放'
+approved = False
+log = os.environ['YONDER_SKY_TEST_LOG']
+for line in sys.stdin:
+    request = json.loads(line)
+    if 'id' not in request:
+        continue
+    if request['method'] == 'initialize':
+        result = {'protocolVersion':'2025-06-18','capabilities':{},'serverInfo':{'name':'fixture','version':'1'}}
+    else:
+        name = request['params']['name']
+        args = request['params']['arguments']
+        if name == 'list_apps':
+            value = [{'id':'com.tencent.QQMusicMac','displayName':'QQ音乐','isRunning':False}]
+            result = {'content':[{'type':'text','text':json.dumps(value, ensure_ascii=False)}]}
+        elif name == 'get_app_state':
+            if not approved:
+                print(json.dumps({'jsonrpc':'2.0','id':'approval-1','method':'elicitation/create','params':{'message':'Allow ChatGPT to use QQ音乐?','requestedSchema':{'type':'object','properties':{}},'_meta':{'persist':['always']}}}, ensure_ascii=False), flush=True)
+                approval = json.loads(sys.stdin.readline())
+                approved = approval.get('result', {}).get('action') == 'accept'
+                with open(log, 'a', encoding='utf-8') as output:
+                    output.write(json.dumps({'approval':approved}, ensure_ascii=False)+'\\n')
+            result = {'content':[{'type':'text','text':text}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]}
+        else:
+            with open(log, 'a', encoding='utf-8') as output:
+                output.write(json.dumps({'name':name,'args':args}, ensure_ascii=False)+'\\n')
+            if name == 'set_value':
+                text = f\"1 文本框 搜索 {args['value']}\\n2 按钮 播放\"
+            elif name == 'press_key':
+                text += '\\n3 文本 搜索结果'
+            result = {'content':[]}
+    print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}, ensure_ascii=False), flush=True)
 """,
         encoding="utf-8",
     )
+    bridge.chmod(0o700)
     node = shutil.which("node")
     assert node is not None
     process = subprocess.Popen(
-        [node, str(worker), str(package / "index.js"), str(evidence)],
+        [node, str(worker), str(bridge), str(evidence)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -73,12 +90,14 @@ export const sky={
     process.terminate()
     process.wait(timeout=5)
 
-    actions = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert records[0] == {"approval": True}
+    actions = records[1:]
     assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, entered, activated))
     assert launched["element_count"] == 2 and activated["element_count"] == 3
     assert [item["name"] for item in actions] == ["click", "set_value", "press_key"]
-    assert actions[0]["args"]["element_index"] == 1
-    assert actions[1]["args"]["element_index"] == 1
+    assert actions[0]["args"]["element_index"] == "1"
+    assert actions[1]["args"]["element_index"] == "1"
     assert actions[2]["args"]["key"] == "Return"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)
     print(json.dumps({

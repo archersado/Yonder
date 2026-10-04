@@ -571,7 +571,6 @@ impl TaskHost {
             std::fs::set_permissions(&evidence, std::fs::Permissions::from_mode(0o700))
                 .map_err(|_| HostError::StorageUnavailable)?;
             macos_cua_resource_dir().and_then(|root| external_sky_sdk().and_then(|sdk| CuaWorker::new(
-                    &root.join("node"),
                     &root.join("sky_cua_worker.mjs"),
                     &sdk,
                     &evidence,

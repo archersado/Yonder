@@ -1,63 +1,111 @@
 import { createInterface } from 'node:readline';
 import { execFile, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { readFile, realpath, writeFile } from 'node:fs/promises';
-import net from 'node:net';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const evidence = process.argv[3];
-const installedService = join(homedir(), '.codex', 'computer-use', 'Codex Computer Use.app');
-
-// @oai/sky 的 macOS transport 只依赖这组受信任宿主能力。Yonder 在进入
-// worker 前已经完成任务准入，因此此处的 accept 只承接同一授权边界；服务端
-// 的组织策略/禁止列表仍会先执行，无法被该 shim 绕过。
-const nodeReplShim = {
-  env: {
-    ...process.env,
-    NODE_REPL_DISABLE_ANALYTICS: '1',
-    BROWSER_USE_DISABLE_AMBIENT_NETWORK: '1',
-    SKY_CUA_SERVICE_PATH: process.env.SKY_CUA_SERVICE_PATH
-      ?? (existsSync(installedService) ? installedService : undefined),
-  },
-  nativePipe: {
-    createConnection(path) {
-      return new Promise((resolve, reject) => {
-        const socket = net.createConnection(path);
-        socket.once('connect', () => resolve(socket));
-        socket.once('error', reject);
-      });
-    },
-  },
-  launchServices: {
-    openApplication(application) {
-      const args = application.applicationPath
-        ? [application.applicationPath]
-        : ['-b', application.bundleIdentifier];
-      return new Promise((resolve, reject) => {
-        const child = spawn('/usr/bin/open', args, { stdio: 'ignore' });
-        child.once('error', reject);
-        child.once('exit', code => code === 0 ? resolve() : reject(new Error('service launch failed')));
-      });
-    },
-  },
-  createElicitation: async () => ({ action: 'accept', _meta: { persist: 'session' } }),
-  withSuspendedTimeout: async callback => callback(),
-  setResponseMeta() {},
-};
-
-// sky.js 在加载时用 nodeRepl.rpc 判断是否运行于 Codex trusted-RPC 宿主。
-// 独立 driver 必须先选择 direct client，再为 mac transport 注入最小能力集。
-const { sky } = await import(pathToFileURL(process.argv[2]).href);
-globalThis.nodeRepl = nodeReplShim;
+const bridgePath = process.argv[2];
 const supported = new Set([
   'click', 'drag', 'perform_secondary_action', 'press_key', 'scroll',
   'select_text', 'set_value', 'type_text',
 ]);
 let launchedTarget;
+
+class SkyMcpBridge {
+  constructor(path) {
+    this.nextId = 1;
+    this.pending = new Map();
+    this.approvedAppId = null;
+    this.approvedPrompt = null;
+    this.process = spawn(path, ['mcp'], { stdio: ['pipe', 'pipe', 'ignore'] });
+    this.lines = createInterface({ input: this.process.stdout, crlfDelay: Infinity });
+    this.lines.on('line', line => this.receive(line));
+    this.process.once('exit', () => this.failAll(new Error('MCP bridge exited')));
+    this.process.once('error', error => this.failAll(error));
+  }
+
+  receive(line) {
+    if (line.length > 32 * 1024 * 1024) return this.failAll(new Error('MCP response too large'));
+    let message;
+    try { message = JSON.parse(line); } catch { return this.failAll(new Error('MCP response invalid')); }
+    if (typeof message.method === 'string' && message.id != null) {
+      const params = message.params;
+      const accepted = message.method === 'elicitation/create'
+        && typeof this.approvedAppId === 'string'
+        && params?.message === this.approvedPrompt
+        && params?.requestedSchema?.type === 'object'
+        && Object.keys(params?.requestedSchema?.properties ?? {}).length === 0;
+      this.process.stdin.write(`${JSON.stringify({
+        jsonrpc: '2.0', id: message.id,
+        result: accepted ? { action: 'accept', content: {} } : { action: 'decline' },
+      })}\n`);
+      return;
+    }
+    const pending = this.pending.get(message.id);
+    if (!pending) return;
+    this.pending.delete(message.id);
+    clearTimeout(pending.timer);
+    if (message.error) pending.reject(new Error('MCP request failed'));
+    else pending.resolve(message.result);
+  }
+
+  failAll(error) {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pending.clear();
+  }
+
+  request(method, params, timeoutMs = 25_000) {
+    if (this.process.exitCode != null || !this.process.stdin.writable) return Promise.reject(new Error('MCP bridge unavailable'));
+    const id = this.nextId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error('MCP request timed out'));
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
+      this.process.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`, error => {
+        if (!error) return;
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(error);
+      });
+    });
+  }
+
+  notify(method, params) {
+    this.process.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`);
+  }
+
+  async start() {
+    const result = await this.request('initialize', {
+      protocolVersion: '2025-06-18', capabilities: { elicitation: {} }, clientInfo: { name: 'Yonder', version: '0.1.0' },
+    }, 5_000);
+    if (result?.protocolVersion !== '2025-06-18') throw new Error('MCP protocol mismatch');
+    this.notify('notifications/initialized', {});
+  }
+
+  async callTool(name, args) {
+    const result = await this.request('tools/call', { name, arguments: args });
+    if (!result || result.isError === true || !Array.isArray(result.content)) throw new Error('MCP tool failed');
+    return result;
+  }
+
+  authorizeApp(appId, displayName) {
+    this.approvedAppId = appId;
+    this.approvedPrompt = `Allow ChatGPT to use ${displayName}?`;
+  }
+
+  close() {
+    this.process.stdin.end();
+    this.process.kill();
+  }
+}
 
 class WorkerFailure extends Error {
   constructor(stage) {
@@ -84,6 +132,61 @@ function boundedFailureStage(error, fallback) {
   if (message.includes('approved') || message.includes('approval')) return 'target-approval';
   if (message.includes('timed out')) return 'transport-timeout';
   return fallback;
+}
+
+const bridge = new SkyMcpBridge(bridgePath);
+let bridgeFailureStage = null;
+try {
+  await bridge.start();
+} catch (error) {
+  bridgeFailureStage = boundedFailureStage(error, 'transport-mcp-handshake');
+}
+
+function resultText(result) {
+  return result.content
+    .filter(block => block?.type === 'text' && typeof block.text === 'string')
+    .map(block => block.text)
+    .join('\n');
+}
+
+function structuredResult(result) {
+  if (result?.structuredContent && typeof result.structuredContent === 'object') return result.structuredContent;
+  const text = resultText(result).trim();
+  if (!text.startsWith('{') && !text.startsWith('[')) return null;
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+async function listApps() {
+  const result = await bridge.callTool('list_apps', {});
+  const structured = structuredResult(result);
+  const apps = Array.isArray(structured) ? structured : structured?.apps ?? resultText(result).split('\n').flatMap(line => {
+    const match = line.match(/^(.+?) — (.+?) — ([A-Za-z0-9.-]+)(?: \[([^\]]*)\])?$/);
+    if (!match) return [];
+    return [{ displayName: match[1].trim(), path: match[2].replace(/\/$/, ''), id: match[3], isRunning: match[4]?.split(', ').includes('running') === true }];
+  });
+  if (!Array.isArray(apps)) throw new Error('MCP apps response invalid');
+  return apps;
+}
+
+function stateFromResult(result, app) {
+  const structured = structuredResult(result);
+  const image = result.content.find(block => block?.type === 'image'
+    && typeof block.data === 'string' && typeof block.mimeType === 'string');
+  const screenshot = image ? { url: `data:${image.mimeType};base64,${image.data}` } : structured?.screenshot;
+  const text = typeof structured?.text === 'string'
+    ? structured.text
+    : structured?.ax_tree != null
+      ? String(structured.ax_tree)
+      : resultText(result);
+  return { app: structured?.app ?? app, text, screenshot };
+}
+
+async function getAppState(app) {
+  return stateFromResult(await bridge.callTool('get_app_state', { app }), app);
+}
+
+async function callAction(name, args) {
+  await bridge.callTool(name, args);
 }
 
 function responseFor(request) {
@@ -151,13 +254,13 @@ async function runningMacAppForBundleId(bundleId) {
 async function targetFor(request) {
   if (request.tool_name === 'launch_app') {
     const app = request.arguments.app ?? request.arguments.bundle_id ?? request.arguments.path;
-    if (sky.target !== 'mac' || typeof app !== 'string' || app.trim() === '') {
+    if (typeof app !== 'string' || app.trim() === '') {
       throw new Error('launch target is unavailable');
     }
     const requested = app.trim();
     let apps;
     try {
-      apps = await sky.list_apps();
+      apps = await listApps();
     } catch (error) {
       throw new WorkerFailure(boundedFailureStage(error, 'target-list-apps'));
     }
@@ -166,31 +269,24 @@ async function targetFor(request) {
       throw new WorkerFailure('target-canonical-app');
     }
     const applicationId = matches[0].id;
-    const resolvedApp = matches[0].isRunning === true
-      ? await runningMacAppForBundleId(applicationId)
-      : applicationId;
+    bridge.authorizeApp(applicationId, matches[0].displayName);
+    const resolvedApp = matches[0].isRunning === true && typeof matches[0].path === 'string'
+      ? matches[0].path
+      : matches[0].isRunning === true ? await runningMacAppForBundleId(applicationId) : applicationId;
     return { app: resolvedApp, applicationId };
   }
-  if (sky.target === 'mac' && launchedTarget?.task_id === request.task_id) {
+  if (launchedTarget?.task_id === request.task_id) {
     return { app: launchedTarget.app };
   }
-  if (request.tool_name === 'bring_to_front' && sky.target === 'mac') {
+  if (request.tool_name === 'bring_to_front') {
     if (launchedTarget?.task_id !== request.task_id) throw new Error('launched target is unavailable');
     return { app: launchedTarget.app };
   }
-  if (sky.target === 'mac') return { app: await macAppForPid(request.pid) };
-  if (sky.target === 'linux' || sky.target === 'windows') {
-    const windows = await sky.list_windows();
-    const window = windows.find(candidate => Number(candidate.id) === request.window_id);
-    if (!window) throw new Error('exact window is unavailable');
-    return { window };
-  }
-  throw new Error('unsupported sky target');
+  return { app: await macAppForPid(request.pid) };
 }
 
 async function observe(target) {
-  if (sky.target === 'mac') return sky.get_app_state({ app: target.app, disableDiff: true });
-  return sky.get_window_state({ window: target.window, include_text: true, include_screenshot: true });
+  return getAppState(target.app);
 }
 
 function stateText(state) {
@@ -274,40 +370,41 @@ function privateText(request) {
 async function perform(request, target, before) {
   if (request.tool_name === 'launch_app') {
     // macOS Sky 将启动封装在 get_app_state 中，且不会把应用抢到前台。
-    await sky.get_app_state({ app: target.app, disableDiff: true });
+    await getAppState(target.app);
     return;
   }
-  if (request.tool_name === 'bring_to_front' && sky.target === 'mac') {
+  if (request.tool_name === 'bring_to_front') {
     // Yonder WindowActivationPort 已执行并验证原生 AX raise；这里仅做后置观察。
     return;
   }
   const semantic = request.arguments._yonder_action_kind;
-  if (sky.target === 'mac' && ['focus-target-search', 'focus-control'].includes(semantic)) {
+  if (['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);
     if (!element) throw new WorkerFailure('target-semantic-element');
-    await sky.click({ ...target, element_index: element.index });
+    await callAction('click', { ...target, element_index: String(element.index) });
     return { kind: 'element-present', index: element.index };
   }
-  if (sky.target === 'mac' && ['enter-target-query', 'input-text'].includes(semantic)) {
+  if (['enter-target-query', 'input-text'].includes(semantic)) {
     const element = searchField(before);
     const value = privateText(request);
     if (!element || value == null) throw new WorkerFailure('target-semantic-element');
-    await sky.set_value({ ...target, element_index: element.index, value });
+    await callAction('set_value', { ...target, element_index: String(element.index), value });
     return { kind: 'text-present', value };
   }
   if (request.tool_name === 'hotkey') {
     const keys = request.arguments.keys;
     if (!Array.isArray(keys) || keys.join('+').toLowerCase() !== 'cmd+f') throw new WorkerFailure('target-semantic-key');
-    await sky.press_key({ ...target, key: 'super+f' });
+    await callAction('press_key', { ...target, key: 'super+f' });
     return { kind: 'changed' };
   }
   const name = request.tool_name;
-  if (!supported.has(name) || typeof sky[name] !== 'function') {
+  if (!supported.has(name)) {
     throw new Error('tool unavailable');
   }
   const args = actionArguments(request, target);
+  if (args.element_index != null) args.element_index = String(args.element_index);
   if (name === 'press_key' && typeof args.key === 'string' && ['ENTER', 'RETURN'].includes(args.key.toUpperCase())) args.key = 'Return';
-  await sky[name](args);
+  await callAction(name, args);
   return { kind: 'changed' };
 }
 
@@ -325,8 +422,9 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
   try { request = JSON.parse(line); } catch { process.exitCode = 2; break; }
   const response = responseFor(request);
   try {
+    if (bridgeFailureStage) throw new WorkerFailure(bridgeFailureStage);
     const target = await targetFor(request);
-    const externalMacFocus = request.tool_name === 'bring_to_front' && sky.target === 'mac';
+    const externalMacFocus = request.tool_name === 'bring_to_front';
     let before = null;
     if (request.tool_name !== 'launch_app' && !externalMacFocus) {
       response.failure_stage = 'observe-before';
@@ -356,3 +454,4 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
   }
   process.stdout.write(`${JSON.stringify(response)}\n`);
 }
+bridge.close();
