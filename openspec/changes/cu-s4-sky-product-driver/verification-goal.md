@@ -14,3 +14,13 @@
 - 处置：所有验证任务均经Gateway取消；不Archive、不合入dev。下一步必须取得OpenAI支持的外部Broker/授权接口，或另立架构决定选择可独立分发的Driver；不得伪造可信RPC、复制签名能力或回退双栈。
 
 证据：[结构化结果](../../../apps/desktop/evidence/cu-s4-sky-product-macos-20261001/result.json)。
+
+## 2026-10-04签名MCP桥复核
+
+- PASS：正式包固定`@oai/sky@0.7.1`，OpenAI签名Node与Client的Team ID、Client identifier、App Group均通过；trycua/Qwen回退不存在。
+- PASS：隔离Worker覆盖签名MCP握手、应用清单文本解析、调用范围内elicitation、范围外拒绝、应用绑定、`click/set_value/press_key/type_text`及`target-window-unavailable`分类；Adapter 75项、Desktop 36项通过。
+- PASS：在会话进入锁屏前，签名Node派生Client的独立QQ音乐探针取得41个AX元素及JPEG截图，证明不再受原`transport-closed`阻断。
+- BLOCKED：正式Gateway五槽位QQ音乐任务在`launch_app`交回；同刻官方Codex CUA与独立原生窗口夹具均返回`cgWindowNotFound`。系统CG窗口清单只含`loginwindow`、`SecurityAgent`等锁屏窗口，故归因为当前macOS锁屏，而非Yonder、目标App或签名transport。
+- 处置：正式任务已经Gateway取消；Worker把该状态收敛为`target-window-unavailable`且未派发后续动作。独立Goal仍为FAIL/返回Apply，不Archive、不合入dev；主人解锁图形会话后重跑正式Gateway正向与视觉交回样本。
+
+证据：[2026-10-04结构化结果](../../../apps/desktop/evidence/cu-s4-sky-product-macos-20261004/result.json)。

@@ -6,5 +6,11 @@
   "jev_worker_matches": true,
   "trycua_absent": true,
   "qwen_absent": true,
+  "sky_bridge_version": "0.7.1",
+  "sky_node_team": "2DC432GLL2",
+  "sky_node_identifier_valid": true,
+  "sky_bridge_team": "2DC432GLL2",
+  "sky_bridge_identifier_valid": true,
+  "sky_bridge_app_group_valid": true,
   "passed": true
 }

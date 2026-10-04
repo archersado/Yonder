@@ -34,3 +34,5 @@ OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply�
 2026-10-01产品接线验证返回Apply：Sky-only包和隔离Worker已通过，但正式Yonder不属于ChatGPT/Codex可信宿主，native-pipe握手被服务关闭；六次Gateway样本均在首步安全交回且已取消。
 
 2026-10-04在固定Sky发行物内确认官方签名`SkyComputerUseClient mcp`及其父进程Team ID要求。同发行物OpenAI签名Node派生Client后，`list_apps/get_app_state`隔离探针已取得QQ音乐41个AX元素和截图；当前改为正式桥接实施，Story继续verifying，仍不得在Gateway与独立Goal通过前Archive。
+
+同日正式Gateway复验时图形会话已锁屏；官方Codex CUA与独立原生窗口夹具均同步返回`cgWindowNotFound`，Yonder正确分类为`target-window-unavailable`并交回，验证任务已取消。该外部环境阻塞不授权跳过Goal；解锁后重跑正式正向和视觉交回样本。
