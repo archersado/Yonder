@@ -6,6 +6,8 @@ macOS `launch_app`通过桥接MCP `list_apps`把显示名或bundle id收敛为�
 
 Worker消费Application注入的`_yonder_action_kind`与受保护文本：聚焦搜索优先点击唯一搜索文本框，输入优先对该文本框`set_value`并从后置transcript验证目标值，激活使用受限按键或唯一元素点击。不能唯一定位或验证时返回`UnknownObserved`及同应用截图；语义字段与正文不进入日志。
 
-MCP应用使用elicitation只接受与当前任务唯一`launch_app`目标显示名完全匹配、且固定为空对象Schema的请求；其他server request拒绝。接受只覆盖应用会话访问，不覆盖Yonder对发送等副作用的独立确认。
+MCP应用使用elicitation只在当前任务唯一`launch_app`目标的串行MCP调用尚未返回时接受固定空对象Schema；其他server request拒绝。目标身份来自已校验bundle id与路径，不信任本地化提示文案。接受只覆盖应用会话访问，不覆盖Yonder对发送等副作用的独立确认。
+
+通用`input-text`先寻找唯一搜索文本框并`set_value`；不存在唯一搜索框时才对同一绑定应用调用`type_text`，且以后置应用状态变化确认。消息引用输入不走该退路。
 
 外部协议和SQLite不新增transcript字段。`ComputerObservation`继续只暴露有界元素数量、临时截图与可见性；因此协议保持1.40。包构建删除trycua模块与旧Worker，只复制Node、Sky Worker和Jev依赖；签名MCP Client继续来自外部固定Sky安装，不复制进Yonder包。

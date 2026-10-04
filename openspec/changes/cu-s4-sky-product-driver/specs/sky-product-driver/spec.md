@@ -22,8 +22,8 @@
 
 #### Scenario: Client请求应用使用授权
 
-- **WHEN** Client为当前任务已收敛的唯一`launch_app`目标发出固定空Schema elicitation
-- **THEN** Worker只接受该应用的会话访问；目标或Schema不匹配时拒绝，且不由此放行发送等副作用
+- **WHEN** Client在当前任务已收敛的唯一`launch_app`目标调用范围内发出固定空Schema elicitation
+- **THEN** Worker只接受该应用的会话访问；调用范围外或Schema不匹配时拒绝，且不由此放行发送等副作用
 
 ### Requirement: 新鲜应用级AX元素优先
 
@@ -38,6 +38,11 @@
 
 - **WHEN** 语义目标无法从新鲜transcript唯一解析
 - **THEN** Worker停止动作并返回同应用有界视觉Observation供慢脑重规划，不自动重试
+
+#### Scenario: 通用文本输入没有唯一搜索元素
+
+- **WHEN** 已绑定应用不存在唯一搜索文本框且计划候选为通用`input-text`
+- **THEN** Worker可对该应用执行`type_text`，但只在动作后应用状态发生变化时确认成功
 
 ### Requirement: AX transcript不持久化
 

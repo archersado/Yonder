@@ -50,4 +50,6 @@ macOS组合根只构造固定`@oai/sky@0.7.1` Worker，删除`YONDER_CUA_DRIVER`
 
 Worker在`launch_app`后缓存同任务的规范bundle id及实际运行App路径；后续步骤优先复用该绑定。每步经签名MCP Client调用`get_app_state`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到MCP `click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。
 
-Sky的应用使用elicitation只能在`launch_app`已把计划目标收敛为唯一bundle id和显示名后，由Worker按固定提示与空对象Schema接受；不匹配的请求拒绝。该会话级应用授权不等于发送等副作用确认，后者仍由Yonder Gateway确认引用约束。
+Sky的应用使用elicitation只能在`launch_app`已把计划目标收敛为唯一bundle id和路径后，在该目标的单个串行MCP调用范围内按固定空对象Schema接受；调用范围外或Schema不匹配的请求拒绝，不使用本地化显示名作身份。该会话级应用授权不等于发送等副作用确认，后者仍由Yonder Gateway确认引用约束。
+
+通用`input-text`优先对唯一搜索文本框执行`set_value`；没有唯一搜索框时可退回同一已绑定应用的MCP `type_text`，并必须由动作后应用级Observe证明状态变化。消息正文仍只走受保护引用语义，不使用该通用退路。

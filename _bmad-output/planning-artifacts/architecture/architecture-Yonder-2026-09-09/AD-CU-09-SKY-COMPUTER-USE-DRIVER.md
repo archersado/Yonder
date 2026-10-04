@@ -40,4 +40,4 @@
 
 组合根必须从已验证`@oai/sky@0.7.1`包相对定位该Client及同发行物的OpenAI签名Node，校验普通文件、包版本、Team ID、Client identifier与App Group。Sky Client还会验证直接父进程的固定OpenAI Team ID，因此只能由该签名Node运行受监管Worker并派生Client；Yonder不得用自身、通用Node或shell直接派生Client。Worker只通过stdio MCP调用并监管其生命周期，不直连Socket、不依赖ChatGPT GUI父进程、不复制签名/entitlement。
 
-Client发出的应用使用elicitation只允许由同一任务已校验`launch_app`的唯一规范bundle id与显示名收敛：Worker仅接受固定版本生成的空对象Schema和精确应用提示，且只返回会话级accept；其他server request一律decline。该授权不替代Yonder对发送、删除等副作用的确认。该桥接通过独立Goal前，`cu-s4-sky-product-driver`仍处于Apply。
+Client发出的应用使用elicitation只允许由同一任务已校验`launch_app`的唯一规范bundle id与路径收敛：Worker仅在该目标的单个串行MCP调用尚未返回时接受固定空对象Schema，且只返回会话级accept；调用范围外或Schema不同的server request一律decline。不能依赖本地化显示名或提示文案作身份。该授权不替代Yonder对发送、删除等副作用的确认。该桥接通过独立Goal前，`cu-s4-sky-product-driver`仍处于Apply。
