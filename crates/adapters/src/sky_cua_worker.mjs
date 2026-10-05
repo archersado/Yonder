@@ -573,11 +573,16 @@ async function perform(request, target, before) {
   }
   if (semantic === 'activate-control' && request.tool_name === 'press_key') {
     const key = request.arguments.key;
-    if (typeof key !== 'string' || !['ENTER', 'RETURN', 'SPACE'].includes(key.toUpperCase())) {
+    if (typeof key !== 'string' || !['ENTER', 'RETURN', 'SPACE', 'ARROWDOWN'].includes(key.toUpperCase())) {
       throw new WorkerFailure('target-semantic-key');
     }
-    await callAction('press_key', { app: target.app, key: key.toUpperCase() === 'SPACE' ? 'space' : 'Return' }, target.applicationId);
-    return { kind: 'transcript-changed' };
+    const normalizedKey = key.toUpperCase() === 'SPACE'
+      ? 'space'
+      : key.toUpperCase() === 'ARROWDOWN'
+        ? 'ARROWDOWN'
+        : 'Return';
+    await callAction('press_key', { app: target.app, key: normalizedKey }, target.applicationId);
+    return { kind: key.toUpperCase() === 'ARROWDOWN' ? 'changed' : 'transcript-changed' };
   }
   const name = request.tool_name;
   if (!supported.has(name)) {

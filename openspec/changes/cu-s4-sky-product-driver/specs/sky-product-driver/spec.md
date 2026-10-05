@@ -59,6 +59,11 @@
 - **WHEN** 协议1.41计划以通用`activate-control + click(x,y)`提交`click_count=2`
 - **THEN** Worker把次数原样映射到固定Sky并在动作后Observe；其他语义、元素点击或大于2的次数在Gateway拒绝
 
+#### Scenario: 自绘候选需要键盘下移
+
+- **WHEN** 协议1.41计划以通用`activate-control + press_key`提交`ARROWDOWN`
+- **THEN** Worker只下移一个候选并在动作后Observe；其他导航键及发送语义在Gateway拒绝
+
 ### Requirement: AX transcript不持久化
 
 系统 MUST 仅在Worker内使用AX transcript；不得写入任务状态、事件、Outbox、日志或顶部浮窗。

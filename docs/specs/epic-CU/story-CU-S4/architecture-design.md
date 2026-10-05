@@ -58,4 +58,4 @@ Sky的应用使用elicitation只能在`launch_app`已把计划目标收敛为唯
 
 签名Client的错误正文不得进入日志或Gateway；Worker只把已知`cgWindowNotFound`收敛为`target-window-unavailable`等有界阶段。锁屏、登录窗口或目标没有可观察窗口时必须安全交回，不得把transport存活误报成动作成功。
 
-协议1.41为自绘控件视觉激活增加唯一受限扩展：只有`activate-control + click`且使用有限`x/y`时可选`click_count=1|2`。该字段直接映射固定Sky公开参数；焦点、输入、元素点击、发送及其他语义均拒绝，不能用多个分离单击冒充双击。动作后仍读取同一应用状态，截图只有悬停变化时不得据此推导业务目标完成。
+协议1.41为自绘控件视觉激活增加唯一受限扩展：只有`activate-control + click`且使用有限`x/y`时可选`click_count=1|2`；坐标层穿透时，`activate-control + press_key`只额外允许`ARROWDOWN`选择下一个候选。字段直接映射固定Sky公开参数；焦点、输入、元素点击、发送及其他语义均拒绝，不能用多个分离单击冒充双击，也不开放其他导航键。动作后仍读取同一应用状态，截图只有悬停变化时不得据此推导业务目标完成。

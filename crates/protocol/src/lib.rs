@@ -1923,7 +1923,7 @@ pub fn valid_plan_action_arguments(kind:CuaActionKind, tool_name:&str, value:&se
         CuaActionKind::InputText => tool_name=="type_text"
             && arguments.get("text").and_then(serde_json::Value::as_str).is_some_and(|text|!text.is_empty()&&text.len()<=4096)
             && (arguments.len()==1||(arguments.len()==3&&arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)&&arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))),
-        CuaActionKind::ActivateControl => (tool_name=="click"&&(arguments.is_empty()||activation_coordinates()))||(tool_name=="press_key"&&arguments.len()==1&&arguments.get("key").and_then(serde_json::Value::as_str).is_some_and(|key|matches!(key,"ENTER"|"RETURN"|"SPACE"))),
+        CuaActionKind::ActivateControl => (tool_name=="click"&&(arguments.is_empty()||activation_coordinates()))||(tool_name=="press_key"&&arguments.len()==1&&arguments.get("key").and_then(serde_json::Value::as_str).is_some_and(|key|matches!(key,"ENTER"|"RETURN"|"SPACE"|"ARROWDOWN"))),
         _ => arguments.is_empty() || (tool_name == "click"
             && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage)
             && coordinates())
@@ -2638,6 +2638,7 @@ mod tests {
         assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":2})));
         assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":3})));
         assert!(!valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":2})));
+        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"ARROWDOWN"})));
         assert!(!valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":""})));
         assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"DELETE"})));
     }
