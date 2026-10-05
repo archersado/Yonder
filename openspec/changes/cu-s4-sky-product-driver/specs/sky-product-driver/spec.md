@@ -64,6 +64,15 @@
 - **WHEN** 协议1.41计划以通用`activate-control + press_key`提交`ARROWDOWN`
 - **THEN** Worker只下移一个候选并在动作后Observe；其他导航键及发送语义在Gateway拒绝
 
+### Requirement: 计划片段任务可安全终结
+
+Gateway MUST 按任务实际运行时归属选择终结路径，不得仅因组合根存在内存Runtime就把未登记的计划片段任务误报为不存在。
+
+#### Scenario: 计划片段未登记到内存Runtime
+
+- **WHEN** 任务的最新计划动作已Observed并推进，内存Runtime对该任务返回`NotFound`
+- **THEN** Gateway使用计划片段既有桌面租约与attempt门禁完成任务；Runtime的冲突、背压或不可用不得触发该兼容路径
+
 ### Requirement: AX transcript不持久化
 
 系统 MUST 仅在Worker内使用AX transcript；不得写入任务状态、事件、Outbox、日志或顶部浮窗。

@@ -3935,6 +3935,7 @@ mod tests {
             jev_config::{JevCapability, JevServiceMode, JEV_REMOTE_ENDPOINT},
             jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
             plan_fragment::{execute_available, CandidateAction, PlanSlot},
+            execution_runtime::ExecutionRuntime,
         };
 
         struct Target;
@@ -4102,9 +4103,10 @@ mod tests {
             capabilities: vec![JevCapability::Cua],
         };
         let port = Port(Mutex::new(Vec::new()));
+        let admission = Admission::new(1).unwrap();
         let (task, disposition, _) = execute_available(
             &mut store,
-            &Admission::new(1).unwrap(),
+            &admission,
             &port,
             &Target,
             &config,
@@ -4138,6 +4140,18 @@ mod tests {
             store.get_attempt(&created.id).unwrap().unwrap().phase,
             AttemptPhase::Stopped
         );
+        let runtime = ExecutionRuntime::with_defaults().unwrap();
+        let completed = yonder_application::computer_use::finish_agent_task_for_owner(
+            &mut store,
+            &runtime.handle(),
+            &admission,
+            AuthContext::Agent("a1"),
+            &created.id,
+            task.sequence,
+            false,
+        )
+        .unwrap();
+        assert_eq!(completed.status, Status::Completed);
 
         let budget_task = create(&mut store, "budgeted-plan").unwrap();
         let budget_fragment = PlanFragment {

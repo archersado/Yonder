@@ -377,6 +377,29 @@ pub fn finish_agent_task_runtime(
     })
 }
 
+/// 只在任务实际由内存Runtime持有时走事件驱动终结。计划片段兼容链尚未登记
+/// 到Runtime，不能因为组合根存在Runtime句柄就把真实任务误报成不存在；只有
+/// `NotFound`允许回到原有Observed/步骤边界/桌面租约三重门禁，其他错误失败关闭。
+pub fn finish_agent_task_for_owner(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    failed: bool,
+) -> Result<Task, Error> {
+    match runtime.snapshot(task_id) {
+        Ok(_) => finish_agent_task_runtime(
+            store, runtime, admission, auth, task_id, expected, failed,
+        ),
+        Err(crate::execution_runtime::RuntimeError::NotFound) => {
+            finish_agent_task(store, admission, auth, task_id, expected, failed)
+        }
+        Err(error) => Err(runtime_error(error)),
+    }
+}
+
 fn finish_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,failed:bool)->Result<Task,Error>{
     let (task,_)=crate::get_with_step(store,auth,task_id)?;
     if task.sequence!=expected{return Err(Error::Conflict);}

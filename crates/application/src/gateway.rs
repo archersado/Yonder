@@ -1074,7 +1074,7 @@ impl<'a> GatewaySession<'a> {
                 }
                 let expected = yonder_protocol::sequence(&params.expected_sequence)?;
                 let task = if let Some(runtime) = execution_runtime {
-                    crate::computer_use::finish_agent_task_runtime(
+                    crate::computer_use::finish_agent_task_for_owner(
                         store, runtime, admission, self.auth, &params.task_id, expected, false,
                     )
                 } else {
@@ -1102,7 +1102,7 @@ impl<'a> GatewaySession<'a> {
                 }
                 let expected = yonder_protocol::sequence(&params.expected_sequence)?;
                 let task = if let Some(runtime) = execution_runtime {
-                    crate::computer_use::finish_agent_task_runtime(
+                    crate::computer_use::finish_agent_task_for_owner(
                         store, runtime, admission, self.auth, &params.task_id, expected, true,
                     )
                 } else {
