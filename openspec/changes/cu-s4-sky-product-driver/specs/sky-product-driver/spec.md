@@ -54,6 +54,11 @@
 - **WHEN** 签名Client返回固定`cgWindowNotFound`错误
 - **THEN** Worker返回有界`target-window-unavailable`阶段并交回，不记录原始错误且不继续动作
 
+#### Scenario: 自绘控件需要双击激活
+
+- **WHEN** 协议1.41计划以通用`activate-control + click(x,y)`提交`click_count=2`
+- **THEN** Worker把次数原样映射到固定Sky并在动作后Observe；其他语义、元素点击或大于2的次数在Gateway拒绝
+
 ### Requirement: AX transcript不持久化
 
 系统 MUST 仅在Worker内使用AX transcript；不得写入任务状态、事件、Outbox、日志或顶部浮窗。

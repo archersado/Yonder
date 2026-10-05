@@ -63,6 +63,8 @@ for line in sys.stdin:
                 text = f\"1 文本框 搜索 {args['text']}\\n2 按钮 播放\\n3 选项 one\\n4 选项 last\\n5 选项 kiss 宇多田光\"
             elif name == 'click' and args.get('element_index') == '3':
                 text += '\\n7 文本 已打开搜索结果'
+            elif name == 'click' and args.get('click_count') == 2:
+                text += '\\n8 文本 已双击激活自绘结果'
             elif name == 'press_key':
                 text += '\\n6 文本 搜索结果已提交'
             elif name == 'type_text':
@@ -105,6 +107,7 @@ for line in sys.stdin:
     entered = request("input", "type_text", {"text": "one last kiss", "_yonder_action_kind": "input-text"})
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
     activated_by_element = request("activate-element", "click", {"_yonder_action_kind": "activate-control"})
+    double_activated = request("activate-double", "click", {"x": 10, "y": 20, "click_count": 2, "_yonder_action_kind": "activate-control"})
     visual_entered = request("visual-input", "type_text", {"text": "visual query", "x": 10, "y": 20, "_yonder_action_kind": "input-text"})
     calculator_launched = request("calculator-launch", "launch_app", {"bundle_id": "com.yonder.fixture.calculator"})
     calculator_input = request("calculator-input", "type_text", {"text": "1+1", "_yonder_action_kind": "input-text"})
@@ -119,10 +122,10 @@ for line in sys.stdin:
     assert all(not item.get("rogue_approval", False) for item in records if "rogue_approval" in item)
     assert all(item["approval"] for item in records if "approval" in item)
     actions = [item for item in records if "name" in item]
-    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, activated_by_element, calculator_launched, calculator_input, installed_fallback)), installed_fallback
+    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)), installed_fallback
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (entered, visual_entered))
     assert launched["element_count"] == 2 and activated["element_count"] == 6 and activated_by_element["element_count"] == 7
-    assert [item["name"] for item in actions] == ["press_key", "click", "press_key", "press_key", "type_text", "press_key", "click", "click", "type_text", "type_text"]
+    assert [item["name"] for item in actions] == ["press_key", "click", "press_key", "press_key", "type_text", "press_key", "click", "click", "click", "type_text", "type_text"]
     assert actions[0]["args"]["key"] == "super+f"
     assert actions[1]["args"]["element_index"] == "1"
     assert actions[2]["args"]["key"] == "super+a"
@@ -130,11 +133,12 @@ for line in sys.stdin:
     assert actions[4]["args"]["text"] == "one last kiss"
     assert actions[5]["args"]["key"] == "Return"
     assert actions[6]["args"]["element_index"] == "3"
-    assert actions[7]["args"]["x"] == 10 and actions[7]["args"]["y"] == 20
-    assert actions[8]["args"]["text"] == "visual query"
-    assert actions[9]["args"]["text"] == "1+1"
-    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:9])
-    assert actions[9]["args"]["app"] == "/System/Applications/Calculator.app"
+    assert actions[7]["args"]["x"] == 10 and actions[7]["args"]["y"] == 20 and actions[7]["args"]["click_count"] == 2
+    assert actions[8]["args"]["x"] == 10 and actions[8]["args"]["y"] == 20
+    assert actions[9]["args"]["text"] == "visual query"
+    assert actions[10]["args"]["text"] == "1+1"
+    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:10])
+    assert actions[10]["args"]["app"] == "/System/Applications/Calculator.app"
     assert installed_fallback["launched_app_id"] == "com.apple.TextEdit"
     assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)

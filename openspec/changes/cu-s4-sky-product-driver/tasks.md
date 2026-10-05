@@ -4,6 +4,7 @@
 - [x] 将组合根、Adapter与Worker切为Sky单栈
 - [x] 移除trycua生产依赖、打包资源与环境回退
 - [x] 覆盖应用绑定、transcript解析、语义动作与包边界测试
+- [ ] 以协议1.41接入受限自绘控件双击并完成正式QQ音乐样本
 - [ ] 构建正式macOS Yonder并复验QQ音乐多步骤链路
 - [ ] 建立并通过独立Verification Goal
 - [ ] Windows对等验证（依用户决定暂缓）
