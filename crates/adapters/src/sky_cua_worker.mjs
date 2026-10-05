@@ -13,6 +13,7 @@ const supported = new Set([
   'select_text', 'set_value', 'type_text',
 ]);
 let launchedTarget;
+let pendingInput;
 
 class SkyMcpBridge {
   constructor(path) {
@@ -380,6 +381,14 @@ function searchField(state) {
   });
 }
 
+function firstMatchingControl(state, query) {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (normalized === '') return null;
+  const field = searchField(state);
+  return transcriptElements(state).find(element => element.index !== field?.index
+    && element.text.toLocaleLowerCase().includes(normalized)) ?? null;
+}
+
 async function persistScreenshot(state, request, response) {
   const url = screenshotUrl(state);
   if (typeof url !== 'string') return;
@@ -426,6 +435,7 @@ async function perform(request, target, before) {
   if (request.tool_name === 'launch_app') {
     // macOS Sky 将启动封装在 get_app_state 中，且不会把应用抢到前台。
     await getAppState(target.app, target.applicationId);
+    pendingInput = undefined;
     return;
   }
   if (request.tool_name === 'bring_to_front') {
@@ -453,6 +463,7 @@ async function perform(request, target, before) {
       // Observe 交给慢脑核验。这里不隐式清空、不重试，也不猜测其他控件。
       await callAction('click', { app: target.app, x: request.arguments.x, y: request.arguments.y }, target.applicationId);
       await callAction('type_text', { app: target.app, text: value }, target.applicationId);
+      pendingInput = { taskId: request.task_id, app: target.app, value };
       return { kind: 'text-present', value };
     }
     if (element) {
@@ -463,9 +474,11 @@ async function perform(request, target, before) {
       await callAction('press_key', { app: target.app, key: 'super+a' }, target.applicationId);
       await callAction('press_key', { app: target.app, key: 'BackSpace' }, target.applicationId);
       await callAction('type_text', { app: target.app, text: value }, target.applicationId);
+      pendingInput = { taskId: request.task_id, app: target.app, value };
       return { kind: 'text-present', value };
     }
     await callAction('type_text', { app: target.app, text: value }, target.applicationId);
+    pendingInput = { taskId: request.task_id, app: target.app, value };
     return { kind: 'changed' };
   }
   if (request.tool_name === 'hotkey') {
@@ -473,6 +486,25 @@ async function perform(request, target, before) {
     if (!Array.isArray(keys) || keys.join('+').toLowerCase() !== 'cmd+f') throw new WorkerFailure('target-semantic-key');
     await callAction('press_key', { app: target.app, key: 'super+f' }, target.applicationId);
     return { kind: 'changed' };
+  }
+  if (semantic === 'activate-control' && request.tool_name === 'click'
+      && request.arguments.element_index == null
+      && !Number.isFinite(request.arguments.x) && !Number.isFinite(request.arguments.y)) {
+    const query = pendingInput?.taskId === request.task_id && pendingInput.app === target.app
+      ? pendingInput.value
+      : null;
+    const element = typeof query === 'string' ? firstMatchingControl(before, query) : null;
+    if (!element) throw new WorkerFailure('target-semantic-element');
+    await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
+    return { kind: 'transcript-changed' };
+  }
+  if (semantic === 'activate-control' && request.tool_name === 'press_key') {
+    const key = request.arguments.key;
+    if (typeof key !== 'string' || !['ENTER', 'RETURN', 'SPACE'].includes(key.toUpperCase())) {
+      throw new WorkerFailure('target-semantic-key');
+    }
+    await callAction('press_key', { app: target.app, key: key.toUpperCase() === 'SPACE' ? 'space' : 'Return' }, target.applicationId);
+    return { kind: 'transcript-changed' };
   }
   const name = request.tool_name;
   if (!supported.has(name)) {
@@ -495,6 +527,9 @@ function actionConfirmed(expectation, before, after) {
     // 旧值）。Driver 没有可靠视觉断言时必须交回带截图的 UnknownObserved，
     // 由慢脑读取新鲜事实后决定下一片段，不能凭 AX 自报继续副作用链。
     return false;
+  }
+  if (expectation.kind === 'transcript-changed') {
+    return stateText(before) !== stateText(after);
   }
   return fingerprint(before) !== fingerprint(after);
 }
