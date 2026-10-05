@@ -333,15 +333,21 @@ async function targetFor(request) {
 }
 
 async function observe(target) {
-  try {
-    return await getAppState(target.app, target.applicationId);
-  } catch (error) {
-    // 页面/窗口切换会让官方 MCP Client 的只读窗口引用失效。只在 Observe
-    // 阶段重建签名 Client 并重读一次；动作调用从不在未知结果后自动重试。
-    if (!(error instanceof WorkerFailure) || error.stage !== 'target-window-unavailable') throw error;
-    await refreshBridge();
-    return getAppState(target.app, target.applicationId);
+  let failure;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await getAppState(target.app, target.applicationId);
+    } catch (error) {
+      failure = error;
+      // 页面/窗口切换或服务冷启动会让官方 MCP Client 的只读窗口目录短暂
+      // 失效。只在 Observe 阶段重建签名 Client 并有界等待；动作调用从不在
+      // 未知结果后自动重试。
+      if (!(error instanceof WorkerFailure) || error.stage !== 'target-window-unavailable' || attempt === 2) throw error;
+      await new Promise(resolve => setTimeout(resolve, 150 * (attempt + 1)));
+      await refreshBridge();
+    }
   }
+  throw failure;
 }
 
 function stateText(state) {
