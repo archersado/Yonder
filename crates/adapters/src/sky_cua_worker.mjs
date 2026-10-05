@@ -1,6 +1,6 @@
 import { createInterface } from 'node:readline';
 import { execFile, spawn } from 'node:child_process';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -282,6 +282,56 @@ function canonicalListedApp(matches) {
   return installed.length === 1 ? installed[0] : null;
 }
 
+const trustedApplicationRoots = [
+  '/Applications',
+  '/System/Applications',
+  '/System/Applications/Utilities',
+];
+
+function validBundleId(value) {
+  return typeof value === 'string'
+    && value.length > 0
+    && value.length <= 255
+    && /^[A-Za-z0-9.-]+$/.test(value);
+}
+
+async function installedMacAppsForBundleId(bundleId) {
+  if (!validBundleId(bundleId)) return [];
+  const matches = [];
+  for (const root of trustedApplicationRoots) {
+    let entries;
+    try {
+      entries = await readdir(root, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.endsWith('.app')) continue;
+      const listedPath = join(root, entry.name);
+      let canonicalPath;
+      try {
+        canonicalPath = await realpath(listedPath);
+      } catch {
+        continue;
+      }
+      if (canonicalPath !== listedPath || !canonicalPath.startsWith(`${root}/`)) continue;
+      try {
+        const { stdout } = await execFileAsync(
+          '/usr/bin/plutil',
+          ['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', join(canonicalPath, 'Contents', 'Info.plist')],
+          { encoding: 'utf8', timeout: 2_000, maxBuffer: 4 * 1024 },
+        );
+        if (stdout.trim() === bundleId) {
+          matches.push({ id: bundleId, path: canonicalPath, isRunning: false });
+        }
+      } catch {
+        // 固定应用根中的损坏或无标识包不是可启动候选。
+      }
+    }
+  }
+  return [...new Map(matches.map(candidate => [candidate.path, candidate])).values()];
+}
+
 async function bindRunningTarget(target) {
   try {
     return { ...target, app: await runningMacAppForBundleId(target.applicationId) };
@@ -307,7 +357,13 @@ async function targetFor(request) {
       throw new WorkerFailure(boundedFailureStage(error, 'target-list-apps'));
     }
     const matches = apps.filter(candidate => candidate.id === requested || candidate.displayName === requested);
-    const selected = canonicalListedApp(matches);
+    let selected = canonicalListedApp(matches);
+    // 官方 list_apps 是近期/运行应用目录，不保证枚举所有已安装应用。只有调用方
+    // 给出合法 bundle id 且列表完全未命中时，才在三个固定系统应用根按 plist
+    // 唯一解析；不搜索全盘、不接受环境覆盖，也不以显示名猜测目标。
+    if (!selected && matches.length === 0 && validBundleId(requested)) {
+      selected = canonicalListedApp(await installedMacAppsForBundleId(requested));
+    }
     if (!selected || typeof selected.id !== 'string' || selected.id === '') {
       throw new WorkerFailure('target-canonical-app');
     }

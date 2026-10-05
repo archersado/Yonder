@@ -36,6 +36,7 @@
 - FGD-21：同一任务启动应用后必须绑定唯一应用身份；每步从新鲜应用级AX transcript解析元素并优先使用`element_index`，不得复用旧index或改投当前前台。
 - FGD-22：AX transcript只用于本次运行时定位，不进入SQLite、事件、Outbox、日志或顶部浮窗；慢脑继续只接收有界Observation。
 - FGD-23：通用聚焦、输入和激活动作必须映射为Sky支持的动作并在动作后重新Observe；无法形成后置事实时交回且不自动重试。
+- FGD-24：调用方给出合法bundle id而官方应用目录尚未收录已安装应用时，Worker只可在固定系统应用根读取Info.plist并唯一解析完整路径；不得扫描全盘、接受环境目录或以显示名猜测，零命中或多命中必须安全交回。
 
 ## 范围与非目标
 
@@ -50,4 +51,4 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | AD-E0-02、AD-CU-05、AD-AG-09 | FGD-01、FGD-06、FGD-07、FGD-08 |
 | Windows暂缓决定 | FGD-09 |
 | Accepted AD-CU-07产品Apply | FGD-10、FGD-11、FGD-12 |
-| 2026-09-30 Sky单栈决定与AD-CU-09 | FGD-20、FGD-21、FGD-22、FGD-23 |
+| 2026-09-30 Sky单栈决定与AD-CU-09 | FGD-20、FGD-21、FGD-22、FGD-23、FGD-24 |

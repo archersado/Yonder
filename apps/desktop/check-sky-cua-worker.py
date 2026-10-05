@@ -108,6 +108,7 @@ for line in sys.stdin:
     visual_entered = request("visual-input", "type_text", {"text": "visual query", "x": 10, "y": 20, "_yonder_action_kind": "input-text"})
     calculator_launched = request("calculator-launch", "launch_app", {"bundle_id": "com.yonder.fixture.calculator"})
     calculator_input = request("calculator-input", "type_text", {"text": "1+1", "_yonder_action_kind": "input-text"})
+    installed_fallback = request("installed-fallback", "launch_app", {"bundle_id": "com.apple.TextEdit"})
     unavailable = request("unavailable", "launch_app", {"bundle_id": "com.yonder.fixture.no-window"})
     process.terminate()
     process.wait(timeout=5)
@@ -118,7 +119,7 @@ for line in sys.stdin:
     assert all(not item.get("rogue_approval", False) for item in records if "rogue_approval" in item)
     assert all(item["approval"] for item in records if "approval" in item)
     actions = [item for item in records if "name" in item]
-    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, activated_by_element, calculator_launched, calculator_input))
+    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, activated_by_element, calculator_launched, calculator_input, installed_fallback)), installed_fallback
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (entered, visual_entered))
     assert launched["element_count"] == 2 and activated["element_count"] == 6 and activated_by_element["element_count"] == 7
     assert [item["name"] for item in actions] == ["press_key", "click", "press_key", "press_key", "type_text", "press_key", "click", "click", "type_text", "type_text"]
@@ -134,6 +135,7 @@ for line in sys.stdin:
     assert actions[9]["args"]["text"] == "1+1"
     assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:9])
     assert actions[9]["args"]["app"] == "/System/Applications/Calculator.app"
+    assert installed_fallback["launched_app_id"] == "com.apple.TextEdit"
     assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)
     print(json.dumps({

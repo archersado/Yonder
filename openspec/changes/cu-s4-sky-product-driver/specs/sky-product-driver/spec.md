@@ -29,6 +29,11 @@
 
 系统 MUST 对同任务绑定的唯一应用在每步前后读取新鲜AX transcript，并优先使用当前`element_index`执行。
 
+#### Scenario: 已安装应用尚未进入官方近期目录
+
+- **WHEN** `launch_app`携带合法bundle id且官方`list_apps`零命中
+- **THEN** Worker只在固定系统应用根按Info.plist唯一解析完整路径后启动；零命中、多命中、符号链接或路径逃逸均安全交回
+
 #### Scenario: QQ音乐公开唯一搜索框
 
 - **WHEN** 新鲜transcript包含唯一可操作的搜索文本框

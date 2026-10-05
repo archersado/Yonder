@@ -4,6 +4,8 @@
 
 macOS `launch_app`通过桥接MCP `list_apps`把显示名或bundle id收敛为唯一bundle id，并由`get_app_state`后台启动/观察。后续步骤复用同任务缓存目标；没有缓存时才由可信PID解析唯一App bundle路径。每次动作前后读取完整应用状态，解析transcript行首index，不复用跨步index。Yonder不得直接连接`computeruse.sock`，也不得调用Node SDK的direct native-pipe client。
 
+`list_apps`未列出合法bundle id时，只在固定的`/Applications`、`/System/Applications`与`/System/Applications/Utilities`一级目录读取应用`Info.plist`，唯一命中后才把规范完整路径交给签名Client；禁止环境覆盖、全盘递归、显示名猜测、符号链接与多命中选择。
+
 Worker消费Application注入的`_yonder_action_kind`与受保护文本：聚焦搜索优先点击唯一搜索文本框，输入优先对该文本框`set_value`并从后置transcript验证目标值，激活使用受限按键或唯一元素点击。不能唯一定位或验证时返回`UnknownObserved`及同应用截图；语义字段与正文不进入日志。
 
 MCP应用使用elicitation只在当前任务唯一`launch_app`目标的串行MCP调用尚未返回时接受固定空对象Schema；其他server request拒绝。目标身份来自已校验bundle id与路径，不信任本地化提示文案。接受只覆盖应用会话访问，不覆盖Yonder对发送等副作用的独立确认。
