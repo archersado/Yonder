@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-06",
+  "platform": "macos",
+  "driver": "sky-external-0.7.1",
+  "package_single_stack": true,
+  "search_and_play_task": {
+    "task_id": "task_eca281933c5094f0024617df0aa54eed",
+    "input_handback_sequence": 16,
+    "search_result_handback_sequence": 36,
+    "visual_play_fragment_sequence": 47,
+    "observed_track": "One Last Kiss - 宇多田光",
+    "observed_playing": true
+  },
+  "terminal_task": {
+    "task_id": "task_343827d8b795ca1bf50528181e6b9cc0",
+    "completed_sequence": 23,
+    "status": "completed"
+  },
+  "negative_unknown_task": {
+    "task_id": "task_25cff1f3e9e5c6ba85236125f17851bd",
+    "status": "cancelled",
+    "sequence": 42,
+    "counted_as_pass": false
+  },
+  "windows_deferred": true,
+  "passed": true
+}
