@@ -382,11 +382,25 @@ function searchField(state) {
 }
 
 function firstMatchingControl(state, query) {
-  const normalized = query.trim().toLocaleLowerCase();
+  const normalize = value => value.normalize('NFKC').toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const normalized = normalize(query);
   if (normalized === '') return null;
   const field = searchField(state);
-  return transcriptElements(state).find(element => element.index !== field?.index
-    && element.text.toLocaleLowerCase().includes(normalized)) ?? null;
+  const elements = transcriptElements(state).filter(element => element.index !== field?.index);
+  const direct = elements.find(element => normalize(element.text).includes(normalized));
+  if (direct) return direct;
+  const queryTokens = normalized.split(' ');
+  for (let index = 0; index < elements.length; index += 1) {
+    const group = elements.slice(index, index + 3);
+    const tokens = normalize(group.map(element => element.text).join(' ')).split(' ');
+    let cursor = 0;
+    for (const token of tokens) {
+      if (token === queryTokens[cursor]) cursor += 1;
+    }
+    if (cursor === queryTokens.length) return group[0];
+  }
+  return null;
 }
 
 async function persistScreenshot(state, request, response) {
@@ -493,7 +507,8 @@ async function perform(request, target, before) {
     const query = pendingInput?.taskId === request.task_id && pendingInput.app === target.app
       ? pendingInput.value
       : null;
-    const element = typeof query === 'string' ? firstMatchingControl(before, query) : null;
+    if (typeof query !== 'string') throw new WorkerFailure('target-semantic-query');
+    const element = firstMatchingControl(before, query);
     if (!element) throw new WorkerFailure('target-semantic-element');
     await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
     return { kind: 'transcript-changed' };

@@ -60,11 +60,11 @@ for line in sys.stdin:
             if name == 'set_value':
                 text = f\"1 文本框 搜索 {args['value']}\\n2 按钮 播放\"
             elif name == 'type_text' and args['app'].endswith('QQMusic.app'):
-                text = f\"1 文本框 搜索 {args['text']}\\n2 按钮 播放\\n3 选项 {args['text']} 宇多田光\"
+                text = f\"1 文本框 搜索 {args['text']}\\n2 按钮 播放\\n3 选项 one\\n4 选项 last\\n5 选项 kiss 宇多田光\"
             elif name == 'click' and args.get('element_index') == '3':
-                text += '\\n5 文本 已打开搜索结果'
+                text += '\\n7 文本 已打开搜索结果'
             elif name == 'press_key':
-                text += '\\n4 文本 搜索结果已提交'
+                text += '\\n6 文本 搜索结果已提交'
             elif name == 'type_text':
                 calculator_text = f\"1 按钮 1\\n2 文本 {args['text']}\"
             result = {'content':[]}
@@ -118,7 +118,7 @@ for line in sys.stdin:
     actions = records[2:]
     assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, activated_by_element, calculator_launched, calculator_input))
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (entered, visual_entered))
-    assert launched["element_count"] == 2 and activated["element_count"] == 4 and activated_by_element["element_count"] == 5
+    assert launched["element_count"] == 2 and activated["element_count"] == 6 and activated_by_element["element_count"] == 7
     assert [item["name"] for item in actions] == ["press_key", "click", "press_key", "press_key", "type_text", "press_key", "click", "click", "type_text", "type_text"]
     assert actions[0]["args"]["key"] == "super+f"
     assert actions[1]["args"]["element_index"] == "1"
