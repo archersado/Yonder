@@ -283,6 +283,7 @@ function canonicalListedApp(matches) {
 }
 
 async function bindRunningTarget(target) {
+  if (target.app === target.applicationId) return target;
   try {
     return { ...target, app: await runningMacAppForBundleId(target.applicationId) };
   } catch {
@@ -318,8 +319,12 @@ async function targetFor(request) {
     const listedPath = typeof selected.path === 'string' && selected.path.trim() !== ''
       ? selected.path.trim()
       : null;
-    const resolvedApp = listedPath
-      ?? (selected.isRunning === true ? await runningMacAppForBundleId(applicationId) : applicationId);
+    // Sky 的运行窗口目录以 bundle identity 建索引。只有本机进程枚举证明
+    // 当前恰有一个该 bundle 的运行实例时才使用 bundle id；这不会把同时
+    // 挂载在 DMG 上的另一份安装包当作运行目标。没有运行实例时仍以唯一
+    // 安装路径触发后台启动。
+    const runningPath = await runningMacAppForBundleId(applicationId).catch(() => null);
+    const resolvedApp = runningPath != null ? applicationId : listedPath ?? applicationId;
     return { app: resolvedApp, applicationId };
   }
   if (launchedTarget?.task_id === request.task_id) {
