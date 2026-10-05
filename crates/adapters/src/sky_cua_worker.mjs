@@ -283,7 +283,6 @@ function canonicalListedApp(matches) {
 }
 
 async function bindRunningTarget(target) {
-  if (target.app === target.applicationId) return target;
   try {
     return { ...target, app: await runningMacAppForBundleId(target.applicationId) };
   } catch {
@@ -319,12 +318,8 @@ async function targetFor(request) {
     const listedPath = typeof selected.path === 'string' && selected.path.trim() !== ''
       ? selected.path.trim()
       : null;
-    // Sky 的运行窗口目录以 bundle identity 建索引。只有本机进程枚举证明
-    // 当前恰有一个该 bundle 的运行实例时才使用 bundle id；这不会把同时
-    // 挂载在 DMG 上的另一份安装包当作运行目标。没有运行实例时仍以唯一
-    // 安装路径触发后台启动。
-    const runningPath = await runningMacAppForBundleId(applicationId).catch(() => null);
-    const resolvedApp = runningPath != null ? applicationId : listedPath ?? applicationId;
+    const resolvedApp = listedPath
+      ?? (selected.isRunning === true ? await runningMacAppForBundleId(applicationId) : applicationId);
     return { app: resolvedApp, applicationId };
   }
   if (launchedTarget?.task_id === request.task_id) {
@@ -338,21 +333,15 @@ async function targetFor(request) {
 }
 
 async function observe(target) {
-  let failure;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return await getAppState(target.app, target.applicationId);
-    } catch (error) {
-      failure = error;
-      // 页面/窗口切换或服务冷启动会让官方 MCP Client 的只读窗口目录短暂
-      // 失效。只在 Observe 阶段重建签名 Client 并有界等待；动作调用从不在
-      // 未知结果后自动重试。
-      if (!(error instanceof WorkerFailure) || error.stage !== 'target-window-unavailable' || attempt === 2) throw error;
-      await new Promise(resolve => setTimeout(resolve, 150 * (attempt + 1)));
-      await refreshBridge();
-    }
+  try {
+    return await getAppState(target.app, target.applicationId);
+  } catch (error) {
+    // 页面/窗口切换会让官方 MCP Client 的只读窗口引用失效。只在 Observe
+    // 阶段重建签名 Client 并重读一次；动作调用从不在未知结果后自动重试。
+    if (!(error instanceof WorkerFailure) || error.stage !== 'target-window-unavailable') throw error;
+    await refreshBridge();
+    return getAppState(target.app, target.applicationId);
   }
-  throw failure;
 }
 
 function stateText(state) {
