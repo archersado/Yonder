@@ -448,7 +448,9 @@ function privateText(request) {
 async function perform(request, target, before) {
   if (request.tool_name === 'launch_app') {
     // macOS Sky 将启动封装在 get_app_state 中，且不会把应用抢到前台。
-    await getAppState(target.app, target.applicationId);
+    // 已运行应用的窗口代次可能在宿主重启后失效；启动同样属于只读Observe，
+    // 复用一次有界Client刷新，不重放任何键鼠或其他副作用动作。
+    await observe(target);
     pendingInput = undefined;
     return;
   }

@@ -115,7 +115,9 @@ for line in sys.stdin:
     records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
     assert records[0] == {"rogue_approval": False}
     assert records[1] == {"approval": True}
-    actions = records[2:]
+    assert all(not item.get("rogue_approval", False) for item in records if "rogue_approval" in item)
+    assert all(item["approval"] for item in records if "approval" in item)
+    actions = [item for item in records if "name" in item]
     assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, activated_by_element, calculator_launched, calculator_input))
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (entered, visual_entered))
     assert launched["element_count"] == 2 and activated["element_count"] == 6 and activated_by_element["element_count"] == 7
