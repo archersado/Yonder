@@ -133,7 +133,7 @@ for line in sys.stdin:
     assert actions[3]["args"]["key"] == "BackSpace"
     assert actions[4]["args"]["text"] == "one last kiss"
     assert actions[5]["args"]["key"] == "Return"
-    assert actions[6]["args"]["key"] == "ARROWDOWN"
+    assert actions[6]["args"]["key"] == "Down"
     assert actions[7]["args"]["element_index"] == "3"
     assert actions[8]["args"]["x"] == 10 and actions[8]["args"]["y"] == 20 and actions[8]["args"]["click_count"] == 2
     assert actions[9]["args"]["x"] == 10 and actions[9]["args"]["y"] == 20

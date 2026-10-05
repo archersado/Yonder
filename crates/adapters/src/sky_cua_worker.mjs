@@ -579,7 +579,7 @@ async function perform(request, target, before) {
     const normalizedKey = key.toUpperCase() === 'SPACE'
       ? 'space'
       : key.toUpperCase() === 'ARROWDOWN'
-        ? 'ARROWDOWN'
+        ? 'Down'
         : 'Return';
     await callAction('press_key', { app: target.app, key: normalizedKey }, target.applicationId);
     return { kind: key.toUpperCase() === 'ARROWDOWN' ? 'changed' : 'transcript-changed' };

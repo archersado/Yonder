@@ -19,7 +19,7 @@
 6. `focus-control/input-text/activate-control` 由 Worker 映射为 Sky 的 `click/set_value/press_key` 等原生动作；私有文本与语义标记不得进入日志。动作无法形成新鲜后置事实时保持 unknown/交回，不自动重试。
 7. CUA Driver 仍模型无关；慢脑经 Gateway 提交有界计划片段，Jev 只在片段内选候选。Sky 不承担首次规划、语义 replan、任务状态或 UI 状态所有权。
 8. Windows 路线和证据继续暂缓；macOS 结论不得外推。恢复 Windows 时必须另做同样本 Driver 决策，不恢复长期双栈。
-9. 2026-10-05正式QQ音乐自绘结果样本证明单击只能建立悬停、两个分离单击不会合并为双击，且搜索下拉会穿透坐标事件；协议1.41仅为通用`activate-control + click`视觉坐标增加可选`click_count=1|2`，并为`activate-control + press_key`增加唯一导航键`ARROWDOWN`。其他动作种类、元素动作、发送动作与坐标输入均不得携带该字段或任意导航键；Worker原样映射固定Sky公开参数，每次派发后仍强制Observe，不能据请求回执判定激活成功。
+9. 2026-10-05正式QQ音乐自绘结果样本证明单击只能建立悬停、两个分离单击不会合并为双击，且搜索下拉会穿透坐标事件；协议1.41仅为通用`activate-control + click`视觉坐标增加可选`click_count=1|2`，并为`activate-control + press_key`增加唯一导航语义`ARROWDOWN`。其他动作种类、元素动作、发送动作与坐标输入均不得携带该字段或任意导航键；Worker把该语义固定映射为Sky公开的xdotool键名`Down`，每次派发后仍强制Observe，不能据请求回执判定激活成功。
 
 ## 取代关系
 
