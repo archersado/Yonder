@@ -16,6 +16,13 @@
     "completed_sequence": 23,
     "status": "completed"
   },
+  "external_window_binding_task": {
+    "task_id": "task_dff3884691d4291f23a66f47dfe35d40",
+    "observed_steps": 3,
+    "worker_restart_contract": true,
+    "completed_sequence": 18,
+    "status": "completed"
+  },
   "negative_unknown_task": {
     "task_id": "task_25cff1f3e9e5c6ba85236125f17851bd",
     "status": "cancelled",

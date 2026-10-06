@@ -1,5 +1,7 @@
 # CU-S4 Sky 产品链路 macOS 独立 Verification Goal
 
+Result: PASS
+
 日期：2026-10-06  
 平台：macOS 26.0.1，正式调试包 `Yonda.app`  
 结论：**PASS（仅 macOS；Windows 暂缓）**
@@ -24,11 +26,19 @@
 
 ## 回归结果
 
-- `python3 apps/desktop/check-sky-cua-worker.py`：PASS；覆盖已安装应用解析、`click_count=2`、`ARROWDOWN→Down`与敏感参数剥离。
+- `python3 apps/desktop/check-sky-cua-worker.py`：PASS；覆盖已安装应用解析、Worker进程重建后的外置绑定恢复、`click_count=2`、`ARROWDOWN→Down`与敏感参数剥离。
 - `cargo test --offline --locked -p yonder-protocol`：17 PASS。
 - `cargo test --offline --locked -p yonder-application`：58 PASS。
-- `cargo test --offline --locked -p yonder-adapters`：76 PASS；新增计划片段任务在空内存Runtime下安全终结的集成断言。
+- `cargo test --offline --locked -p yonder-adapters`：77 PASS；覆盖Adapter绑定与Worker进程生命周期分离、同任务激活及任务会话清理。
+- `cargo test --offline --locked -p yonder-desktop`：lib 25 PASS、main 11 PASS；发布契约负例已对齐协议1.41。
 - `python3 apps/desktop/check-cua-package.py`：PASS；Sky `0.7.1`、签名Node与Client Team `2DC432GLL2`，trycua/Qwen缺失符合单栈边界。
+
+## 2026-10-06窗口绑定外置复验
+
+- 从提交`a0f57c9`构建正式调试`Yonda.app`，仅通过安装包内`yonder mcp`与生产UDS创建任务`task_dff3884691d4291f23a66f47dfe35d40`。
+- 同一三槽位片段依次完成应用启动、窗口内文本输入和结果激活；三个attempt均为`action_succeeded=true`、`observe_valid=true`，没有`target-window-unavailable`，最终`task_complete`返回`completed@18`。
+- 该样本证明成功启动形成的bundle绑定由Rust Adapter跨步骤提供；后续动作不依赖Node Worker模块全局`launchedTarget`。独立Worker回归额外在启动后销毁并重建进程，仍以外置绑定继续下一动作。
+- 输入正文、AX transcript、截图、PID和窗口号未写入本Goal、结构化证据、任务事件或日志。
 
 ## 未计入 PASS 的负样本
 

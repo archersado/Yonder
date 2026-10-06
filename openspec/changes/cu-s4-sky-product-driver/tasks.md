@@ -7,7 +7,7 @@
 - [x] 以协议1.41接入受限自绘控件双击并完成正式QQ音乐样本
 - [x] 构建正式macOS Yonder并复验QQ音乐多步骤链路
 - [x] 建立并通过独立Verification Goal
-- [ ] 外置同任务窗口绑定到Rust Adapter并覆盖Worker重建/跨任务回归
+- [x] 外置同任务窗口绑定到Rust Adapter并覆盖Worker重建/跨任务回归
 - [ ] Windows对等验证（依用户决定暂缓）
 
 2026-10-01正式验证返回Apply：包边界与隔离Worker通过，但正式Yonder在`list_apps`前的Sky native-pipe握手被服务关闭，阶段为`transport-closed`。2026-10-04进一步确认固定Sky发行物提供官方签名MCP Client，且Client要求OpenAI Team ID父进程；同发行物签名Node派生Client的`list_apps/get_app_state`已通过隔离探针。产品实现改走该签名MCP桥，仍须完成正式Gateway与独立Goal后才能合入dev。

@@ -40,3 +40,5 @@ OpenSpec: cu-s4-sky-product-driver
 同日正式Gateway复验时图形会话已锁屏；官方Codex CUA与独立原生窗口夹具均同步返回`cgWindowNotFound`，Yonder正确分类为`target-window-unavailable`并交回，验证任务已取消。该外部环境阻塞不授权跳过Goal；解锁后重跑正式正向和视觉交回样本。
 
 2026-10-06 macOS独立Verification Goal PASS：正式Yonder完成QQ音乐关键词输入、受限候选下移、结果页进入、视觉双击播放与`task.complete`终结；播放器显示`One Last Kiss - 宇多田光`并处于播放态，最终任务`task_343827d8b795ca1bf50528181e6b9cc0`为`completed@23`。验证同时修复协议语义`ARROWDOWN`到Sky xdotool键名`Down`的Adapter映射，以及计划片段任务被全局内存Runtime误判为不存在的终结路由。Windows对等验证仍按主人决定暂缓，Story保持verifying且不Archive。
+
+同日窗口绑定外置修订完成：Rust Adapter运行态持有同任务规范bundle id，Node Worker与签名MCP Client重建不再丢失绑定。正式Gateway三槽位任务`task_dff3884691d4291f23a66f47dfe35d40`的启动、输入、激活均Observed，最终`completed@18`；Windows对等验证继续暂缓。
