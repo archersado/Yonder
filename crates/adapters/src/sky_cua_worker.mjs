@@ -12,6 +12,7 @@ const supported = new Set([
   'click', 'drag', 'perform_secondary_action', 'press_key', 'scroll',
   'select_text', 'set_value', 'type_text',
 ]);
+const navigationActionTimeoutMs = 5_000;
 let pendingInput;
 
 class SkyMcpBridge {
@@ -88,10 +89,10 @@ class SkyMcpBridge {
     this.notify('notifications/initialized', {});
   }
 
-  async callTool(name, args, approvalAppId = null) {
+  async callTool(name, args, approvalAppId = null, timeoutMs = 25_000) {
     this.activeApprovalAppId = approvalAppId;
     try {
-      const result = await this.request('tools/call', { name, arguments: args });
+      const result = await this.request('tools/call', { name, arguments: args }, timeoutMs);
       if (!result || !Array.isArray(result.content)) throw new Error('MCP tool failed');
       if (result.isError === true) {
         const failure = resultText(result).toLocaleLowerCase();
@@ -100,6 +101,9 @@ class SkyMcpBridge {
         }
         if (failure.includes('sender process is not authenticated')) {
           throw new WorkerFailure('transport-authentication');
+        }
+        if (failure.includes('timed out')) {
+          throw new WorkerFailure('transport-timeout');
         }
         throw new Error('MCP tool failed');
       }
@@ -206,8 +210,8 @@ async function getAppState(app, applicationId) {
   return stateFromResult(await bridge.callTool('get_app_state', { app }, applicationId), app);
 }
 
-async function callAction(name, args, applicationId) {
-  await bridge.callTool(name, args, applicationId);
+async function callAction(name, args, applicationId, timeoutMs = 25_000) {
+  await bridge.callTool(name, args, applicationId, timeoutMs);
 }
 
 function responseFor(request) {
@@ -539,6 +543,21 @@ async function perform(request, target, before) {
     return;
   }
   const semantic = request.arguments._yonder_action_kind;
+  if (semantic === 'activate-control' && request.tool_name === 'click'
+      && Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
+    try {
+      await callAction('click', actionArguments(request, target), target.applicationId, navigationActionTimeoutMs);
+    } catch (error) {
+      const stage = error instanceof WorkerFailure
+        ? error.stage
+        : boundedFailureStage(error, 'action-coordinate-click');
+      if (stage !== 'transport-timeout') throw error;
+      // 只对无业务副作用的控件激活收敛“已投递但Client不返回”。旧Client
+      // 立即销毁，点击绝不重放；后续统一由新Client Observe界面指纹。
+      await refreshBridge();
+    }
+    return { kind: 'changed' };
+  }
   if (request.tool_name === 'click' && ['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);
     if (!element) throw new WorkerFailure('target-semantic-element');

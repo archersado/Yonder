@@ -15,12 +15,15 @@ with tempfile.TemporaryDirectory(prefix="yonder-sky-worker-") as directory:
     fixture = pathlib.Path(directory)
     bridge = fixture / "SkyComputerUseClient"
     log = fixture / "actions.jsonl"
+    state = fixture / "state.txt"
+    state.write_text("", encoding="utf-8")
     evidence = fixture / "evidence"
     evidence.mkdir()
     bridge.write_text(
         """#!/usr/bin/env python3
 import json, os, sys
-text = '1 文本框 搜索\\n2 按钮 播放'
+state_path = os.environ['YONDER_SKY_TEST_STATE']
+text = '1 文本框 搜索\\n2 按钮 播放' + open(state_path, encoding='utf-8').read()
 calculator_text = '1 按钮 1\\n2 文本 0'
 approved = False
 log = os.environ['YONDER_SKY_TEST_LOG']
@@ -65,6 +68,16 @@ for line in sys.stdin:
                 text += '\\n7 文本 已打开搜索结果'
             elif name == 'click' and args.get('click_count') == 2:
                 text += '\\n8 文本 已双击激活自绘结果'
+            elif name == 'click' and args.get('x') == 30 and args.get('y') == 40:
+                with open(state_path, 'a', encoding='utf-8') as state_output:
+                    state_output.write('\\n9 文本 企业菜单已打开')
+                result = {'isError':True,'content':[{'type':'text','text':'request timed out'}]}
+                print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}, ensure_ascii=False), flush=True)
+                continue
+            elif name == 'click' and args.get('x') == 31 and args.get('y') == 41:
+                result = {'isError':True,'content':[{'type':'text','text':'request timed out'}]}
+                print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}, ensure_ascii=False), flush=True)
+                continue
             elif name == 'press_key':
                 text += '\\n6 文本 搜索结果已提交'
             elif name == 'type_text':
@@ -84,7 +97,7 @@ for line in sys.stdin:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=dict(os.environ, YONDER_SKY_TEST_LOG=str(log)),
+            env=dict(os.environ, YONDER_SKY_TEST_LOG=str(log), YONDER_SKY_TEST_STATE=str(state)),
         )
 
     process = start_worker()
@@ -114,6 +127,8 @@ for line in sys.stdin:
     process.terminate()
     process.wait(timeout=5)
     process = start_worker()
+    timed_coordinate = request("timeout-coordinate", "click", {"x": 30, "y": 40, "_yonder_action_kind": "activate-control"})
+    timed_noop = request("timeout-coordinate-noop", "click", {"x": 31, "y": 41, "_yonder_action_kind": "activate-control"})
     focused = request("focus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
     entered = request("input", "type_text", {"text": "one last kiss", "_yonder_action_kind": "input-text"})
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
@@ -135,24 +150,26 @@ for line in sys.stdin:
     assert all(not item.get("rogue_approval", False) for item in records if "rogue_approval" in item)
     assert all(item["approval"] for item in records if "approval" in item)
     actions = [item for item in records if "name" in item]
-    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)), installed_fallback
-    assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (entered, visual_entered))
+    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, timed_coordinate, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)), installed_fallback
+    assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_noop, entered, visual_entered))
     assert launched["element_count"] == 2 and activated["element_count"] == 6 and navigated["element_count"] == 7 and activated_by_element["element_count"] == 8
-    assert [item["name"] for item in actions] == ["press_key", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
-    assert actions[0]["args"]["key"] == "super+f"
-    assert actions[1]["args"]["element_index"] == "1"
-    assert actions[2]["args"]["key"] == "super+a"
-    assert actions[3]["args"]["key"] == "BackSpace"
-    assert actions[4]["args"]["text"] == "one last kiss"
-    assert actions[5]["args"]["key"] == "Return"
-    assert actions[6]["args"]["key"] == "Down"
-    assert actions[7]["args"]["element_index"] == "3"
-    assert actions[8]["args"]["x"] == 10 and actions[8]["args"]["y"] == 20 and actions[8]["args"]["click_count"] == 2
-    assert actions[9]["args"]["x"] == 10 and actions[9]["args"]["y"] == 20
-    assert actions[10]["args"]["text"] == "visual query"
-    assert actions[11]["args"]["text"] == "1+1"
-    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:11])
-    assert actions[11]["args"]["app"] == "/System/Applications/Calculator.app"
+    assert [item["name"] for item in actions] == ["click", "click", "press_key", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
+    assert actions[0]["args"]["x"] == 30 and actions[0]["args"]["y"] == 40
+    assert actions[1]["args"]["x"] == 31 and actions[1]["args"]["y"] == 41
+    assert actions[2]["args"]["key"] == "super+f"
+    assert actions[3]["args"]["element_index"] == "1"
+    assert actions[4]["args"]["key"] == "super+a"
+    assert actions[5]["args"]["key"] == "BackSpace"
+    assert actions[6]["args"]["text"] == "one last kiss"
+    assert actions[7]["args"]["key"] == "Return"
+    assert actions[8]["args"]["key"] == "Down"
+    assert actions[9]["args"]["element_index"] == "3"
+    assert actions[10]["args"]["x"] == 10 and actions[10]["args"]["y"] == 20 and actions[10]["args"]["click_count"] == 2
+    assert actions[11]["args"]["x"] == 10 and actions[11]["args"]["y"] == 20
+    assert actions[12]["args"]["text"] == "visual query"
+    assert actions[13]["args"]["text"] == "1+1"
+    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:13])
+    assert actions[13]["args"]["app"] == "/System/Applications/Calculator.app"
     assert installed_fallback["launched_app_id"] == "com.apple.TextEdit"
     assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)

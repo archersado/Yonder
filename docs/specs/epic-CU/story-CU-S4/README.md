@@ -42,3 +42,5 @@ OpenSpec: cu-s4-sky-product-driver
 2026-10-06 macOS独立Verification Goal PASS：正式Yonder完成QQ音乐关键词输入、受限候选下移、结果页进入、视觉双击播放与`task.complete`终结；播放器显示`One Last Kiss - 宇多田光`并处于播放态，最终任务`task_343827d8b795ca1bf50528181e6b9cc0`为`completed@23`。验证同时修复协议语义`ARROWDOWN`到Sky xdotool键名`Down`的Adapter映射，以及计划片段任务被全局内存Runtime误判为不存在的终结路由。Windows对等验证仍按主人决定暂缓，Story保持verifying且不Archive。
 
 同日窗口绑定外置修订完成：Rust Adapter运行态持有同任务规范bundle id，Node Worker与签名MCP Client重建不再丢失绑定。正式Gateway三槽位任务`task_dff3884691d4291f23a66f47dfe35d40`的启动、输入、激活均Observed，最终`completed@18`；Windows对等验证继续暂缓。
+
+同日企业微信多企业入口回归发现：启动和原生前置均成功后，Sky对左下角非AX企业图标的坐标点击已投递但`tools/call`不返回，Rust宿主先超时并销毁Worker，无法取得菜单后置事实。FGD-28授权只对无业务副作用的坐标控件激活缩短动作等待、停止旧Client并单次重新Observe；禁止重放点击，消息发送等副作用不适用。修复与正式Gateway回归完成前Story继续保持verifying。
