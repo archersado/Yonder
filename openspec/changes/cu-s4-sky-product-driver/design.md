@@ -14,7 +14,9 @@ MCP应用使用elicitation只在当前任务唯一`launch_app`目标的串行MCP
 
 Client错误正文只在Worker内做固定码/固定标记分类；`cgWindowNotFound`映射为`target-window-unavailable`，不把应用状态、AX正文或原始错误写入宿主日志。该阶段触发带界交回，不重放动作。
 
-`activate-control + click(x,y)`属于不含业务副作用的界面导航。官方Client若在投递后超过固定短等待仍未返回，Worker关闭该Client并重建一次，只读Observe同一绑定应用；禁止再次调用`click`。后置界面指纹变化时动作可确认，未变化时返回`UnknownObserved`供慢脑重规划。发送消息及其他副作用动作不进入该分支。
+`activate-control + click(x,y)`属于不含业务副作用的界面导航。官方Client若在投递后超过固定短等待仍未返回，Worker关闭该Client并重建一次，只读Observe同一绑定应用；禁止再次调用`click`。企业微信真实截图证明任意截图差异不能证明坐标动作已投递，因此该超时分支无条件返回`UnknownObserved`供慢脑重规划。发送消息及其他副作用动作不进入该分支。
+
+协议1.42为通用控件激活增加唯一受限参数`observed_element_index`。Application只接受当前新鲜AX transcript中的`1..=65535`整数；Worker动作前重新Observe确认索引仍存在，再内部转换为Sky `element_index`并只执行一次，动作后transcript不变仍交回。该索引不持久化、不透传为通用SDK参数，其他动作拒绝该字段。
 
 外部协议和SQLite不新增transcript字段。`ComputerObservation`继续只暴露有界元素数量、临时截图与可见性。2026-10-05协议1.41仅为通用视觉`activate-control + click(x,y)`增加可选`click_count=1|2`，并为`activate-control + press_key`增加唯一`ARROWDOWN`导航，用于固定Sky已公开的自绘控件激活；其他参数边界不变。包构建删除trycua模块与旧Worker，只复制Node、Sky Worker和Jev依赖；签名MCP Client继续来自外部固定Sky安装，不复制进Yonder包。
 

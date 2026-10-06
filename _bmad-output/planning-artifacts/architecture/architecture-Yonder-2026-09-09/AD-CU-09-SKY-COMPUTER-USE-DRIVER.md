@@ -21,6 +21,7 @@
 8. Windows 路线和证据继续暂缓；macOS 结论不得外推。恢复 Windows 时必须另做同样本 Driver 决策，不恢复长期双栈。
 9. 2026-10-05正式QQ音乐自绘结果样本证明单击只能建立悬停、两个分离单击不会合并为双击，且搜索下拉会穿透坐标事件；协议1.41仅为通用`activate-control + click`视觉坐标增加可选`click_count=1|2`，并为`activate-control + press_key`增加唯一导航语义`ARROWDOWN`。其他动作种类、元素动作、发送动作与坐标输入均不得携带该字段或任意导航键；Worker把该语义固定映射为Sky公开的xdotool键名`Down`，每次派发后仍强制Observe，不能据请求回执判定激活成功。
 10. 2026-10-06窗口绑定状态外置修订：同一任务最近一次成功`launch_app`产生的规范bundle id由Rust CUA Adapter运行态持有，不再由Node Worker模块全局变量或MCP Client隐式会话持有。Adapter只把匹配当前`task_id`的只读绑定注入单次内部Worker请求；Worker每步按该bundle id重新解析唯一运行App/窗口，再执行动作和Observe。Worker进程、签名MCP Client或只读窗口引用重建不得清除该任务绑定；任务会话结束、显式切换任务或新的`launch_app`开始时必须清除。该状态不持久化、不进入Agent协议、SQLite、事件或Outbox，Agent/UI仍不得提交或覆盖应用、PID和窗口身份。
+11. 2026-10-06企业微信入口修订：坐标`click`在签名Sky Client中超时且后置截图只有无关变化时，不得据截图指纹变化确认动作成功；停止旧Client后只允许单次Observe并交回慢脑，点击绝不重放。协议1.42为通用`activate-control + click`增加唯一受限参数`observed_element_index`：索引必须来自当前新鲜Sky AX transcript、为`1..=65535`整数，Worker在动作前重新Observe并确认索引仍存在，再转换为Sky内部`element_index`；字段不得用于焦点、输入、发送或其他动作，也不得持久化。元素激活仍必须由动作后transcript变化证明，否则带截图交回。
 
 ## 取代关系
 
@@ -32,6 +33,7 @@
 - 正式包不含 trycua 包或 Worker，组合根不存在 Driver 环境开关，仅在固定 Sky 能力可用时公布 CUA available。
 - 隔离 Worker 测试证明应用级 transcript 元素计数、语义动作映射、任务目标绑定、动作后重新 Observe 与敏感字段清理。
 - Adapter合约证明绑定跨步骤及Worker重建保持、跨任务拒绝，并在任务会话结束时清除；Worker不得依赖进程内`launchedTarget`。
+- 协议与Worker合约证明`observed_element_index`只用于通用控件激活、动作前验证新鲜存在且不透传；坐标超时只能交回，不能凭任意截图差异自报成功。
 - 正式 Yonder Gateway 的 QQ 音乐多步骤计划能读取搜索元素并推进；失败时携带新鲜同应用 Observation 交回。
 - 独立 Verification Goal 复核包边界、Adapter 合约和 macOS 原生证据；Windows 项明确 deferred。
 

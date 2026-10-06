@@ -514,6 +514,7 @@ function actionArguments(request, target) {
   delete args.window_id;
   delete args.app;
   delete args.applicationId;
+  delete args.observed_element_index;
   delete args._yonder_action_kind;
   delete args._yonder_private_text;
   if (target.app) args.app = target.app;
@@ -544,7 +545,18 @@ async function perform(request, target, before) {
   }
   const semantic = request.arguments._yonder_action_kind;
   if (semantic === 'activate-control' && request.tool_name === 'click'
+      && Number.isInteger(request.arguments.observed_element_index)) {
+    const index = request.arguments.observed_element_index;
+    if (index < 1 || index > 65_535
+        || !transcriptElements(before).some(element => element.index === index)) {
+      throw new WorkerFailure('target-semantic-element');
+    }
+    await callAction('click', { app: target.app, element_index: String(index) }, target.applicationId);
+    return { kind: 'transcript-changed' };
+  }
+  if (semantic === 'activate-control' && request.tool_name === 'click'
       && Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
+    let timedOut = false;
     try {
       await callAction('click', actionArguments(request, target), target.applicationId, navigationActionTimeoutMs);
     } catch (error) {
@@ -553,10 +565,11 @@ async function perform(request, target, before) {
         : boundedFailureStage(error, 'action-coordinate-click');
       if (stage !== 'transport-timeout') throw error;
       // 只对无业务副作用的控件激活收敛“已投递但Client不返回”。旧Client
-      // 立即销毁，点击绝不重放；后续统一由新Client Observe界面指纹。
+      // 立即销毁，点击绝不重放；后续统一由新Client只读Observe并交回。
       await refreshBridge();
+      timedOut = true;
     }
-    return { kind: 'changed' };
+    return { kind: timedOut ? 'coordinate-timeout' : 'changed' };
   }
   if (request.tool_name === 'click' && ['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);
@@ -648,6 +661,7 @@ function actionConfirmed(expectation, before, after) {
   if (expectation.kind === 'transcript-changed') {
     return stateText(before) !== stateText(after);
   }
+  if (expectation.kind === 'coordinate-timeout') return false;
   return fingerprint(before) !== fingerprint(after);
 }
 

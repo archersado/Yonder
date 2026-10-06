@@ -40,13 +40,12 @@ Result: PASS
 - 该样本证明成功启动形成的bundle绑定由Rust Adapter跨步骤提供；后续动作不依赖Node Worker模块全局`launchedTarget`。独立Worker回归额外在启动后销毁并重建进程，仍以外置绑定继续下一动作。
 - 输入正文、AX transcript、截图、PID和窗口号未写入本Goal、结构化证据、任务事件或日志。
 
-## 2026-10-06企业微信非AX企业入口复验
+## 2026-10-06企业微信企业入口负样本
 
-- 从提交`713e38c`构建并启动正式调试`Yonda.app`，仅通过安装包内`yonder mcp`、生产Agent Gateway与Sky单栈创建任务`task_080739ed85eebc668da4b97ffcf6bc96`。
-- 同一三槽位片段连续完成“打开企业微信 → 将窗口置于前台 → 坐标激活左下角企业入口”；最后一步命中Sky Client不返回路径后，旧Client被停止，点击没有重放，新Client只执行一次同窗口Observe。
-- 片段返回`fragment-complete@17`且无交回原因，验证任务随后经Gateway正常终结为`completed@18`。该结果证明无业务副作用坐标激活能够在宿主30秒上限前收敛，不再把任务卡死；发送、删除、支付等副作用不适用该恢复路径。
-- `python3 apps/desktop/check-sky-cua-worker.py`补充两组隔离回归：界面指纹变化时确认成功，指纹不变时返回`suspected_noop`；两组均只投递一次坐标点击。
-- 本轮`cargo test -p yonder-adapters`为77项PASS，`node --check`、Python语法检查、`git diff --check`与`openspec validate cu-s4-sky-product-driver --strict`通过。全仓`check_architecture.py`被基线`TM-S9/README.md`缺少标准`Story/Epic/Status/OpenSpec`字段阻断，不把该既有问题记为本修复通过。
+- 从提交`713e38c`构建的正式调试`Yonda.app`经安装包内`yonder mcp`执行任务`task_080739ed85eebc668da4b97ffcf6bc96`，三槽位返回`fragment-complete@17`并终结为`completed@18`。
+- 随后读取正式Yonder保存的动作后Observation，证明企业切换菜单并未打开；此前坐标还错误指向底部图标。以正确顶部头像坐标执行的任务`task_2b366150d400bcd80c2b95ea54d7ef88`同样未打开菜单，却仍被截图指纹变化误判为完成。
+- 因此上述任务均为负样本，不计入PASS。协议1.42必须让坐标超时无条件交回，并以动作前新鲜AX元素索引完成正确入口复验后，才能关闭该增量任务。
+- 全仓`check_architecture.py`另被基线`TM-S9/README.md`缺少标准`Story/Epic/Status/OpenSpec`字段阻断；该既有问题与本负样本分别记录，均不能伪装为本项通过。
 
 ## 未计入 PASS 的负样本
 

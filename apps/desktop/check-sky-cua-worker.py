@@ -66,6 +66,8 @@ for line in sys.stdin:
                 text = f\"1 文本框 搜索 {args['text']}\\n2 按钮 播放\\n3 选项 one\\n4 选项 last\\n5 选项 kiss 宇多田光\"
             elif name == 'click' and args.get('element_index') == '3':
                 text += '\\n7 文本 已打开搜索结果'
+            elif name == 'click' and args.get('element_index') == '2':
+                text += '\\n10 文本 企业菜单已打开'
             elif name == 'click' and args.get('click_count') == 2:
                 text += '\\n8 文本 已双击激活自绘结果'
             elif name == 'click' and args.get('x') == 30 and args.get('y') == 40:
@@ -129,6 +131,7 @@ for line in sys.stdin:
     process = start_worker()
     timed_coordinate = request("timeout-coordinate", "click", {"x": 30, "y": 40, "_yonder_action_kind": "activate-control"})
     timed_noop = request("timeout-coordinate-noop", "click", {"x": 31, "y": 41, "_yonder_action_kind": "activate-control"})
+    observed_element = request("observed-element", "click", {"observed_element_index": 2, "_yonder_action_kind": "activate-control"})
     focused = request("focus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
     entered = request("input", "type_text", {"text": "one last kiss", "_yonder_action_kind": "input-text"})
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
@@ -150,26 +153,28 @@ for line in sys.stdin:
     assert all(not item.get("rogue_approval", False) for item in records if "rogue_approval" in item)
     assert all(item["approval"] for item in records if "approval" in item)
     actions = [item for item in records if "name" in item]
-    assert all(result["action_succeeded"] and result["observe_valid"] for result in (launched, timed_coordinate, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)), installed_fallback
-    assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_noop, entered, visual_entered))
+    successful_results = (launched, observed_element, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)
+    assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"]) for result in successful_results]
+    assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, entered, visual_entered))
     assert launched["element_count"] == 2 and activated["element_count"] == 6 and navigated["element_count"] == 7 and activated_by_element["element_count"] == 8
-    assert [item["name"] for item in actions] == ["click", "click", "press_key", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
+    assert [item["name"] for item in actions] == ["click", "click", "click", "press_key", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
     assert actions[0]["args"]["x"] == 30 and actions[0]["args"]["y"] == 40
     assert actions[1]["args"]["x"] == 31 and actions[1]["args"]["y"] == 41
-    assert actions[2]["args"]["key"] == "super+f"
-    assert actions[3]["args"]["element_index"] == "1"
-    assert actions[4]["args"]["key"] == "super+a"
-    assert actions[5]["args"]["key"] == "BackSpace"
-    assert actions[6]["args"]["text"] == "one last kiss"
-    assert actions[7]["args"]["key"] == "Return"
-    assert actions[8]["args"]["key"] == "Down"
-    assert actions[9]["args"]["element_index"] == "3"
-    assert actions[10]["args"]["x"] == 10 and actions[10]["args"]["y"] == 20 and actions[10]["args"]["click_count"] == 2
-    assert actions[11]["args"]["x"] == 10 and actions[11]["args"]["y"] == 20
-    assert actions[12]["args"]["text"] == "visual query"
-    assert actions[13]["args"]["text"] == "1+1"
-    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:13])
-    assert actions[13]["args"]["app"] == "/System/Applications/Calculator.app"
+    assert actions[2]["args"]["element_index"] == "2" and "observed_element_index" not in actions[2]["args"]
+    assert actions[3]["args"]["key"] == "super+f"
+    assert actions[4]["args"]["element_index"] == "1"
+    assert actions[5]["args"]["key"] == "super+a"
+    assert actions[6]["args"]["key"] == "BackSpace"
+    assert actions[7]["args"]["text"] == "one last kiss"
+    assert actions[8]["args"]["key"] == "Return"
+    assert actions[9]["args"]["key"] == "Down"
+    assert actions[10]["args"]["element_index"] == "3"
+    assert actions[11]["args"]["x"] == 10 and actions[11]["args"]["y"] == 20 and actions[11]["args"]["click_count"] == 2
+    assert actions[12]["args"]["x"] == 10 and actions[12]["args"]["y"] == 20
+    assert actions[13]["args"]["text"] == "visual query"
+    assert actions[14]["args"]["text"] == "1+1"
+    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:14])
+    assert actions[14]["args"]["app"] == "/System/Applications/Calculator.app"
     assert installed_fallback["launched_app_id"] == "com.apple.TextEdit"
     assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)

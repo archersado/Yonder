@@ -44,6 +44,16 @@
 - **WHEN** 语义目标无法从新鲜transcript唯一解析
 - **THEN** Worker停止动作并返回同应用有界视觉Observation供慢脑重规划，不自动重试
 
+#### Scenario: 通用控件引用新鲜AX元素
+
+- **WHEN** 协议1.42的`activate-control + click`提交当前Observation中的`observed_element_index`
+- **THEN** Gateway只接受`1..=65535`整数，Worker在动作前重新Observe确认该索引仍存在、内部转换为Sky元素点击并在动作后验证transcript变化；其他动作、过期或不存在索引均拒绝或交回
+
+#### Scenario: 坐标点击超时后重新Observe
+
+- **WHEN** 无业务副作用的坐标控件激活超过Worker短等待且签名Client未返回
+- **THEN** Worker停止旧Client、不重放点击并对同一绑定只读Observe一次，随后无条件以`UnknownObserved`交回；不得凭截图指纹差异确认成功
+
 #### Scenario: 通用文本输入没有唯一搜索元素
 
 - **WHEN** 已绑定应用不存在唯一搜索文本框且计划候选为通用`input-text`

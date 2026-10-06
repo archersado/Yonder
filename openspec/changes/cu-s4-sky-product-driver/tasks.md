@@ -8,7 +8,7 @@
 - [x] 构建正式macOS Yonder并复验QQ音乐多步骤链路
 - [x] 建立并通过独立Verification Goal
 - [x] 外置同任务窗口绑定到Rust Adapter并覆盖Worker重建/跨任务回归
-- [x] 修复Sky无副作用坐标点击不返回时的单次Observe收敛并完成企业微信入口回归
+- [ ] 修复Sky坐标点击超时误报、接入新鲜AX元素激活并完成企业微信入口回归
 - [ ] Windows对等验证（依用户决定暂缓）
 
 2026-10-01正式验证返回Apply：包边界与隔离Worker通过，但正式Yonder在`list_apps`前的Sky native-pipe握手被服务关闭，阶段为`transport-closed`。2026-10-04进一步确认固定Sky发行物提供官方签名MCP Client，且Client要求OpenAI Team ID父进程；同发行物签名Node派生Client的`list_apps/get_app_state`已通过隔离探针。产品实现改走该签名MCP桥，仍须完成正式Gateway与独立Goal后才能合入dev。
@@ -17,4 +17,4 @@
 
 2026-10-06 macOS独立Goal PASS：正式Gateway任务完成搜索输入、`ARROWDOWN→Down`候选导航、搜索结果页进入与视觉双击播放；后置截图显示底部播放器为`One Last Kiss - 宇多田光`且处于播放态。终结路由修复后，重建包任务`task_343827d8b795ca1bf50528181e6b9cc0`从正式Gateway落为`completed@23`。Windows对等验证继续按主人决定暂缓，因此Change不Archive。
 
-同日企业微信非AX企业入口回归PASS：正式Gateway任务`task_080739ed85eebc668da4b97ffcf6bc96`的启动、前置与坐标激活三槽位返回`fragment-complete@17`，随后`completed@18`。坐标点击超时后仅重建Client并单次Observe，不重放动作；副作用动作保持原有unknown失败关闭边界。
+同日企业微信企业入口初次回归返回Apply：任务`task_080739ed85eebc668da4b97ffcf6bc96`虽返回`fragment-complete@17`，但正式Yonder动作后Observation证明企业菜单未打开；此前点击目标还错误指向底部图标。以正确顶部头像坐标重试的`task_2b366150d400bcd80c2b95ea54d7ef88`仍未打开菜单，却被截图指纹变化误判为完成。该样本暴露截图指纹误报和计划协议不能提交新鲜AX元素索引两个缺口，不计入PASS；协议1.42修复与正确入口回归完成前本项保持未完成。
