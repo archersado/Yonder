@@ -44,3 +44,5 @@ OpenSpec: cu-s4-sky-product-driver
 同日窗口绑定外置修订完成：Rust Adapter运行态持有同任务规范bundle id，Node Worker与签名MCP Client重建不再丢失绑定。正式Gateway三槽位任务`task_dff3884691d4291f23a66f47dfe35d40`的启动、输入、激活均Observed，最终`completed@18`；Windows对等验证继续暂缓。
 
 同日企业微信多企业入口回归发现：启动和原生前置均成功后，Sky对左下角非AX企业图标的坐标点击已投递但`tools/call`不返回，Rust宿主先超时并销毁Worker，无法取得菜单后置事实。FGD-28授权只对无业务副作用的坐标控件激活缩短动作等待、停止旧Client并单次重新Observe；禁止重放点击，消息发送等副作用不适用。修复与正式Gateway回归完成前Story继续保持verifying。
+
+FGD-28已由正式Gateway任务`task_080739ed85eebc668da4b97ffcf6bc96`完成macOS复验：企业微信启动、前置与非AX企业入口坐标激活三槽位连续完成，片段`fragment-complete@17`并终结为`completed@18`。Windows对等验证继续按主人决定暂缓，因此Story保持verifying且不Archive。
