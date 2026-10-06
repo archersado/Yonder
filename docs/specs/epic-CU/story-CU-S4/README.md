@@ -46,3 +46,5 @@ OpenSpec: cu-s4-sky-product-driver
 同日企业微信多企业入口回归发现：启动和原生前置均成功后，Sky对左下角非AX企业图标的坐标点击已投递但`tools/call`不返回，Rust宿主先超时并销毁Worker，无法取得菜单后置事实。FGD-28授权只对无业务副作用的坐标控件激活缩短动作等待、停止旧Client并单次重新Observe；禁止重放点击，消息发送等副作用不适用。修复与正式Gateway回归完成前Story继续保持verifying。
 
 FGD-28初次Gateway样本随后由正式Yonder Observation推翻：`task_080739ed85eebc668da4b97ffcf6bc96`及正确顶部头像坐标任务`task_2b366150d400bcd80c2b95ea54d7ef88`均未打开企业菜单，截图指纹变化属于误报。AD-CU-09与FGD-29收紧坐标超时为无条件交回，并以协议1.42接入新鲜AX元素激活；正确入口回归完成前Story继续verifying。
+
+协议1.42正式包已证明元素索引与坐标动作在后置transcript不变时均安全交回，不再把光晕/悬停当成功；正式任务`task_1e18ae977a3560f236a1d9fc9de6da8e`为`handback@16 → cancelled@17`。Sky当前仍未把企业切换瞬时面板暴露为可操作Observation，故“切换到狼顾科技”尚未完成，新增任务保持未关闭。
