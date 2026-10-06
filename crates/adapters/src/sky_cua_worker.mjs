@@ -20,6 +20,7 @@ class SkyMcpBridge {
     this.nextId = 1;
     this.pending = new Map();
     this.activeApprovalAppId = null;
+    this.fullStateOption = null;
     this.process = spawn(path, ['mcp'], { stdio: ['pipe', 'pipe', 'ignore'] });
     this.lines = createInterface({ input: this.process.stdout, crlfDelay: Infinity });
     this.lines.on('line', line => this.receive(line));
@@ -87,6 +88,15 @@ class SkyMcpBridge {
     }, 5_000);
     if (result?.protocolVersion !== '2025-06-18') throw new Error('MCP protocol mismatch');
     this.notify('notifications/initialized', {});
+    const catalog = await this.request('tools/list', {}, 5_000);
+    const stateTool = catalog?.tools?.find(tool => tool?.name === 'get_app_state');
+    if (!stateTool) throw new WorkerFailure('transport-schema-state-tool');
+    const properties = stateTool?.inputSchema?.properties ?? {};
+    this.fullStateOption = Object.hasOwn(properties, 'disableDiff')
+      ? 'disableDiff'
+      : Object.hasOwn(properties, 'disable_diff')
+        ? 'disable_diff'
+        : null;
   }
 
   async callTool(name, args, approvalAppId = null, timeoutMs = 25_000) {
@@ -117,6 +127,10 @@ class SkyMcpBridge {
     this.process.stdin.end();
     this.process.kill();
   }
+
+  stateArguments(app) {
+    return this.fullStateOption ? { app, [this.fullStateOption]: true } : { app };
+  }
 }
 
 class WorkerFailure extends Error {
@@ -127,6 +141,7 @@ class WorkerFailure extends Error {
 }
 
 function boundedFailureStage(error, fallback) {
+  if (error instanceof WorkerFailure) return error.stage;
   const messages = [];
   let current = error;
   for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
@@ -177,8 +192,17 @@ function resultText(result) {
 function structuredResult(result) {
   if (result?.structuredContent && typeof result.structuredContent === 'object') return result.structuredContent;
   const text = resultText(result).trim();
-  if (!text.startsWith('{') && !text.startsWith('[')) return null;
-  try { return JSON.parse(text); } catch { return null; }
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const payload = fenced?.[1] ?? text;
+  const candidates = [payload];
+  const objectStart = payload.indexOf('{');
+  const objectEnd = payload.lastIndexOf('}');
+  if (objectStart >= 0 && objectEnd > objectStart) candidates.push(payload.slice(objectStart, objectEnd + 1));
+  for (const candidate of candidates) {
+    if (!candidate.startsWith('{') && !candidate.startsWith('[') && !candidate.startsWith('"')) continue;
+    try { return JSON.parse(candidate); } catch { /* 尝试下一个有界候选。 */ }
+  }
+  return null;
 }
 
 async function listApps() {
@@ -198,16 +222,24 @@ function stateFromResult(result, app) {
   const image = result.content.find(block => block?.type === 'image'
     && typeof block.data === 'string' && typeof block.mimeType === 'string');
   const screenshot = image ? { url: `data:${image.mimeType};base64,${image.data}` } : structured?.screenshot;
-  const text = typeof structured?.text === 'string'
+  const resourceText = result.content.find(block => block?.type === 'resource'
+    && typeof block.resource?.text === 'string')?.resource?.text;
+  const text = typeof structured === 'string'
+    ? structured
+    : typeof structured?.text === 'string'
     ? structured.text
     : structured?.ax_tree != null
       ? String(structured.ax_tree)
-      : resultText(result);
+      : resourceText ?? resultText(result);
   return { app: structured?.app ?? app, text, screenshot };
 }
 
 async function getAppState(app, applicationId) {
-  return stateFromResult(await bridge.callTool('get_app_state', { app }, applicationId), app);
+  // CU-S4要求每一步都基于新鲜transcript。只有签名Client的公开Schema支持时
+  // 才关闭diff；0.7.1的完整AX树来自嵌入资源，不能用未公开字段绕过Schema。
+  return stateFromResult(await bridge.callTool(
+    'get_app_state', bridge.stateArguments(app), applicationId,
+  ), app);
 }
 
 async function callAction(name, args, applicationId, timeoutMs = 25_000) {
@@ -441,8 +473,12 @@ function fingerprint(state) {
 
 function transcriptElements(state) {
   const elements = [];
-  for (const line of stateText(state).split('\n')) {
-    const match = line.match(/^\s*(?:\[(\d+)\]|(\d+))\s+(.+)$/);
+  let text = stateText(state);
+  if (!text.includes('\n') && text.includes('\\n')) {
+    text = text.replaceAll('\\n', '\n').replaceAll('\\t', '\t');
+  }
+  for (const line of text.split('\n')) {
+    const match = line.match(/^[\s│├└─>]*(?:[-*]\s*)?(?:\[(\d+)\]|(\d+))[.):]?\s+(.+)$/);
     if (match) elements.push({ index: Number(match[1] ?? match[2]), text: match[3].trim() });
   }
   return elements;
@@ -556,9 +592,16 @@ async function perform(request, target, before) {
   }
   if (semantic === 'activate-control' && request.tool_name === 'click'
       && Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
+    const clickArguments = actionArguments(request, target);
+    // Sky 的 MCP Schema虽把这两个字段标为缺省值，但正式Client对自绘控件
+    // 可能只完成指针移动并悬挂，未形成应用可接收的按下/抬起。Yonder的
+    // 通用控件激活固定为左键，且协议只允许1/2次点击；Adapter在调用边界
+    // 显式归一化，避免把SDK的可选字段差异泄漏到外部协议。
+    clickArguments.mouse_button = 'left';
+    clickArguments.click_count ??= 1;
     let timedOut = false;
     try {
-      await callAction('click', actionArguments(request, target), target.applicationId, navigationActionTimeoutMs);
+      await callAction('click', clickArguments, target.applicationId, navigationActionTimeoutMs);
     } catch (error) {
       const stage = error instanceof WorkerFailure
         ? error.stage
@@ -695,7 +738,11 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       response.launched_app_id = target.applicationId;
     }
     await persistScreenshot(after, request, response);
-    response.failure_stage = null;
+    response.failure_stage = response.action_succeeded
+      ? null
+      : stateText(after).trim() === ''
+        ? 'action-unconfirmed-empty-transcript'
+        : 'action-unconfirmed-unparsed-transcript';
   } catch (error) {
     if (error instanceof WorkerFailure) response.failure_stage = error.stage;
     // 不把应用名、辅助功能文本、截图或 SDK 错误正文带回宿主日志。

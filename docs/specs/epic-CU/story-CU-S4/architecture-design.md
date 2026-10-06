@@ -64,6 +64,8 @@ Rust Adapter持有`task_id + bundle_id`的唯一CUA目标绑定；Node Worker与
 
 每步经签名MCP Client调用`get_app_state`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到MCP `click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。
 
+Worker在MCP握手后读取固定工具Schema；只有Schema公开`disableDiff`或`disable_diff`时才请求关闭差异状态，正式Sky 0.7.1未公开时不得发送额外字段。transcript可来自结构结果、带说明前缀的包装JSON、普通文本块或标准嵌入文本资源；解析后仍须取得带索引的AX元素，不得把状态摘要或空AX增量解释为“应用没有元素”。
+
 官方`list_apps`只保证运行中或近期应用，不是完整安装目录。`launch_app`收到合法bundle id且该目录零命中时，Worker可只枚举`/Applications`、`/System/Applications`及其`Utilities`一级应用包，读取`Info.plist`并在唯一命中后使用规范完整路径；不递归全盘、不读取用户提供目录、不接受环境覆盖、不以本地化显示名兜底。多命中、路径逃逸、符号链接或损坏包均安全交回。
 
 Sky的应用使用elicitation只能在`launch_app`已把计划目标收敛为唯一bundle id和路径后，在该目标的单个串行MCP调用范围内按固定空对象Schema接受；调用范围外或Schema不匹配的请求拒绝，不使用本地化显示名作身份。该会话级应用授权不等于发送等副作用确认，后者仍由Yonder Gateway确认引用约束。

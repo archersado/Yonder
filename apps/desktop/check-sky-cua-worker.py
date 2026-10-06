@@ -37,6 +37,8 @@ for line in sys.stdin:
         with open(log, 'a', encoding='utf-8') as output:
             output.write(json.dumps({'rogue_approval':rogue.get('result', {}).get('action') == 'accept'}, ensure_ascii=False)+'\\n')
         result = {'protocolVersion':'2025-06-18','capabilities':{},'serverInfo':{'name':'fixture','version':'1'}}
+    elif request['method'] == 'tools/list':
+        result = {'tools':[{'name':'get_app_state','inputSchema':{'properties':{'app':{},'disable_diff':{}}}}]}
     else:
         name = request['params']['name']
         args = request['params']['arguments']
@@ -49,6 +51,8 @@ for line in sys.stdin:
             ]
             result = {'content':[{'type':'text','text':json.dumps(value, ensure_ascii=False)}]}
         elif name == 'get_app_state':
+            with open(log, 'a', encoding='utf-8') as output:
+                output.write(json.dumps({'observe':{'app':args['app'],'disableDiff':args.get('disableDiff'),'disable_diff':args.get('disable_diff')}}, ensure_ascii=False)+'\\n')
             if not approved:
                 print(json.dumps({'jsonrpc':'2.0','id':'approval-1','method':'elicitation/create','params':{'message':'本地化提示不作为应用身份','requestedSchema':{'type':'object','properties':{}},'_meta':{'persist':['always']}}}, ensure_ascii=False), flush=True)
                 approval = json.loads(sys.stdin.readline())
@@ -56,7 +60,9 @@ for line in sys.stdin:
                 with open(log, 'a', encoding='utf-8') as output:
                     output.write(json.dumps({'approval':approved}, ensure_ascii=False)+'\\n')
             state = calculator_text if args['app'].endswith('Calculator.app') else text
-            result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]} if args['app'].endswith('NoWindow.app') else ({'content':[{'type':'text','text':state}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]})
+            tree_state = '\\n'.join('├─ ' + item for item in state.split('\\n'))
+            wrapped = 'App state follows:\\n```json\\n' + json.dumps({'app':args['app'],'text':tree_state}, ensure_ascii=False) + '\\n```' if args['app'].endswith('QQMusic.app') else state
+            result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]} if args['app'].endswith('NoWindow.app') else ({'content':[{'type':'text','text':wrapped}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]})
         else:
             with open(log, 'a', encoding='utf-8') as output:
                 output.write(json.dumps({'name':name,'args':args}, ensure_ascii=False)+'\\n')
@@ -149,17 +155,21 @@ for line in sys.stdin:
 
     records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
     assert records[0] == {"rogue_approval": False}
-    assert records[1] == {"approval": True}
+    assert any(item == {"approval": True} for item in records)
     assert all(not item.get("rogue_approval", False) for item in records if "rogue_approval" in item)
     assert all(item["approval"] for item in records if "approval" in item)
+    observes = [item["observe"] for item in records if "observe" in item]
+    assert observes and all(item["disableDiff"] is None and item["disable_diff"] is True for item in observes)
     actions = [item for item in records if "name" in item]
     successful_results = (launched, observed_element, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)
-    assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"]) for result in successful_results]
+    assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"], result["failure_stage"], result["element_count"]) for result in successful_results]
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, entered, visual_entered))
     assert launched["element_count"] == 2 and activated["element_count"] == 6 and navigated["element_count"] == 7 and activated_by_element["element_count"] == 8
     assert [item["name"] for item in actions] == ["click", "click", "click", "press_key", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
     assert actions[0]["args"]["x"] == 30 and actions[0]["args"]["y"] == 40
+    assert actions[0]["args"]["mouse_button"] == "left" and actions[0]["args"]["click_count"] == 1
     assert actions[1]["args"]["x"] == 31 and actions[1]["args"]["y"] == 41
+    assert actions[1]["args"]["mouse_button"] == "left" and actions[1]["args"]["click_count"] == 1
     assert actions[2]["args"]["element_index"] == "2" and "observed_element_index" not in actions[2]["args"]
     assert actions[3]["args"]["key"] == "super+f"
     assert actions[4]["args"]["element_index"] == "1"
@@ -170,6 +180,7 @@ for line in sys.stdin:
     assert actions[9]["args"]["key"] == "Down"
     assert actions[10]["args"]["element_index"] == "3"
     assert actions[11]["args"]["x"] == 10 and actions[11]["args"]["y"] == 20 and actions[11]["args"]["click_count"] == 2
+    assert actions[11]["args"]["mouse_button"] == "left"
     assert actions[12]["args"]["x"] == 10 and actions[12]["args"]["y"] == 20
     assert actions[13]["args"]["text"] == "visual query"
     assert actions[14]["args"]["text"] == "1+1"

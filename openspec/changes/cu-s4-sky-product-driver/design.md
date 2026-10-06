@@ -4,6 +4,8 @@
 
 macOS `launch_app`通过桥接MCP `list_apps`把显示名或bundle id收敛为唯一bundle id，并由`get_app_state`后台启动/观察。成功后的`task_id + bundle_id`由Rust Adapter运行态外置持有，Node Worker不保存模块级目标；后续步骤由Adapter只读注入同任务绑定，Worker每步重新解析唯一运行App/窗口。Worker或MCP Client重建只重建执行资源，不清除绑定；任务会话结束、任务切换或新启动尝试才清除。没有匹配绑定时才由可信PID解析唯一App bundle路径。每次动作前后读取完整应用状态，解析transcript行首index，不复用跨步index。Yonder不得直接连接`computeruse.sock`，也不得调用Node SDK的direct native-pipe client。
 
+握手后读取固定工具Schema；仅当Schema公开`disableDiff`或`disable_diff`时才请求关闭差异状态，正式Sky 0.7.1未公开时不得发送额外字段。transcript只从结构结果、带说明前缀的包装JSON、普通文本块或标准嵌入文本资源解包，并要求解析出带索引的AX元素；状态摘要或空增量不能被解释为“应用没有元素”。
+
 `list_apps`未列出合法bundle id时，只在固定的`/Applications`、`/System/Applications`与`/System/Applications/Utilities`一级目录读取应用`Info.plist`，唯一命中后才把规范完整路径交给签名Client；禁止环境覆盖、全盘递归、显示名猜测、符号链接与多命中选择。
 
 Worker消费Application注入的`_yonder_action_kind`与受保护文本：聚焦搜索优先点击唯一搜索文本框，输入优先对该文本框`set_value`并从后置transcript验证目标值，激活使用受限按键或唯一元素点击。不能唯一定位或验证时返回`UnknownObserved`及同应用截图；语义字段与正文不进入日志。
