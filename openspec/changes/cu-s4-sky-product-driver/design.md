@@ -2,7 +2,7 @@
 
 `CuaWorker`仅接受`@oai/sky@0.7.1`入口，并从该包相对定位同发行物的OpenAI签名Node与官方签名`SkyComputerUseClient.app/.../SkyComputerUseClient`。组合根校验Team ID、Client identifier与App Group；缺失、桥接身份不匹配或MCP握手失败时CUA capability unavailable，不能回退trycua。签名Node运行受监管Worker，Worker按任务会话复用并只监管一个`SkyComputerUseClient mcp` stdio子进程；任务结束、unknown、超时或崩溃时两者一并销毁。
 
-macOS `launch_app`通过桥接MCP `list_apps`把显示名或bundle id收敛为唯一bundle id，并由`get_app_state`后台启动/观察。后续步骤复用同任务缓存目标；没有缓存时才由可信PID解析唯一App bundle路径。每次动作前后读取完整应用状态，解析transcript行首index，不复用跨步index。Yonder不得直接连接`computeruse.sock`，也不得调用Node SDK的direct native-pipe client。
+macOS `launch_app`通过桥接MCP `list_apps`把显示名或bundle id收敛为唯一bundle id，并由`get_app_state`后台启动/观察。成功后的`task_id + bundle_id`由Rust Adapter运行态外置持有，Node Worker不保存模块级目标；后续步骤由Adapter只读注入同任务绑定，Worker每步重新解析唯一运行App/窗口。Worker或MCP Client重建只重建执行资源，不清除绑定；任务会话结束、任务切换或新启动尝试才清除。没有匹配绑定时才由可信PID解析唯一App bundle路径。每次动作前后读取完整应用状态，解析transcript行首index，不复用跨步index。Yonder不得直接连接`computeruse.sock`，也不得调用Node SDK的direct native-pipe client。
 
 `list_apps`未列出合法bundle id时，只在固定的`/Applications`、`/System/Applications`与`/System/Applications/Utilities`一级目录读取应用`Info.plist`，唯一命中后才把规范完整路径交给签名Client；禁止环境覆盖、全盘递归、显示名猜测、符号链接与多命中选择。
 

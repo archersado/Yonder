@@ -37,14 +37,21 @@ impl WindowActivationPort for MacosWindowActivator {
     }
 }
 
-pub struct CuaWorker { node: PathBuf, script: PathBuf, bridge: PathBuf, evidence:PathBuf, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>, session: Mutex<Option<WorkerSession>> }
+pub struct CuaWorker { node: PathBuf, script: PathBuf, bridge: PathBuf, evidence:PathBuf, timeout: Duration, window_activation:Option<Box<dyn WindowActivationPort>>, runtime: Mutex<WorkerRuntime> }
 
-struct WorkerSession { child: Child, input: ChildStdin, output: mpsc::Receiver<Result<Vec<u8>, ()>>, launched_app:Option<(String,String)> }
+struct WorkerSession { child: Child, input: ChildStdin, output: mpsc::Receiver<Result<Vec<u8>, ()>> }
+
+struct WorkerRuntime { process:Option<WorkerSession>, binding:Option<TargetBinding> }
+
+#[derive(Clone,Debug,PartialEq,Eq)]
+struct TargetBinding { task_id:String, application_id:String }
 
 #[derive(Serialize)]
 struct Request<'a> {
     task_id: &'a str, step_id: &'a str, attempt_id: &'a str, worker_instance_id: &'a str, host_session_id: &'a str,
     pid: u32, window_id: u32, tool_name: &'a str, arguments: serde_json::Value,
+    #[serde(skip_serializing_if="Option::is_none")]
+    bound_application_id:Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -115,7 +122,8 @@ impl CuaWorker {
         if !node.is_absolute() || !node_metadata.is_file() || node_metadata.file_type().is_symlink()
             || !bridge.is_absolute() || !bridge_metadata.is_file() || bridge_metadata.file_type().is_symlink()
             || !valid_sky_release_identity(&node,&bridge){return Err(UnknownReason::DependencyUnavailable)}
-        let worker=Self { node, script: script.into(), bridge, evidence:evidence.into(), timeout, window_activation, session: Mutex::new(None) };
+        let worker=Self { node, script: script.into(), bridge, evidence:evidence.into(), timeout, window_activation,
+            runtime:Mutex::new(WorkerRuntime{process:None,binding:None}) };
         worker.cleanup();Ok(worker)
     }
 
@@ -136,7 +144,7 @@ impl CuaWorker {
                 }
             }
         });
-        Ok(WorkerSession{child,input,output:receiver,launched_app:None})
+        Ok(WorkerSession{child,input,output:receiver})
     }
 
     fn stop(session:&mut Option<WorkerSession>){if let Some(mut session)=session.take(){let _=session.child.kill();let _=session.child.wait();}}
@@ -150,57 +158,61 @@ impl CuaWorker {
             return DispatchOutcome::Unknown(UnknownReason::InvalidInput);
         }
         let arguments=match serde_json::from_str(&action.arguments_json){Ok(value @ serde_json::Value::Object(_))=>value,_=>return DispatchOutcome::Unknown(UnknownReason::InvalidInput)};
+        let mut runtime=match self.runtime.lock(){Ok(runtime)=>runtime,Err(_)=>return DispatchOutcome::Unknown(UnknownReason::WorkerFailed)};
+        if runtime.binding.as_ref().is_some_and(|binding|binding.task_id!=attempt.task_id) {
+            Self::stop(&mut runtime.process);runtime.binding=None;
+        }
+        if action.tool_name=="launch_app" {runtime.binding=None;}
+        let bound_application_id=runtime.binding.as_ref().filter(|binding|binding.task_id==attempt.task_id).map(|binding|binding.application_id.clone());
         let request = Request { task_id: &attempt.task_id, step_id: &attempt.step_id, attempt_id: &attempt.attempt_id,
             worker_instance_id: &attempt.worker_instance_id, host_session_id: &attempt.host_session_id,
-            pid: target.pid, window_id: target.window_id, tool_name:&action.tool_name, arguments };
+            pid: target.pid, window_id: target.window_id, tool_name:&action.tool_name, arguments,
+            bound_application_id:bound_application_id.as_deref() };
         let bytes = match serde_json::to_vec(&request) { Ok(bytes) => bytes, Err(_) => return DispatchOutcome::Unknown(UnknownReason::InvalidInput) };
-        let mut slot=match self.session.lock(){Ok(slot)=>slot,Err(_)=>return DispatchOutcome::Unknown(UnknownReason::WorkerFailed)};
-        if slot.is_none(){*slot=match self.start(){Ok(session)=>Some(session),Err(reason)=>return DispatchOutcome::Unknown(reason)}}
-        if action.tool_name=="launch_app" {slot.as_mut().unwrap().launched_app=None;}
+        if runtime.process.is_none(){runtime.process=match self.start(){Ok(session)=>Some(session),Err(reason)=>return DispatchOutcome::Unknown(reason)}}
         if action.tool_name=="bring_to_front" {
-            if let Some(port)=self.window_activation.as_deref(){if let Err(reason)=activate_cached_window(port,slot.as_ref().and_then(|session|session.launched_app.as_ref()),&attempt.task_id){return DispatchOutcome::Unknown(reason)}}
+            if let Some(port)=self.window_activation.as_deref(){if let Err(reason)=activate_cached_window(port,runtime.binding.as_ref(),&attempt.task_id){return DispatchOutcome::Unknown(reason)}}
         }
-        if slot.as_mut().is_none_or(|session|session.input.write_all(&bytes).and_then(|_|session.input.write_all(b"\n")).and_then(|_|session.input.flush()).is_err()) {
-            Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed);
+        if runtime.process.as_mut().is_none_or(|session|session.input.write_all(&bytes).and_then(|_|session.input.write_all(b"\n")).and_then(|_|session.input.flush()).is_err()) {
+            Self::stop(&mut runtime.process);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed);
         }
         let started=Instant::now();
         let output = loop {
-            match slot.as_ref().unwrap().output.recv_timeout(Duration::from_millis(25)) {
+            match runtime.process.as_ref().unwrap().output.recv_timeout(Duration::from_millis(25)) {
                 Ok(Ok(output))=>break output,
-                Ok(Err(()))=>{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)},
-                Err(mpsc::RecvTimeoutError::Disconnected)=>{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed)},
+                Ok(Err(()))=>{Self::stop(&mut runtime.process);return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)},
+                Err(mpsc::RecvTimeoutError::Disconnected)=>{Self::stop(&mut runtime.process);return DispatchOutcome::Unknown(UnknownReason::WorkerFailed)},
                 Err(mpsc::RecvTimeoutError::Timeout)=>{},
             }
-            if started.elapsed()>=self.timeout{Self::stop(&mut slot);return DispatchOutcome::Unknown(UnknownReason::TimedOut)}
+            if started.elapsed()>=self.timeout{Self::stop(&mut runtime.process);return DispatchOutcome::Unknown(UnknownReason::TimedOut)}
         };
         let outcome=classify(attempt, &output,&self.evidence);
         if action.tool_name=="launch_app" && matches!(outcome,DispatchOutcome::Known{action_succeeded:true,..}) {
             let launched=serde_json::from_slice::<Response>(&output).ok().and_then(|response|response.launched_app_id)
                 .filter(|value|valid_sky_app_id(value));
-            let Some(bundle_id)=launched else{Self::stop(&mut slot);self.cleanup();return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)};
-            slot.as_mut().unwrap().launched_app=Some((attempt.task_id.clone(),bundle_id));
+            let Some(bundle_id)=launched else{Self::stop(&mut runtime.process);self.cleanup();return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)};
+            runtime.binding=Some(TargetBinding{task_id:attempt.task_id.clone(),application_id:bundle_id});
         }
-        if matches!(outcome,DispatchOutcome::Unknown(_)){Self::stop(&mut slot);self.cleanup()}
-        // UnknownObserved 已有动作后的新鲜观察，外部慢脑会据此通过同一 Gateway
-        // replan。保留同任务的 Worker 会话和已验证应用绑定，避免重规划被迫重走
-        // launch 并在动态窗口切换后丢失当前页面；无观察的 Unknown 才重置会话。
+        if matches!(outcome,DispatchOutcome::Unknown(_)){Self::stop(&mut runtime.process);self.cleanup()}
+        // 执行进程和可信应用绑定是两个生命周期。Unknown可销毁Worker与签名Client，
+        // 但同任务绑定仍由Adapter运行态持有，供外部慢脑新鲜Observe/replan后重建执行资源。
         outcome
     }
 }
 
-fn activate_cached_window(port:&dyn WindowActivationPort,launched:Option<&(String,String)>,task_id:&str)->Result<(),UnknownReason>{
-    let Some((_,application_id))=launched.filter(|(launched_task,_)|launched_task==task_id) else{return Err(UnknownReason::InvalidInput)};
-    if !valid_sky_app_id(application_id){return Err(UnknownReason::InvalidResponse)}
-    port.activate_window(&WindowActivationTarget{application_id:application_id.clone(),window_id:None})
+fn activate_cached_window(port:&dyn WindowActivationPort,binding:Option<&TargetBinding>,task_id:&str)->Result<(),UnknownReason>{
+    let Some(binding)=binding.filter(|binding|binding.task_id==task_id) else{return Err(UnknownReason::InvalidInput)};
+    if !valid_sky_app_id(&binding.application_id){return Err(UnknownReason::InvalidResponse)}
+    port.activate_window(&WindowActivationTarget{application_id:binding.application_id.clone(),window_id:None})
 }
 
-impl Drop for CuaWorker { fn drop(&mut self){if let Ok(slot)=self.session.get_mut(){Self::stop(slot)}self.cleanup()} }
+impl Drop for CuaWorker { fn drop(&mut self){if let Ok(runtime)=self.runtime.get_mut(){Self::stop(&mut runtime.process);runtime.binding=None}self.cleanup()} }
 
 impl ComputerUsePort for CuaWorker {
     fn dispatch(&self, attempt: &ExecutionAttempt, target: &WorkTarget, action: &ComputerAction) -> DispatchOutcome {
         self.run(attempt,target,action)
     }
-    fn end_session(&self){if let Ok(mut slot)=self.session.lock(){Self::stop(&mut slot)}self.cleanup()}
+    fn end_session(&self){if let Ok(mut runtime)=self.runtime.lock(){Self::stop(&mut runtime.process);runtime.binding=None}self.cleanup()}
 }
 
 fn classify(attempt: &ExecutionAttempt, output: &[u8], evidence:&Path) -> DispatchOutcome {
@@ -258,11 +270,21 @@ mod tests {
     #[test]
     fn activation_uses_only_same_task_cached_driver_identity() {
         let port=RecordingActivator(Mutex::new(vec![]));
-        let launched=("task-a".into(),"com.tencent.WeWorkMac".into());
+        let launched=TargetBinding{task_id:"task-a".into(),application_id:"com.tencent.WeWorkMac".into()};
         assert_eq!(activate_cached_window(&port,Some(&launched),"task-a"),Ok(()));
         assert_eq!(*port.0.lock().unwrap(),vec!["com.tencent.WeWorkMac"]);
         assert_eq!(activate_cached_window(&port,Some(&launched),"task-b"),Err(UnknownReason::InvalidInput));
         assert_eq!(activate_cached_window(&port,None,"task-a"),Err(UnknownReason::InvalidInput));
+    }
+
+    #[test]
+    fn external_binding_outlives_worker_process_but_not_task_session() {
+        let binding=TargetBinding{task_id:"task-a".into(),application_id:"com.example.App".into()};
+        let mut runtime=WorkerRuntime{process:None,binding:Some(binding.clone())};
+        CuaWorker::stop(&mut runtime.process);
+        assert_eq!(runtime.binding,Some(binding));
+        runtime.binding=None;
+        assert_eq!(runtime.binding,None);
     }
 
     #[test]

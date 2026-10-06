@@ -77,14 +77,19 @@ for line in sys.stdin:
     bridge.chmod(0o700)
     node = shutil.which("node")
     assert node is not None
-    process = subprocess.Popen(
-        [node, str(worker), str(bridge), str(evidence)],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=dict(os.environ, YONDER_SKY_TEST_LOG=str(log)),
-    )
+    def start_worker():
+        return subprocess.Popen(
+            [node, str(worker), str(bridge), str(evidence)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=dict(os.environ, YONDER_SKY_TEST_LOG=str(log)),
+        )
+
+    process = start_worker()
+
+    binding = None
 
     def request(step, tool, arguments):
         payload = {
@@ -98,11 +103,17 @@ for line in sys.stdin:
             "tool_name": tool,
             "arguments": arguments,
         }
+        if tool != "launch_app" and binding is not None:
+            payload["bound_application_id"] = binding
         process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
         process.stdin.flush()
         return json.loads(process.stdout.readline())
 
     launched = request("launch", "launch_app", {"bundle_id": "com.yonder.fixture.music"})
+    binding = launched["launched_app_id"]
+    process.terminate()
+    process.wait(timeout=5)
+    process = start_worker()
     focused = request("focus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
     entered = request("input", "type_text", {"text": "one last kiss", "_yonder_action_kind": "input-text"})
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
@@ -111,6 +122,7 @@ for line in sys.stdin:
     double_activated = request("activate-double", "click", {"x": 10, "y": 20, "click_count": 2, "_yonder_action_kind": "activate-control"})
     visual_entered = request("visual-input", "type_text", {"text": "visual query", "x": 10, "y": 20, "_yonder_action_kind": "input-text"})
     calculator_launched = request("calculator-launch", "launch_app", {"bundle_id": "com.yonder.fixture.calculator"})
+    binding = calculator_launched["launched_app_id"]
     calculator_input = request("calculator-input", "type_text", {"text": "1+1", "_yonder_action_kind": "input-text"})
     installed_fallback = request("installed-fallback", "launch_app", {"bundle_id": "com.apple.TextEdit"})
     unavailable = request("unavailable", "launch_app", {"bundle_id": "com.yonder.fixture.no-window"})
@@ -150,5 +162,6 @@ for line in sys.stdin:
         "actions": [item["name"] for item in actions],
         "out_of_scope_approval_rejected": True,
         "task_binding_reused": True,
+        "binding_survived_worker_restart": True,
         "passed": True,
     }, ensure_ascii=False))

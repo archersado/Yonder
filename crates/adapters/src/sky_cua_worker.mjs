@@ -12,7 +12,6 @@ const supported = new Set([
   'click', 'drag', 'perform_secondary_action', 'press_key', 'scroll',
   'select_text', 'set_value', 'type_text',
 ]);
-let launchedTarget;
 let pendingInput;
 
 class SkyMcpBridge {
@@ -343,6 +342,29 @@ async function bindRunningTarget(target) {
   }
 }
 
+async function resolveBoundTarget(applicationId, fallbackApp = null) {
+  if (!validBundleId(applicationId)) throw new WorkerFailure('target-bound-identity');
+  try {
+    return { app: await runningMacAppForBundleId(applicationId), applicationId };
+  } catch {
+    let apps;
+    try {
+      apps = await listApps();
+    } catch (error) {
+      throw new WorkerFailure(boundedFailureStage(error, 'target-list-apps'));
+    }
+    const selected = canonicalListedApp(apps.filter(candidate => candidate.id === applicationId));
+    const listedPath = typeof selected?.path === 'string' && selected.path.trim() !== ''
+      ? selected.path.trim()
+      : null;
+    if (listedPath) return { app: listedPath, applicationId };
+    if (typeof fallbackApp === 'string' && fallbackApp.trim() !== '') {
+      return { app: fallbackApp.trim(), applicationId };
+    }
+    throw new WorkerFailure('target-running-identity');
+  }
+}
+
 async function targetFor(request) {
   if (request.tool_name === 'launch_app') {
     const app = request.arguments.app ?? request.arguments.bundle_id ?? request.arguments.path;
@@ -378,12 +400,9 @@ async function targetFor(request) {
       ?? (selected.isRunning === true ? await runningMacAppForBundleId(applicationId) : applicationId);
     return { app: resolvedApp, applicationId };
   }
-  if (launchedTarget?.task_id === request.task_id) {
-    return { app: launchedTarget.app, applicationId: launchedTarget.applicationId };
-  }
+  if (request.bound_application_id != null) return resolveBoundTarget(request.bound_application_id);
   if (request.tool_name === 'bring_to_front') {
-    if (launchedTarget?.task_id !== request.task_id) throw new Error('launched target is unavailable');
-    return { app: launchedTarget.app, applicationId: launchedTarget.applicationId };
+    throw new WorkerFailure('target-bound-identity');
   }
   return { app: await macAppForPid(request.pid) };
 }
@@ -396,7 +415,8 @@ async function observe(target) {
     // 阶段重建签名 Client 并重读一次；动作调用从不在未知结果后自动重试。
     if (!(error instanceof WorkerFailure) || error.stage !== 'target-window-unavailable') throw error;
     await refreshBridge();
-    return getAppState(target.app, target.applicationId);
+    const refreshed = await resolveBoundTarget(target.applicationId, target.app);
+    return getAppState(refreshed.app, refreshed.applicationId);
   }
 }
 
@@ -639,7 +659,6 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       : 'suspected_noop';
     response.action_succeeded = response.action_effect === 'confirmed';
     if (request.tool_name === 'launch_app' && response.action_succeeded) {
-      launchedTarget = { task_id: request.task_id, app: target.app, applicationId: target.applicationId };
       response.launched_app_id = target.applicationId;
     }
     await persistScreenshot(after, request, response);

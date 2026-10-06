@@ -54,6 +54,25 @@
 - **WHEN** 签名Client返回固定`cgWindowNotFound`错误
 - **THEN** Worker返回有界`target-window-unavailable`阶段并交回，不记录原始错误且不继续动作
 
+### Requirement: 可信窗口绑定跨步骤外置保持
+
+系统 MUST 由Rust CUA Adapter运行态持有最近一次成功启动产生的同任务规范bundle id；Node Worker与签名MCP Client不得成为跨步骤状态所有者。
+
+#### Scenario: Worker或Client在同一任务中重建
+
+- **WHEN** 成功启动后的Worker进程或签名MCP Client被重建，归属慢脑随后提交同任务后续窗口动作
+- **THEN** Adapter仍注入原可信bundle id，Worker按该身份重新解析唯一运行App/窗口，不退回当前前台
+
+#### Scenario: 任务边界清理绑定
+
+- **WHEN** CUA会话结束、切换到其他任务或开始新的`launch_app`
+- **THEN** Adapter清除旧绑定，且新任务不能读取或复用旧任务应用身份
+
+#### Scenario: 外部调用尝试覆盖绑定
+
+- **WHEN** Agent或UI提交应用、PID、窗口或内部绑定字段
+- **THEN** Gateway继续拒绝受保护身份；绑定不进入外部协议、SQLite、事件或Outbox
+
 #### Scenario: 自绘控件需要双击激活
 
 - **WHEN** 协议1.41计划以通用`activate-control + click(x,y)`提交`click_count=2`

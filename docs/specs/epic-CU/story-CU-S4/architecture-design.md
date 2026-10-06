@@ -1,5 +1,17 @@
 # CU-S4 架构设计
 
+## 边界与依赖
+
+CU-S4只改变macOS CUA Adapter及其受监管Sky Worker，不改变Application/Domain依赖方向、Agent Gateway外部协议或SQLite。Rust Adapter拥有同任务可信应用绑定，Node Worker与签名MCP Client是可重建执行资源；依赖固定`@oai/sky@0.7.1`与同发行物签名Client。Windows路线继续暂缓。
+
+## 状态与契约
+
+成功`launch_app`以后，Adapter内存运行态保存`task_id + bundle_id`并只读注入后续内部Worker请求。每步仍使用新鲜AX transcript和动作后Observe；外部Agent/UI不能提交或覆盖该绑定。绑定不持久化，任务会话结束、任务切换或新启动尝试时清除。
+
+## 失败与验证
+
+窗口不可观察、目标不唯一、Worker/MCP断连或后置事实不足均保持unknown并交回，不自动重试动作。验证必须覆盖Adapter生命周期、Worker重建、跨任务隔离、Sky语义动作回归和正式macOS Gateway样本；Windows证据不得由macOS外推。
+
 ## 边界与候选
 
 Spike在`spikes/cua-foreground-delivery/`中运行，固定比较产品当前0.25.0与候选0.30.4。两者均只通过官方进程内SDK读取工具Schema和运行隔离样本；不连接Yonder Gateway、不读任务库、不复用产品Worker进程。
@@ -48,7 +60,9 @@ Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元
 
 macOS组合根只构造固定`@oai/sky@0.7.1` Worker，删除`YONDER_CUA_DRIVER`选择、trycua生产依赖和包内旧Worker。Sky包与Computer Use App由已安装的Codex/ChatGPT产品提供，Yonder从固定包相对定位官方签名Node与`SkyComputerUseClient mcp`，校验Team ID、Client identifier及App Group后，由签名Node运行受监管Worker并派生Client；不复制、不重新签名、不直连Computer Use Socket、不长期维护双栈。
 
-Worker在`launch_app`后缓存同任务的规范bundle id及实际运行App路径；后续步骤优先复用该绑定。每步经签名MCP Client调用`get_app_state`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到MCP `click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。
+Rust Adapter持有`task_id + bundle_id`的唯一CUA目标绑定；Node Worker与签名MCP Client均为可重建执行资源，不持有跨步骤权威状态。`launch_app`经动作后Observe确认后才更新绑定；后续请求由Adapter只读注入匹配当前任务的bundle id，Worker每步重新解析唯一运行App/窗口。无匹配绑定时只能使用宿主本次可信`WorkTarget`，不得读取旧任务绑定或改投当前前台。Worker/Client异常只销毁执行进程，不销毁绑定；`end_session`、任务切换或新启动尝试同时清除绑定。绑定不持久化、不进入外部协议、事件、Outbox或日志。
+
+每步经签名MCP Client调用`get_app_state`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到MCP `click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。
 
 官方`list_apps`只保证运行中或近期应用，不是完整安装目录。`launch_app`收到合法bundle id且该目录零命中时，Worker可只枚举`/Applications`、`/System/Applications`及其`Utilities`一级应用包，读取`Info.plist`并在唯一命中后使用规范完整路径；不递归全盘、不读取用户提供目录、不接受环境覆盖、不以本地化显示名兜底。多命中、路径逃逸、符号链接或损坏包均安全交回。
 

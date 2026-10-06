@@ -39,6 +39,7 @@
 - FGD-24：调用方给出合法bundle id而官方应用目录尚未收录已安装应用时，Worker只可在固定系统应用根读取Info.plist并唯一解析完整路径；不得扫描全盘、接受环境目录或以显示名猜测，零命中或多命中必须安全交回。
 - FGD-25：协议1.41只允许通用`activate-control + click`视觉坐标携带`click_count=1|2`，并只允许`activate-control + press_key`使用`ARROWDOWN`导航自绘候选；其他语义、元素点击、发送动作、大于2的次数及其他导航键必须拒绝。动作仍须以后置截图或元素事实证明目标被激活。
 - FGD-26：任务终结必须按任务实际运行时归属路由。只有内存执行Runtime持有该任务时才从内存快照终结；计划片段兼容链未登记到该Runtime时继续使用其已Observe、已推进且仍持有桌面租约的既有安全终结路径，不得因全局Runtime存在而误报“任务不存在”。
+- FGD-27：2026-10-06用户变更要求窗口绑定状态外置。成功启动产生的可信应用绑定必须由Rust Adapter任务运行态跨步骤保持；Node Worker或签名MCP Client重建后，后续步骤仍按同一bundle id重新解析唯一窗口，不得退回当前前台。绑定不得跨任务、持久化或由Agent/UI覆盖。
 
 ## 范围与非目标
 
@@ -54,3 +55,4 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | Windows暂缓决定 | FGD-09 |
 | Accepted AD-CU-07产品Apply | FGD-10、FGD-11、FGD-12 |
 | 2026-09-30 Sky单栈决定与AD-CU-09 | FGD-20、FGD-21、FGD-22、FGD-23、FGD-24、FGD-25 |
+| 2026-10-06窗口绑定外置用户变更与AD-CU-09修订 | FGD-27 |

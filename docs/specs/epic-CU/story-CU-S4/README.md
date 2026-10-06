@@ -3,7 +3,7 @@
 Story: CU-S4
 Epic: CU
 Status: verifying
-OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply、cu-s4-ax-visual-fallback、cu-s4-sky-product-driver
+OpenSpec: cu-s4-sky-product-driver
 
 ## 设计文档
 
@@ -18,6 +18,8 @@ OpenSpec: cu-s4-trycua-foreground-delivery-spike、cu-s4-foreground-text-apply�
 本Story仅授权限时macOS升级Spike，对比0.25.0与固定候选0.30.4。Spike通过和AD-CU-07接受前，不修改正式依赖、不改变Gateway协议、不恢复不可核实文本续跑。Windows继续按用户决定暂缓。
 
 ## OpenSpec 与验证
+
+当前产品实现与验证由[Sky单栈 OpenSpec Change](../../../../openspec/changes/cu-s4-sky-product-driver/)承载；历史Spike与Apply Change仅保留证据，不再作为Story当前关联。
 
 [OpenSpec Change](../../../../openspec/changes/cu-s4-trycua-foreground-delivery-spike/)只产生隔离证据和ADR结论。期限为2026-10-02；届时必须接受、缩小或淘汰候选路线。
 
