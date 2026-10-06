@@ -22,6 +22,7 @@
 9. 2026-10-05正式QQ音乐自绘结果样本证明单击只能建立悬停、两个分离单击不会合并为双击，且搜索下拉会穿透坐标事件；协议1.41仅为通用`activate-control + click`视觉坐标增加可选`click_count=1|2`，并为`activate-control + press_key`增加唯一导航语义`ARROWDOWN`。其他动作种类、元素动作、发送动作与坐标输入均不得携带该字段或任意导航键；Worker把该语义固定映射为Sky公开的xdotool键名`Down`，每次派发后仍强制Observe，不能据请求回执判定激活成功。
 10. 2026-10-06窗口绑定状态外置修订：同一任务最近一次成功`launch_app`产生的规范bundle id由Rust CUA Adapter运行态持有，不再由Node Worker模块全局变量或MCP Client隐式会话持有。Adapter只把匹配当前`task_id`的只读绑定注入单次内部Worker请求；Worker每步按该bundle id重新解析唯一运行App/窗口，再执行动作和Observe。Worker进程、签名MCP Client或只读窗口引用重建不得清除该任务绑定；任务会话结束、显式切换任务或新的`launch_app`开始时必须清除。该状态不持久化、不进入Agent协议、SQLite、事件或Outbox，Agent/UI仍不得提交或覆盖应用、PID和窗口身份。
 11. 2026-10-06企业微信入口修订：坐标`click`在签名Sky Client中超时且后置截图只有无关变化时，不得据截图指纹变化确认动作成功；停止旧Client后只允许单次Observe并交回慢脑，点击绝不重放。协议1.42为通用`activate-control + click`增加唯一受限参数`observed_element_index`：索引必须来自当前新鲜Sky AX transcript、为`1..=65535`整数，Worker在动作前重新Observe并确认索引仍存在，再转换为Sky内部`element_index`；字段不得用于焦点、输入、发送或其他动作，也不得持久化。元素激活仍必须由动作后transcript变化证明，否则带截图交回。
+12. 2026-10-07 Codex Computer Use循环修订：第11项“停止旧Client”被后续真实样本推翻。坐标动作必须在同一执行环境中按原始截图像素只派发一次；调用超时或菜单导致旧窗口失效时不得提前销毁Client、不得重放，应先对同一可信bundle id只读Observe。只有Observe发现窗口代次变化时才可在Observe内部重建Client并重新解析唯一窗口；结果仍不可核实时携带Observation交回慢脑。该修订不改变Gateway、Application与Driver边界。
 
 ## 取代关系
 

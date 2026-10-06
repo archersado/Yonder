@@ -42,6 +42,7 @@
 - FGD-27：2026-10-06用户变更要求窗口绑定状态外置。成功启动产生的可信应用绑定必须由Rust Adapter任务运行态跨步骤保持；Node Worker或签名MCP Client重建后，后续步骤仍按同一bundle id重新解析唯一窗口，不得退回当前前台。绑定不得跨任务、持久化或由Agent/UI覆盖。
 - FGD-28：Sky对无业务副作用的坐标控件激活若在动作投递后不返回，Yonder必须在宿主总超时前停止旧Client并重新Observe同一应用；不得重放点击，且只有可验证的界面变化才能继续。消息发送、删除等副作用动作不得使用该收敛路径。
 - FGD-29：企业微信样本证明截图指纹变化不足以证明坐标点击已投递。协议1.42允许通用`activate-control + click`携带唯一受限`observed_element_index`，仅引用当前新鲜AX transcript中的`1..=65535`元素；Worker必须在动作前重新Observe确认元素存在并在内部转换，动作后transcript未变化则交回。坐标点击超时一律单次Observe后交回，不得自报成功或重放。
+- FGD-30：2026-10-07后续用户变更要求坐标动作参考Codex Computer Use闭环：在同一任务执行环境中按原始截图像素只派发一次动作，保留Client与应用绑定并返回动作后新鲜截图/AX；动作调用超时或菜单导致窗口代次变化时不得提前销毁环境、不得重放动作，应先按可信bundle id重新Observe。只有后置事实证明预期界面变化才推进，否则携带Observation交回慢脑。
 
 ## 范围与非目标
 
@@ -58,4 +59,5 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | Accepted AD-CU-07产品Apply | FGD-10、FGD-11、FGD-12 |
 | 2026-09-30 Sky单栈决定与AD-CU-09 | FGD-20、FGD-21、FGD-22、FGD-23、FGD-24、FGD-25 |
 | 2026-10-06窗口绑定外置用户变更与AD-CU-09修订 | FGD-27 |
+| 2026-10-07参考Codex Computer Use循环的后续用户变更 | FGD-30 |
 | 2026-10-06企业微信企业入口真实回归与AD-CU-09修订 | FGD-28、FGD-29 |

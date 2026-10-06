@@ -51,8 +51,8 @@
 
 #### Scenario: 坐标点击超时后重新Observe
 
-- **WHEN** 无业务副作用的坐标控件激活超过Worker短等待且签名Client未返回
-- **THEN** Worker停止旧Client、不重放点击并对同一绑定只读Observe一次，随后无条件以`UnknownObserved`交回；不得凭截图指纹差异确认成功
+- **WHEN** 无业务副作用的坐标控件激活超过签名Client标准动作等待或返回旧窗口失效
+- **THEN** Worker不得销毁当前执行环境或重放点击，必须对同一可信应用只读Observe；窗口代次变化时允许在Observe内部重建Client并重新解析窗口，随后以新鲜Observation交回，不得凭截图指纹差异确认成功
 
 #### Scenario: 坐标点击只产生光晕或悬停变化
 

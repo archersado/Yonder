@@ -574,7 +574,9 @@ impl TaskHost {
                     &root.join("sky_cua_worker.mjs"),
                     &sdk,
                     &evidence,
-                    Duration::from_secs(30),
+                    // 坐标动作最多等待25秒，随后还必须在同一桌面会话
+                    // 完成一次独立Observe；宿主超时需要覆盖这两个有界阶段。
+                    Duration::from_secs(60),
                 ).ok()))
         };
         #[cfg(target_os = "macos")]

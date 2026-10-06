@@ -46,7 +46,9 @@ Result: PASS
 - 随后读取正式Yonder保存的动作后Observation，证明企业切换菜单并未打开；此前坐标还错误指向底部图标。以正确顶部头像坐标执行的任务`task_2b366150d400bcd80c2b95ea54d7ef88`同样未打开菜单，却仍被截图指纹变化误判为完成。
 - 因此上述任务均为负样本，不计入PASS。协议1.42必须让坐标超时无条件交回，并以动作前新鲜AX元素索引完成正确入口复验后，才能关闭该增量任务。
 - 协议1.42正式包随后以任务`task_91481a211402807f2d038ccee16b18f6`验证新鲜元素索引：顶部图像动作没有可验证transcript变化，Yonder正确以`handback@16`携带截图交回，未误报完成。截图物理坐标兜底仍只产生光晕/悬停；最终失败关闭任务`task_1e18ae977a3560f236a1d9fc9de6da8e`返回`handback@16`并取消为`cancelled@17`，证明最新包不再凭截图像素差异推进。
-- 当前剩余阻塞是Sky应用绑定Observation无法取得企业切换瞬时面板的可操作AX/截图事实，因而无法安全定位“狼顾科技”。本轮没有切换企业、没有搜索会话、没有填写或发送消息；不得把安全交回扩大为企业切换功能通过。
+- 2026-10-07对照发现Codex CUA对同一主窗口坐标点击也返回`noWindowsAvailable`，但当前AX transcript的元素18可稳定打开账号/企业入口面板。这证明正确循环必须坚持AX元素优先，只在元素不可用时降级到同窗口视觉坐标。
+- 重建正式`Yonda.app`后，Gateway任务`task_83ab460064455b4f0fc0bb49b5cfc2bb`先以坐标候选两次安全交回，再由慢脑读取`task.get + task.events`提交`observed_element_index=18`的新片段。该次事件为`action_succeeded=true`、`observe_valid=true`，Observation由260个主窗口元素变为68个面板元素，最终`fragment-complete@22 → completed@23`。
+- 企业入口激活回归通过；本轮没有选择“狼顾科技”、没有搜索会话、没有填写或发送消息，不把入口PASS扩大为完整多企业切换流程PASS。
 - 全仓`check_architecture.py`另被基线`TM-S9/README.md`缺少标准`Story/Epic/Status/OpenSpec`字段阻断；该既有问题与本负样本分别记录，均不能伪装为本项通过。
 
 ## 未计入 PASS 的负样本

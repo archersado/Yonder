@@ -74,7 +74,7 @@ Sky的应用使用elicitation只能在`launch_app`已把计划目标收敛为唯
 
 签名Client的错误正文不得进入日志或Gateway；Worker只把已知`cgWindowNotFound`收敛为`target-window-unavailable`等有界阶段。锁屏、登录窗口或目标没有可观察窗口时必须安全交回，不得把transport存活误报成动作成功。
 
-官方Client可能已经投递坐标点击并打开瞬时菜单，却迟迟不结束`tools/call`。仅对不含发送、删除、支付等业务副作用的`activate-control + click(x,y)`，Worker使用短于Rust宿主上限的动作等待时间；到期后立即销毁旧Client，禁止重放点击，并用新Client对同一绑定应用只读Observe一次。企业微信真实截图证明任意截图指纹变化会受光标和动态内容影响，因此坐标超时必须无条件返回带Observe证据的`UnknownObserved`并交回慢脑。其他动作仍按原超时语义直接unknown，不得复用这一收敛路径。
+官方Client可能已经投递坐标点击并打开瞬时菜单，却迟迟不结束`tools/call`。仅对不含发送、删除、支付等业务副作用的`activate-control + click(x,y)`，Worker按原始截图像素只派发一次，并在签名Client标准动作等待期内保持同一执行环境；调用超时或返回旧窗口失效时不销毁Client、不重放点击，继续对同一可信bundle id只读Observe。若菜单导致窗口代次变化，Observe可重建Client并重新解析唯一运行窗口，但该重建只能发生在动作已结束或结果未知之后。截图指纹变化会受光标和动态内容影响，因此超时分支仍返回带新鲜证据的`UnknownObserved`交回慢脑，不能自报成功。
 
 协议1.42只为通用`activate-control + click`增加`observed_element_index`。Application仅接受`1..=65535`整数；Worker用动作前新鲜transcript确认索引存在后才转换为Sky内部参数，字段不进入SQLite、事件、Outbox或日志。元素和坐标激活动作后transcript不变均交回，不能用鼠标光晕或悬停截图变化证明目标完成。
 

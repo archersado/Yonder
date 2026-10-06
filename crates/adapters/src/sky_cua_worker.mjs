@@ -12,7 +12,7 @@ const supported = new Set([
   'click', 'drag', 'perform_secondary_action', 'press_key', 'scroll',
   'select_text', 'set_value', 'type_text',
 ]);
-const navigationActionTimeoutMs = 5_000;
+const coordinateActionTimeoutMs = 25_000;
 let pendingInput;
 
 class SkyMcpBridge {
@@ -599,20 +599,20 @@ async function perform(request, target, before) {
     // 显式归一化，避免把SDK的可选字段差异泄漏到外部协议。
     clickArguments.mouse_button = 'left';
     clickArguments.click_count ??= 1;
-    let timedOut = false;
+    let resultUncertain = false;
     try {
-      await callAction('click', clickArguments, target.applicationId, navigationActionTimeoutMs);
+      await callAction('click', clickArguments, target.applicationId, coordinateActionTimeoutMs);
     } catch (error) {
       const stage = error instanceof WorkerFailure
         ? error.stage
         : boundedFailureStage(error, 'action-coordinate-click');
-      if (stage !== 'transport-timeout') throw error;
-      // 只对无业务副作用的控件激活收敛“已投递但Client不返回”。旧Client
-      // 立即销毁，点击绝不重放；后续统一由新Client只读Observe并交回。
-      await refreshBridge();
-      timedOut = true;
+      if (!['transport-timeout', 'target-window-unavailable'].includes(stage)) throw error;
+      // 请求超时或窗口代次变化只能说明点击结果不确定。保留当前
+      // Client/桌面会话，不重放点击，立即进入公共动作后Observe。只有Observe
+      // 本身证明窗口已失效时，observe()才会刷新Client并重新绑定同一应用。
+      resultUncertain = true;
     }
-    return { kind: timedOut ? 'coordinate-timeout' : 'transcript-changed' };
+    return { kind: resultUncertain ? 'coordinate-uncertain' : 'transcript-changed' };
   }
   if (request.tool_name === 'click' && ['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);
@@ -704,7 +704,7 @@ function actionConfirmed(expectation, before, after) {
   if (expectation.kind === 'transcript-changed') {
     return stateText(before) !== stateText(after);
   }
-  if (expectation.kind === 'coordinate-timeout') return false;
+  if (expectation.kind === 'coordinate-uncertain') return false;
   return fingerprint(before) !== fingerprint(after);
 }
 
