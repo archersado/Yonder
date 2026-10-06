@@ -569,7 +569,7 @@ async function perform(request, target, before) {
       await refreshBridge();
       timedOut = true;
     }
-    return { kind: timedOut ? 'coordinate-timeout' : 'changed' };
+    return { kind: timedOut ? 'coordinate-timeout' : 'transcript-changed' };
   }
   if (request.tool_name === 'click' && ['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);

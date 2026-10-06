@@ -74,7 +74,7 @@ Sky的应用使用elicitation只能在`launch_app`已把计划目标收敛为唯
 
 官方Client可能已经投递坐标点击并打开瞬时菜单，却迟迟不结束`tools/call`。仅对不含发送、删除、支付等业务副作用的`activate-control + click(x,y)`，Worker使用短于Rust宿主上限的动作等待时间；到期后立即销毁旧Client，禁止重放点击，并用新Client对同一绑定应用只读Observe一次。企业微信真实截图证明任意截图指纹变化会受光标和动态内容影响，因此坐标超时必须无条件返回带Observe证据的`UnknownObserved`并交回慢脑。其他动作仍按原超时语义直接unknown，不得复用这一收敛路径。
 
-协议1.42只为通用`activate-control + click`增加`observed_element_index`。Application仅接受`1..=65535`整数；Worker用动作前新鲜transcript确认索引存在后才转换为Sky内部参数，字段不进入SQLite、事件、Outbox或日志，动作后transcript不变仍交回。
+协议1.42只为通用`activate-control + click`增加`observed_element_index`。Application仅接受`1..=65535`整数；Worker用动作前新鲜transcript确认索引存在后才转换为Sky内部参数，字段不进入SQLite、事件、Outbox或日志。元素和坐标激活动作后transcript不变均交回，不能用鼠标光晕或悬停截图变化证明目标完成。
 
 协议1.41为自绘控件视觉激活增加唯一受限扩展：只有`activate-control + click`且使用有限`x/y`时可选`click_count=1|2`；坐标层穿透时，`activate-control + press_key`只额外允许`ARROWDOWN`选择下一个候选。字段直接映射固定Sky公开参数；焦点、输入、元素点击、发送及其他语义均拒绝，不能用多个分离单击冒充双击，也不开放其他导航键。动作后仍读取同一应用状态，截图只有悬停变化时不得据此推导业务目标完成。
 

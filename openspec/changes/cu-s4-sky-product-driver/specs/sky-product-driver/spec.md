@@ -54,6 +54,11 @@
 - **WHEN** 无业务副作用的坐标控件激活超过Worker短等待且签名Client未返回
 - **THEN** Worker停止旧Client、不重放点击并对同一绑定只读Observe一次，随后无条件以`UnknownObserved`交回；不得凭截图指纹差异确认成功
 
+#### Scenario: 坐标点击只产生光晕或悬停变化
+
+- **WHEN** 坐标控件激活正常返回但动作后AX transcript没有变化
+- **THEN** Worker返回带截图的`UnknownObserved`并交回，不得把截图像素差异当作控件激活成功
+
 #### Scenario: 通用文本输入没有唯一搜索元素
 
 - **WHEN** 已绑定应用不存在唯一搜索文本框且计划候选为通用`input-text`
