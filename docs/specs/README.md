@@ -29,6 +29,8 @@
 
 2026-09-29 新增 [TM-S9 事件驱动执行运行时](epic-TM/story-TM-S9/README.md)：按 Accepted AD-TM-23 废除“SQLite 是当前状态唯一事实源、每步同步事务后推进”。活动 CUA、BUA、Office/Document、Command 与控制链路全部由同一个轻量内存事件循环推进，SQLite/events/Outbox 作为异步事后投影与恢复检查点；允许分阶段提交，不允许按单能力关闭 Story。
 
+2026-10-07 新增 [CU-S6 临时观察元素句柄](epic-CU/story-CU-S6/README.md)：正式企业微信样本证明截图坐标点击可返回 `action-unconfirmed-unparsed-transcript`，而协议已有的 `observed_element_index` 没有合法 Gateway 来源。按 Accepted AD-CU-10，只把新鲜 Observation 中可操作控件的有界角色、短标签和索引作为内存响应返回慢脑，并以 `observation_ref` 绑定下一片段；不持久化完整 AX transcript、正文或元素句柄。
+
 2026-09-28 新增 [TM-S8 统一产品执行闭环](epic-TM/story-TM-S8/README.md)：用户明确验收目标是可由真实慢脑运行 CUA、BUA、Office、Command 的完整产品，不再用逐步私有脚本或 Driver 探针替代。当前从 `dev` 正式 GUI 与 Codex MCP 开始 macOS 四链路验证，缺口返回所属 Story 修复；Windows继续暂缓。
 
 2026-09-24 [EX 执行快脑](epic-EX/README.md) 的系统边界按 Accepted AD-EX-01 保持：允许 Yonder 内置有界 Jev 模型循环，慢脑首次计划与 replan 仍走既有 Agent Gateway。用户变更将 EX-S2 接线限定 macOS-only，Windows 与费用证据后补；`AD-EX-02` 仅接受 macOS 子路线，`ex-s2-macos-only-jev-wiring` 已通过并归档，Windows 路径仍不编译、不注册、不验证。
