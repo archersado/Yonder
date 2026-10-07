@@ -2,7 +2,7 @@
 
 - [x] 建立 TM-S8 三份 Story 设计与 OpenSpec，明确产品级验收而非探针验收。
 - [x] 从 `dev` 构建并启动唯一正式 Yonder GUI，校验 Codex MCP 指向本次 CLI。
-- [ ] 校验 Jev 面板配置与凭据可用，构造真实多候选片段并记录快脑选择、连续执行、交回及纯慢脑对照耗时。
+- [ ] 校验 Jev 面板配置与凭据可用，按配对协议完成三类 CUA 各 3 对预跑、各 10 对正式样本，记录完成率、Wilson 95% 区间、主动耗时中位数/P95、慢脑调用、快脑选择、交回与 `unknown`。
 - [x] 修复首动作前 Jev 交回的 running 状态同步及 v20 审计表全缺安全修复，恢复产品 `task.get/task.events`。
 - [ ] 修复首动作前 Jev 交回后的 replan 恢复边界：同一 running 任务在无既有 attempt/Admission 时须能安全取得桌面租约并执行慢脑经 Gateway 提交的新片段。
 - [ ] 用真实 Codex MCP 完成 CUA 企业微信任务，覆盖计划/当前步骤、持续控制条、发送确认与终态。
