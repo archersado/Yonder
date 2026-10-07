@@ -1,6 +1,6 @@
 # Verification Goal：CU-S6 临时 Observation transcript 与元素句柄
 
-状态：PASS（macOS 子范围，2026-10-07）。Windows 对等验证按主人决定暂缓，Story 保持 `verifying`，不 Archive/Done。
+状态：部分通过（macOS transcript 子范围，2026-10-07）；企业切换回归失败并返回实施阶段。Windows 对等验证按主人决定暂缓，不 Archive/Done。
 
 ## 目标
 
@@ -23,3 +23,10 @@
 ## 结论与边界
 
 macOS 子范围通过 OEH-01～OEH-08，并证明 OEH-09 的正式链路能返回可供慢脑消歧的 transcript 与句柄；OEH-09 的企业切换点击推进仍需后续副作用样本。本 Goal 不证明 Windows 等价行为；Windows 验证继续暂缓，不能由本结果外推。
+
+## 2026-10-07 企业切换回归
+
+- 正式任务 `task_a889c79782cb8d776a799d6a103b9d3d` 成功取得 transcript、元素句柄并通过句柄打开头像菜单。
+- 头像弹窗把入口表达为 AX selectable row，既有导出器只返回按钮，慢脑无法提交语义行点击。
+- 视觉坐标点击返回 `worker-failed/unknown` 且缺少动作后 Observation；重新置前 Observe 证明未切换企业。
+- 任务在序号 51 取消，未发送消息、未重放 unknown 点击。OEH-09 未通过，新增 OEH-10 后返回实施。

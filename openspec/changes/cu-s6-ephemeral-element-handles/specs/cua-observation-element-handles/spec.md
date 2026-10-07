@@ -11,6 +11,11 @@
 - **WHEN** 动作后新鲜 transcript 包含按钮、菜单项或文本框
 - **THEN** Observation 返回最多64 KiB transcript、最多 128 个只含索引/封闭角色/短标签的句柄以及不透明 `observation_ref`
 
+#### Scenario: 导出可选择行
+
+- **WHEN** transcript 中的 AX 行带有 selectable 属性但没有按钮角色
+- **THEN** Observation 以 `selectable-row` 返回该行，并只用该行后代中的有界安全文本生成短标签
+
 #### Scenario: 过滤安全输入且禁止持久化
 
 - **WHEN** transcript 包含密码/安全输入或普通界面正文
@@ -34,3 +39,8 @@
 
 - **WHEN** Sky动作调用返回但transcript与视觉事实不能确认变化
 - **THEN** 结果保持unknown/handback，且不得自动重试
+
+#### Scenario: 坐标调用返回错误
+
+- **WHEN** 坐标点击已提交给 Sky 后返回超时、窗口失效或其他动作错误
+- **THEN** Worker 不重放点击，仍执行唯一一次动作后 Observe，并根据新鲜事实返回 confirmed 或 unknown/handback

@@ -93,7 +93,7 @@ Accepted [AD-EX-03](AD-EX-03-JEV-CONFIG-INTERFACE.md) 单独允许实现最小 J
 
 2026-09-16步骤边界停止增量：schema9仅允许当前observed attempt原子转stopped；暂停/接管提交paused，取消提交cancelled并保留数据。Permit在事务成功后才释放；unknown、旧身份或提交失败继续占用。外部控制协议、工作定位与Recording仍需后续规格。
 
-CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。历史Qwen/trycua对照只保留证据；2026-09-30 Accepted [AD-CU-09](AD-CU-09-SKY-COMPUTER-USE-DRIVER.md)已把macOS产品切换为Codex Computer Use / Sky单栈，应用级AX transcript不持久化。2026-10-07 Accepted [AD-CU-10](AD-CU-10-EPHEMERAL-OBSERVED-ELEMENT-HANDLES.md)允许Worker把有界新鲜transcript与可操作句柄作为绑定`observation_ref`的临时Gateway响应交给归属慢脑；transcript和标签不得进入SQLite、事件、Outbox、日志或顶部UI。Driver 由 Supervisor 按需启动；崩溃、超时或后置事实不足将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
+CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。历史Qwen/trycua对照只保留证据；2026-09-30 Accepted [AD-CU-09](AD-CU-09-SKY-COMPUTER-USE-DRIVER.md)已把macOS产品切换为Codex Computer Use / Sky单栈，应用级AX transcript不持久化。2026-10-07 Accepted [AD-CU-10](AD-CU-10-EPHEMERAL-OBSERVED-ELEMENT-HANDLES.md)允许Worker把有界新鲜transcript与可操作句柄作为绑定`observation_ref`的临时Gateway响应交给归属慢脑；AX selectable row 同样属于可操作句柄，标签只从本行有界后代文本合成；坐标动作派发后的SDK错误仍必须进入唯一一次动作后Observe。transcript和标签不得进入SQLite、事件、Outbox、日志或顶部UI。Driver 由 Supervisor 按需启动；崩溃、超时或后置事实不足将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
 
 2026-10-06按AD-CU-09修订，`launch_app`产生的可信应用绑定由Rust CUA Adapter的任务运行态外置持有；Node Worker和签名MCP Client无权成为跨步骤状态所有者。绑定只读注入同任务内部派发，Worker每步按规范bundle id重新解析窗口；进程重建保持绑定，任务会话结束或切换任务时清除，且不持久化、不进入外部协议。
 

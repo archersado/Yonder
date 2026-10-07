@@ -13,7 +13,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 
 ## 验收条件
 
-- OEH-01：`ComputerObservation` 可返回最多 128 个可操作控件句柄，每项只含 `index`、封闭 `role` 和至多 128 字符的可选短标签。
+- OEH-01：`ComputerObservation` 可返回最多 128 个可操作控件句柄，每项只含 `index`、封闭 `role` 和至多 128 字符的可选短标签；AX 标记为 selectable 的行必须作为 `selectable-row` 导出，标签可由该行有界后代文本合成。
 - OEH-02：Observation 可返回最多 64 KiB 的当前 AX transcript；密码/安全输入行必须过滤，坐标、PID、窗口 ID 和非 transcript 原生属性不得注入。
 - OEH-03：Observation 返回不透明 `observation_ref`；使用元素索引的候选必须同时提交该引用。
 - OEH-04：Worker 只接受同任务、最近一次已返回 Observation 的引用；进程重建、任务切换、新 Observation 或引用不匹配均安全交回。
@@ -22,14 +22,15 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-07：transcript 与句柄标签只存在于本次 Worker/Gateway 响应，不写 SQLite、事件、Outbox、日志、顶部浮窗或任务说明；无正文的索引与引用可随不可变计划参数保存，但 Worker 重建或新 Observation 后不可复用。
 - OEH-08：Rust Protocol 是 JSON Schema 与 TypeScript 的唯一来源，能力版本显式升级；旧客户端仍只得到原有观察字段。
 - OEH-09：macOS 正式企业微信样本可从新鲜句柄选择企业切换入口并推进；不能解析时返回明确交回事实。Windows 暂缓且不得外推。
+- OEH-10：坐标点击已经派发后，即使 Sky 返回超时、窗口代次变化或其他动作错误，Worker 仍必须执行一次动作后 Observe；后置事实不足时返回 unknown/handback，不得丢失新鲜 Observation 或自动重放点击。
 
 ## 验收映射
 
 | 来源 | 验收 |
 |---|---|
 | 产品简报 | OEH-01、OEH-05、OEH-06 |
-| 2026-10-07 用户变更 | OEH-03～OEH-06、OEH-09 |
-| AD-CU-09、AD-CU-10 | OEH-01～OEH-08 |
+| 2026-10-07 用户变更 | OEH-03～OEH-06、OEH-09、OEH-10 |
+| AD-CU-09、AD-CU-10 | OEH-01～OEH-08、OEH-10 |
 | AD-TM-23 | OEH-07 |
 
 ## 范围与非目标
