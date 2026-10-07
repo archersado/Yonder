@@ -648,7 +648,7 @@ fn validate_id(id: &str) -> Result<(), Error> {
     }
 }
 
-pub use yonder_protocol::valid_id;
+pub use yonder_protocol::{ObservedElement, ObservedElementRole, valid_id};
 
 /// Task Space 显式本地用户操作；Agent 不获得确认能力。
 pub fn confirm_result(

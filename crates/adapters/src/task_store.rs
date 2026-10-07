@@ -4062,6 +4062,9 @@ mod tests {
                         screenshot_path: None,
                         screenshot_mime: None,
                         target_visible: None,
+                        observation_ref: None,
+                        transcript: None,
+                        elements: Vec::new(),
                     },
                 }
             }

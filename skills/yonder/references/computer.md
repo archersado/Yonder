@@ -13,6 +13,7 @@ CUA 只走 Yonder 的组合步骤或计划片段入口。不要直接调用 tryc
 ## Observe 与重规划
 
 - 动作成功回执不是结果证明；以后置 Observe 和任务事件为准。
+- 协议1.44返回`transcript`、`elements`与`observation_ref`时，先根据 transcript 选择唯一可操作元素；通用`activate-control + click`必须同时提交该元素的`observed_element_index`和同次`observation_ref`。引用过期、元素消失或Worker重建时重新Observe，不复用旧索引。
 - 元素缺失时先使用同片段中的视觉兜底。只有候选耗尽、事实改变或预期 Observe 不满足才交回慢脑。
 - 交回后先 `task_get` 与 `task_events`，区分 `observed`、`unknown`、等待确认和用户接管，再提交递增版本的新片段。
 - `unknown`、断连或超时意味着副作用结果待核实。不得重放发送、删除、支付等动作；先重新 Observe 或等待用户核实。

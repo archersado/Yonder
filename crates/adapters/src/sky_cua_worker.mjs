@@ -14,6 +14,7 @@ const supported = new Set([
 ]);
 const coordinateActionTimeoutMs = 25_000;
 let pendingInput;
+let latestObservation;
 
 class SkyMcpBridge {
   constructor(path) {
@@ -261,6 +262,9 @@ function responseFor(request) {
     screenshot_path: null,
     screenshot_mime: null,
     target_visible: null,
+    observation_ref: null,
+    transcript: null,
+    elements: [],
     launched_app_id: null,
     failure_stage: 'target',
   };
@@ -484,6 +488,54 @@ function transcriptElements(state) {
   return elements;
 }
 
+const actionableRoles = [
+  { role: 'text-field', pattern: /(?:文本框|搜索框|text ?field|textfield|search ?field)/i },
+  { role: 'menu-item', pattern: /(?:菜单项|menu ?item)/i },
+  { role: 'check-box', pattern: /(?:复选框|checkbox|check box)/i },
+  { role: 'radio-button', pattern: /(?:单选按钮|radio ?button)/i },
+  { role: 'combo-box', pattern: /(?:组合框|下拉框|combo ?box|pop ?up ?button)/i },
+  { role: 'button', pattern: /(?:按钮|button)/i },
+  { role: 'link', pattern: /(?:链接|link)/i },
+  { role: 'tab', pattern: /(?:标签页|选项卡|\btab\b)/i },
+];
+
+function actionableElements(state) {
+  const seen = new Set();
+  const handles = [];
+  for (const element of transcriptElements(state)) {
+    if (!Number.isInteger(element.index) || element.index < 1 || element.index > 65_535 || seen.has(element.index)) continue;
+    if (/(?:密码|口令|安全输入|password|secure ?text)/i.test(element.text)) continue;
+    const kind = actionableRoles.find(candidate => candidate.pattern.test(element.text));
+    if (!kind) continue;
+    const label = element.text.replace(/[\r\n\t\u0000-\u001f\u007f]+/g, ' ').trim();
+    if (label === '') continue;
+    seen.add(element.index);
+    handles.push({ index: element.index, role: kind.role, label: Array.from(label).slice(0, 128).join('') });
+    if (handles.length === 128) break;
+  }
+  return handles;
+}
+
+function ephemeralTranscript(state) {
+  let text = stateText(state);
+  if (!text.includes('\n') && text.includes('\\n')) text = text.replaceAll('\\n', '\n').replaceAll('\\t', '\t');
+  const safe = text.split('\n')
+    .filter(line => !/(?:密码|口令|安全输入|password|secure ?text)/i.test(line))
+    .join('\n')
+    .replace(/[\u0000\u000b\u000c\u000e-\u001f\u007f]/g, '');
+  const bounded = Array.from(safe).slice(0, 16_384).join('');
+  return bounded.trim() === '' ? null : bounded;
+}
+
+function publishObservation(state, request, response) {
+  const elements = actionableElements(state);
+  const reference = `observation_${request.attempt_id}`;
+  latestObservation = { taskId: request.task_id, reference, indexes: new Set(elements.map(element => element.index)) };
+  response.observation_ref = reference;
+  response.transcript = ephemeralTranscript(state);
+  response.elements = elements;
+}
+
 function uniqueElement(state, predicate) {
   const matches = transcriptElements(state).filter(element => predicate(element.text.toLocaleLowerCase()));
   return matches.length === 1 ? matches[0] : null;
@@ -551,6 +603,7 @@ function actionArguments(request, target) {
   delete args.app;
   delete args.applicationId;
   delete args.observed_element_index;
+  delete args.observation_ref;
   delete args._yonder_action_kind;
   delete args._yonder_private_text;
   if (target.app) args.app = target.app;
@@ -583,8 +636,12 @@ async function perform(request, target, before) {
   if (semantic === 'activate-control' && request.tool_name === 'click'
       && Number.isInteger(request.arguments.observed_element_index)) {
     const index = request.arguments.observed_element_index;
-    if (index < 1 || index > 65_535
-        || !transcriptElements(before).some(element => element.index === index)) {
+    const reference = request.arguments.observation_ref;
+    if (index < 1 || index > 65_535 || typeof reference !== 'string'
+        || latestObservation?.taskId !== request.task_id
+        || latestObservation.reference !== reference
+        || !latestObservation.indexes.has(index)
+        || !actionableElements(before).some(element => element.index === index)) {
       throw new WorkerFailure('target-semantic-element');
     }
     await callAction('click', { app: target.app, element_index: String(index) }, target.applicationId);
@@ -730,6 +787,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.observe_valid = true;
     response.target_visible = request.tool_name === 'launch_app' ? false : externalMacFocus ? true : null;
     response.element_count = Math.min(65_535, transcriptElements(after).length);
+    publishObservation(after, request, response);
     response.action_effect = request.tool_name === 'launch_app' || externalMacFocus || actionConfirmed(expectation, before, after)
       ? 'confirmed'
       : 'suspected_noop';

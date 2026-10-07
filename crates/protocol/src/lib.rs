@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 43 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 44 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -1198,6 +1198,31 @@ pub struct BrowserReference {
     pub updated_sequence: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ObservedElement {
+    #[ts(type = "number")]
+    #[schemars(range(min = 1, max = 65535))]
+    pub index: u16,
+    pub role: ObservedElementRole,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub label: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum ObservedElementRole {
+    Button,
+    MenuItem,
+    TextField,
+    CheckBox,
+    RadioButton,
+    Link,
+    Tab,
+    ComboBox,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct ComputerObservation {
@@ -1205,6 +1230,15 @@ pub struct ComputerObservation {
     pub screenshot_path: Option<String>,
     pub screenshot_mime: Option<String>,
     pub target_visible: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub observation_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub transcript: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub elements: Option<Vec<ObservedElement>>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1989,8 +2023,9 @@ pub fn valid_plan_action_arguments(kind:CuaActionKind, tool_name:&str, value:&se
         && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
         && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
         && arguments.get("click_count").is_none_or(|value|value.as_u64().is_some_and(|count|matches!(count,1|2)));
-    let observed_element=||arguments.len()==1
-        && arguments.get("observed_element_index").and_then(serde_json::Value::as_u64).is_some_and(|index|(1..=65_535).contains(&index));
+    let observed_element=||arguments.len()==2
+        && arguments.get("observed_element_index").and_then(serde_json::Value::as_u64).is_some_and(|index|(1..=65_535).contains(&index))
+        && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id);
     let search_hotkey=||arguments.len()==1&&arguments.get("keys").and_then(serde_json::Value::as_array).is_some_and(|keys|keys.len()==2&&keys[0]=="cmd"&&keys[1]=="f");
     match kind {
         CuaActionKind::FocusControl => (tool_name=="click"&&(arguments.is_empty()||coordinates()))||(tool_name=="hotkey"&&search_hotkey()),
@@ -2717,7 +2752,8 @@ mod tests {
         assert!(valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":"one last kiss","x":10,"y":20})));
         assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"ENTER"})));
         assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":2})));
-        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":3})));
+        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":3,"observation_ref":"observation-attempt-4"})));
+        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":3})));
         assert!(!valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&serde_json::json!({"observed_element_index":3})));
         assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":0})));
         assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":65536})));
@@ -2771,6 +2807,9 @@ mod tests {
                     screenshot_path: Some("/tmp/yonder-evidence/task-attempt.png".into()),
                     screenshot_mime: Some("image/png".into()),
                     target_visible: None,
+                    observation_ref: Some("observation-attempt-4".into()),
+                    transcript: Some("[3] 按钮 切换企业".into()),
+                    elements: Some(vec![ObservedElement { index:3, role:ObservedElementRole::Button, label:Some("按钮 切换企业".into()) }]),
                 }),
             },
         };

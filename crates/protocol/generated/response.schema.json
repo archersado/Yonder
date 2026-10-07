@@ -348,6 +348,21 @@
           "maximum": 65535,
           "minimum": 0
         },
+        "elements": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/ObservedElement"
+          }
+        },
+        "observation_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "screenshot_mime": {
           "type": [
             "string",
@@ -363,6 +378,12 @@
         "target_visible": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "transcript": {
+          "type": [
+            "string",
             "null"
           ]
         }
@@ -691,6 +712,44 @@
       "enum": [
         "achieved",
         "not-achieved"
+      ]
+    },
+    "ObservedElement": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 1
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "$ref": "#/$defs/ObservedElementRole"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "role"
+      ]
+    },
+    "ObservedElementRole": {
+      "type": "string",
+      "enum": [
+        "button",
+        "menu-item",
+        "text-field",
+        "check-box",
+        "radio-button",
+        "link",
+        "tab",
+        "combo-box"
       ]
     },
     "Platform": {
