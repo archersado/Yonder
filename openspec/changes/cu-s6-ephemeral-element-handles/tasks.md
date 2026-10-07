@@ -6,7 +6,7 @@
 - [x] 接入 Application、Adapter 与 Gateway 临时 Observation 映射
 - [x] 覆盖协议、Adapter/Gateway 合约、容量与敏感内容负样本
 - [x] 建立并运行 macOS 独立 Verification Goal
-- [ ] 导出 selectable row 句柄并限定后代标签边界
-- [ ] 坐标点击错误后继续动作后 Observe，不重试动作
+- [x] 导出 selectable row 句柄并限定后代标签边界
+- [x] 坐标点击错误后继续动作后 Observe，不重试动作
 - [ ] 重跑正式企业微信企业切换回归并更新 Verification Goal
 - [ ] Windows 对等验证（依用户决定暂缓）

@@ -749,7 +749,8 @@
         "radio-button",
         "link",
         "tab",
-        "combo-box"
+        "combo-box",
+        "selectable-row"
       ]
     },
     "Platform": {

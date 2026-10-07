@@ -43,4 +43,4 @@
 #### Scenario: 坐标调用返回错误
 
 - **WHEN** 坐标点击已提交给 Sky 后返回超时、窗口失效或其他动作错误
-- **THEN** Worker 不重放点击，仍执行唯一一次动作后 Observe，并根据新鲜事实返回 confirmed 或 unknown/handback
+- **THEN** Worker 不重放点击，仍执行唯一一次动作后 Observe，并携带新鲜事实返回 unknown/handback

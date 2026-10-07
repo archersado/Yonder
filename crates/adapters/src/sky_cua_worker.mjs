@@ -482,8 +482,12 @@ function transcriptElements(state) {
     text = text.replaceAll('\\n', '\n').replaceAll('\\t', '\t');
   }
   for (const line of text.split('\n')) {
-    const match = line.match(/^[\s│├└─>]*(?:[-*]\s*)?(?:\[(\d+)\]|(\d+))[.):]?\s+(.+)$/);
-    if (match) elements.push({ index: Number(match[1] ?? match[2]), text: match[3].trim() });
+    const match = line.match(/^([\s│├└─>]*)(?:[-*]\s*)?(?:\[(\d+)\]|(\d+))[.):]?\s+(.+)$/);
+    if (match) elements.push({
+      index: Number(match[2] ?? match[3]),
+      text: match[4].trim(),
+      depth: (match[1].match(/\t/g) ?? []).length,
+    });
   }
   return elements;
 }
@@ -497,20 +501,40 @@ const actionableRoles = [
   { role: 'button', pattern: /(?:按钮|button)/i },
   { role: 'link', pattern: /(?:链接|link)/i },
   { role: 'tab', pattern: /(?:标签页|选项卡|\btab\b)/i },
+  { role: 'selectable-row', pattern: /(?:\brow\b.*\bselectable\b|可选择.*行)/i },
 ];
 
+const sensitiveElementPattern = /(?:密码|口令|安全输入|password|secure ?text)/i;
+
+function boundedElementLabel(elements, position, role) {
+  const element = elements[position];
+  const parts = [element.text];
+  if (role === 'selectable-row') {
+    for (let cursor = position + 1; cursor < elements.length; cursor += 1) {
+      const descendant = elements[cursor];
+      if (descendant.depth <= element.depth) break;
+      if (sensitiveElementPattern.test(descendant.text)) return null;
+      if (!/^(?:单元格|图像|image|cell)(?:\s|$)/i.test(descendant.text)) parts.push(descendant.text);
+    }
+  }
+  const label = parts.join(' ').replace(/[\r\n\t\u0000-\u001f\u007f]+/g, ' ').trim();
+  return label === '' ? null : Array.from(label).slice(0, 128).join('');
+}
+
 function actionableElements(state) {
+  const elements = transcriptElements(state);
   const seen = new Set();
   const handles = [];
-  for (const element of transcriptElements(state)) {
+  for (let position = 0; position < elements.length; position += 1) {
+    const element = elements[position];
     if (!Number.isInteger(element.index) || element.index < 1 || element.index > 65_535 || seen.has(element.index)) continue;
-    if (/(?:密码|口令|安全输入|password|secure ?text)/i.test(element.text)) continue;
+    if (sensitiveElementPattern.test(element.text)) continue;
     const kind = actionableRoles.find(candidate => candidate.pattern.test(element.text));
     if (!kind) continue;
-    const label = element.text.replace(/[\r\n\t\u0000-\u001f\u007f]+/g, ' ').trim();
-    if (label === '') continue;
+    const label = boundedElementLabel(elements, position, kind.role);
+    if (label == null) continue;
     seen.add(element.index);
-    handles.push({ index: element.index, role: kind.role, label: Array.from(label).slice(0, 128).join('') });
+    handles.push({ index: element.index, role: kind.role, label });
     if (handles.length === 128) break;
   }
   return handles;
@@ -659,12 +683,8 @@ async function perform(request, target, before) {
     let resultUncertain = false;
     try {
       await callAction('click', clickArguments, target.applicationId, coordinateActionTimeoutMs);
-    } catch (error) {
-      const stage = error instanceof WorkerFailure
-        ? error.stage
-        : boundedFailureStage(error, 'action-coordinate-click');
-      if (!['transport-timeout', 'target-window-unavailable'].includes(stage)) throw error;
-      // 请求超时或窗口代次变化只能说明点击结果不确定。保留当前
+    } catch {
+      // 坐标请求进入Sky后，任何返回错误都不能证明动作未发生。保留当前
       // Client/桌面会话，不重放点击，立即进入公共动作后Observe。只有Observe
       // 本身证明窗口已失效时，observe()才会刷新Client并重新绑定同一应用。
       resultUncertain = true;

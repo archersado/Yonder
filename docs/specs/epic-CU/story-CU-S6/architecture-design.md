@@ -16,7 +16,7 @@ Worker 在任务运行态只持有最近一次对外 Observation 的引用与可
 
 若 Worker 重建导致引用丢失，返回受限 Observation 并交回慢脑；不得为恢复引用自动点击。动作后仍执行新鲜 Observe，只有预期后置事实成立才确认成功。
 
-坐标点击调用一旦进入 Sky 动作边界，SDK 的成功、超时、窗口失效或其他错误都不能单独决定动作结果。Worker 将调用错误收敛为“结果待核实”，继续执行唯一一次动作后 Observe；Observe 证明界面变化才确认，否则携带新鲜 Observation 交回。认证、Schema 或策略错误同样不重试动作。
+坐标点击调用一旦进入 Sky 动作边界，SDK 的成功、超时、窗口失效或其他错误都不能单独决定动作结果。Worker 将调用错误收敛为“结果待核实”，继续执行唯一一次动作后 Observe，并携带新鲜 Observation 以 unknown/handback 交回；界面变化只用于慢脑核实，不能把错误回执提升为 confirmed。认证、Schema 或策略错误同样不重试动作。
 
 ## 安全与数据生命周期
 

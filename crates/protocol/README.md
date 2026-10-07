@@ -16,6 +16,8 @@
 
 协议1.44允许计划执行响应把当前有界AX transcript、临时可操作元素句柄和`observation_ref`返回归属慢脑。`activate-control + click`使用`observed_element_index`时必须同时提交该引用；Worker只接受同任务最新Observation并在动作前重新校验索引。transcript与标签不进入SQLite、事件、Outbox、日志或顶部UI；旧会话继续只收到原观察字段。
 
+协议1.45把 AX `selectable` 行纳入临时元素句柄，角色为`selectable-row`；其短标签只由本行有界后代文本合成。坐标动作进入Sky后若调用返回错误，Worker仍执行唯一一次动作后Observe，错误不触发动作重试。
+
 ## 生成与检查
 
 在仓库根目录运行：

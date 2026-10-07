@@ -6,4 +6,4 @@ Sky Worker 每次动作后返回有界、过滤安全输入行的新鲜 transcri
 
 transcript与句柄标签只出现在调用响应，生命周期不跨 Worker 重建。下一计划参数只携带无正文索引与引用；SQLite、事件、Outbox、Runtime快照、顶部浮窗与日志都不保存 transcript 或标签。
 
-坐标调用进入 Sky 后，无论返回成功或错误都进入同一个动作后 Observe；错误只把动作效果降为待核实，不跳过 Observe，也不自动重试。只有 Observe 证明变化才确认成功。
+坐标调用进入 Sky 后，无论返回成功或错误都进入同一个动作后 Observe；错误把动作效果保持为 unknown/handback，不跳过 Observe，也不自动重试。新鲜事实只供慢脑核实，不能把错误回执提升为成功。
