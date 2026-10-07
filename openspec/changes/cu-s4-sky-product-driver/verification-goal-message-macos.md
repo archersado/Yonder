@@ -19,4 +19,10 @@
 
 `python3 apps/desktop/check-sky-message-worker.py` 通过：唯一无标签输入框可定位，相同草稿不重复，发送 no-op 拒绝。
 
-正式产品结果在执行后补录；自动化 fixture 不代替真实发送证据。
+既有 `check-sky-cua-worker.py`、Node 语法检查、OpenSpec strict 与 diff 检查通过；Application 60 与 Adapter 78 项测试全部通过。正式 macOS debug GUI/CLI 构建和打包通过。
+
+## 正式产品阶段结果
+
+修复提交 `03cddca` 已 ff-only 合并 dev，重新启动正式 GUI。任务 `task_2b04936bc487ce52b1cc0757c5957d80` 经官方 CLI MCP 提交完整五槽位片段 `wecom-existing-conversation` v1。当前会话已匹配目标，故直接核对现有会话而不额外搜索。
+
+一次 `task_plan_execute` 连续完成恢复应用、核对目标会话、聚焦输入框、核对受保护草稿，在序号 22 返回 `awaiting-confirmation`。未派发发送；等待用户从顶部产品浮窗确认，不以 Agent 自造确认代替。真实送达与目标核验尚待该确认后验证，当前不宣称发送完成或 Archive。
