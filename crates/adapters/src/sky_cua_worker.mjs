@@ -502,6 +502,7 @@ const actionableRoles = [
   { role: 'link', pattern: /(?:链接|link)/i },
   { role: 'tab', pattern: /(?:标签页|选项卡|\btab\b)/i },
   { role: 'selectable-row', pattern: /(?:\brow\b.*\bselectable\b|可选择.*行)/i },
+  { role: 'image', pattern: /^(?:图像|image)(?:\s|$)/i },
 ];
 
 const sensitiveElementPattern = /(?:密码|口令|安全输入|password|secure ?text)/i;

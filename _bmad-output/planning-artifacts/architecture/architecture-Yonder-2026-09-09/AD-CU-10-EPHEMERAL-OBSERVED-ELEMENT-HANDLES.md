@@ -12,12 +12,13 @@ AD-CU-09 要求元素优先，并已允许 `observed_element_index`，但同时�
 ## 决定
 
 1. Worker 可把当前 AX transcript 作为最多 64 KiB 的临时 Observation 返回归属慢脑；过滤密码/安全输入行。transcript 禁止持久化、日志、事件、Outbox和 UI 展示。
-2. Worker 同时从新鲜 transcript 派生最多 128 个临时可操作句柄；每项只含 `1..=65535` 索引、封闭角色和最多 128 字符的短标签。按钮等动作角色与 AX `selectable` 行都属于句柄；行标签只能从其有界后代文本合成。坐标、PID、窗口身份及其他 AX 属性不得注入。
+2. Worker 同时从新鲜 transcript 派生最多 128 个临时可操作句柄；每项只含 `1..=65535` 索引、封闭角色和最多 128 字符的短标签。按钮等动作角色、AX `selectable` 行及当前截图中可由慢脑消歧的 AX `image` 节点都属于句柄；行标签只能从其有界后代文本合成，无文本图像只返回通用角色标签。坐标、PID、窗口身份及其他 AX 属性不得注入。
 3. 对外 Observation 同时返回不透明 `observation_ref`。引用只绑定当前任务和最近一次 Worker Observation；新 Observation、任务切换、会话结束或 Worker 重建使其失效。
 4. 使用 `observed_element_index` 的计划候选必须携带同次 `observation_ref`。Worker 动作前重新 Observe，确认引用仍有效、索引仍存在且可操作后才转换为 Sky 内部 `element_index`。
 5. transcript 和句柄标签不进入 SQLite、Runtime 状态、事件、Outbox、顶部浮窗或日志；Gateway 仅在协议 1.44 及以上返回。无正文索引与引用可随不可变计划参数保存，但只在当前 Worker 的最新 Observation 缓存中有效。旧客户端保持既有响应。
 6. 动作后 Observe 规则不变。Sky 调用成功但 transcript/视觉事实不足时仍为 unknown/handback，绝不自动重试。
 7. 坐标动作一旦派发，Sky 的返回错误也只表示结果待核实；Worker 必须继续一次动作后 Observe。后置事实不足仍为 unknown/handback，不因错误类型跳过 Observe 或重放动作。
+8. 协议 1.46 才向归属慢脑返回 `image` 句柄；1.44/1.45 客户端继续过滤该角色。`image` 不是持久语义定位器，只允许和同次 `observation_ref` 一起用于通用控件激活，动作前仍须确认索引存在。
 
 ## 取代关系
 
@@ -27,7 +28,7 @@ AD-CU-09 要求元素优先，并已允许 `observed_element_index`，但同时�
 
 - Rust 协议、Schema 与 TypeScript 仅由单一来源生成，严格拒绝缺失或伪造引用的索引动作。
 - Worker 测试证明导出有界 transcript 和可操作短句柄，过滤安全字段并执行容量限制。
-- Worker 测试证明 selectable row 的句柄与后代标签不跨同级边界，坐标调用错误后仍只 Observe 一次。
+- Worker 测试证明 selectable row 的句柄与后代标签不跨同级边界、无文本 image 仍可形成受引用保护的临时句柄，坐标调用错误后仍只 Observe 一次。
 - Worker 测试证明引用替换、跨任务、重建和消失索引均拒绝且不派发动作。
 - Gateway 只把本次临时 Observation 返回归属 Agent，不写任务历史。
 - macOS 正式企业微信样本证明慢脑可使用句柄推进企业切换入口；Windows 对等验证继续暂缓。

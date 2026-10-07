@@ -8,5 +8,6 @@
 - [x] 建立并运行 macOS 独立 Verification Goal
 - [x] 导出 selectable row 句柄并限定后代标签边界
 - [x] 坐标点击错误后继续动作后 Observe，不重试动作
+- [x] 导出受新鲜引用保护的 image 句柄并保持协议 1.45 向后兼容
 - [ ] 重跑正式企业微信企业切换回归并更新 Verification Goal
 - [ ] Windows 对等验证（依用户决定暂缓）

@@ -750,7 +750,8 @@
         "link",
         "tab",
         "combo-box",
-        "selectable-row"
+        "selectable-row",
+        "image"
       ]
     },
     "Platform": {

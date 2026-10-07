@@ -16,6 +16,11 @@
 - **WHEN** transcript 中的 AX 行带有 selectable 属性但没有按钮角色
 - **THEN** Observation 以 `selectable-row` 返回该行，并只用该行后代中的有界安全文本生成短标签
 
+#### Scenario: 导出无文本图像控件
+
+- **WHEN** transcript 包含只能由截图视觉消歧的 AX image 节点
+- **THEN** 协议 1.46 Observation 以 `image` 返回受最新引用保护的临时句柄，无文本节点只使用通用角色标签，协议 1.45 及以下不返回该句柄
+
 #### Scenario: 过滤安全输入且禁止持久化
 
 - **WHEN** transcript 包含密码/安全输入或普通界面正文

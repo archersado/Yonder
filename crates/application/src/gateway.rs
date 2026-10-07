@@ -278,8 +278,8 @@ pub fn terminal_task_id(response: &[u8]) -> Option<String> {
     .then_some(task.task_id)
 }
 
-fn protocol_observed_elements(enabled:bool,selectable_rows:bool,elements:Vec<ObservedElement>)->Option<Vec<ObservedElement>>{
-    enabled.then(||elements.into_iter().filter(|element|selectable_rows||element.role!=ObservedElementRole::SelectableRow).collect())
+fn protocol_observed_elements(enabled:bool,selectable_rows:bool,images:bool,elements:Vec<ObservedElement>)->Option<Vec<ObservedElement>>{
+    enabled.then(||elements.into_iter().filter(|element|(selectable_rows||element.role!=ObservedElementRole::SelectableRow)&&(images||element.role!=ObservedElementRole::Image)).collect())
 }
 
 pub struct GatewaySession<'a> {
@@ -318,6 +318,7 @@ pub struct GatewaySession<'a> {
     can_plan_visual_observation: bool,
     can_plan_element_handles: bool,
     can_plan_selectable_rows: bool,
+    can_plan_image_handles: bool,
     can_cua_intent_propose: bool,
     browser_available: bool,
     can_computer: bool,
@@ -395,14 +396,16 @@ mod tests {
     }
 
     #[test]
-    fn selectable_rows_are_only_visible_from_protocol_1_45() {
+    fn extended_element_roles_are_version_gated() {
         let elements=||vec![
             ObservedElement{index:1,role:ObservedElementRole::Button,label:Some("按钮".into())},
             ObservedElement{index:2,role:ObservedElementRole::SelectableRow,label:Some("狼顾科技".into())},
+            ObservedElement{index:3,role:ObservedElementRole::Image,label:Some("图像".into())},
         ];
-        assert!(protocol_observed_elements(false,false,elements()).is_none());
-        assert_eq!(protocol_observed_elements(true,false,elements()).unwrap().len(),1);
-        assert_eq!(protocol_observed_elements(true,true,elements()).unwrap().len(),2);
+        assert!(protocol_observed_elements(false,false,false,elements()).is_none());
+        assert_eq!(protocol_observed_elements(true,false,false,elements()).unwrap().len(),1);
+        assert_eq!(protocol_observed_elements(true,true,false,elements()).unwrap().len(),2);
+        assert_eq!(protocol_observed_elements(true,true,true,elements()).unwrap().len(),3);
     }
 
     #[test]
@@ -805,7 +808,7 @@ impl<'a> GatewaySession<'a> {
                 let (computer,targets)=(computer.ok_or_else(||RpcError::new(-32020,"CUA Runtime不可用"))?,targets.ok_or_else(||RpcError::new(-32020,"桌面目标解析不可用"))?);
                 let (task,disposition,observation)=crate::plan_fragment::execute_available(store,admission,computer,targets,config,jev,cua_intents,self.auth,&params.task_id,&params.plan_id,params.plan_version,yonder_protocol::sequence(&params.expected_sequence)?,now_ms,host_session_id).map_err(query::error)?;
                 let handoff_reason = plan_handoff_reason(disposition).map(str::to_owned);
-                Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into(), handoff_reason, observation:self.can_plan_visual_observation.then_some(observation).flatten().map(|value| ProtocolComputerObservation { element_count:value.element_count, screenshot_path:value.screenshot_path, screenshot_mime:value.screenshot_mime, target_visible:value.target_visible, observation_ref:self.can_plan_element_handles.then_some(value.observation_ref).flatten(), transcript:self.can_plan_element_handles.then_some(value.transcript).flatten(), elements:protocol_observed_elements(self.can_plan_element_handles,self.can_plan_selectable_rows,value.elements) }) })
+                Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into(), handoff_reason, observation:self.can_plan_visual_observation.then_some(observation).flatten().map(|value| ProtocolComputerObservation { element_count:value.element_count, screenshot_path:value.screenshot_path, screenshot_mime:value.screenshot_mime, target_visible:value.target_visible, observation_ref:self.can_plan_element_handles.then_some(value.observation_ref).flatten(), transcript:self.can_plan_element_handles.then_some(value.transcript).flatten(), elements:protocol_observed_elements(self.can_plan_element_handles,self.can_plan_selectable_rows,self.can_plan_image_handles,value.elements) }) })
             },
             Request::FileGrants { params, .. } => {
                 if !self.negotiated {
@@ -1084,7 +1087,7 @@ impl<'a> GatewaySession<'a> {
                         target_visible: value.target_visible,
                         observation_ref: self.can_plan_element_handles.then_some(value.observation_ref).flatten(),
                         transcript: self.can_plan_element_handles.then_some(value.transcript).flatten(),
-                        elements: protocol_observed_elements(self.can_plan_element_handles,self.can_plan_selectable_rows,value.elements),
+                        elements: protocol_observed_elements(self.can_plan_element_handles,self.can_plan_selectable_rows,self.can_plan_image_handles,value.elements),
                     }),
                 })
             }
@@ -1222,6 +1225,7 @@ impl<'a> GatewaySession<'a> {
             can_plan_visual_observation: false,
             can_plan_element_handles: false,
             can_plan_selectable_rows: false,
+            can_plan_image_handles: false,
             can_cua_intent_propose: false,
             browser_available: false,
             can_computer: false,
@@ -1592,6 +1596,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_plan_visual_observation=self.can_plan_execute&&params.protocol_version.minor>=34;
                 self.can_plan_element_handles=self.can_plan_visual_observation&&params.protocol_version.minor>=44;
                 self.can_plan_selectable_rows=self.can_plan_element_handles&&params.protocol_version.minor>=45;
+                self.can_plan_image_handles=self.can_plan_selectable_rows&&params.protocol_version.minor>=46;
                 self.can_cua_intent_propose=self.negotiated&&params.protocol_version.minor>=35&&self.cua_intent_available&&matches!(self.platform,Platform::Macos);
                 self.can_goal_verify=self.negotiated&&params.protocol_version.minor>=43&&store.supports_goal_verification();
                 self.can_complete=self.can_goal_verify;
@@ -1608,8 +1613,10 @@ impl<'a> GatewaySession<'a> {
                 let has_goal_verification=self.can_goal_verify;
                 let has_element_handles=self.can_plan_element_handles;
                 let has_selectable_rows=self.can_plan_selectable_rows;
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if has_selectable_rows {45} else if has_element_handles {44} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if has_selectable_rows {45} else if has_element_handles {44} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let has_image_handles=self.can_plan_image_handles;
+                let observed_elements_version=if has_image_handles{46}else if has_selectable_rows{45}else if has_element_handles{44}else{0};
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("支持非终态任务直接取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
@@ -1626,8 +1633,8 @@ impl<'a> GatewaySession<'a> {
                 if params.protocol_version.minor >= 29 && self.document_execution_available { capabilities.push(CapabilityInfo{name:Capability::DocumentExecute,version:ProtocolVersion{major:1,minor:29},availability:Availability::Available,reason:None}); }
                 if params.protocol_version.minor>=30 && self.command_approval_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CommandPropose,version:ProtocolVersion{major:1,minor:30},availability:if self.can_command_propose{Availability::Available}else{Availability::TemporarilyUnavailable},reason:(!self.can_command_propose).then(||"本机命令批准入口不可用".into())}); }
                 if params.protocol_version.minor>=30 && self.command_approval_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CommandExecute,version:ProtocolVersion{major:1,minor:30},availability:if self.can_command_execute{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_command_execute).then(||"macOS命令运行时不可用".into())}); }
-                if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanSubmit,version:ProtocolVersion{major:1,minor:if has_selectable_rows{45}else if has_element_handles{44}else if has_bounded_double_click{41}else if has_generic_desktop_plan{40}else{31}},availability:if self.can_plan_submit{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_submit).then(||"计划片段存储不可用".into())}); }
-                if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanExecute,version:ProtocolVersion{major:1,minor:if has_selectable_rows{45}else if has_element_handles{44}else if has_bounded_double_click{41}else if has_generic_desktop_plan{40}else if has_foreground_coordinates{39}else if has_search_shortcut{38}else if has_visual_focus_handoff{37}else if has_composer_focus{36}else if self.can_plan_visual_observation{34}else{31}},availability:if self.can_plan_execute{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_execute).then(||"macOS CUA运行时或辅助功能权限不可用".into())}); }
+                if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanSubmit,version:ProtocolVersion{major:1,minor:if observed_elements_version>0{observed_elements_version}else if has_bounded_double_click{41}else if has_generic_desktop_plan{40}else{31}},availability:if self.can_plan_submit{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_submit).then(||"计划片段存储不可用".into())}); }
+                if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanExecute,version:ProtocolVersion{major:1,minor:if observed_elements_version>0{observed_elements_version}else if has_bounded_double_click{41}else if has_generic_desktop_plan{40}else if has_foreground_coordinates{39}else if has_search_shortcut{38}else if has_visual_focus_handoff{37}else if has_composer_focus{36}else if self.can_plan_visual_observation{34}else{31}},availability:if self.can_plan_execute{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_execute).then(||"macOS CUA运行时或辅助功能权限不可用".into())}); }
                 if params.protocol_version.minor>=35 && self.cua_intent_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CuaIntentPropose,version:ProtocolVersion{major:1,minor:35},availability:if self.can_cua_intent_propose{Availability::Available}else{Availability::TemporarilyUnavailable},reason:(!self.can_cua_intent_propose).then(||"本机 CUA 敏感意图入口不可用".into())}); }
                 return Ok(QueryResult::Hello { protocol_version: version, platform: self.platform, capabilities });
             }
