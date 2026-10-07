@@ -4,17 +4,17 @@
 
 ### Requirement: 新鲜 Observation 可返回临时可操作元素句柄
 
-系统 MUST 只从当前 Sky transcript 派生有界的可操作元素句柄，不返回完整 AX 树或静态正文。
+系统 MUST 把当前 Sky transcript 作为有界临时 Observation 返回归属慢脑，并派生可操作元素句柄；两者均不得持久化。
 
 #### Scenario: 返回可操作句柄
 
 - **WHEN** 动作后新鲜 transcript 包含按钮、菜单项或文本框
-- **THEN** Observation 返回最多 128 个只含索引、封闭角色和短标签的句柄以及不透明 `observation_ref`
+- **THEN** Observation 返回最多64 KiB transcript、最多 128 个只含索引/封闭角色/短标签的句柄以及不透明 `observation_ref`
 
-#### Scenario: 过滤敏感与静态内容
+#### Scenario: 过滤安全输入且禁止持久化
 
-- **WHEN** transcript 包含消息正文、静态文本或密码输入
-- **THEN** 这些内容不得进入句柄、日志、事件、Outbox、SQLite或顶部浮窗
+- **WHEN** transcript 包含密码/安全输入或普通界面正文
+- **THEN** 安全输入行被过滤，普通 transcript 只在当前 Gateway 响应可见，任何 transcript 与标签都不得进入日志、事件、Outbox、SQLite或顶部浮窗
 
 ### Requirement: 元素动作绑定同次 Observation
 

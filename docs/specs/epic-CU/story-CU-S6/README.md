@@ -15,6 +15,6 @@ OpenSpec: cu-s6-ephemeral-element-handles
 
 ## 目标
 
-把 Sky 已取得但目前只在 Worker 内可见的 AX transcript 收敛为临时、无正文、可验证的控件句柄，使慢脑能在视觉坐标失败后提交绑定同一次 Observation 的 `observed_element_index`，并继续由动作后 Observe 判断是否成功。
+把 Sky 已取得的 AX transcript 作为有界、临时 Observation 返回慢脑，同时派生可验证控件句柄，使慢脑能理解当前界面并在视觉坐标失败后提交绑定同一次 Observation 的 `observed_element_index`；动作是否成功仍由后置 Observe 判断。
 
 Windows 原生验证继续按主人决定暂缓；macOS 完成协议、Worker、Gateway 合约和正式企业微信样本后进入 verifying。
