@@ -61,3 +61,11 @@
 正式企业微信样本复现了 `unknown(observe-failed)` handback 后旧 attempt 永久占据执行槽的问题。SQLite schema 23 现以独立 `handback_sequence` 保留原始 unknown 结论并形成停止投影；旧片段游标不推进，桌面任务租约不释放。Adapter 回归证明归属慢脑读取事实后，可以同一任务、同一租约、全新 step/attempt 提交和执行新片段；复用旧 step id 仍被拒绝。
 
 正式 MCP/Gateway 样本中，任务在序号 17、23、33、43 多次按新鲜截图交回并成功启动新片段，证明状态机不再卡死。Worker 回收后新片段先以封闭 bundle id 重绑企业微信，截图从错误的当前前台 VS Code 恢复为企业微信。后续 trycua 像素文本动作仍返回不可核实且截图无文本，系统继续安全交回并未发送消息；该 Driver 正向能力缺口由 CU-S4 Goal 继续跟踪。
+
+## 2026-10-07 Jev 新鲜 Observe 候选门禁
+
+Application 不再把计划候选自行声明的 `preconditions` 当作已验证事实。一次 `task.plan.execute` 调用内，每个成功动作的强制 Observe 只派生封闭布尔事实；下一槽位先由 Application 过滤：无合格候选直接交回、唯一合格候选确定性执行、至少两个合格候选才连同本轮事实摘要调用 Jev。动作成功后再次复核 `expected_observe`，不满足时不推进片段。Jev Worker 不接收 transcript、截图、坐标或业务正文。
+
+结构回归通过：`cargo test -p yonder-application -p yonder-adapters` 为 Application 63/63、Adapter 78/78；新增用例证明多候选缺少新鲜事实时不调用 Jev、唯一合格候选不调用 Jev、多个合格候选只向 Jev 暴露已验证候选及封闭事实。`node --check crates/adapters/src/jev_worker.mjs` 与 `openspec validate ex-s2-plan-fragment-macos --strict` 通过。
+
+合入 `dev` 并重建正式 debug `Yonda.app` 后，使用正式产品 MCP/Gateway 创建任务 `task_f7b49cc5ccec5f278de0171f0dffbcbf` 与 `task_5ecf9c907cee3f6f96d66e9c0b3fbfcc`。两条样本都在首个单候选 CUA 动作产生真实 Observe 之前返回 `unknown(worker-failed, observe_valid=false)`，序号均停在 6 并安全交回；因此没有进入第二槽位，不能作为远端 Jev 正向选择证据。验证任务已取消。该阻塞属于当前 Sky CUA Worker 启动/执行链路，不允许用直接 Driver、伪造 Observe 或绕过 Gateway 的方式替代；本轮只关闭结构实现项，真实产品正向样本仍待 CUA Worker 恢复后补跑。
