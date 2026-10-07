@@ -264,3 +264,5 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-30 新增[CU-S4 trycua单次前台投递升级Spike](epic-CU/story-CU-S4/README.md)：正式企业微信样本证明0.25.0后台输入不可确认，固定0.30.4只作为限时macOS候选；AD-CU-07与Spike通过前不修改正式依赖、不恢复不可核实文本续跑。
 
 2026-09-30 CU-S4 macOS独立Goal PASS：0.25.0与0.30.4均通过精确窗口前台坐标文本、双Observe、原前台恢复、错误窗口拒绝和关闭清理；0.30.4无独占收益，AD-CU-07接受保留0.25.0，产品接线转入独立Apply Change。
+
+2026-10-07 新增[CU-S5 CUA目标状态验证闭环](epic-CU/story-CU-S5/README.md)：区分动作回执、步骤Observe与用户目标达成；计划片段耗尽后由归属慢脑经Gateway提交序号绑定核验，最新achieved核验成为`task.complete`必要门禁。

@@ -12,6 +12,7 @@ Epic: CU
 - [CU-S2 受监管桌面执行与 Observe](story-CU-S2/README.md)
 - [CU-S3 后台原生动作与显式前台切换](story-CU-S3/README.md)
 - [CU-S4 trycua 单次前台投递升级 Spike](story-CU-S4/README.md)
+- [CU-S5 CUA 目标状态验证闭环](story-CU-S5/README.md)
 
 ## 验收与依赖
 

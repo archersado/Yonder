@@ -47,6 +47,8 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 
 2026-09-29 按 Accepted [AD-TM-23](AD-TM-23-EVENT-DRIVEN-EXECUTION-RUNTIME.md)，正式废除“SQLite 是当前状态唯一事实源、每步同步事务后推进”。活动任务由 Application 单一有界 `ExecutionRuntime` 事件循环拥有并推进；SQLite、事件表与 Outbox 是异步事后投影和重启检查点，落盘批次内部仍保持原子一致。迁移期间同一任务只允许一个可写状态所有者。
 
+2026-10-07 按 Accepted [AD-TM-24](AD-TM-24-GOAL-VERIFICATION-GATE.md)，动作回执、步骤效果已 Observe 与用户目标达成是三个独立事实。计划片段耗尽后只进入等待目标核验；归属慢脑必须基于最新 Observation 经同一 Gateway 提交序号绑定的 achieved/not-achieved 核验，`task.complete` 仅接受最新且未被后续事件失效的 achieved 核验。活动核验由 ExecutionRuntime 持有并异步投影，不能以 SQLite 同步写入阻塞执行链。
+
 - 2026-09-28 按 Accepted [AD-DS-05](AD-DS-05-NEWEST-TASK-PAGINATION.md)，任务空间以协议 1.32 请求 SQLite 按创建时间与任务 ID 倒序稳定分页；历史未知时间不伪造，前端不维护置顶副本。
 
 - Execution Session 是 Yonder 内部执行实体；ego-lite Task Space 是 BUA 外部实体；两者映射为统一 Task Status。
