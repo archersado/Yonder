@@ -60,6 +60,8 @@ Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元
 
 macOS组合根只构造固定`@oai/sky@0.7.1` Worker，删除`YONDER_CUA_DRIVER`选择、trycua生产依赖和包内旧Worker。Sky包与Computer Use App由已安装的Codex/ChatGPT产品提供，Yonder从固定包相对定位官方签名Node与`SkyComputerUseClient mcp`，校验Team ID、Client identifier及App Group后，由签名Node运行受监管Worker并派生Client；不复制、不重新签名、不直连Computer Use Socket、不长期维护双栈。
 
+签名Client首次启动可能包含服务拉起、XPC身份校验和MCP工具目录读取。初始化与`tools/list`各使用15秒有界预算，且二者仍共同受Rust Worker单步60秒总上限控制；超时只关闭本次Worker/Client并安全交回。不得用短于已观测正常启动耗时的门限把合法握手误判为`worker-failed`，也不得为等待启动取消总体执行上限或自动重试动作。
+
 Rust Adapter持有`task_id + bundle_id`的唯一CUA目标绑定；Node Worker与签名MCP Client均为可重建执行资源，不持有跨步骤权威状态。`launch_app`经动作后Observe确认后才更新绑定；后续请求由Adapter只读注入匹配当前任务的bundle id，Worker每步重新解析唯一运行App/窗口。无匹配绑定时只能使用宿主本次可信`WorkTarget`，不得读取旧任务绑定或改投当前前台。Worker/Client异常只销毁执行进程，不销毁绑定；`end_session`、任务切换或新启动尝试同时清除绑定。绑定不持久化、不进入外部协议、事件、Outbox或日志。
 
 每步经签名MCP Client调用`get_app_state`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到MCP `click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。

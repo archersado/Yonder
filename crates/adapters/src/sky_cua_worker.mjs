@@ -12,6 +12,9 @@ const supported = new Set([
   'click', 'drag', 'perform_secondary_action', 'press_key', 'scroll',
   'select_text', 'set_value', 'type_text',
 ]);
+// 官方 Client 首次建立 XPC/MCP 通道时可能需要启动服务并完成身份校验。
+// 5 秒会在正常握手刚返回前销毁 Client；该预算仍受 Rust Worker 的 60 秒总上限约束。
+const bridgeStartupTimeoutMs = 15_000;
 const coordinateActionTimeoutMs = 25_000;
 let pendingInput;
 let latestObservation;
@@ -86,10 +89,10 @@ class SkyMcpBridge {
   async start() {
     const result = await this.request('initialize', {
       protocolVersion: '2025-06-18', capabilities: { elicitation: {} }, clientInfo: { name: 'Yonder', version: '0.1.0' },
-    }, 5_000);
+    }, bridgeStartupTimeoutMs);
     if (result?.protocolVersion !== '2025-06-18') throw new Error('MCP protocol mismatch');
     this.notify('notifications/initialized', {});
-    const catalog = await this.request('tools/list', {}, 5_000);
+    const catalog = await this.request('tools/list', {}, bridgeStartupTimeoutMs);
     const stateTool = catalog?.tools?.find(tool => tool?.name === 'get_app_state');
     if (!stateTool) throw new WorkerFailure('transport-schema-state-tool');
     const properties = stateTool?.inputSchema?.properties ?? {};

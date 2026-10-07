@@ -21,8 +21,9 @@ with tempfile.TemporaryDirectory(prefix="yonder-sky-worker-") as directory:
     evidence.mkdir()
     bridge.write_text(
         """#!/usr/bin/env python3
-import json, os, sys
+import json, os, sys, time
 state_path = os.environ['YONDER_SKY_TEST_STATE']
+delay_marker = state_path + '.startup-delayed'
 text = '1 文本框 搜索\\n2 按钮 播放\\n3 row (selectable)\\n\\t4 单元格\\n\\t\\t5 文本 狼顾科技\\n6 图像' + open(state_path, encoding='utf-8').read()
 calculator_text = '1 按钮 1\\n2 文本 0'
 approved = False
@@ -32,6 +33,11 @@ for line in sys.stdin:
     if 'id' not in request:
         continue
     if request['method'] == 'initialize':
+        # 回归真实官方Client首次XPC握手略高于5秒的情况；只延迟首个Worker，
+        # 避免把整个夹具放大为长时间测试。
+        if not os.path.exists(delay_marker):
+            open(delay_marker, 'w', encoding='utf-8').close()
+            time.sleep(6)
         print(json.dumps({'jsonrpc':'2.0','id':'rogue-approval','method':'elicitation/create','params':{'message':'范围外请求','requestedSchema':{'type':'object','properties':{}}}}, ensure_ascii=False), flush=True)
         rogue = json.loads(sys.stdin.readline())
         with open(log, 'a', encoding='utf-8') as output:
