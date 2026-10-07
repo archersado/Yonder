@@ -83,7 +83,7 @@ pub fn execute_one(
     let stored=store.get_plan_fragment(task_id,plan_id,plan_version)?.ok_or(crate::Error::NotFound)?;
     if stored.owner_agent_id != auth.agent_id() || stored.fragment.deadline_ms <= now_ms || expected != store.get(task_id)?.sequence { return Err(crate::Error::Conflict); }
     let index=usize::from(stored.current_slot);
-    if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "fragment-complete", None)); }
+    if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "awaiting-goal-verification", None)); }
     let slot=&stored.fragment.slots[index];
     computer.project_decision(task_id,&slot.step_id,&slot.label,&format!("正在评估 {} 个受支持候选",slot.candidates.len()));
     let choice=select(config,jev,&stored.fragment,index).map_err(|_|crate::Error::StopRequired)?;
@@ -195,7 +195,7 @@ pub fn execute_available(
     }
     let remaining = initial.fragment.slots.len().saturating_sub(usize::from(initial.current_slot));
     if remaining == 0 {
-        return Ok((store.get(task_id)?, "fragment-complete", None));
+        return Ok((store.get(task_id)?, "awaiting-goal-verification", None));
     }
     let allowed = remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));
     let mut sequence = expected;
@@ -216,7 +216,7 @@ pub fn execute_available(
         }
         let current = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
         if usize::from(current.current_slot) >= current.fragment.slots.len() {
-            return Ok((task, "fragment-complete", observation));
+            return Ok((task, "awaiting-goal-verification", observation));
         }
     }
     let task = store.hand_back_plan_fragment(

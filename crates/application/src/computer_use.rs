@@ -328,11 +328,60 @@ pub fn execute_agent_step(
 }
 
 pub fn complete_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64)->Result<Task,Error>{
-    finish_agent_task(store,admission,auth,task_id,expected,false)
+    finish_agent_task(store,admission,auth,task_id,expected,false,None)
+}
+
+pub fn verify_agent_goal(
+    store: &mut impl TaskStore,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    observation_sequence: u64,
+    verification_id: &str,
+    outcome: crate::GoalVerificationOutcome,
+) -> Result<(Task, crate::GoalVerificationRecord), Error> {
+    let task = crate::get(store, task_id)?;
+    if !auth.can_read(&task) { return Err(Error::NotFound); }
+    if task.sequence != expected || observation_sequence > expected || task.status != Status::Running {
+        return Err(Error::Conflict);
+    }
+    store.record_goal_verification(task_id, expected, observation_sequence, verification_id, outcome)
+}
+
+pub fn verify_agent_goal_for_owner(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    observation_sequence: u64,
+    verification_id: &str,
+    outcome: crate::GoalVerificationOutcome,
+) -> Result<(Task, crate::GoalVerificationRecord), Error> {
+    let task = crate::get(store, task_id)?;
+    if !auth.can_read(&task) { return Err(Error::NotFound); }
+    match runtime.snapshot(task_id) {
+        Ok(snapshot) => {
+            if snapshot.sequence != expected || snapshot.last_observation_sequence != Some(observation_sequence) {
+                return Err(Error::Conflict);
+            }
+            let next = runtime.apply(crate::execution_runtime::RuntimeCommand::VerifyGoal {
+                task_id: task_id.into(), verification_id: verification_id.into(), observation_sequence, outcome,
+            }).map_err(runtime_error)?;
+            let verification = next.goal_verification.clone().ok_or(Error::StorageUnavailable)?;
+            Ok((Task { sequence: next.sequence, status: Status::Running, ..task }, verification))
+        }
+        Err(crate::execution_runtime::RuntimeError::NotFound) => verify_agent_goal(store, auth, task_id, expected, observation_sequence, verification_id, outcome),
+        Err(error) => Err(runtime_error(error)),
+    }
+}
+
+pub fn complete_agent_task_verified(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,verification_id:&str)->Result<Task,Error>{
+    finish_agent_task(store,admission,auth,task_id,expected,false,Some(verification_id))
 }
 
 pub fn fail_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64)->Result<Task,Error>{
-    finish_agent_task(store,admission,auth,task_id,expected,true)
+    finish_agent_task(store,admission,auth,task_id,expected,true,None)
 }
 
 pub fn finish_agent_task_runtime(
@@ -343,6 +392,7 @@ pub fn finish_agent_task_runtime(
     task_id: &str,
     expected: u64,
     failed: bool,
+    verification_id: Option<&str>,
 ) -> Result<Task, Error> {
     let task = crate::get(store, task_id)?;
     if !auth.can_read(&task) {
@@ -356,6 +406,11 @@ pub fn finish_agent_task_runtime(
     {
         return Err(Error::StopRequired);
     }
+    if !failed && !snapshot.goal_verification.as_ref().is_some_and(|verification| {
+        verification.verification_id == verification_id.unwrap_or_default()
+            && verification.verified_sequence == snapshot.sequence
+            && verification.outcome == crate::GoalVerificationOutcome::Achieved
+    }) { return Err(Error::StopRequired); }
     let phase = if failed {
         crate::execution_runtime::RuntimePhase::Failed
     } else {
@@ -380,6 +435,27 @@ pub fn finish_agent_task_runtime(
 /// 只在任务实际由内存Runtime持有时走事件驱动终结。计划片段兼容链尚未登记
 /// 到Runtime，不能因为组合根存在Runtime句柄就把真实任务误报成不存在；只有
 /// `NotFound`允许回到原有Observed/步骤边界/桌面租约三重门禁，其他错误失败关闭。
+pub fn finish_agent_task_for_owner_verified(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    failed: bool,
+    verification_id: Option<&str>,
+) -> Result<Task, Error> {
+    match runtime.snapshot(task_id) {
+        Ok(_) => finish_agent_task_runtime(
+            store, runtime, admission, auth, task_id, expected, failed, verification_id,
+        ),
+        Err(crate::execution_runtime::RuntimeError::NotFound) => {
+            finish_agent_task(store, admission, auth, task_id, expected, failed, verification_id)
+        }
+        Err(error) => Err(runtime_error(error)),
+    }
+}
+
 pub fn finish_agent_task_for_owner(
     store: &mut impl TaskStore,
     runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
@@ -389,23 +465,20 @@ pub fn finish_agent_task_for_owner(
     expected: u64,
     failed: bool,
 ) -> Result<Task, Error> {
-    match runtime.snapshot(task_id) {
-        Ok(_) => finish_agent_task_runtime(
-            store, runtime, admission, auth, task_id, expected, failed,
-        ),
-        Err(crate::execution_runtime::RuntimeError::NotFound) => {
-            finish_agent_task(store, admission, auth, task_id, expected, failed)
-        }
-        Err(error) => Err(runtime_error(error)),
-    }
+    finish_agent_task_for_owner_verified(store, runtime, admission, auth, task_id, expected, failed, None)
 }
 
-fn finish_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,failed:bool)->Result<Task,Error>{
+fn finish_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,failed:bool,verification_id:Option<&str>)->Result<Task,Error>{
     let (task,_)=crate::get_with_step(store,auth,task_id)?;
     if task.sequence!=expected{return Err(Error::Conflict);}
-    if task.status!=Status::Running||store.get_control(task_id)?.is_some_and(|value|value.phase==crate::ControlPhase::Pending)||!admission.holds_resource(task_id,Resource::Desktop).map_err(|_|Error::StorageUnavailable)?{return Err(Error::StopRequired);}
+    if task.status!=Status::Running||store.get_control(task_id)?.is_some_and(|value|value.phase==crate::ControlPhase::Pending)||!admission.holds(task_id).map_err(|_|Error::StorageUnavailable)?{return Err(Error::StopRequired);}
     if !store.get_attempt(task_id)?.is_some_and(|value|value.phase==crate::AttemptPhase::Stopped){return Err(Error::StopRequired);}
     if !store.get_attempt_result(task_id)?.is_some_and(|value|value.conclusion==crate::AttemptConclusion::Observed{action_succeeded:!failed}){return Err(Error::StopRequired);}
+    if !failed && !store.get_goal_verification(task_id)?.is_some_and(|verification| {
+        verification.verification_id == verification_id.unwrap_or_default()
+            && verification.verified_sequence == expected
+            && verification.outcome == crate::GoalVerificationOutcome::Achieved
+    }) { return Err(Error::StopRequired); }
     let completed=crate::transition(store,task_id,expected,if failed{crate::Action::Fail}else{crate::Action::Complete})?;
     admission.release_task_after_stop(task_id).map_err(|_|Error::StorageUnavailable)?;
     Ok(completed)

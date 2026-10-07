@@ -218,6 +218,7 @@
         "task.create",
         "task.cancel",
         "task.complete",
+        "task.goal.verify",
         "task.fail",
         "task.control",
         "task.wait-for-user",
@@ -659,6 +660,37 @@
         "locating",
         "focused",
         "failed"
+      ]
+    },
+    "GoalVerification": {
+      "type": "object",
+      "properties": {
+        "observation_sequence": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/GoalVerificationOutcome"
+        },
+        "verification_id": {
+          "type": "string"
+        },
+        "verified_sequence": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "verification_id",
+        "observation_sequence",
+        "verified_sequence",
+        "outcome"
+      ]
+    },
+    "GoalVerificationOutcome": {
+      "type": "string",
+      "enum": [
+        "achieved",
+        "not-achieved"
       ]
     },
     "Platform": {
@@ -1157,6 +1189,27 @@
             "sequence",
             "disposition"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "goal-verification"
+            },
+            "task": {
+              "$ref": "#/$defs/TaskSnapshot"
+            },
+            "verification": {
+              "$ref": "#/$defs/GoalVerification"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "task",
+            "verification"
+          ]
         }
       ]
     },
@@ -1299,6 +1352,16 @@
             }
           ]
         },
+        "goal_verification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoalVerification"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "observation": {
           "anyOf": [
             {
@@ -1403,6 +1466,16 @@
             }
           ],
           "default": null
+        },
+        "goal_verification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoalVerification"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "name": {
           "type": [

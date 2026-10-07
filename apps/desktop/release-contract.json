@@ -2,7 +2,7 @@
   "version": "0.1.0",
   "protocol": {
     "major": 1,
-    "minor": 42
+    "minor": 43
   },
-  "sqlite_schema": 23
+  "sqlite_schema": 24
 }

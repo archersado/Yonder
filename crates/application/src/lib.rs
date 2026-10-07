@@ -222,6 +222,22 @@ pub struct StepBoundaryRecord {
     pub stop_sequence: u64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GoalVerificationOutcome {
+    Achieved,
+    NotAchieved,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct GoalVerificationRecord {
+    pub task_id: String,
+    pub verification_id: String,
+    pub observation_sequence: u64,
+    pub verified_sequence: u64,
+    pub outcome: GoalVerificationOutcome,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TaskEventRecord {
     pub transition: Transition,
@@ -235,6 +251,7 @@ pub struct TaskEventRecord {
     pub wait_reason: Option<String>,
     pub artifact_manifest: Option<TaskArtifactManifest>,
     pub user_confirmation: Option<TaskUserConfirmation>,
+    pub goal_verification: Option<GoalVerificationRecord>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -347,6 +364,20 @@ pub trait TaskStore {
         false
     }
     fn supports_plan_fragments(&self) -> bool { false }
+    fn supports_goal_verification(&self) -> bool { false }
+    fn record_goal_verification(
+        &mut self,
+        _: &str,
+        _: u64,
+        _: u64,
+        _: &str,
+        _: GoalVerificationOutcome,
+    ) -> Result<(Task, GoalVerificationRecord), Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn get_goal_verification(&mut self, _: &str) -> Result<Option<GoalVerificationRecord>, Error> {
+        Err(Error::StorageUnavailable)
+    }
     /// 片段是不可变任务事实。实现必须在同一事务中完成 CAS、任务序号、事件与 Outbox。
     fn submit_plan_fragment(&mut self, _: &str, _: &plan_fragment::PlanFragment) -> Result<Task, Error> {
         Err(Error::StorageUnavailable)
@@ -396,6 +427,7 @@ pub trait TaskStore {
                     wait_reason: None,
                     artifact_manifest: None,
                     user_confirmation: None,
+                    goal_verification: None,
                 })
                 .collect()
         })

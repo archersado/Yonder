@@ -60,6 +60,8 @@ pub struct RuntimeSnapshot {
     pub phase: RuntimePhase,
     pub current_step: Option<RuntimeStep>,
     pub last_step_succeeded: Option<bool>,
+    pub last_observation_sequence: Option<u64>,
+    pub goal_verification: Option<crate::GoalVerificationRecord>,
     pub browser_reference: Option<RuntimeBrowserReference>,
     pub pending_events: usize,
 }
@@ -86,6 +88,11 @@ pub enum RuntimeEventKind {
     StepBoundaryAdvanced { step_id: String },
     BrowserReferenceUpdated { reference: RuntimeBrowserReference },
     HandedBack { reason: String },
+    GoalVerified {
+        verification_id: String,
+        observation_sequence: u64,
+        outcome: crate::GoalVerificationOutcome,
+    },
     Terminal { phase: RuntimePhase },
 }
 
@@ -137,6 +144,12 @@ pub enum RuntimeCommand {
     HandBack {
         task_id: String,
         reason: String,
+    },
+    VerifyGoal {
+        task_id: String,
+        verification_id: String,
+        observation_sequence: u64,
+        outcome: crate::GoalVerificationOutcome,
     },
     Terminate {
         task_id: String,
@@ -543,6 +556,8 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     phase: RuntimePhase::Running,
                     current_step: None,
                     last_step_succeeded: None,
+                    last_observation_sequence: None,
+                    goal_verification: None,
                     browser_reference: None,
                     pending_events: 0,
                 },
@@ -619,6 +634,8 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     }
                     task.snapshot.phase = RuntimePhase::Running;
                     task.snapshot.last_step_succeeded = None;
+                    task.snapshot.last_observation_sequence = None;
+                    task.snapshot.goal_verification = None;
                     task.snapshot.current_step = Some(RuntimeStep {
                         step_id: step_id.clone(),
                         label: label.clone(),
@@ -647,6 +664,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     task.snapshot.current_step.as_mut().unwrap().phase =
                         RuntimeStepPhase::Completed;
                     task.snapshot.last_step_succeeded = Some(action_succeeded);
+                    task.snapshot.last_observation_sequence = Some(task.snapshot.sequence.saturating_add(1));
                     append(
                         task,
                         RuntimeEventKind::StepCompleted {
@@ -695,6 +713,37 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     }
                     task.snapshot.phase = RuntimePhase::HandBack;
                     append(task, RuntimeEventKind::HandedBack { reason })?;
+                }
+                RuntimeCommand::VerifyGoal {
+                    verification_id,
+                    observation_sequence,
+                    outcome,
+                    ..
+                } => {
+                    if !valid_id(&verification_id)
+                        || observation_sequence == 0
+                        || Some(observation_sequence) != task.snapshot.last_observation_sequence
+                        || task.snapshot.current_step.is_some()
+                        || task.snapshot.last_step_succeeded != Some(true)
+                    {
+                        return Err(RuntimeError::Conflict);
+                    }
+                    let verified_sequence = task.snapshot.sequence.saturating_add(1);
+                    task.snapshot.goal_verification = Some(crate::GoalVerificationRecord {
+                        task_id: task.snapshot.task_id.clone(),
+                        verification_id: verification_id.clone(),
+                        observation_sequence,
+                        verified_sequence,
+                        outcome,
+                    });
+                    append(
+                        task,
+                        RuntimeEventKind::GoalVerified {
+                            verification_id,
+                            observation_sequence,
+                            outcome,
+                        },
+                    )?;
                 }
                 RuntimeCommand::Terminate { phase, .. } => {
                     if !matches!(
@@ -763,6 +812,7 @@ fn command_task_id(command: &RuntimeCommand) -> &str {
         | RuntimeCommand::AdvanceStepBoundary { task_id, .. }
         | RuntimeCommand::UpdateBrowserReference { task_id, .. }
         | RuntimeCommand::HandBack { task_id, .. }
+        | RuntimeCommand::VerifyGoal { task_id, .. }
         | RuntimeCommand::Terminate { task_id, .. }
         | RuntimeCommand::Ack { task_id, .. } => task_id,
     }
@@ -1044,5 +1094,22 @@ mod tests {
         .unwrap();
         assert_eq!(second.accepted_sequence, 7);
         assert!(admission.holds("task-1").unwrap());
+    }
+
+    #[test]
+    fn goal_verification_binds_latest_observation_and_new_step_invalidates_it() {
+        let runtime=ExecutionRuntime::start(8,16).unwrap();
+        let handle=runtime.handle();
+        handle.apply(RuntimeCommand::Activate{task_id:"task-goal".into(),checkpoint:0}).unwrap();
+        handle.apply(start_step("task-goal","open","打开目标")).unwrap();
+        let observed=handle.apply(RuntimeCommand::CompleteStep{task_id:"task-goal".into(),step_id:"open".into(),action_succeeded:true}).unwrap();
+        let observation_sequence=observed.last_observation_sequence.unwrap();
+        let boundary=handle.apply(RuntimeCommand::AdvanceStepBoundary{task_id:"task-goal".into(),step_id:"open".into()}).unwrap();
+        assert!(handle.apply(RuntimeCommand::VerifyGoal{task_id:"task-goal".into(),verification_id:"verify-old".into(),observation_sequence:observation_sequence.saturating_sub(1),outcome:crate::GoalVerificationOutcome::Achieved}).is_err());
+        let verified=handle.apply(RuntimeCommand::VerifyGoal{task_id:"task-goal".into(),verification_id:"verify-goal".into(),observation_sequence,outcome:crate::GoalVerificationOutcome::Achieved}).unwrap();
+        assert_eq!(verified.goal_verification.as_ref().unwrap().verified_sequence,verified.sequence);
+        handle.apply(start_step("task-goal","continue","继续执行")).unwrap();
+        assert!(handle.snapshot("task-goal").unwrap().goal_verification.is_none());
+        assert!(boundary.sequence < verified.sequence);
     }
 }

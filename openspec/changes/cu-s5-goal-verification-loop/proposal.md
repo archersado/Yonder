@@ -1,6 +1,8 @@
 # Proposal：CU-S5 目标状态验证闭环
 
-关联 CU-S5 与 Accepted AD-TM-24。Architecture Impact：architecture-change（协议、任务完成语义、运行时事实与事后投影）。
+Story: CU-S5
+
+关联 [CU-S5](../../../docs/specs/epic-CU/story-CU-S5/README.md) 与 Accepted AD-TM-24。Architecture Impact：architecture-change（协议、任务完成语义、运行时事实与事后投影）。
 
 ## Why
 

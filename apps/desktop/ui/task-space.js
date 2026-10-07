@@ -402,7 +402,10 @@ async function select(task, button) {
     const manifest = result.task.artifact_manifest
       ? `版本 ${result.task.artifact_manifest.version} · ${result.task.artifact_manifest.item_count} 项${manifestChanged ? ' · 产物已变化，需重新检查' : ''}`
       : terminal ? '确认后生成首个清单' : '不适用';
-    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', waitReason], ['浏览器 Task Space', browser], ['结果确认', audit], ['产物清单', manifest]]) {
+    const goalVerification = result.task.goal_verification
+      ? `${result.task.goal_verification.outcome === 'achieved' ? '目标已核验' : '目标未完成'} · 依据序号 ${result.task.goal_verification.observation_sequence}`
+      : '等待慢脑核验最终结果';
+    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['目标核验', goalVerification], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', waitReason], ['浏览器 Task Space', browser], ['结果确认', audit], ['产物清单', manifest]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; dl.append(dt, dd);
       if (name === '浏览器 Task Space' && browserReference?.ownership === 'agent' && !browserReference.finished) {
         const open = document.createElement('button'); open.className = 'browser-open'; open.textContent = '打开 ego-lite';

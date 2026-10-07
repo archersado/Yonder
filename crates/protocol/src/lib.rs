@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 42 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 43 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -33,6 +33,8 @@ pub enum Capability {
     TaskCancel,
     #[serde(rename = "task.complete")]
     TaskComplete,
+    #[serde(rename = "task.goal.verify")]
+    TaskGoalVerify,
     #[serde(rename = "task.fail")]
     TaskFail,
     #[serde(rename = "task.control")]
@@ -684,6 +686,40 @@ pub struct CompleteParams {
     pub deadline: u64,
     pub task_id: String,
     pub expected_sequence: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub verification_id: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum GoalVerificationOutcome {
+    Achieved,
+    NotAchieved,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct GoalVerifyParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub expected_sequence: String,
+    pub observation_sequence: String,
+    pub verification_id: String,
+    pub outcome: GoalVerificationOutcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct GoalVerification {
+    pub verification_id: String,
+    pub observation_sequence: String,
+    pub verified_sequence: String,
+    pub outcome: GoalVerificationOutcome,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
@@ -761,6 +797,13 @@ pub enum Request {
         #[serde(rename = "id")]
         request_id: String,
         params: CompleteParams,
+    },
+    #[serde(rename = "task.goal.verify")]
+    GoalVerify {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: GoalVerifyParams,
     },
     #[serde(rename = "task.fail")]
     Fail {
@@ -936,6 +979,9 @@ pub struct TaskSnapshot {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub user_confirmation: Option<TaskUserConfirmation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub goal_verification: Option<GoalVerification>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -974,6 +1020,9 @@ pub struct TaskEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub user_confirmation: Option<TaskUserConfirmation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub goal_verification: Option<GoalVerification>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1307,6 +1356,10 @@ pub enum QueryResult {
         #[ts(optional)]
         observation: Option<ComputerObservation>,
     },
+    GoalVerification {
+        task: TaskSnapshot,
+        verification: GoalVerification,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1377,6 +1430,7 @@ impl Request {
             Self::CommandPropose { params, .. } => &params.agent_id,
             Self::CommandExecute { params, .. } => &params.agent_id,
             Self::Complete { params, .. } | Self::Fail { params, .. } => &params.agent_id,
+            Self::GoalVerify { params, .. } => &params.agent_id,
             Self::BrowserExecute { params, .. } => &params.agent_id,
             Self::StepAdvance { params, .. } => &params.agent_id,
             Self::Cancel { params, .. } => &params.agent_id,
@@ -1406,6 +1460,7 @@ impl Request {
             | Self::CommandPropose { request_id, .. }
             | Self::CommandExecute { request_id, .. }
             | Self::Complete { request_id, .. }
+            | Self::GoalVerify { request_id, .. }
             | Self::Fail { request_id, .. }
             | Self::BrowserExecute { request_id, .. }
             | Self::StepAdvance { request_id, .. }
@@ -1437,6 +1492,7 @@ impl Request {
             Self::CommandPropose { params, .. } => params.capability,
             Self::CommandExecute { params, .. } => params.capability,
             Self::Complete { params, .. } => params.capability,
+            Self::GoalVerify { params, .. } => params.capability,
             Self::Fail { params, .. } => params.capability,
             Self::BrowserExecute { params, .. } => params.capability,
             Self::StepAdvance { params, .. } => params.capability,
@@ -1477,6 +1533,8 @@ impl Request {
                 Capability::CommandExecute
             } else if matches!(self, Self::Complete { .. }) {
                 Capability::TaskComplete
+            } else if matches!(self, Self::GoalVerify { .. }) {
+                Capability::TaskGoalVerify
             } else if matches!(self, Self::Fail { .. }) {
                 Capability::TaskFail
             } else if matches!(self, Self::BrowserExecute { .. }) {
@@ -1597,7 +1655,9 @@ impl Request {
                 (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
             }
             Self::Complete { params, .. } => {
-                if sequence(&params.expected_sequence)? == 0 {
+                if sequence(&params.expected_sequence)? == 0
+                    || !params.verification_id.as_deref().is_some_and(valid_id)
+                {
                     return Err(RpcError::new(-32602, "非法期望序号"));
                 }
                 (
@@ -1605,6 +1665,18 @@ impl Request {
                     Some(params.task_id.as_str()),
                     params.deadline,
                 )
+            }
+            Self::GoalVerify { params, .. } => {
+                let expected = sequence(&params.expected_sequence)?;
+                let observation = sequence(&params.observation_sequence)?;
+                if expected == 0
+                    || observation == 0
+                    || observation > expected
+                    || !valid_id(&params.verification_id)
+                {
+                    return Err(RpcError::new(-32602, "非法目标核验参数"));
+                }
+                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
             }
             Self::Fail { params, .. } => {
                 if sequence(&params.expected_sequence)? == 0 {
@@ -2012,6 +2084,9 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         CancelParams::decl(&config),
         WaitForUserParams::decl(&config),
         CompleteParams::decl(&config),
+        GoalVerificationOutcome::decl(&config),
+        GoalVerifyParams::decl(&config),
+        GoalVerification::decl(&config),
         ControlKind::decl(&config),
         ControlParams::decl(&config),
         StepDeclareParams::decl(&config),
@@ -2188,6 +2263,7 @@ mod tests {
                     next_intent: None,
                     artifact_manifest: None,
                     user_confirmation: None,
+                    goal_verification: None,
                 },
             },
         };
@@ -2268,6 +2344,7 @@ mod tests {
             next_intent: None,
             artifact_manifest: Some(manifest.clone()),
             user_confirmation: Some(confirmation.clone()),
+            goal_verification: None,
         };
         let value = serde_json::to_value(&task).unwrap();
         assert_eq!(value["artifact_manifest"]["version"], "1");
@@ -2293,6 +2370,7 @@ mod tests {
             wait_reason: None,
             artifact_manifest: Some(manifest),
             user_confirmation: Some(confirmation),
+            goal_verification: None,
         };
         let value = serde_json::to_value(&event).unwrap();
         assert_eq!(value["artifact_manifest"]["item_count"], 2);
@@ -2303,6 +2381,7 @@ mod tests {
         let empty_task = TaskSnapshot {
             artifact_manifest: None,
             user_confirmation: None,
+            goal_verification: None,
             ..task
         };
         let value = serde_json::to_value(&empty_task).unwrap();
@@ -2661,6 +2740,18 @@ mod tests {
                 "生成产物过期：{name}"
             );
         }
+    }
+
+    #[test]
+    fn goal_verification_and_completion_are_sequence_bound() {
+        let verify=serde_json::json!({"jsonrpc":"2.0","id":"v1","method":"task.goal.verify","params":{"agent_id":"agent-a","capability":"task.goal.verify","deadline":2000,"task_id":"task-1","expected_sequence":"8","observation_sequence":"7","verification_id":"verify-1","outcome":"achieved"}});
+        assert!(decode(&serde_json::to_vec(&verify).unwrap()).unwrap().validate(1000).is_ok());
+        let complete=serde_json::json!({"jsonrpc":"2.0","id":"c1","method":"task.complete","params":{"agent_id":"agent-a","capability":"task.complete","deadline":2000,"task_id":"task-1","expected_sequence":"9","verification_id":"verify-1"}});
+        assert!(decode(&serde_json::to_vec(&complete).unwrap()).unwrap().validate(1000).is_ok());
+        let mut missing=complete;missing["params"].as_object_mut().unwrap().remove("verification_id");
+        assert!(decode(&serde_json::to_vec(&missing).unwrap()).unwrap().validate(1000).is_err());
+        let mut future=verify;future["params"]["observation_sequence"]=serde_json::json!("9");
+        assert!(decode(&serde_json::to_vec(&future).unwrap()).unwrap().validate(1000).is_err());
     }
 
     #[test]

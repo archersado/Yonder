@@ -33,3 +33,7 @@ Yonder 目前可能把“已打开企业切换面板”等中间步骤当作整�
 | AD-CU-04、AD-EX-01、AD-AG-07 | GVR-02、GVR-05、GVR-07 |
 | AD-TM-23、AD-TM-24 | GVR-03、GVR-04、GVR-06 |
 | 协议单一来源约束 | GVR-09 |
+
+## 范围与非目标
+
+本 Story 覆盖四类执行链共用的目标核验协议、Application/Runtime 门禁、SQLite 事后投影、Gateway/CLI 和任务可见状态；首个原生样本使用 macOS CUA。它不让 Driver 或 Jev 判断开放式用户目标，不保存模型思维链，不自动重试 unknown 副作用，不恢复同步 SQLite 驱动，也不声称完成暂缓的 Windows 原生验证。

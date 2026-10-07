@@ -149,6 +149,7 @@ fn is_agent_write_request(request: &Request) -> bool {
             | Request::Create { .. }
             | Request::Control { .. }
             | Request::Complete { .. }
+            | Request::GoalVerify { .. }
             | Request::Fail { .. }
             | Request::WaitForUser { .. }
             | Request::StepDeclare { .. }
@@ -316,6 +317,7 @@ pub struct GatewaySession<'a> {
     can_computer: bool,
     can_computer_step: bool,
     can_complete: bool,
+    can_goal_verify: bool,
     can_fail: bool,
     computer_available: bool,
     computer_permission_required: bool,
@@ -756,6 +758,7 @@ impl<'a> GatewaySession<'a> {
                 | Request::CommandPropose { .. }
                 | Request::CommandExecute { .. }
                 | Request::Complete { .. }
+                | Request::GoalVerify { .. }
                 | Request::Fail { .. }
                 | Request::WaitForUser { .. }
                 | Request::FileGrants { .. }
@@ -1073,13 +1076,14 @@ impl<'a> GatewaySession<'a> {
                     return Err(RpcError::new(-32010, "任务完成需要协议1.10及CUA Runtime"));
                 }
                 let expected = yonder_protocol::sequence(&params.expected_sequence)?;
+                let verification_id = params.verification_id.as_deref().ok_or_else(|| RpcError::new(-32602, "缺少目标核验ID"))?;
                 let task = if let Some(runtime) = execution_runtime {
-                    crate::computer_use::finish_agent_task_for_owner(
-                        store, runtime, admission, self.auth, &params.task_id, expected, false,
+                    crate::computer_use::finish_agent_task_for_owner_verified(
+                        store, runtime, admission, self.auth, &params.task_id, expected, false, Some(verification_id),
                     )
                 } else {
-                    crate::computer_use::complete_agent_task(
-                        store, admission, self.auth, &params.task_id, expected,
+                    crate::computer_use::complete_agent_task_verified(
+                        store, admission, self.auth, &params.task_id, expected, verification_id,
                     )
                 }
                 .map_err(query::error)?;
@@ -1088,6 +1092,30 @@ impl<'a> GatewaySession<'a> {
                 }
                 Ok(QueryResult::Snapshot {
                     task: snapshot(task),
+                })
+            }
+            Request::GoalVerify { params, .. } => {
+                if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
+                if !self.can_goal_verify { return Err(RpcError::new(-32010, "目标核验需要协议1.43及核验存储")); }
+                let expected = yonder_protocol::sequence(&params.expected_sequence)?;
+                let observation_sequence = yonder_protocol::sequence(&params.observation_sequence)?;
+                let outcome = match params.outcome {
+                    yonder_protocol::GoalVerificationOutcome::Achieved => crate::GoalVerificationOutcome::Achieved,
+                    yonder_protocol::GoalVerificationOutcome::NotAchieved => crate::GoalVerificationOutcome::NotAchieved,
+                };
+                let (task, verification) = if let Some(runtime) = execution_runtime {
+                    crate::computer_use::verify_agent_goal_for_owner(store, runtime, self.auth, &params.task_id, expected, observation_sequence, &params.verification_id, outcome)
+                } else {
+                    crate::computer_use::verify_agent_goal(store, self.auth, &params.task_id, expected, observation_sequence, &params.verification_id, outcome)
+                }.map_err(query::error)?;
+                Ok(QueryResult::GoalVerification {
+                    task: snapshot(task),
+                    verification: yonder_protocol::GoalVerification {
+                        verification_id: verification.verification_id,
+                        observation_sequence: verification.observation_sequence.to_string(),
+                        verified_sequence: verification.verified_sequence.to_string(),
+                        outcome: match verification.outcome { crate::GoalVerificationOutcome::Achieved => yonder_protocol::GoalVerificationOutcome::Achieved, crate::GoalVerificationOutcome::NotAchieved => yonder_protocol::GoalVerificationOutcome::NotAchieved },
+                    },
                 })
             }
             Request::Fail { params, .. } => {
@@ -1102,8 +1130,8 @@ impl<'a> GatewaySession<'a> {
                 }
                 let expected = yonder_protocol::sequence(&params.expected_sequence)?;
                 let task = if let Some(runtime) = execution_runtime {
-                    crate::computer_use::finish_agent_task_for_owner(
-                        store, runtime, admission, self.auth, &params.task_id, expected, true,
+                    crate::computer_use::finish_agent_task_for_owner_verified(
+                        store, runtime, admission, self.auth, &params.task_id, expected, true, None,
                     )
                 } else {
                     crate::computer_use::fail_agent_task(
@@ -1177,6 +1205,7 @@ impl<'a> GatewaySession<'a> {
             can_computer: false,
             can_computer_step: false,
             can_complete: false,
+            can_goal_verify: false,
             can_fail: false,
             computer_available: false,
             computer_permission_required: false,
@@ -1540,8 +1569,9 @@ impl<'a> GatewaySession<'a> {
                 self.can_plan_execute=self.can_plan_submit&&self.can_computer&&matches!(self.platform,Platform::Macos);
                 self.can_plan_visual_observation=self.can_plan_execute&&params.protocol_version.minor>=34;
                 self.can_cua_intent_propose=self.negotiated&&params.protocol_version.minor>=35&&self.cua_intent_available&&matches!(self.platform,Platform::Macos);
-                self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
-                self.can_fail=self.can_complete&&params.protocol_version.minor>=18;
+                self.can_goal_verify=self.negotiated&&params.protocol_version.minor>=43&&store.supports_goal_verification();
+                self.can_complete=self.can_goal_verify;
+                self.can_fail=self.negotiated&&params.protocol_version.minor>=18&&store.supports_execution_attempts();
                 if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
                 let can_replan_input = params.protocol_version.minor >= 33
                     && params.offered_capabilities.as_deref().is_some_and(|value| value.contains(&yonder_protocol::OfferedCapability::ReplanInput));
@@ -1551,8 +1581,9 @@ impl<'a> GatewaySession<'a> {
                 let has_foreground_coordinates=has_search_shortcut&&params.protocol_version.minor>=39;
                 let has_generic_desktop_plan=has_foreground_coordinates&&params.protocol_version.minor>=40;
                 let has_bounded_double_click=has_generic_desktop_plan&&params.protocol_version.minor>=41;
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let has_goal_verification=self.can_goal_verify;
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("支持非终态任务直接取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
@@ -1560,7 +1591,8 @@ impl<'a> GatewaySession<'a> {
                 if self.can_advance { capabilities.push(CapabilityInfo { name: Capability::TaskStepAdvance, version: ProtocolVersion { major: 1, minor: 7 }, availability: Availability::Available, reason: Some("仅推进已完成Observe的步骤".into()) }); }
                 if params.protocol_version.minor >= 8 && store.supports_browser_references() { capabilities.push(CapabilityInfo { name: Capability::BrowserExecute, version: ProtocolVersion { major: 1, minor: 8 }, availability: if self.can_browser { Availability::Available } else { Availability::DependencyMissing }, reason: (!self.can_browser).then(|| "ego-lite Bridge不可用".into()) }); }
                 if params.protocol_version.minor>=11&&store.supports_execution_attempts() {capabilities.push(CapabilityInfo{name:Capability::ComputerExecute,version:ProtocolVersion{major:1,minor:if params.protocol_version.minor>=12{12}else{11}},availability:if self.can_computer{Availability::Available}else if self.computer_permission_required{Availability::PermissionRequired}else{Availability::DependencyMissing},reason:(!self.can_computer).then(||if self.computer_permission_required{"Yonda需要macOS辅助功能权限".into()}else{"CUA Runtime不可用".into()})});}
-                if self.can_complete{capabilities.push(CapabilityInfo{name:Capability::TaskComplete,version:ProtocolVersion{major:1,minor:10},availability:Availability::Available,reason:Some("仅完成已Observe并推进边界的CUA任务".into())});}
+                if self.can_complete{capabilities.push(CapabilityInfo{name:Capability::TaskComplete,version:ProtocolVersion{major:1,minor:43},availability:Availability::Available,reason:Some("仅使用最新目标达成核验完成任务".into())});}
+                if self.can_goal_verify{capabilities.push(CapabilityInfo{name:Capability::TaskGoalVerify,version:ProtocolVersion{major:1,minor:43},availability:Availability::Available,reason:Some("基于最新Observation核验用户目标".into())});}
                 if self.can_fail{capabilities.push(CapabilityInfo{name:Capability::TaskFail,version:ProtocolVersion{major:1,minor:18},availability:Availability::Available,reason:Some("仅终结已Observe失败并推进边界的CUA任务".into())});}
                 if self.can_wait_for_user{capabilities.push(CapabilityInfo{name:Capability::TaskWaitForUser,version:ProtocolVersion{major:1,minor:17},availability:Availability::Available,reason:Some("仅在已Observe并推进的步骤边界等待".into())});}
                 if params.protocol_version.minor >= 27 && self.file_grants_available { capabilities.push(CapabilityInfo{name:Capability::FileGrantRead,version:ProtocolVersion{major:1,minor:27},availability:Availability::Available,reason:None}); }
@@ -1607,6 +1639,12 @@ pub struct ReplanWake {
 
 /// 只从已编码成功响应提取交回唤醒事实；调用方必须在响应写回且执行锁释放后投递。
 pub fn replan_wake(bytes: &[u8]) -> Option<ReplanWake> {
+    if let Ok(yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::GoalVerification { task, verification }, .. }) = yonder_protocol::decode_response(bytes) {
+        if verification.outcome == yonder_protocol::GoalVerificationOutcome::NotAchieved {
+            return Some(ReplanWake { task_id: task.task_id, sequence: task.sequence, reason: "目标未完成，需要慢脑重新 Observe 或规划".into() });
+        }
+        return None;
+    }
     let yonder_protocol::Response::Success {
         result:
             yonder_protocol::QueryResult::Plan {

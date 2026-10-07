@@ -15,7 +15,7 @@ use yonder_application::{
     work_focus::FocusFailure,
     Action, ArtifactAvailability, AttemptConclusion, AttemptPhase, AttemptResultRecord,
     ControlKind, ControlPhase, ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status,
-    StepBoundaryRecord, StepDeclaration, StopRecord, Task, TaskArtifactManifest,
+    GoalVerificationOutcome, GoalVerificationRecord, StepBoundaryRecord, StepDeclaration, StopRecord, Task, TaskArtifactManifest,
     TaskArtifactManifestItem, TaskEventRecord, TaskObservation, TaskObservationResult,
     TaskPresentation, TaskSource, TaskStore, Transition, MAX_ARTIFACT_MANIFEST_ITEMS,
 };
@@ -23,7 +23,7 @@ use yonder_application::{
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 23;
+pub const SQLITE_SCHEMA_VERSION: i64 = 24;
 
 fn now_ms() -> Result<i64, Error> {
     let value = SystemTime::now()
@@ -262,6 +262,7 @@ fn projected_state(
         | RuntimeEventKind::StepBoundaryAdvanced { .. }
         | RuntimeEventKind::BrowserReferenceUpdated { .. }
         | RuntimeEventKind::HandedBack { .. }
+        | RuntimeEventKind::GoalVerified { .. }
             if current == "running" =>
         {
             Ok("running")
@@ -440,6 +441,13 @@ impl RuntimeEventProjector for SqliteTaskStore {
                     )
                     .map_err(|_| RuntimeProjectionError::Unavailable)?;
                 }
+                RuntimeEventKind::GoalVerified { verification_id, observation_sequence, outcome } => {
+                    let outcome=match outcome{GoalVerificationOutcome::Achieved=>"achieved",GoalVerificationOutcome::NotAchieved=>"not-achieved"};
+                    tx.execute(
+                        "INSERT INTO task_goal_verifications(task_id,verification_id,observation_sequence,verified_sequence,outcome) VALUES(?1,?2,?3,?4,?5)",
+                        params![event.task_id,verification_id,*observation_sequence as i64,event.sequence as i64,outcome],
+                    ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                }
                 _ => {}
             }
             tx.execute(
@@ -482,7 +490,7 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
         ]
         .contains(&schema)
         {
@@ -528,7 +536,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
         ]
         .contains(&schema)
         {
@@ -620,6 +628,10 @@ impl SqliteTaskStore {
         }
         if schema < 23 {
             tx.execute_batch(include_str!("task_unknown_handback_schema.sql"))
+                .map_err(storage)?;
+        }
+        if schema < 24 {
+            tx.execute_batch(include_str!("task_goal_verification_schema.sql"))
                 .map_err(storage)?;
         }
         // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
@@ -1175,6 +1187,52 @@ impl TaskStore for SqliteTaskStore {
             status: Status::Running,
             sequence: next,
         })
+    }
+    fn supports_goal_verification(&self) -> bool { true }
+    fn record_goal_verification(
+        &mut self,
+        task_id: &str,
+        expected: u64,
+        observation_sequence: u64,
+        verification_id: &str,
+        outcome: GoalVerificationOutcome,
+    ) -> Result<(Task, GoalVerificationRecord), Error> {
+        if !yonder_application::valid_id(task_id)
+            || !yonder_application::valid_id(verification_id)
+            || expected == 0
+            || observation_sequence == 0
+            || observation_sequence > expected
+        { return Err(Error::InvalidInput); }
+        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
+        let row:Option<(String,i64,String,Option<String>,String)>=tx.query_row(
+            "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],
+            |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))
+        ).optional().map_err(storage)?;
+        let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
+        if state!="running" || u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?!=expected{return Err(Error::Conflict);}
+        let latest:Option<(i64,Option<i64>,Option<i64>)>=tx.query_row(
+            "SELECT result_sequence,action_succeeded,observe_valid FROM task_attempts WHERE task_id=?1 AND result_sequence IS NOT NULL ORDER BY result_sequence DESC LIMIT 1",
+            [task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))
+        ).optional().map_err(storage)?;
+        if !latest.is_some_and(|(result,action,observe)| result==observation_sequence as i64&&action==Some(1)&&observe==Some(1)){return Err(Error::StopRequired);}
+        let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        let outcome_name=match outcome{GoalVerificationOutcome::Achieved=>"achieved",GoalVerificationOutcome::NotAchieved=>"not-achieved"};
+        if tx.execute("UPDATE tasks SET sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,if outcome==GoalVerificationOutcome::NotAchieved{Some("目标未完成，已交回慢脑")}else{None::<&str>},task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
+        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,'running','running')",params![task_id,next as i64]).map_err(storage)?;
+        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
+        tx.execute("INSERT INTO task_goal_verifications(task_id,verification_id,observation_sequence,verified_sequence,outcome) VALUES(?1,?2,?3,?4,?5)",params![task_id,verification_id,observation_sequence as i64,next as i64,outcome_name]).map_err(|error|if matches!(error,rusqlite::Error::SqliteFailure(_, _)){Error::Conflict}else{storage(error)})?;
+        tx.commit().map_err(storage)?;
+        let record=GoalVerificationRecord{task_id:task_id.into(),verification_id:verification_id.into(),observation_sequence,verified_sequence:next,outcome};
+        Ok((Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next},record))
+    }
+    fn get_goal_verification(&mut self, task_id:&str)->Result<Option<GoalVerificationRecord>,Error>{
+        let row:Option<(String,i64,i64,String)>=self.0.query_row(
+            "SELECT verification_id,observation_sequence,verified_sequence,outcome FROM task_goal_verifications WHERE task_id=?1 ORDER BY verified_sequence DESC LIMIT 1",
+            [task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))
+        ).optional().map_err(storage)?;
+        row.map(|(verification_id,observation,verified,outcome)|Ok(GoalVerificationRecord{
+            task_id:task_id.into(),verification_id,observation_sequence:u64::try_from(observation).map_err(|_|Error::StorageUnavailable)?,verified_sequence:u64::try_from(verified).map_err(|_|Error::StorageUnavailable)?,outcome:match outcome.as_str(){"achieved"=>GoalVerificationOutcome::Achieved,"not-achieved"=>GoalVerificationOutcome::NotAchieved,_=>return Err(Error::StorageUnavailable)}
+        })).transpose()
     }
     fn supports_execution_attempts(&self) -> bool {
         true
@@ -2985,7 +3043,7 @@ impl TaskStore for SqliteTaskStore {
         if after >= i64::MAX as u64 {
             return Ok(vec![]);
         }
-        let mut stmt = self.0.prepare("SELECT e.previous,e.state,e.sequence,s.step_id,s.label,s.accepted_sequence,a.step_id,a.attempt_id,a.worker_instance_id,a.host_session_id,a.phase,a.action_succeeded,a.observe_valid,a.unknown_reason,e.wait_reason,m.version,m.item_count,c.confirmation_id,c.result_sequence,c.manifest_version,c.comment,c.confirmed_by,p.payload,h.attempt_id,h.control_id,h.kind,h.accepted_sequence,h.stopped_sequence,f.control_id,f.phase,f.failure,g.payload,t.owner_agent_id,ast.step_id,ast.attempt_id,ast.worker_instance_id,ast.host_session_id FROM events e JOIN tasks t ON t.id=e.task_id LEFT JOIN task_steps s ON s.task_id=e.task_id AND s.accepted_sequence=e.sequence LEFT JOIN task_attempts a ON a.task_id=e.task_id AND a.result_sequence=e.sequence LEFT JOIN task_attempts ast ON ast.task_id=e.task_id AND ast.accepted_sequence=e.sequence LEFT JOIN task_artifact_manifests m ON m.task_id=e.task_id AND m.created_sequence=e.sequence LEFT JOIN task_user_confirmations c ON c.task_id=e.task_id AND c.confirmation_sequence=e.sequence LEFT JOIN task_presentation_events p ON p.task_id=e.task_id AND p.sequence=e.sequence AND p.kind='observation' LEFT JOIN task_controls h ON h.task_id=e.task_id AND (h.accepted_sequence=e.sequence OR h.stopped_sequence=e.sequence) LEFT JOIN task_focus_events f ON f.task_id=e.task_id AND f.sequence=e.sequence LEFT JOIN task_presentation_events g ON g.task_id=e.task_id AND g.sequence=e.sequence AND g.kind='source' WHERE e.task_id=?1 AND e.sequence>?2 ORDER BY e.sequence LIMIT ?3").map_err(storage)?;
+        let mut stmt = self.0.prepare("SELECT e.previous,e.state,e.sequence,s.step_id,s.label,s.accepted_sequence,a.step_id,a.attempt_id,a.worker_instance_id,a.host_session_id,a.phase,a.action_succeeded,a.observe_valid,a.unknown_reason,e.wait_reason,m.version,m.item_count,c.confirmation_id,c.result_sequence,c.manifest_version,c.comment,c.confirmed_by,p.payload,h.attempt_id,h.control_id,h.kind,h.accepted_sequence,h.stopped_sequence,f.control_id,f.phase,f.failure,g.payload,t.owner_agent_id,ast.step_id,ast.attempt_id,ast.worker_instance_id,ast.host_session_id,v.verification_id,v.observation_sequence,v.outcome FROM events e JOIN tasks t ON t.id=e.task_id LEFT JOIN task_steps s ON s.task_id=e.task_id AND s.accepted_sequence=e.sequence LEFT JOIN task_attempts a ON a.task_id=e.task_id AND a.result_sequence=e.sequence LEFT JOIN task_attempts ast ON ast.task_id=e.task_id AND ast.accepted_sequence=e.sequence LEFT JOIN task_artifact_manifests m ON m.task_id=e.task_id AND m.created_sequence=e.sequence LEFT JOIN task_user_confirmations c ON c.task_id=e.task_id AND c.confirmation_sequence=e.sequence LEFT JOIN task_presentation_events p ON p.task_id=e.task_id AND p.sequence=e.sequence AND p.kind='observation' LEFT JOIN task_controls h ON h.task_id=e.task_id AND (h.accepted_sequence=e.sequence OR h.stopped_sequence=e.sequence) LEFT JOIN task_focus_events f ON f.task_id=e.task_id AND f.sequence=e.sequence LEFT JOIN task_presentation_events g ON g.task_id=e.task_id AND g.sequence=e.sequence AND g.kind='source' LEFT JOIN task_goal_verifications v ON v.task_id=e.task_id AND v.verified_sequence=e.sequence WHERE e.task_id=?1 AND e.sequence>?2 ORDER BY e.sequence LIMIT ?3").map_err(storage)?;
         let rows = stmt
             .query_map(params![id, after as i64, limit as i64], |r| {
                 Ok((
@@ -3026,6 +3084,9 @@ impl TaskStore for SqliteTaskStore {
                     r.get::<_, Option<String>>(34)?,
                     r.get::<_, Option<String>>(35)?,
                     r.get::<_, Option<String>>(36)?,
+                    r.get::<_, Option<String>>(37)?,
+                    r.get::<_, Option<i64>>(38)?,
+                    r.get::<_, Option<String>>(39)?,
                 ))
             })
             .map_err(storage)?;
@@ -3068,6 +3129,9 @@ impl TaskStore for SqliteTaskStore {
                 started_attempt_id,
                 started_worker_id,
                 started_host_id,
+                verification_id,
+                verification_observation_sequence,
+                verification_outcome,
             ) = row.map_err(storage)?;
             let creation_event = source_payload
                 .as_deref()
@@ -3272,6 +3336,11 @@ impl TaskStore for SqliteTaskStore {
                 (None, None, None) => None,
                 _ => return Err(Error::StorageUnavailable),
             };
+            let goal_verification=match(verification_id,verification_observation_sequence,verification_outcome){
+                (Some(verification_id),Some(observation_sequence),Some(outcome))=>Some(GoalVerificationRecord{task_id:id.into(),verification_id,observation_sequence:u64::try_from(observation_sequence).map_err(|_|Error::StorageUnavailable)?,verified_sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?,outcome:match outcome.as_str(){"achieved"=>GoalVerificationOutcome::Achieved,"not-achieved"=>GoalVerificationOutcome::NotAchieved,_=>return Err(Error::StorageUnavailable)}}),
+                (None,None,None)=>None,
+                _=>return Err(Error::StorageUnavailable),
+            };
             Ok(TaskEventRecord {
                 transition: Transition {
                     previous: status(&previous)?,
@@ -3288,6 +3357,7 @@ impl TaskStore for SqliteTaskStore {
                 wait_reason,
                 artifact_manifest,
                 user_confirmation,
+                goal_verification,
             })
         })
         .collect()
@@ -4122,7 +4192,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(disposition, "fragment-complete");
+        assert_eq!(disposition, "awaiting-goal-verification");
         assert_eq!(task.status, Status::Running);
         assert_eq!(
             *port.0.lock().unwrap(),
@@ -4140,15 +4210,24 @@ mod tests {
             store.get_attempt(&created.id).unwrap().unwrap().phase,
             AttemptPhase::Stopped
         );
+        let observation_sequence=store.get_attempt_result(&created.id).unwrap().unwrap().result_sequence;
+        assert_eq!(yonder_application::computer_use::complete_agent_task_verified(
+            &mut store,&admission,AuthContext::Agent("a1"),&created.id,task.sequence,"missing-verification"
+        ),Err(Error::StopRequired));
+        let (verified,verification)=yonder_application::computer_use::verify_agent_goal(
+            &mut store,AuthContext::Agent("a1"),&created.id,task.sequence,observation_sequence,"verify-goal-1",GoalVerificationOutcome::Achieved,
+        ).unwrap();
+        assert_eq!(store.events_with_steps(&created.id,task.sequence,1).unwrap()[0].goal_verification,Some(verification.clone()));
         let runtime = ExecutionRuntime::with_defaults().unwrap();
-        let completed = yonder_application::computer_use::finish_agent_task_for_owner(
+        let completed = yonder_application::computer_use::finish_agent_task_for_owner_verified(
             &mut store,
             &runtime.handle(),
             &admission,
             AuthContext::Agent("a1"),
             &created.id,
-            task.sequence,
+            verified.sequence,
             false,
+            Some(&verification.verification_id),
         )
         .unwrap();
         assert_eq!(completed.status, Status::Completed);
@@ -4334,7 +4413,7 @@ mod tests {
             "host",
         )
         .unwrap();
-        assert_eq!(replan_disposition, "fragment-complete");
+        assert_eq!(replan_disposition, "awaiting-goal-verification");
 
         let takeover_task = create(&mut store, "takeover-plan").unwrap();
         let takeover_fragment = PlanFragment {
@@ -4445,7 +4524,7 @@ mod tests {
         let preview=intents.preview_for_local(AuthContext::LocalUser("desktop"),&awaiting,&intent.intent_ref,1_001).unwrap();assert_eq!(preview.target,"宫健的分身");
         intents.approve(AuthContext::LocalUser("desktop"),&awaiting,&intent.intent_ref,1_002).unwrap();
         let (_,disposition,_)=execute_available(&mut store,&intent_admission,&intent_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&intent_task.id,&protected_fragment.plan_id,1,awaiting.sequence,1_003,"host").unwrap();
-        assert_eq!(disposition,"fragment-complete");assert_eq!(intent_port.0.lock().unwrap().len(),2);
+        assert_eq!(disposition,"awaiting-goal-verification");assert_eq!(intent_port.0.lock().unwrap().len(),2);
         assert_eq!(intents.consume_send(AuthContext::Agent("a1"),&store.get(&intent_task.id).unwrap(),&intent.intent_ref,&intent.confirmation_ref,1_004),Err(yonder_application::cua_intent::CuaIntentError::NotFound));
     }
 
@@ -4823,7 +4902,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            23
+            24
         );
         drop(store);
         for rejected in [
@@ -4869,7 +4948,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 23);
+        assert_eq!(version, 24);
     }
 
     #[test]
@@ -4897,7 +4976,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            23
+            24
         );
         assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
     }
@@ -4934,7 +5013,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            23
+            24
         );
     }
 
@@ -6295,7 +6374,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            23
+            24
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -8180,7 +8259,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            23
+            24
         );
     }
 
@@ -8373,7 +8452,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            23
+            24
         );
     }
 
@@ -8825,12 +8904,17 @@ mod tests {
         let attempt = store.get_attempt(&task.id).unwrap().unwrap();
         let (advanced, _) =
             advance_after_observe(&mut store, &task.id, &attempt.attempt_id).unwrap();
-        let completed = complete_agent_task(
+        let observation_sequence=store.get_attempt_result(&task.id).unwrap().unwrap().result_sequence;
+        let (verified,verification)=yonder_application::computer_use::verify_agent_goal(
+            &mut store,AuthContext::Agent("a1"),&task.id,advanced.sequence,observation_sequence,"verify-supervisor",GoalVerificationOutcome::Achieved,
+        ).unwrap();
+        let completed = yonder_application::computer_use::complete_agent_task_verified(
             &mut store,
             &gate,
             AuthContext::Agent("a1"),
             &task.id,
-            advanced.sequence,
+            verified.sequence,
+            &verification.verification_id,
         )
         .unwrap();
         assert_eq!(

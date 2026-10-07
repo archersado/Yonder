@@ -110,6 +110,18 @@ fn source(value: crate::TaskSource) -> ProtocolSource {
     }
 }
 
+fn goal_verification(value: crate::GoalVerificationRecord) -> yonder_protocol::GoalVerification {
+    yonder_protocol::GoalVerification {
+        verification_id: value.verification_id,
+        observation_sequence: value.observation_sequence.to_string(),
+        verified_sequence: value.verified_sequence.to_string(),
+        outcome: match value.outcome {
+            crate::GoalVerificationOutcome::Achieved => yonder_protocol::GoalVerificationOutcome::Achieved,
+            crate::GoalVerificationOutcome::NotAchieved => yonder_protocol::GoalVerificationOutcome::NotAchieved,
+        },
+    }
+}
+
 pub(crate) fn summary(task: crate::Task) -> TaskSnapshot {
     TaskSnapshot {
         task_id: task.id,
@@ -123,6 +135,7 @@ pub(crate) fn summary(task: crate::Task) -> TaskSnapshot {
         next_intent: None,
         artifact_manifest: None,
         user_confirmation: None,
+        goal_verification: None,
     }
 }
 
@@ -158,6 +171,7 @@ pub(crate) fn full_with_audit(
             comment: confirmation.comment,
             confirmed_by: confirmation.confirmed_by,
         }),
+        goal_verification: None,
     }
 }
 
@@ -355,13 +369,19 @@ pub(crate) fn handle_request_versioned(
             } else {
                 crate::TaskAudit::default()
             };
-            Ok(QueryResult::Snapshot { task: full_with_audit(task, presentation, audit) })
+            let mut snapshot=full_with_audit(task, presentation, audit);
+            if store.supports_goal_verification() {
+                snapshot.goal_verification=store.get_goal_verification(&params.task_id).map_err(error)?
+                    .filter(|verification|verification.verified_sequence.to_string()==snapshot.sequence)
+                    .map(goal_verification);
+            }
+            Ok(QueryResult::Snapshot { task: snapshot })
         }
         Request::Events { params, .. } => {
             let task = readable(store, auth, &params.task_id)?;
             let after = yonder_protocol::sequence(&params.after_sequence)?;
             let records = if include_steps { store.events_with_steps(&params.task_id, after, usize::from(params.limit)).map_err(error)? } else {
-                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, creation_event: None, step_declaration: None, attempt_started: None, attempt_result: None, observation: None, control_event: None, focus_event: None, wait_reason: None, artifact_manifest: None, user_confirmation: None }).collect()
+                events(store, &params.task_id, after, usize::from(params.limit)).map_err(error)?.into_iter().map(|transition| crate::TaskEventRecord { transition, creation_event: None, step_declaration: None, attempt_started: None, attempt_result: None, observation: None, control_event: None, focus_event: None, wait_reason: None, artifact_manifest: None, user_confirmation: None, goal_verification: None }).collect()
             };
             check_event_continuity(after, task.sequence, usize::from(params.limit), &records)?;
             let projected = records.into_iter().map(|e| {
@@ -418,6 +438,7 @@ pub(crate) fn handle_request_versioned(
                         comment: confirmation.comment,
                         confirmed_by: confirmation.confirmed_by,
                     }),
+                    goal_verification: e.goal_verification.map(goal_verification),
                 }
             }).collect();
             bounded_events_result(&id, params.task_id, projected)
@@ -483,7 +504,8 @@ pub(crate) fn handle_request_versioned(
             let task = readable(store, auth, &params.task_id)?;
             let reference = store.get_browser_reference(&params.task_id).map_err(error)?.map(|value| BrowserReference { external_task_ref:value.external_task_ref, ownership:value.ownership, managed_pages:u16::try_from(value.managed_pages).unwrap_or(u16::MAX), finished:value.finished, updated_sequence:value.updated_sequence.to_string() });
             Ok(QueryResult::BrowserState { task: summary(task), reference })
-        }
+        },
+        Request::GoalVerify { .. } => Err(RpcError::new(-32601, "目标核验不是查询操作")),
     }});
     match result {
         Ok(result) => Response::Success {
@@ -522,6 +544,7 @@ mod tests {
             wait_reason: None,
             artifact_manifest: None,
             user_confirmation: None,
+            goal_verification: None,
         }
     }
 
@@ -543,6 +566,7 @@ mod tests {
             wait_reason: None,
             artifact_manifest: None,
             user_confirmation: None,
+            goal_verification: None,
         };
         assert!(check_event_continuity(2, 2, 10, &[record]).is_ok());
         assert!(check_event_continuity(2, 2, 10, &[]).is_ok());
