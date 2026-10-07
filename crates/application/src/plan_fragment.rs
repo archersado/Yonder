@@ -110,7 +110,7 @@ pub fn execute_one(
         yonder_protocol::CuaActionKind::ActivateTarget=>Some(("activate-target",Some(crate::cua_intent::CuaIntentText::Target))),
         yonder_protocol::CuaActionKind::FocusMessageComposer=>Some(("focus-message-composer",None)),
         yonder_protocol::CuaActionKind::DraftMessageRef=>Some(("draft-message-ref",Some(crate::cua_intent::CuaIntentText::Message))),
-        yonder_protocol::CuaActionKind::SendMessage=>Some(("send-message",None)),
+        yonder_protocol::CuaActionKind::SendMessage=>Some(("send-message",Some(crate::cua_intent::CuaIntentText::Message))),
         _=>None,
     };
     if let Some((kind,text))=semantic {
@@ -125,6 +125,8 @@ pub fn execute_one(
     // unknown/超时都不会恢复引用，因此不会隐式重试副作用。
     if matches!(action.action_kind, yonder_protocol::CuaActionKind::SendMessage) {
         let registry=intents.ok_or(crate::Error::StorageUnavailable)?;
+        let target=registry.resolve_text(auth,&current_task,&action.target_ref,crate::cua_intent::CuaIntentText::Target,now_ms).map_err(cua_intent_error)?;
+        fields.insert("_yonder_private_target".into(),serde_json::Value::String(target));
         let confirmation=action.confirmation_ref.as_deref().ok_or(crate::Error::InvalidInput)?;
         let state=registry.arm(auth,&current_task,&action.target_ref,confirmation,now_ms).map_err(cua_intent_error)?.state;
         if state != crate::cua_intent::CuaIntentState::Approved {

@@ -493,7 +493,7 @@ function transcriptElements(state) {
 }
 
 const actionableRoles = [
-  { role: 'text-field', pattern: /(?:文本框|搜索框|text ?field|textfield|search ?field)/i },
+  { role: 'text-field', pattern: /^(?:文本栏|文本框|搜索框|text ?field|textfield|search ?field)(?:\s|$)/i },
   { role: 'menu-item', pattern: /(?:菜单项|menu ?item)/i },
   { role: 'check-box', pattern: /(?:复选框|checkbox|check box)/i },
   { role: 'radio-button', pattern: /(?:单选按钮|radio ?button)/i },
@@ -567,11 +567,40 @@ function uniqueElement(state, predicate) {
 }
 
 function searchField(state) {
-  return uniqueElement(state, text => {
-    const editable = text.includes('文本框') || text.includes('text field') || text.includes('textfield') || text.includes('search field');
-    const search = text.includes('搜索') || text.includes('search');
-    return editable && search;
+  const fields = transcriptElements(state).filter(element =>
+    /^(?:文本栏|文本框|搜索框|text ?field|textfield|search ?field)(?:\s|$)/i.test(element.text)
+    && !/disabled|密码|password|secure/i.test(element.text));
+  const named = fields.filter(element => /搜索|查找|search/i.test(element.text));
+  return named.length === 1 ? named[0] : named.length === 0 && fields.length === 1 ? fields[0] : null;
+}
+
+function composerField(state) {
+  return uniqueElement(state, text => /^(?:文本输入区|text ?area)(?:\s|$)/i.test(text)
+    && /settable/.test(text) && !/disabled|密码|password|secure/i.test(text));
+}
+
+function editableValue(element) {
+  return element?.text.replace(/^(?:文本栏|文本框|搜索框|text ?field|textfield|search ?field|文本输入区|text ?area)\s*(?:\([^)]*\)\s*)?/i, '') ?? null;
+}
+
+function targetRow(state, query) {
+  if (!query) return null;
+  const elements = transcriptElements(state);
+  const matches = elements.filter((element, position) => {
+    if (!/^row\b.*\b(selectable|selected)\b/i.test(element.text)) return false;
+    for (let index = position + 1; index < elements.length && elements[index].depth > element.depth; index += 1) {
+      const text = elements[index].text.replace(/^(?:text|文本)\s+/i, '');
+      if (text === query || text.startsWith(`${query} `)) return true;
+    }
+    return false;
   });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function conversationMatches(state, query) {
+  const row = targetRow(state, query);
+  return row != null && /\bselected\b/i.test(row.text)
+    && transcriptElements(state).some(element => element.text === `文本 ${query}` || element.text === `text ${query}`);
 }
 
 function firstMatchingControl(state, query) {
@@ -631,6 +660,7 @@ function actionArguments(request, target) {
   delete args.observation_ref;
   delete args._yonder_action_kind;
   delete args._yonder_private_text;
+  delete args._yonder_private_target;
   if (target.app) args.app = target.app;
   return args;
 }
@@ -698,6 +728,39 @@ async function perform(request, target, before) {
     await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
     return { kind: 'element-present', index: element.index };
   }
+  if (semantic === 'activate-target' && request.tool_name === 'click') {
+    const query = privateText(request);
+    const row = targetRow(before, query);
+    if (!row) throw new WorkerFailure('target-semantic-element');
+    if (!conversationMatches(before, query)) {
+      await callAction('click', { app: target.app, element_index: String(row.index) }, target.applicationId);
+    }
+    return { kind: 'conversation', query };
+  }
+  if (semantic === 'focus-message-composer' && request.tool_name === 'click') {
+    const element = composerField(before);
+    if (!element) throw new WorkerFailure('target-semantic-element');
+    await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
+    return { kind: 'element-present', index: element.index };
+  }
+  if (semantic === 'draft-message-ref' && request.tool_name === 'type_text') {
+    const element = composerField(before);
+    const value = privateText(request);
+    if (!element || value == null) throw new WorkerFailure('target-semantic-element');
+    if (editableValue(element) !== value) {
+      await callAction('set_value', { app: target.app, element_index: String(element.index), value }, target.applicationId);
+    }
+    return { kind: 'draft', value };
+  }
+  if (semantic === 'send-message' && request.tool_name === 'press_key') {
+    const element = composerField(before);
+    const value = editableValue(element);
+    if (!element || !value || value !== privateText(request)
+        || !conversationMatches(before, request.arguments._yonder_private_target)) throw new WorkerFailure('target-semantic-element');
+    const count = transcriptElements(before).filter(item => item.text === `文本输入区 ${value}` || item.text === `text area ${value}`).length;
+    await callAction('press_key', { app: target.app, key: 'Return' }, target.applicationId);
+    return { kind: 'delivery', value, count };
+  }
   if (['enter-target-query', 'input-text'].includes(semantic)) {
     const element = searchField(before);
     const value = privateText(request);
@@ -720,7 +783,7 @@ async function perform(request, target, before) {
       await callAction('press_key', { app: target.app, key: 'BackSpace' }, target.applicationId);
       await callAction('type_text', { app: target.app, text: value }, target.applicationId);
       pendingInput = { taskId: request.task_id, app: target.app, value };
-      return { kind: 'text-present', value };
+      return { kind: semantic === 'enter-target-query' ? 'target-query' : 'text-present', value };
     }
     await callAction('type_text', { app: target.app, text: value }, target.applicationId);
     pendingInput = { taskId: request.task_id, app: target.app, value };
@@ -770,6 +833,13 @@ async function perform(request, target, before) {
 
 function actionConfirmed(expectation, before, after) {
   if (!expectation) return true;
+  if (expectation.kind === 'conversation') return conversationMatches(after, expectation.query);
+  if (expectation.kind === 'draft') return editableValue(composerField(after)) === expectation.value;
+  if (expectation.kind === 'target-query') return editableValue(searchField(after)) === expectation.value && targetRow(after, expectation.value) != null;
+  if (expectation.kind === 'delivery') {
+    const count = transcriptElements(after).filter(item => item.text === `文本输入区 ${expectation.value}` || item.text === `text area ${expectation.value}`).length;
+    return editableValue(composerField(after)) === '' && count > expectation.count;
+  }
   if (expectation.kind === 'element-present') {
     return transcriptElements(after).some(element => element.index === expectation.index);
   }
