@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "trials": [
+    {
+      "task_class": "local-edit",
+      "pair_id": "pilot-2",
+      "mode": "fast-slow",
+      "outcome": "not-achieved",
+      "wall_elapsed_ms": 12602,
+      "user_wait_ms": 0,
+      "slow_brain_calls": 1,
+      "handbacks": 1,
+      "actions": 1,
+      "unknowns": 0,
+      "product_path": true,
+      "task_ref": "task_d1ea21a6840bc1427d32f04f57d7f7c9"
+    },
+    {
+      "task_class": "local-edit",
+      "pair_id": "pilot-2",
+      "mode": "slow-only",
+      "outcome": "achieved",
+      "wall_elapsed_ms": 41321,
+      "user_wait_ms": 0,
+      "slow_brain_calls": 3,
+      "handbacks": 0,
+      "actions": 3,
+      "unknowns": 0,
+      "product_path": true,
+      "task_ref": "task_04789b1adfa10edf25d7aceee1214503"
+    }
+  ]
+}
