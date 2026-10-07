@@ -32,6 +32,7 @@ fn main() {
         task_id: "verification-task".into(),
         step_id: "verification-step".into(),
         capability: JevCapability::Cua,
+        observed_facts: vec!["ApplicationReady=true".into()],
         candidates: vec![
             JevCandidate {
                 id: "cua.unavailable".into(),

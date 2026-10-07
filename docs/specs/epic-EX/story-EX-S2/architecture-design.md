@@ -56,6 +56,8 @@ Application在每个槽位派发前按任务归属和期限解析引用，把目
 
 慢脑下发单一路径时，该路径是确定性执行授权，不调用 Jev 再次“规划”或允许其无理由交回；Application 直接派发并在动作后 Observe。仅当同一 Observe 产生多个已验证候选时，Jev 才在候选编号中选择下一动作。动态 CUA 动作空间必须来自 Driver 的当前 Observe 并由 Application 最终复核；Jev 不接收或生成控件标识、坐标、正文、接收人或自由参数。
 
+当前 Observe 只在一次 `task.plan.execute` 调用栈内以封闭布尔事实传递。Application 先以这些事实过滤候选：无候选满足时直接交回，唯一候选满足时确定性派发，至少两个候选满足时才把合格候选与事实摘要交给 Jev；不得把候选自行声明的前置条件当作已经成立。每次动作成功仍须由 Driver 完成后置 Observe，Application 再复核候选的 `expected_observe`，不满足即停止片段并交回慢脑。跨调用不复用瞬态事实，恢复执行时须由单候选慢脑授权或重新 Observe。
+
 连续推进由 Application 在一次 `task.plan.execute` 调用栈内完成，最多消费当前不可变片段的剩余槽位。每轮只派发一个动作，成功 Observe 与 attempt 停止边界提交后才推进 `current_slot`；下一轮重新读取片段、任务 sequence 与控制事实。返回响应后不保留执行线程或定时任务。片段完成返回 `fragment-complete`，但不替代归属慢脑提交 `task.complete`/`task.fail`。
 
 产品 MCP 必须从同一 Rust 协议类型构造 `task.plan.submit` 与 `task.plan.execute` 请求，直接转发到既有私有 UDS Gateway；不得在 CLI 重写计划校验、执行循环或 Jev 选择。MCP schema 只镜像协议字段，Gateway 继续负责身份、版本、CAS、期限、候选和能力检查。该入口使 Codex 成为真实慢脑，不创建第二 Agent 通道。

@@ -25,6 +25,7 @@ pub struct JevDecisionRequest {
     pub task_id: String,
     pub step_id: String,
     pub capability: JevCapability,
+    pub observed_facts: Vec<String>,
     pub candidates: Vec<JevCandidate>,
 }
 
@@ -89,9 +90,10 @@ pub fn decide(
 }
 
 fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError> {
+    let mut observed=std::collections::HashSet::new();
     if !valid_id(&request.task_id)
         || !valid_id(&request.step_id)
-        || !(2..=MAX_CANDIDATES).contains(&request.candidates.len())
+        || !(2..=MAX_CANDIDATES).contains(&request.candidates.len()) || request.observed_facts.len()>4 || request.observed_facts.iter().any(|fact|fact.is_empty()||fact.len()>64||fact.contains('\0')||!observed.insert(fact.as_str()))
     {
         return Err(JevDecisionError::InvalidInput);
     }
@@ -186,6 +188,7 @@ mod tests {
             task_id: "task-1".into(),
             step_id: "step-1".into(),
             capability: JevCapability::Cua,
+            observed_facts: vec!["ApplicationReady=true".into()],
             candidates: vec![
                 JevCandidate {
                     id: "cua.click".into(),

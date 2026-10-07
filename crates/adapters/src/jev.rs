@@ -31,6 +31,7 @@ struct WorkerRequest<'a> {
     endpoint: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
+    observed_facts: &'a [String],
     candidates: &'a [yonder_application::jev_runtime::JevCandidate],
 }
 
@@ -216,6 +217,7 @@ impl JevDecisionPort for MacosJevPort {
             endpoint: &config.endpoint,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
+            observed_facts: &request.observed_facts,
             candidates: &request.candidates,
         };
         let response = self.run_worker(&worker_request, timeout)?;
@@ -303,6 +305,7 @@ mod tests {
             endpoint: "https://api.typesafe.ai",
             api_key: "test-only",
             timeout_ms: 3000,
+            observed_facts:&["ApplicationReady=true".into()],
             candidates: &[
                 JevCandidate {
                     id: "cua.click".into(),
