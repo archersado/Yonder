@@ -33,6 +33,13 @@ Result: PASS
 - `cargo test --offline --locked -p yonder-desktop`：lib 25 PASS、main 11 PASS；发布契约负例已对齐协议1.41。
 - `python3 apps/desktop/check-cua-package.py`：PASS；Sky `0.7.1`、签名Node与Client Team `2DC432GLL2`，trycua/Qwen缺失符合单栈边界。
 
+## 2026-10-08 Automation声明回归
+
+- 修复前：正式Gateway任务在首步返回`unknown/worker-failed`；macOS日志证明`SkCu/XpcN`的负责身份为`com.yonder.desktop`，TCC结果为`rejected`，签名Client随后以XPC assertion退出。
+- 包边界：`NSAppleEventsUsageDescription`已加入`Yonda.app/Contents/Info.plist`并纳入`check-cua-package.py`；Sky `0.7.1`、签名Node、签名Client、App Group和单栈边界审计PASS。
+- 正向任务：`task_553f2563d4cbc2db40b24168379fb7ba`经正式安装包内MCP/Gateway执行QQ音乐启动；`observed@5`为`action_succeeded=true, observe_valid=true`，返回258个有界元素，系统日志为`SkCu/XpcN = accepted`。
+- 终态：独立Goal `verify_automation_fix_20261008`达成，任务`completed@9`；未修改TCC数据库、未直连Socket、未使用trycua回退。
+
 ## 2026-10-06窗口绑定外置复验
 
 - 从提交`a0f57c9`构建正式调试`Yonda.app`，仅通过安装包内`yonder mcp`与生产UDS创建任务`task_dff3884691d4291f23a66f47dfe35d40`。

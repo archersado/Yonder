@@ -54,3 +54,5 @@ FGD-28初次Gateway样本随后由正式Yonder Observation推翻：`task_080739e
 2026-10-07 Codex CUA对照证明左下角入口是当前AX transcript的元素18，坐标路径在Codex中同样返回`noWindowsAvailable`，因此不能在AX可用时强行降级为坐标。正式Yonder Gateway任务`task_83ab460064455b4f0fc0bb49b5cfc2bb`以`observed_element_index=18`打开账号/企业入口面板，动作后Observe由260个主窗口元素变为68个面板元素，`fragment-complete@22 → completed@23`。本轮只验证入口激活，未选择“狼顾科技”、未搜索会话也未发送消息；Windows对等验证仍暂缓。
 
 2026-10-08正式Gateway首步回归出现`worker-failed`。系统日志进一步给出确定根因：官方Client向Sky服务发送`SkCu/XpcN` Apple Event时，TCC把负责身份追溯为重建后的`com.yonder.desktop`，因旧Automation授权不匹配且Yonder包缺少`NSAppleEventsUsageDescription`而明确拒绝；Client随后以XPC assertion退出。AD-CU-09第13项与FGD-31补齐用途声明及包审计，固定Sky签名Node/Client、单栈边界和Socket禁令不变。正式Gateway在系统授权后正向回归完成前Story继续verifying。
+
+同日修复包正式回归PASS：系统记录`SkCu/XpcN = accepted`，任务`task_553f2563d4cbc2db40b24168379fb7ba`启动QQ音乐并在序号5取得`action_succeeded=true, observe_valid=true`及258个有界AX元素，独立Goal后`completed@9`。Windows对等验证仍按主人决定暂缓，因此Story保持verifying且不Archive。

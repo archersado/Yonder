@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-08",
+  "platform": "macos",
+  "driver": "sky-external-0.7.1",
+  "apple_events_usage_declared": true,
+  "package_audit": "passed",
+  "tcc_before": "rejected",
+  "tcc_after": "accepted",
+  "task_id": "task_553f2563d4cbc2db40b24168379fb7ba",
+  "observed_sequence": 5,
+  "action_succeeded": true,
+  "observe_valid": true,
+  "element_count": 258,
+  "verification_id": "verify_automation_fix_20261008",
+  "completed_sequence": 9,
+  "status": "completed",
+  "direct_socket_used": false,
+  "trycua_fallback_used": false,
+  "passed": true
+}
