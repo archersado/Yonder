@@ -1,6 +1,6 @@
 # Verification Goal：CU-S6 临时 Observation transcript 与元素句柄
 
-状态：部分通过（macOS transcript 子范围，2026-10-07）；企业切换回归失败并返回实施阶段。Windows 对等验证按主人决定暂缓，不 Archive/Done。
+状态：协议 1.48 与隔离 Driver/Adapter 回归通过（2026-10-08）；正式 GUI 坐标样本待 Codex MCP 重连后继续。Windows 对等验证按主人决定暂缓，不 Archive/Done。
 
 ## 目标
 
@@ -12,6 +12,16 @@
 - `cargo run -p yonder-protocol --example generate --locked -- --check`：通过。
 - `cargo test -p yonder-protocol -p yonder-application -p yonder-adapters --locked -- --test-threads=1`：155 项通过（Protocol 18、Application 59、Adapters 78）。
 - `openspec validate cu-s6-ephemeral-element-handles --strict` 与 `git diff --check`：通过。
+
+## 2026-10-08 Observation 绑定坐标扩展
+
+- Rust 协议升级至 1.48，并从唯一来源重新生成 TypeScript 与 Response Schema；含截图的 Observation 以原子字段返回原始像素宽高，坐标候选必须携带同次 `observation_ref`。
+- `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离 Sky MCP 夹具从 PNG 字节头读取 100×100 原图尺寸；有效坐标只派发一次；过期引用、`x == width` 越界和动作前截图变为 120×120 三类负样本均未派发动作，并携带新鲜 Observation 以 `unverifiable` 交回。
+- `cargo test -p yonder-protocol`：18 项通过；`cargo test -p yonder-application`：70 项通过；`cargo test -p yonder-adapters`：81 项通过。
+- `cargo test --locked -p yonder-desktop --lib`：27 项通过；发布契约与 Gateway 最高协议同步到 1.48。
+- `openspec validate cu-s6-ephemeral-element-handles --strict`、`node --check crates/adapters/src/sky_cua_worker.mjs` 与 `git diff --check`：通过。
+- 架构脚本在本变更文档章节校验通过后，被 dev 既有 `TM-S9/README.md` 缺少机器可读 `Story/Epic/Status/OpenSpec` 字段阻断；该文件不属于本 Story，本次未越界修改。
+- dev 正式 `Yonda.app` 已重新构建并启动；重启使当前 Codex 会话持有的 Yonder stdio MCP 传输关闭，工具调用返回 `Transport closed`。按产品围栏未改走 Local Socket、CLI 或 Driver，真实 QQ 音乐坐标样本等待宿主重新连接 Yonder MCP 后继续。
 
 ## macOS 正式产品样本
 
