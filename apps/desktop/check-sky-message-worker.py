@@ -34,7 +34,9 @@ for line in sys.stdin:
         else:
             with open(os.environ['MESSAGE_FIXTURE_LOG'], 'a') as output: output.write(json.dumps({'name':name,'args':args})+'\\n')
             if name == 'type_text': query = args['text']
-            elif name == 'set_value': draft = args['value']
+            elif name == 'set_value':
+                if args.get('element_index') == '1': query = args['value']
+                else: draft = args['value']
             elif name == 'click' and args.get('element_index') == '2': selected = True
             elif name == 'press_key' and args['key'] == 'BackSpace': query = ''
             elif name == 'press_key' and args['key'] == 'Return':
@@ -70,9 +72,9 @@ for line in sys.stdin:
             result = request(step, tool, args)
             assert result["action_succeeded"] and result["observe_valid"], (step, result["failure_stage"])
         changed = request("changed-send", "press_key", {"_yonder_action_kind":"send-message", "_yonder_private_text":"fixture-different-message"})
-        assert not changed["action_known"] and changed["failure_stage"] == "target-semantic-element"
+        assert changed["action_known"] and not changed["action_succeeded"] and changed["action_effect"] == "refused" and changed["failure_stage"] == "target-semantic-element", changed
         wrong_target = request("changed-target", "press_key", {"_yonder_action_kind":"send-message", "_yonder_private_text":"fixture-new-message", "_yonder_private_target":"fixture-other-recipient"})
-        assert not wrong_target["action_known"]
+        assert wrong_target["action_known"] and not wrong_target["action_succeeded"] and wrong_target["action_effect"] == "refused"
         sent = request("send", "press_key", {"_yonder_action_kind":"send-message", "_yonder_private_text":"fixture-new-message", "_yonder_private_target":"fixture-recipient"})
         assert sent["observe_valid"] and sent["action_succeeded"] is not noop
         process.terminate()
@@ -80,7 +82,8 @@ for line in sys.stdin:
     sample()
     sample(noop=True)
     actions = [json.loads(line) for line in log.read_text().splitlines()]
-    assert sum(action["name"] == "set_value" for action in actions) == 2  # 相同草稿不重复输入。
+    assert sum(action["name"] == "set_value" and action["args"]["element_index"] == "1" for action in actions) == 2
+    assert sum(action["name"] == "set_value" and action["args"]["element_index"] == "6" for action in actions) == 2  # 相同草稿不重复输入。
     assert sum(action["name"] == "press_key" and action["args"]["key"] == "Return" for action in actions) == 2
     assert all(not any(key.startswith("_yonder") for key in action["args"]) for action in actions)
     print(json.dumps({"passed":True,"unlabelled_field":True,"draft_not_duplicated":True,"send_noop_rejected":True}))

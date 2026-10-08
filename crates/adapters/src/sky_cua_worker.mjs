@@ -629,7 +629,11 @@ function composerField(state) {
 }
 
 function editableValue(element) {
-  return element?.text.replace(/^(?:文本栏|文本框|搜索框|text ?field|textfield|search ?field|文本输入区|text ?area)\s*(?:\([^)]*\)\s*)?/i, '') ?? null;
+  const value = element?.text.replace(/^(?:文本栏|文本框|搜索框|text ?field|textfield|search ?field|文本输入区|text ?area)\s*(?:\([^)]*\)\s*)?/i, '');
+  if (value == null) return null;
+  // Sky transcript把搜索框的可访问名称与AXValue依次写在同一行；名称不是
+  // 用户输入值。仅对已识别为搜索控件的固定名称去前缀，正文不做模糊裁剪。
+  return value.replace(/^(?:搜索|查找|search)\s+/i, '');
 }
 
 function targetRow(state, query) {
@@ -898,13 +902,10 @@ async function perform(request, target, before) {
       return { kind: 'text-present', value };
     }
     if (element) {
-      // QQ 音乐等自绘文本框会让 AX set_value 报告成功但不刷新界面；而
-      // type_text 也不一定覆盖已选文本。显式聚焦、全选并删除选区后再键入，
-      // 每个调用只执行一次；任一调用失败都会以未知结果交回，不自动重试。
-      await callAction('click', { app: target.app, element_index: String(element.index) }, target.applicationId);
-      await callAction('press_key', { app: target.app, key: 'super+a' }, target.applicationId);
-      await callAction('press_key', { app: target.app, key: 'BackSpace' }, target.applicationId);
-      await callAction('type_text', { app: target.app, text: value }, target.applicationId);
+      // 唯一搜索文本框直接使用Sky的结构化AX写入。请求回执不代表成功；
+      // 后置Observe必须从同一控件读回目标值，否则保持unknown并交回慢脑。
+      // 单次set_value也避免把聚焦、全选、删除和键入组合成不可归因的副作用。
+      await callAction('set_value', { app: target.app, element_index: String(element.index), value }, target.applicationId);
       pendingInput = { taskId: request.task_id, app: target.app, value };
       return { kind: semantic === 'enter-target-query' ? 'target-query' : 'text-present', value };
     }
@@ -967,10 +968,10 @@ function actionConfirmed(expectation, before, after) {
     return transcriptElements(after).some(element => element.index === expectation.index);
   }
   if (expectation.kind === 'text-present') {
-    // AXValue 与自绘界面可能分裂（QQ 音乐已复现：AX 报告新值但截图仍是
-    // 旧值）。Driver 没有可靠视觉断言时必须交回带截图的 UnknownObserved，
-    // 由慢脑读取新鲜事实后决定下一片段，不能凭 AX 自报继续副作用链。
-    return false;
+    // 结构化输入只在同一应用的新鲜Observe中从同一唯一搜索控件读回目标值
+    // 时确认。截图视觉仍可由后续步骤验证业务效果，但不能否定已观察到的
+    // AXValue；未读回目标值时保持unknown，且绝不重放输入。
+    return editableValue(searchField(after)) === expectation.value;
   }
   if (expectation.kind === 'transcript-changed') {
     return stateText(before) !== stateText(after);
