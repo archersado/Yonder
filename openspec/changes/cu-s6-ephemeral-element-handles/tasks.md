@@ -15,4 +15,6 @@
 - [x] 重跑正式 QQ 音乐视觉双击并更新 macOS Verification Goal
 - [ ] 重跑正式企业微信企业切换回归，以目标企业名称的动作后事实更新 Verification Goal
 - [x] 过滤装饰性 image/disabled 候选并拒绝同尺寸 transcript 变化后的旧坐标
+- [ ] 以可信窗口/显示器 backing scale 在 Sky 调用边界转换原图像素，并覆盖倍率缺失/变化回归
+- [ ] 重跑企业微信 Retina 坐标正式回归并更新 macOS Verification Goal
 - [ ] Windows 对等验证（依用户决定暂缓）

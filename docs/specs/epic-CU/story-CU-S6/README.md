@@ -22,3 +22,5 @@ macOS 协议、Worker、Gateway 临时 transcript 子范围已通过独立 Verif
 2026-10-08 QQ 音乐正式回归进一步证明裸 `x/y` 无法区分原始截图像素与对话缩放坐标；本 Story 依 AD-CU-11 增加 Observation 绑定的截图尺寸与坐标引用，禁止继续猜测 Retina 比例或窗口偏移。
 
 同日企业微信复核证明此前“企业切换通过”缺少目标企业名称事实，已撤回该结论。当前补充同尺寸 transcript 代次校验、装饰性 image/disabled 候选过滤，并要求正式回归直接观察到目标企业名称后才能通过。
+
+后续正式诊断确认 macOS Sky 0.7.1 的截图使用 Retina backing 像素、动作使用窗口逻辑点。Story 继续处于实施阶段：Gateway 原图像素契约不变，由 Adapter 从可信窗口/显示器读取系统倍率并完成调用边界换算。

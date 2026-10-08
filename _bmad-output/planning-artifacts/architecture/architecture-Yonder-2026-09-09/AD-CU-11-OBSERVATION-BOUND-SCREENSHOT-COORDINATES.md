@@ -11,7 +11,7 @@
 
 ## 决定
 
-1. 视觉坐标使用 Sky 当前应用截图的原始像素坐标，不使用桌面全局坐标、UI 渲染坐标或调用方猜测的 Retina 倍率。Sky 动作继续携带已绑定应用，由 Driver 负责窗口归属；外部 Agent 不提交窗口原点、PID、窗口 ID 或缩放倍率。
+1. Gateway 与慢脑中的视觉坐标使用 Sky 当前应用截图的原始像素坐标，不使用桌面全局坐标、UI 渲染坐标或调用方猜测的 Retina 倍率。Sky 动作继续携带已绑定应用，由 Driver 负责窗口归属；外部 Agent 不提交窗口原点、PID、窗口 ID 或缩放倍率。
 2. 含截图的 Observation 必须同时返回原始 `screenshot_width_px` 与 `screenshot_height_px`，并复用同次 `observation_ref` 作为截图坐标引用。尺寸来自实际持久化图片字节，不从显示器、窗口 bounds 或渲染尺寸推断。
 3. 所有坐标动作必须携带产生该截图的最新 `observation_ref`。Worker 只接受同任务、同应用、最近一次 Observation 的引用，并要求 `x/y` 位于该截图原始像素边界内。
 4. 动作前 Worker 重新 Observe；当前截图尺寸与引用记录的尺寸不一致时，视为窗口缩放、裁剪或代次变化，不派发点击，返回新鲜 Observation 交回慢脑。不得把旧坐标按新窗口拉伸后继续使用。
@@ -20,14 +20,17 @@
 7. 动作回执仍不代表成功。点击只派发一次，随后强制 Observe；引用过期、尺寸变化、越界或后置事实不足均交回，不自动重试。
 8. macOS Sky 0.7.1 的公开 `get_app_state/click` 契约不返回也不接受 `screenshotId`；Yonder 不得伪造该字段。Worker 除原图尺寸外，还把该次 Observation 的有界 transcript 指纹保存在内存。动作前重读的 transcript 已变化时，即使截图尺寸相同也不得派发旧坐标。视觉像素变化但 transcript 未变化不单独使引用失效，避免光标、动画等非语义变化永久阻塞坐标兜底。
 9. QQ 音乐的一次坐标成功只证明该窗口样本的截图坐标可用，不能外推到企业微信自绘控件、其他窗口几何或显示器配置。每个正式产品样本都必须由动作后 Observe 明确证明目标 UI 状态，不得用“坐标请求已返回”或“任意截图变化”代替。
+10. 2026-10-08 企业微信正式诊断证明 macOS Sky 0.7.1 的动作参数实际使用窗口逻辑点，而截图使用 Retina backing 像素：560×872 截图中的原始像素点直接派发无效，使用系统 2x backing scale 换算后的逻辑点立即打开账户详情。因此“原始截图像素可直接传给 Sky”的旧假设被废止。
+11. macOS Adapter 必须从当前可信 `pid + window_id` 对应窗口所在显示器读取系统 backing scale，并在最后的 Sky 调用边界把原始截图像素换算为逻辑点。该倍率属于 Adapter 内部临时事实，不由 Agent、协议或 UI 提供；无法取得、窗口不匹配、倍率越界或 Observation 与当前倍率不一致时不得派发坐标动作。
+12. backing scale 与 Observation 引用、截图尺寸和 transcript 指纹共同保存在 Worker 运行内存；窗口跨显示器或倍率变化会使旧视觉引用失效。该换算不是对旧截图做比例拉伸：输入仍是同一次截图的原始像素，只是适配 Sky 原生动作坐标单位。
 
 ## 取代关系
 
-本决定收紧 AD-CU-09/协议 1.41 的裸坐标规则，并补充 AD-CU-10 的 `observation_ref` 适用范围：引用不仅保护 AX 元素索引，也保护截图坐标。AX/元素优先、Sky 单栈、运行时内存态和 unknown 不重试继续有效。
+本决定收紧 AD-CU-09/协议 1.41 的裸坐标规则，并补充 AD-CU-10 的 `observation_ref` 适用范围：引用不仅保护 AX 元素索引，也保护截图坐标。第 10～12 条取代此前“由 Sky 直接解析原始截图像素”和“不读取系统 Retina 信息”的实现假设，但不改变对外原始像素契约。AX/元素优先、Sky 单栈、运行时内存态和 unknown 不重试继续有效。
 
 ## 验收
 
 - Rust 协议、Schema 与 TypeScript 从单一来源生成，严格拒绝未绑定引用、半套截图尺寸及越界坐标。
-- Worker 从 PNG/JPEG/WebP 原始字节读取尺寸；不信任调用方尺寸，不从 Retina 显示器信息猜测。
-- Adapter 测试覆盖 1x/2x 渲染换算、同尺寸 transcript 变化、窗口尺寸变化、过期/跨任务引用、越界坐标和动作后 Observe。
-- macOS 正式 QQ 音乐样本用原始截图像素命中目标歌曲并由后置 Observe 核验；Windows 对等验证继续暂缓。
+- Worker 从 PNG/JPEG/WebP 原始字节读取尺寸；不信任调用方尺寸。macOS Adapter 只接受由当前窗口/显示器原生 API 取得的可信 backing scale，不猜测倍率。
+- Adapter 测试覆盖 1x/2x 调用边界换算、倍率变化、倍率缺失、同尺寸 transcript 变化、窗口尺寸变化、过期/跨任务引用、越界坐标和动作后 Observe。
+- macOS 正式企业微信样本用原始截图像素经 Adapter 可信换算命中企业切换入口，并由后置 Observe 核验目标企业名称；Windows 对等验证继续暂缓。
