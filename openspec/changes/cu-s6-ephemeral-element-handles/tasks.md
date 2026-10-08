@@ -12,6 +12,6 @@
 - [x] 从 Rust 协议生成截图原始像素尺寸与 Observation 绑定坐标契约
 - [x] 实现 Sky Worker 图片尺寸解析、引用/边界/几何校验和动作前拒绝
 - [x] 覆盖协议、Adapter、Retina 缩放、窗口变化与过期引用回归
-- [ ] 重跑正式 QQ 音乐视觉双击并更新 macOS Verification Goal
+- [x] 重跑正式 QQ 音乐视觉双击并更新 macOS Verification Goal
 - [ ] 重跑正式企业微信企业切换回归并更新 Verification Goal
 - [ ] Windows 对等验证（依用户决定暂缓）

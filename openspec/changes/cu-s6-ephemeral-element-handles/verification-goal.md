@@ -1,6 +1,6 @@
 # Verification Goal：CU-S6 临时 Observation transcript 与元素句柄
 
-状态：协议 1.48 与隔离 Driver/Adapter 回归通过（2026-10-08）；正式 GUI 坐标样本待 Codex MCP 重连后继续。Windows 对等验证按主人决定暂缓，不 Archive/Done。
+状态：协议 1.48、隔离 Driver/Adapter 回归与正式 QQ 音乐原图坐标样本通过（2026-10-08）；企业微信企业切换回归仍待完成。Windows 对等验证按主人决定暂缓，不 Archive/Done。
 
 ## 目标
 
@@ -21,7 +21,14 @@
 - `cargo test --locked -p yonder-desktop --lib`：27 项通过；发布契约与 Gateway 最高协议同步到 1.48。
 - `openspec validate cu-s6-ephemeral-element-handles --strict`、`node --check crates/adapters/src/sky_cua_worker.mjs` 与 `git diff --check`：通过。
 - 架构脚本在本变更文档章节校验通过后，被 dev 既有 `TM-S9/README.md` 缺少机器可读 `Story/Epic/Status/OpenSpec` 字段阻断；该文件不属于本 Story，本次未越界修改。
-- dev 正式 `Yonda.app` 已重新构建并启动；重启使当前 Codex 会话持有的 Yonder stdio MCP 传输关闭，工具调用返回 `Transport closed`。按产品围栏未改走 Local Socket、CLI 或 Driver，真实 QQ 音乐坐标样本等待宿主重新连接 Yonder MCP 后继续。
+- dev 正式 `Yonda.app` 已重新构建并启动；重启后的 Yonder stdio MCP 已由宿主重连，全程未改走 Local Socket、CLI 或 Driver。
+
+## 2026-10-08 QQ 音乐正式原图坐标样本
+
+- 正式任务 `task_847a13519eaf417314f7f12ea6314e4e` 由 Yonder MCP 创建；慢脑一次提交包含启动、聚焦、输入和搜索的四槽计划片段。输入动作按既有安全规则以新鲜 Observation 交回，而不是将 Driver 回执直接提升为成功。
+- 交回 Observation 返回 `screenshot_width_px=2560`、`screenshot_height_px=1748` 与 `observation_attempt_14`；慢脑从该原图像素空间选择第一条目标歌曲的命中点，不使用对话缩放坐标或桌面窗口偏移。
+- 计划版本 2 提交绑定同次引用的 `(700, 780)` 双击候选。Driver 只派发一次，动作后 Observation `observation_attempt_19` 保持相同原图尺寸，并以“暂停播放”控件和当前歌曲/歌手结构事实证明播放已开始。
+- 任务在 Observation 序号 20 完成目标核验，并于序号 24 进入 `completed`。该样本通过 OEH-10～OEH-12；截图与 transcript 正文未写入持久验证证据。
 
 ## macOS 正式产品样本
 
