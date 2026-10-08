@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix="yonder-sky-worker-") as directory:
     evidence.mkdir()
     bridge.write_text(
         """#!/usr/bin/env python3
-import json, os, sys, time
+import base64, json, os, sys, time
 state_path = os.environ['YONDER_SKY_TEST_STATE']
 delay_marker = state_path + '.startup-delayed'
 text = '1 文本框 搜索\\n2 按钮 播放\\n3 row (selectable)\\n\\t4 单元格\\n\\t\\t5 文本 狼顾科技\\n6 图像' + open(state_path, encoding='utf-8').read()
@@ -68,7 +68,9 @@ for line in sys.stdin:
             state = calculator_text if args['app'].endswith('Calculator.app') else text
             tree_state = '\\n'.join('├─ ' + item for item in state.split('\\n'))
             wrapped = 'App state follows:\\n```json\\n' + json.dumps({'app':args['app'],'text':tree_state}, ensure_ascii=False) + '\\n```' if args['app'].endswith('QQMusic.app') else state
-            result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]} if args['app'].endswith('NoWindow.app') else ({'content':[{'type':'text','text':wrapped}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]})
+            screenshot_size = 120 if os.path.exists(state_path + '.geometry-changed') else 100
+            png_header = bytes([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82]) + screenshot_size.to_bytes(4, 'big') + screenshot_size.to_bytes(4, 'big')
+            result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]} if args['app'].endswith('NoWindow.app') else ({'content':[{'type':'text','text':wrapped},{'type':'image','mimeType':'image/png','data':base64.b64encode(png_header).decode()}]} if approved else {'isError':True,'content':[{'type':'text','text':'denied'}]})
         else:
             with open(log, 'a', encoding='utf-8') as output:
                 output.write(json.dumps({'name':name,'args':args}, ensure_ascii=False)+'\\n')
@@ -153,19 +155,25 @@ for line in sys.stdin:
     process.terminate()
     process.wait(timeout=5)
     process = start_worker()
-    timed_coordinate = request("timeout-coordinate", "click", {"x": 30, "y": 40, "_yonder_action_kind": "activate-control"})
-    timed_noop = request("timeout-coordinate-noop", "click", {"x": 31, "y": 41, "_yonder_action_kind": "activate-control"})
-    stale_coordinate = request("stale-coordinate", "click", {"x": 32, "y": 42, "_yonder_action_kind": "activate-control"})
-    generic_coordinate_error = request("generic-coordinate-error", "click", {"x": 33, "y": 43, "_yonder_action_kind": "activate-control"})
-    observed_element = request("observed-element", "click", {"observed_element_index": 3, "observation_ref": generic_coordinate_error["observation_ref"], "_yonder_action_kind": "activate-control"})
-    image_element = request("image-element", "click", {"observed_element_index": 6, "observation_ref": observed_element["observation_ref"], "_yonder_action_kind": "activate-control"})
     focused = request("focus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
+    timed_coordinate = request("timeout-coordinate", "click", {"x": 30, "y": 40, "observation_ref": focused["observation_ref"], "_yonder_action_kind": "activate-control"})
+    timed_noop = request("timeout-coordinate-noop", "click", {"x": 31, "y": 41, "observation_ref": timed_coordinate["observation_ref"], "_yonder_action_kind": "activate-control"})
+    stale_coordinate = request("stale-coordinate", "click", {"x": 32, "y": 42, "observation_ref": timed_noop["observation_ref"], "_yonder_action_kind": "activate-control"})
+    generic_coordinate_error = request("generic-coordinate-error", "click", {"x": 33, "y": 43, "observation_ref": stale_coordinate["observation_ref"], "_yonder_action_kind": "activate-control"})
+    rejected_stale_ref = request("rejected-stale-ref", "click", {"x": 10, "y": 20, "observation_ref": focused["observation_ref"], "_yonder_action_kind": "activate-control"})
+    rejected_out_of_bounds = request("rejected-out-of-bounds", "click", {"x": 100, "y": 20, "observation_ref": rejected_stale_ref["observation_ref"], "_yonder_action_kind": "activate-control"})
+    geometry_marker = pathlib.Path(str(state) + ".geometry-changed")
+    geometry_marker.touch()
+    rejected_changed_geometry = request("rejected-changed-geometry", "click", {"x": 10, "y": 20, "observation_ref": rejected_out_of_bounds["observation_ref"], "_yonder_action_kind": "activate-control"})
+    geometry_marker.unlink()
+    observed_element = request("observed-element", "click", {"observed_element_index": 3, "observation_ref": rejected_changed_geometry["observation_ref"], "_yonder_action_kind": "activate-control"})
+    image_element = request("image-element", "click", {"observed_element_index": 6, "observation_ref": observed_element["observation_ref"], "_yonder_action_kind": "activate-control"})
     entered = request("input", "type_text", {"text": "one last kiss", "_yonder_action_kind": "input-text"})
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
     navigated = request("navigate-down", "press_key", {"key": "ARROWDOWN", "_yonder_action_kind": "activate-control"})
     activated_by_element = request("activate-element", "click", {"_yonder_action_kind": "activate-control"})
-    double_activated = request("activate-double", "click", {"x": 10, "y": 20, "click_count": 2, "_yonder_action_kind": "activate-control"})
-    visual_entered = request("visual-input", "type_text", {"text": "visual query", "x": 10, "y": 20, "_yonder_action_kind": "input-text"})
+    double_activated = request("activate-double", "click", {"x": 10, "y": 20, "click_count": 2, "observation_ref": activated_by_element["observation_ref"], "_yonder_action_kind": "activate-control"})
+    visual_entered = request("visual-input", "type_text", {"text": "visual query", "x": 10, "y": 20, "observation_ref": double_activated["observation_ref"], "_yonder_action_kind": "input-text"})
     calculator_launched = request("calculator-launch", "launch_app", {"bundle_id": "com.yonder.fixture.calculator"})
     binding = calculator_launched["launched_app_id"]
     calculator_input = request("calculator-input", "type_text", {"text": "1+1", "_yonder_action_kind": "input-text"})
@@ -189,24 +197,26 @@ for line in sys.stdin:
     successful_results = (launched, observed_element, image_element, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)
     assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"], result["failure_stage"], result["element_count"]) for result in successful_results]
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, stale_coordinate, generic_coordinate_error, entered, visual_entered))
+    assert all(result["action_known"] and not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "unverifiable" and result["failure_stage"] == "target-stale-visual-observation" for result in (rejected_stale_ref, rejected_out_of_bounds, rejected_changed_geometry))
+    assert all(result["screenshot_width_px"] == 100 and result["screenshot_height_px"] == 100 for result in (launched, focused, generic_coordinate_error))
     row = next(item for item in launched["elements"] if item["index"] == 3)
     assert row["role"] == "selectable-row" and "狼顾科技" in row["label"]
     image = next(item for item in launched["elements"] if item["index"] == 6)
     assert image == {"index": 6, "role": "image", "label": "图像"}
     counts = (launched["element_count"], activated["element_count"], navigated["element_count"], activated_by_element["element_count"])
     assert counts == (6, 6, 7, 8), counts
-    assert [item["name"] for item in actions] == ["click", "click", "click", "click", "click", "click", "press_key", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
-    assert actions[0]["args"]["x"] == 30 and actions[0]["args"]["y"] == 40
-    assert actions[0]["args"]["mouse_button"] == "left" and actions[0]["args"]["click_count"] == 1
-    assert actions[1]["args"]["x"] == 31 and actions[1]["args"]["y"] == 41
+    assert [item["name"] for item in actions] == ["press_key", "click", "click", "click", "click", "click", "click", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
+    assert actions[0]["args"]["key"] == "super+f"
+    assert actions[1]["args"]["x"] == 30 and actions[1]["args"]["y"] == 40
     assert actions[1]["args"]["mouse_button"] == "left" and actions[1]["args"]["click_count"] == 1
-    assert actions[2]["args"]["x"] == 32 and actions[2]["args"]["y"] == 42
+    assert actions[2]["args"]["x"] == 31 and actions[2]["args"]["y"] == 41
     assert actions[2]["args"]["mouse_button"] == "left" and actions[2]["args"]["click_count"] == 1
-    assert actions[3]["args"]["x"] == 33 and actions[3]["args"]["y"] == 43
+    assert actions[3]["args"]["x"] == 32 and actions[3]["args"]["y"] == 42
     assert actions[3]["args"]["mouse_button"] == "left" and actions[3]["args"]["click_count"] == 1
-    assert actions[4]["args"]["element_index"] == "3" and "observed_element_index" not in actions[4]["args"] and "observation_ref" not in actions[4]["args"]
-    assert actions[5]["args"]["element_index"] == "6" and "observed_element_index" not in actions[5]["args"] and "observation_ref" not in actions[5]["args"]
-    assert actions[6]["args"]["key"] == "super+f"
+    assert actions[4]["args"]["x"] == 33 and actions[4]["args"]["y"] == 43
+    assert actions[4]["args"]["mouse_button"] == "left" and actions[4]["args"]["click_count"] == 1
+    assert actions[5]["args"]["element_index"] == "3" and "observed_element_index" not in actions[5]["args"] and "observation_ref" not in actions[5]["args"]
+    assert actions[6]["args"]["element_index"] == "6" and "observed_element_index" not in actions[6]["args"] and "observation_ref" not in actions[6]["args"]
     assert actions[7]["args"]["element_index"] == "1"
     assert actions[8]["args"]["key"] == "super+a"
     assert actions[9]["args"]["key"] == "BackSpace"

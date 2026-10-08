@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 47 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 48 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -1241,6 +1241,12 @@ pub struct ComputerObservation {
     pub element_count: u16,
     pub screenshot_path: Option<String>,
     pub screenshot_mime: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub screenshot_width_px: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub screenshot_height_px: Option<u32>,
     pub target_visible: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -2028,12 +2034,14 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
 
 pub fn valid_plan_action_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_json::Value)->bool{
     let Some(arguments)=value.as_object() else{return false};
-    let coordinates=||arguments.len()==2
-        && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-        && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite);
-    let activation_coordinates=||matches!(arguments.len(),2|3)
+    let coordinates=||arguments.len()==3
         && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
         && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+        && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id);
+    let activation_coordinates=||matches!(arguments.len(),3|4)
+        && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+        && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+        && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id)
         && arguments.get("click_count").is_none_or(|value|value.as_u64().is_some_and(|count|matches!(count,1|2)));
     let observed_element=||arguments.len()==2
         && arguments.get("observed_element_index").and_then(serde_json::Value::as_u64).is_some_and(|index|(1..=65_535).contains(&index))
@@ -2043,14 +2051,18 @@ pub fn valid_plan_action_arguments(kind:CuaActionKind, tool_name:&str, value:&se
         CuaActionKind::FocusControl => (tool_name=="click"&&(arguments.is_empty()||coordinates()))||(tool_name=="hotkey"&&search_hotkey()),
         CuaActionKind::InputText => tool_name=="type_text"
             && arguments.get("text").and_then(serde_json::Value::as_str).is_some_and(|text|!text.is_empty()&&text.len()<=4096)
-            && (arguments.len()==1||(arguments.len()==3&&arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)&&arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))),
+            && (arguments.len()==1||(arguments.len()==4
+                && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+                && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+                && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id))),
         CuaActionKind::ActivateControl => (tool_name=="click"&&(arguments.is_empty()||activation_coordinates()||observed_element()))||(tool_name=="press_key"&&arguments.len()==1&&arguments.get("key").and_then(serde_json::Value::as_str).is_some_and(|key|matches!(key,"ENTER"|"RETURN"|"SPACE"|"ARROWDOWN"))),
         _ => arguments.is_empty() || (tool_name == "click"
             && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage)
             && coordinates())
-        || (tool_name=="type_text" && matches!(kind,CuaActionKind::EnterTargetQuery|CuaActionKind::DraftMessageRef) && arguments.len()==2
+        || (tool_name=="type_text" && matches!(kind,CuaActionKind::EnterTargetQuery|CuaActionKind::DraftMessageRef) && arguments.len()==3
             && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-            && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite))
+            && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
+            && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id))
         || (tool_name=="hotkey" && matches!(kind,CuaActionKind::FocusTargetSearch) && search_hotkey()),
     }
 }
@@ -2751,7 +2763,7 @@ mod tests {
 
     #[test]
     fn semantic_coordinates_are_only_allowed_for_bounded_actions() {
-        let coordinates=serde_json::json!({"x":10,"y":20});
+        let coordinates=serde_json::json!({"x":10,"y":20,"observation_ref":"observation-attempt-4"});
         assert!(valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
         assert!(valid_plan_action_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
         assert!(valid_plan_action_arguments(CuaActionKind::DraftMessageRef,"type_text",&coordinates));
@@ -2761,9 +2773,10 @@ mod tests {
         assert!(valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","f"]})));
         assert!(!valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","q"]})));
         assert!(valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&coordinates));
-        assert!(valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":"one last kiss","x":10,"y":20})));
+        assert!(valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":"one last kiss","x":10,"y":20,"observation_ref":"observation-attempt-4"})));
         assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"ENTER"})));
-        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":2})));
+        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":2,"observation_ref":"observation-attempt-4"})));
+        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20})));
         assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":3,"observation_ref":"observation-attempt-4"})));
         assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":3})));
         assert!(!valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&serde_json::json!({"observed_element_index":3})));
@@ -2818,6 +2831,8 @@ mod tests {
                     element_count: 2,
                     screenshot_path: Some("/tmp/yonder-evidence/task-attempt.png".into()),
                     screenshot_mime: Some("image/png".into()),
+                    screenshot_width_px: Some(1440),
+                    screenshot_height_px: Some(900),
                     target_visible: None,
                     observation_ref: Some("observation-attempt-4".into()),
                     transcript: Some("[3] 按钮 切换企业".into()),

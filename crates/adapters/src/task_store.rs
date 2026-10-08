@@ -4061,6 +4061,8 @@ mod tests {
                         element_count: 0,
                         screenshot_path: None,
                         screenshot_mime: None,
+                        screenshot_width_px: None,
+                        screenshot_height_px: None,
                         target_visible: None,
                         observation_ref: None,
                         transcript: None,

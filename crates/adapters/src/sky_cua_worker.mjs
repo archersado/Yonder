@@ -555,10 +555,17 @@ function ephemeralTranscript(state) {
   return bounded.trim() === '' ? null : bounded;
 }
 
-function publishObservation(state, request, response) {
+function publishObservation(state, request, response, target, screenshot) {
   const elements = actionableElements(state);
   const reference = `observation_${request.attempt_id}`;
-  latestObservation = { taskId: request.task_id, reference, indexes: new Set(elements.map(element => element.index)) };
+  latestObservation = {
+    taskId: request.task_id,
+    applicationId: target.applicationId,
+    reference,
+    indexes: new Set(elements.map(element => element.index)),
+    screenshotWidth: screenshot?.width,
+    screenshotHeight: screenshot?.height,
+  };
   response.observation_ref = reference;
   response.transcript = ephemeralTranscript(state);
   response.elements = elements;
@@ -628,9 +635,46 @@ function firstMatchingControl(state, query) {
   return null;
 }
 
-async function persistScreenshot(state, request, response) {
+function imageDimensions(bytes, mime) {
+  if (mime === 'image/png' && bytes.length >= 24
+      && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+  if (mime === 'image/jpeg' && bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 8 < bytes.length) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1];
+      if (marker === 0xd8 || marker === 0xd9) { offset += 2; continue; }
+      if (offset + 4 > bytes.length) break;
+      const length = bytes.readUInt16BE(offset + 2);
+      if (length < 2 || offset + 2 + length > bytes.length) break;
+      if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+        return { width: bytes.readUInt16BE(offset + 7), height: bytes.readUInt16BE(offset + 5) };
+      }
+      offset += 2 + length;
+    }
+  }
+  if (mime === 'image/webp' && bytes.length >= 30
+      && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP') {
+    const kind = bytes.toString('ascii', 12, 16);
+    if (kind === 'VP8X') {
+      return { width: 1 + bytes.readUIntLE(24, 3), height: 1 + bytes.readUIntLE(27, 3) };
+    }
+    if (kind === 'VP8 ' && bytes.length >= 30 && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
+      return { width: bytes.readUInt16LE(26) & 0x3fff, height: bytes.readUInt16LE(28) & 0x3fff };
+    }
+    if (kind === 'VP8L' && bytes.length >= 25 && bytes[20] === 0x2f) {
+      const packed = bytes.readUInt32LE(21);
+      return { width: 1 + (packed & 0x3fff), height: 1 + ((packed >>> 14) & 0x3fff) };
+    }
+  }
+  return null;
+}
+
+async function screenshotPayload(state) {
   const url = screenshotUrl(state);
-  if (typeof url !== 'string') return;
+  if (typeof url !== 'string') return null;
   const match = url.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
   let mime;
   let bytes;
@@ -639,18 +683,51 @@ async function persistScreenshot(state, request, response) {
     bytes = Buffer.from(match[2], 'base64');
   } else if (url.startsWith('file://')) {
     const path = fileURLToPath(url);
-    if (!path.endsWith('.png')) return;
+    if (!path.endsWith('.png')) return null;
     mime = 'image/png';
     bytes = await readFile(path);
   } else {
-    return;
+    return null;
   }
-  if (bytes.length === 0 || bytes.length > 4 * 1024 * 1024) return;
+  if (bytes.length === 0 || bytes.length > 4 * 1024 * 1024) return null;
+  const dimensions = imageDimensions(bytes, mime);
+  if (!dimensions || dimensions.width < 1 || dimensions.height < 1
+      || dimensions.width > 32_768 || dimensions.height > 32_768) return null;
+  return { mime, bytes, ...dimensions };
+}
+
+async function persistScreenshot(state, request, response) {
+  const payload = await screenshotPayload(state);
+  if (!payload) return null;
+  const { mime, bytes, width, height } = payload;
   const extension = mime === 'image/png' ? 'png' : mime === 'image/jpeg' ? 'jpg' : 'webp';
   const path = join(evidence, `${request.task_id}-${request.attempt_id}.${extension}`);
   await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
   response.screenshot_path = path;
   response.screenshot_mime = mime;
+  response.screenshot_width_px = width;
+  response.screenshot_height_px = height;
+  return { width, height };
+}
+
+async function validateCoordinateObservation(request, target, state) {
+  const reference = request.arguments.observation_ref;
+  const x = request.arguments.x;
+  const y = request.arguments.y;
+  const current = await screenshotPayload(state);
+  if (typeof reference !== 'string'
+      || latestObservation?.taskId !== request.task_id
+      || latestObservation.applicationId !== target.applicationId
+      || latestObservation.reference !== reference
+      || !Number.isInteger(latestObservation.screenshotWidth)
+      || !Number.isInteger(latestObservation.screenshotHeight)
+      || !current
+      || current.width !== latestObservation.screenshotWidth
+      || current.height !== latestObservation.screenshotHeight
+      || !Number.isFinite(x) || !Number.isFinite(y)
+      || x < 0 || y < 0 || x >= current.width || y >= current.height) {
+    throw new WorkerFailure('target-stale-visual-observation');
+  }
 }
 
 function actionArguments(request, target) {
@@ -707,6 +784,7 @@ async function perform(request, target, before) {
   }
   if (semantic === 'activate-control' && request.tool_name === 'click'
       && Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
+    await validateCoordinateObservation(request, target, before);
     const clickArguments = actionArguments(request, target);
     // Sky 的 MCP Schema虽把这两个字段标为缺省值，但正式Client对自绘控件
     // 可能只完成指针移动并悬挂，未形成应用可接收的按下/抬起。Yonder的
@@ -772,6 +850,7 @@ async function perform(request, target, before) {
       // 慢脑只有在 AX 元素缺失或属性写入不可信时才提交截图坐标。坐标已由
       // 协议限制为 input-text 语义；先聚焦该点，再发送字面文本，并由动作后
       // Observe 交给慢脑核验。这里不隐式清空、不重试，也不猜测其他控件。
+      await validateCoordinateObservation(request, target, before);
       await callAction('click', { app: target.app, x: request.arguments.x, y: request.arguments.y }, target.applicationId);
       await callAction('type_text', { app: target.app, text: value }, target.applicationId);
       pendingInput = { taskId: request.task_id, app: target.app, value };
@@ -863,11 +942,12 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
   let request;
   try { request = JSON.parse(line); } catch { process.exitCode = 2; break; }
   const response = responseFor(request);
+  let target = null;
+  let before = null;
   try {
     if (bridgeFailureStage) throw new WorkerFailure(bridgeFailureStage);
-    let target = await targetFor(request);
+    target = await targetFor(request);
     const externalMacFocus = request.tool_name === 'bring_to_front';
-    let before = null;
     if (request.tool_name !== 'launch_app' && !externalMacFocus) {
       response.failure_stage = 'observe-before';
       before = await observe(target);
@@ -881,7 +961,8 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.observe_valid = true;
     response.target_visible = request.tool_name === 'launch_app' ? false : externalMacFocus ? true : null;
     response.element_count = Math.min(65_535, transcriptElements(after).length);
-    publishObservation(after, request, response);
+    const screenshot = await persistScreenshot(after, request, response);
+    publishObservation(after, request, response, target, screenshot);
     response.action_effect = request.tool_name === 'launch_app' || externalMacFocus || actionConfirmed(expectation, before, after)
       ? 'confirmed'
       : 'suspected_noop';
@@ -889,14 +970,29 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     if (request.tool_name === 'launch_app' && response.action_succeeded) {
       response.launched_app_id = target.applicationId;
     }
-    await persistScreenshot(after, request, response);
     response.failure_stage = response.action_succeeded
       ? null
       : stateText(after).trim() === ''
         ? 'action-unconfirmed-empty-transcript'
         : 'action-unconfirmed-unparsed-transcript';
   } catch (error) {
-    if (error instanceof WorkerFailure) response.failure_stage = error.stage;
+    if (error instanceof WorkerFailure) {
+      response.failure_stage = error.stage;
+      if (error.stage === 'target-stale-visual-observation' && before && target) {
+        try {
+          const screenshot = await persistScreenshot(before, request, response);
+          response.element_count = Math.min(65_535, transcriptElements(before).length);
+          publishObservation(before, request, response, target, screenshot);
+          response.action_known = true;
+          response.action_succeeded = false;
+          response.action_effect = 'unverifiable';
+          response.observe_valid = true;
+        } catch {
+          response.action_known = false;
+          response.observe_valid = false;
+        }
+      }
+    }
     // 不把应用名、辅助功能文本、截图或 SDK 错误正文带回宿主日志。
   }
   process.stdout.write(`${JSON.stringify(response)}\n`);

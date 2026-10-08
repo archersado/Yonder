@@ -63,6 +63,8 @@ struct Response {
     #[serde(default)] element_count:u16,
     #[serde(default)] screenshot_path:Option<String>,
     #[serde(default)] screenshot_mime:Option<String>,
+    #[serde(default)] screenshot_width_px:Option<u32>,
+    #[serde(default)] screenshot_height_px:Option<u32>,
     #[serde(default)] target_visible:Option<bool>,
     #[serde(default)] observation_ref:Option<String>,
     #[serde(default)] transcript:Option<String>,
@@ -228,9 +230,9 @@ fn classify(attempt: &ExecutionAttempt, output: &[u8], evidence:&Path) -> Dispat
     if !response.observe_valid { #[cfg(debug_assertions)] eprintln!("cua worker failed at {}",response.failure_stage.as_deref().unwrap_or("unknown")); return DispatchOutcome::Unknown(UnknownReason::ObserveFailed); }
     let effect=match response.action_effect{Some(effect)=>effect,None=>return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)};
     if response.action_succeeded!=matches!(effect,ActionEffect::Confirmed){return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}
-    let screenshot=match (response.screenshot_path,response.screenshot_mime){
-        (Some(path),Some(mime)) if matches!(mime.as_str(),"image/png"|"image/jpeg"|"image/webp")=>{let path=PathBuf::from(path);let valid=path.parent()==Some(evidence)&&std::fs::symlink_metadata(&path).is_ok_and(|value|value.file_type().is_file()&&value.len()<=4*1024*1024);if !valid{return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}Some((path.to_string_lossy().into_owned(),mime))},
-        (None,None)=>None,
+    let screenshot=match (response.screenshot_path,response.screenshot_mime,response.screenshot_width_px,response.screenshot_height_px){
+        (Some(path),Some(mime),Some(width),Some(height)) if matches!(mime.as_str(),"image/png"|"image/jpeg"|"image/webp")&&matches!(width,1..=32_768)&&matches!(height,1..=32_768)=>{let path=PathBuf::from(path);let valid=path.parent()==Some(evidence)&&std::fs::symlink_metadata(&path).is_ok_and(|value|value.file_type().is_file()&&value.len()<=4*1024*1024);if !valid{return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}Some((path.to_string_lossy().into_owned(),mime,width,height))},
+        (None,None,None,None)=>None,
         _=>return DispatchOutcome::Unknown(UnknownReason::InvalidResponse),
     };
     let mut indexes=std::collections::HashSet::new();
@@ -241,8 +243,8 @@ fn classify(attempt: &ExecutionAttempt, output: &[u8], evidence:&Path) -> Dispat
             && element.label.as_deref().is_none_or(|label|!label.is_empty()&&label.chars().count()<=128&&!label.chars().any(char::is_control)));
     let valid_reference=response.observation_ref.as_deref().is_none_or(yonder_application::valid_id);
     let valid_transcript=response.transcript.as_deref().is_none_or(|value|value.len()<=64*1024&&!value.contains('\0'));
-    if !valid_elements||!valid_reference||!valid_transcript||((!response.elements.is_empty()||response.transcript.is_some())&&response.observation_ref.is_none()){return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}
-    let observation=ComputerObservation{element_count:response.element_count,screenshot_path:screenshot.as_ref().map(|value|value.0.clone()),screenshot_mime:screenshot.map(|value|value.1),target_visible:response.target_visible,observation_ref:response.observation_ref,transcript:response.transcript,elements:response.elements};
+    if !valid_elements||!valid_reference||!valid_transcript||((!response.elements.is_empty()||response.transcript.is_some()||screenshot.is_some())&&response.observation_ref.is_none()){return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}
+    let observation=ComputerObservation{element_count:response.element_count,screenshot_path:screenshot.as_ref().map(|value|value.0.clone()),screenshot_mime:screenshot.as_ref().map(|value|value.1.clone()),screenshot_width_px:screenshot.as_ref().map(|value|value.2),screenshot_height_px:screenshot.as_ref().map(|value|value.3),target_visible:response.target_visible,observation_ref:response.observation_ref,transcript:response.transcript,elements:response.elements};
     if matches!(effect,ActionEffect::Partial|ActionEffect::Unverifiable|ActionEffect::SuspectedNoop){#[cfg(debug_assertions)] eprintln!("cua worker unverified at {}",response.failure_stage.as_deref().unwrap_or("action-unconfirmed"));return DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation }}
     DispatchOutcome::Known { action_succeeded: matches!(effect,ActionEffect::Confirmed), observation:Some(observation) }
 }
@@ -262,11 +264,11 @@ mod tests {
         let evidence=std::env::temp_dir();
         let attempt = ExecutionAttempt { task_id: "task".into(), step_id: "step".into(), attempt_id: "attempt".into(), worker_instance_id: "worker".into(), host_session_id: "host".into(), phase: AttemptPhase::Prepared, accepted_sequence: 2 };
         let response = |worker: &str, observe: bool, succeeded:bool, effect:&str| format!(r#"{{"task_id":"task","step_id":"step","attempt_id":"attempt","worker_instance_id":"{worker}","host_session_id":"host","action_known":true,"action_succeeded":{succeeded},"action_effect":"{effect}","observe_valid":{observe}}}"#);
-        assert_eq!(classify(&attempt, response("worker", true,true,"confirmed").as_bytes(),&evidence), DispatchOutcome::Known { action_succeeded: true, observation:Some(ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,target_visible:None,observation_ref:None,transcript:None,elements:Vec::new()}) });
+        assert_eq!(classify(&attempt, response("worker", true,true,"confirmed").as_bytes(),&evidence), DispatchOutcome::Known { action_succeeded: true, observation:Some(ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,screenshot_width_px:None,screenshot_height_px:None,target_visible:None,observation_ref:None,transcript:None,elements:Vec::new()}) });
         assert_eq!(classify(&attempt, response("old", true,true,"confirmed").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::IdentityMismatch));
         assert_eq!(classify(&attempt, response("worker", false,true,"confirmed").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::ObserveFailed));
-        assert_eq!(classify(&attempt, response("worker", true,false,"unverifiable").as_bytes(),&evidence), DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation:ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,target_visible:None,observation_ref:None,transcript:None,elements:Vec::new()} });
-        assert_eq!(classify(&attempt, response("worker", true,false,"refused").as_bytes(),&evidence), DispatchOutcome::Known { action_succeeded:false, observation:Some(ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,target_visible:None,observation_ref:None,transcript:None,elements:Vec::new()}) });
+        assert_eq!(classify(&attempt, response("worker", true,false,"unverifiable").as_bytes(),&evidence), DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation:ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,screenshot_width_px:None,screenshot_height_px:None,target_visible:None,observation_ref:None,transcript:None,elements:Vec::new()} });
+        assert_eq!(classify(&attempt, response("worker", true,false,"refused").as_bytes(),&evidence), DispatchOutcome::Known { action_succeeded:false, observation:Some(ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,screenshot_width_px:None,screenshot_height_px:None,target_visible:None,observation_ref:None,transcript:None,elements:Vec::new()}) });
         assert_eq!(classify(&attempt, response("worker", true,true,"unverifiable").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
         assert_eq!(classify(&attempt, b"{}",&evidence), DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
     }
@@ -277,12 +279,29 @@ mod tests {
         let attempt = ExecutionAttempt { task_id: "task".into(), step_id: "step".into(), attempt_id: "attempt".into(), worker_instance_id: "worker".into(), host_session_id: "host".into(), phase: AttemptPhase::Prepared, accepted_sequence: 2 };
         let response=r#"{"task_id":"task","step_id":"step","attempt_id":"attempt","worker_instance_id":"worker","host_session_id":"host","action_known":true,"action_succeeded":true,"action_effect":"confirmed","observe_valid":true,"element_count":2,"observation_ref":"observation_attempt","transcript":"[7] 按钮 切换企业","elements":[{"index":7,"role":"button","label":"按钮 切换企业"}]}"#;
         assert_eq!(classify(&attempt,response.as_bytes(),&evidence),DispatchOutcome::Known{action_succeeded:true,observation:Some(ComputerObservation{
-            element_count:2,screenshot_path:None,screenshot_mime:None,target_visible:None,
+            element_count:2,screenshot_path:None,screenshot_mime:None,screenshot_width_px:None,screenshot_height_px:None,target_visible:None,
             observation_ref:Some("observation_attempt".into()),transcript:Some("[7] 按钮 切换企业".into()),
             elements:vec![ObservedElement{index:7,role:yonder_application::ObservedElementRole::Button,label:Some("按钮 切换企业".into())}],
         })});
         let missing_ref=r#"{"task_id":"task","step_id":"step","attempt_id":"attempt","worker_instance_id":"worker","host_session_id":"host","action_known":true,"action_succeeded":true,"action_effect":"confirmed","observe_valid":true,"element_count":1,"transcript":"[7] 按钮 切换企业","elements":[{"index":7,"role":"button"}]}"#;
         assert_eq!(classify(&attempt,missing_ref.as_bytes(),&evidence),DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
+    }
+
+    #[test]
+    fn screenshot_geometry_is_atomic_bounded_and_reference_bound() {
+        let evidence=std::env::temp_dir().join(format!("yonder-cua-geometry-{}",std::process::id()));
+        std::fs::create_dir_all(&evidence).unwrap();
+        let path=evidence.join("attempt.png");
+        std::fs::write(&path,[137,80,78,71]).unwrap();
+        let attempt=ExecutionAttempt{task_id:"task".into(),step_id:"step".into(),attempt_id:"attempt".into(),worker_instance_id:"worker".into(),host_session_id:"host".into(),phase:AttemptPhase::Prepared,accepted_sequence:2};
+        let response=format!(r#"{{"task_id":"task","step_id":"step","attempt_id":"attempt","worker_instance_id":"worker","host_session_id":"host","action_known":true,"action_succeeded":true,"action_effect":"confirmed","observe_valid":true,"screenshot_path":{},"screenshot_mime":"image/png","screenshot_width_px":1440,"screenshot_height_px":900,"observation_ref":"observation_attempt"}}"#,serde_json::to_string(&path.to_string_lossy()).unwrap());
+        assert!(matches!(classify(&attempt,response.as_bytes(),&evidence),DispatchOutcome::Known{observation:Some(ComputerObservation{screenshot_width_px:Some(1440),screenshot_height_px:Some(900),..}),..}));
+        let missing_height=response.replace(",\"screenshot_height_px\":900","");
+        assert_eq!(classify(&attempt,missing_height.as_bytes(),&evidence),DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
+        let missing_reference=response.replace(",\"observation_ref\":\"observation_attempt\"","");
+        assert_eq!(classify(&attempt,missing_reference.as_bytes(),&evidence),DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(evidence).unwrap();
     }
 
     #[test]
@@ -315,7 +334,7 @@ mod tests {
 
     #[test]
     fn observed_handback_is_distinct_from_unobserved_worker_failure() {
-        let observation=ComputerObservation{element_count:1,screenshot_path:None,screenshot_mime:None,target_visible:Some(true),observation_ref:None,transcript:None,elements:Vec::new()};
+        let observation=ComputerObservation{element_count:1,screenshot_path:None,screenshot_mime:None,screenshot_width_px:None,screenshot_height_px:None,target_visible:Some(true),observation_ref:None,transcript:None,elements:Vec::new()};
         assert!(matches!(DispatchOutcome::Unknown(UnknownReason::WorkerFailed),DispatchOutcome::Unknown(_)));
         assert!(!matches!(DispatchOutcome::UnknownObserved{reason:UnknownReason::ObserveFailed,observation},DispatchOutcome::Unknown(_)));
     }

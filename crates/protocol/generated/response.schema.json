@@ -363,6 +363,14 @@
             "null"
           ]
         },
+        "screenshot_height_px": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "screenshot_mime": {
           "type": [
             "string",
@@ -374,6 +382,14 @@
             "string",
             "null"
           ]
+        },
+        "screenshot_width_px": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         },
         "target_visible": {
           "type": [
