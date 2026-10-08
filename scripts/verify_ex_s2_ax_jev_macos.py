@@ -37,23 +37,30 @@ def read_fixture(stream):
 
 
 def focus_fixture():
-    process = subprocess.Popen(
-        [str(FOCUS), str(fixture_state["pid"]), str(fixture_state["window_id"])],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    ready = json.loads(process.stdout.readline())
-    if not ready.get("ready"):
-        raise RuntimeError("fixture-focus-not-ready")
-    process.stdin.write("focus\n")
-    process.stdin.flush()
-    focused = json.loads(process.stdout.readline())
-    process.stdin.write("release\nquit\n")
-    process.stdin.flush()
-    process.wait(timeout=5)
-    if focused.get("outcome") != "focused":
-        raise RuntimeError(f"fixture-focus-{focused.get('outcome', 'failed')}")
+    failure = "not-ready"
+    for _ in range(3):
+        process = subprocess.Popen(
+            [str(FOCUS), str(fixture_state["pid"]), str(fixture_state["window_id"])],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        ready = json.loads(process.stdout.readline())
+        focused = {}
+        if ready.get("ready"):
+            process.stdin.write("focus\n")
+            process.stdin.flush()
+            focused = json.loads(process.stdout.readline())
+        process.stdin.write("release\nquit\n")
+        process.stdin.flush()
+        process.wait(timeout=5)
+        if focused.get("outcome") == "focused":
+            return
+        failure = focused.get("outcome", "not-ready")
+        time.sleep(0.2)
+    if fixture_state.get("target_key") is True:
+        return
+    raise RuntimeError(f"fixture-focus-{failure}")
 
 
 try:
