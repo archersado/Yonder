@@ -5,7 +5,7 @@ use std::ffi::CString;
 use yonder_application::{ExecutionAttempt, ObservedElement, computer_use::{ComputerAction, ComputerObservation, ComputerUsePort, DispatchOutcome, UnknownReason, WorkTarget, WorkTargetPort}};
 
 #[cfg(target_os="macos")]
-unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; fn yonda_activate_window_for_app(bundle_id:*const std::ffi::c_char)->i32; fn yonda_backing_scale_for_window(pid:i32,window_id:u32)->f64; }
+unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; fn yonda_activate_window_for_app(bundle_id:*const std::ffi::c_char)->i32; }
 
 #[cfg(target_os="macos")]
 pub struct MacosFrontmostTarget;
@@ -55,8 +55,6 @@ struct Request<'a> {
     pid: u32, window_id: u32, tool_name: &'a str, arguments: serde_json::Value,
     #[serde(skip_serializing_if="Option::is_none")]
     bound_application_id:Option<&'a str>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    coordinate_scale_factor:Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -82,15 +80,6 @@ struct Response {
 enum ActionEffect { Confirmed,Partial,Unverifiable,SuspectedNoop,Refused }
 
 fn valid_sky_app_id(value:&str)->bool {value.len()<=255&&!value.is_empty()&&value.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-'))}
-
-#[cfg(target_os="macos")]
-fn trusted_coordinate_scale(target:&WorkTarget)->Option<f64>{
-    let scale=unsafe{yonda_backing_scale_for_window(target.pid as i32,target.window_id)};
-    (scale.is_finite()&&(1.0..=4.0).contains(&scale)).then_some(scale)
-}
-
-#[cfg(not(target_os="macos"))]
-fn trusted_coordinate_scale(_target:&WorkTarget)->Option<f64>{Some(1.0)}
 
 #[cfg(all(target_os="macos",not(test)))]
 fn valid_sky_release_identity(node:&Path,bridge:&Path)->bool {
@@ -189,11 +178,10 @@ impl CuaWorker {
             #[cfg(target_os="macos")]
             {request_target=match macos_frontmost_target(){Ok(target)=>target,Err(reason)=>return DispatchOutcome::Unknown(reason)};}
         }
-        let coordinate_scale_factor=(action.tool_name!="launch_app").then(||trusted_coordinate_scale(&request_target)).flatten();
         let request = Request { task_id: &attempt.task_id, step_id: &attempt.step_id, attempt_id: &attempt.attempt_id,
             worker_instance_id: &attempt.worker_instance_id, host_session_id: &attempt.host_session_id,
             pid: request_target.pid, window_id: request_target.window_id, tool_name:&action.tool_name, arguments,
-            bound_application_id:bound_application_id.as_deref(), coordinate_scale_factor };
+            bound_application_id:bound_application_id.as_deref() };
         let bytes = match serde_json::to_vec(&request) { Ok(bytes) => bytes, Err(_) => return DispatchOutcome::Unknown(UnknownReason::InvalidInput) };
         if runtime.process.is_none(){runtime.process=match self.start(){Ok(session)=>Some(session),Err(reason)=>return DispatchOutcome::Unknown(reason)}}
         if runtime.process.as_mut().is_none_or(|session|session.input.write_all(&bytes).and_then(|_|session.input.write_all(b"\n")).and_then(|_|session.input.flush()).is_err()) {

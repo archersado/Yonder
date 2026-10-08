@@ -61,6 +61,14 @@ macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信�
 - `python3 apps/desktop/check-sky-message-worker.py`：通过；消息引用、草稿幂等和发送 no-op 拒绝未受换算影响。
 - `cargo test -p yonder-adapters --locked -- --test-threads=1`：81 项通过；Objective-C 原生桥随 Adapter 完成编译和链接。
 
+## 2026-10-08 Sky 原图像素契约修正
+
+- 已撤销未经有效对照证明的 backing-scale 换算及其 Objective-C 原生桥。Gateway/Agent 提交的坐标继续属于绑定 Observation 的原始截图像素空间，Adapter 校验引用、尺寸、transcript 与边界后，将 `x/y` 原样交给 Sky；窗口置前后仍刷新并绑定实际前台目标。
+- `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明原图坐标 `(30, 40)`、`(31, 41)` 等不经倍率换算即派发；过期引用、尺寸变化、transcript 变化和越界负样本仍在动作前拒绝。
+- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息输入、确认与发送约束未受坐标契约修正影响。
+- `cargo test -p yonder-adapters --locked -- --test-threads=1`：81 项通过；`node --check crates/adapters/src/sky_cua_worker.mjs` 与 `git diff --check`：通过。
+- 企业微信目标企业切换仍须在重新构建的正式 Yonder 产品链路中重跑；在动作后直接观察到“狼顾”之前，本节不提升 Story 状态。
+
 ## 2026-10-07 企业切换回归
 
 - 正式任务 `task_a889c79782cb8d776a799d6a103b9d3d` 成功取得 transcript、元素句柄并通过句柄打开头像菜单。

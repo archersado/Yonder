@@ -1,6 +1,5 @@
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
-#include <math.h>
 #include <stdint.h>
 
 extern int yonda_work_target_focus(int32_t pid, uint32_t window_id);
@@ -46,52 +45,5 @@ int yonda_activate_window_for_app(const char *raw_bundle_id) {
     }
     if(selected==0)return 3;
     return yonda_work_target_focus(pid,selected);
-  }
-}
-
-/*
- * Sky 0.7.1 的应用截图使用 backing 像素，动作 API 使用窗口逻辑点。
- * 这里只接受 Application 已经从前台事实取得的 pid/window_id；先验证
- * WindowServer 所有者，再取窗口重叠面积最大的显示器的系统倍率。
- * 0 表示无法建立可信映射，调用方必须拒绝坐标动作而不能猜测倍率。
- */
-double yonda_backing_scale_for_window(int32_t expected_pid, uint32_t window_id) {
-  @autoreleasepool {
-    if(expected_pid<=0||window_id==0)return 0;
-    CFArrayRef raw=CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow,window_id);
-    if(!raw)return 0;
-    NSArray *windows=CFBridgingRelease(raw);
-    CGRect window_bounds=CGRectZero;BOOL found=NO;
-    for(NSDictionary *item in windows){
-      int64_t owner=0,identifier=0;
-      if(!number(item,kCGWindowOwnerPID,&owner)||!number(item,kCGWindowNumber,&identifier)
-          ||owner!=expected_pid||identifier!=window_id)continue;
-      NSDictionary *encoded=item[(__bridge NSString *)kCGWindowBounds];
-      if(![encoded isKindOfClass:NSDictionary.class]
-          ||!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)encoded,&window_bounds)
-          ||window_bounds.size.width<=1||window_bounds.size.height<=1)continue;
-      found=YES;break;
-    }
-    if(!found)return 0;
-
-    uint32_t count=0;
-    if(CGGetActiveDisplayList(0,NULL,&count)!=kCGErrorSuccess||count==0||count>64)return 0;
-    CGDirectDisplayID displays[64];
-    if(CGGetActiveDisplayList(count,displays,&count)!=kCGErrorSuccess)return 0;
-    CGDirectDisplayID selected=0;double largest=0;
-    for(uint32_t index=0;index<count;index++){
-      CGRect intersection=CGRectIntersection(window_bounds,CGDisplayBounds(displays[index]));
-      if(CGRectIsNull(intersection)||CGRectIsEmpty(intersection))continue;
-      double area=intersection.size.width*intersection.size.height;
-      if(area>largest){largest=area;selected=displays[index];}
-    }
-    if(selected==0)return 0;
-    for(NSScreen *screen in NSScreen.screens){
-      NSNumber *identifier=screen.deviceDescription[@"NSScreenNumber"];
-      if(![identifier isKindOfClass:NSNumber.class]||identifier.unsignedIntValue!=selected)continue;
-      double scale=screen.backingScaleFactor;
-      return isfinite(scale)&&scale>=1.0&&scale<=4.0?scale:0;
-    }
-    return 0;
   }
 }

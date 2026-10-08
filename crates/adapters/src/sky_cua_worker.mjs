@@ -593,17 +593,11 @@ function publishObservation(state, request, response, target, screenshot) {
     indexes: new Set(elements.map(element => element.index)),
     screenshotWidth: screenshot?.width,
     screenshotHeight: screenshot?.height,
-    coordinateScaleFactor: trustedCoordinateScale(request),
     transcriptFingerprint: createHash('sha256').update(ephemeralTranscript(state) ?? '').digest('hex'),
   };
   response.observation_ref = reference;
   response.transcript = ephemeralTranscript(state);
   response.elements = elements;
-}
-
-function trustedCoordinateScale(request) {
-  const scale = request.coordinate_scale_factor;
-  return Number.isFinite(scale) && scale >= 1 && scale <= 4 ? scale : null;
 }
 
 function uniqueElement(state, predicate) {
@@ -761,27 +755,14 @@ async function validateCoordinateObservation(request, target, state) {
       || !current
       || current.width !== latestObservation.screenshotWidth
       || current.height !== latestObservation.screenshotHeight
-      || trustedCoordinateScale(request) == null
-      || latestObservation.coordinateScaleFactor !== trustedCoordinateScale(request)
       || !Number.isFinite(x) || !Number.isFinite(y)
       || x < 0 || y < 0 || x >= current.width || y >= current.height) {
     throw new WorkerFailure('target-stale-visual-observation');
   }
 }
 
-function toSkyLogicalPoint(request, x, y) {
-  const scale = trustedCoordinateScale(request);
-  if (scale == null || !Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new WorkerFailure('target-coordinate-scale');
-  }
-  return { x: x / scale, y: y / scale };
-}
-
 function actionArguments(request, target) {
   const args = { ...request.arguments, ...target };
-  if (Number.isFinite(args.x) && Number.isFinite(args.y)) {
-    Object.assign(args, toSkyLogicalPoint(request, args.x, args.y));
-  }
   delete args.pid;
   delete args.window_id;
   delete args.app;
@@ -901,7 +882,7 @@ async function perform(request, target, before) {
       // 协议限制为 input-text 语义；先聚焦该点，再发送字面文本，并由动作后
       // Observe 交给慢脑核验。这里不隐式清空、不重试，也不猜测其他控件。
       await validateCoordinateObservation(request, target, before);
-      await callAction('click', { app: target.app, ...toSkyLogicalPoint(request, request.arguments.x, request.arguments.y) }, target.applicationId);
+      await callAction('click', { app: target.app, x: request.arguments.x, y: request.arguments.y }, target.applicationId);
       await callAction('type_text', { app: target.app, text: value }, target.applicationId);
       pendingInput = { taskId: request.task_id, app: target.app, value };
       return { kind: 'text-present', value };
