@@ -38,15 +38,34 @@ let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 let processID = ProcessInfo.processInfo.processIdentifier
 let window = NSWindow(
-  contentRect: NSRect(x: 160, y: 200, width: 440, height: 140),
+  contentRect: NSRect(x: 160, y: 200, width: 440, height: 200),
   styleMask: [.titled, .closable, .miniaturizable],
   backing: .buffered,
   defer: false
 )
 window.title = "Yonder EX-S2 Fixture \(processID)"
 window.isReleasedWhenClosed = false
-let field = FixtureField(frame: NSRect(x: 24, y: 50, width: 390, height: 32))
+let field = FixtureField(frame: NSRect(x: 24, y: 120, width: 390, height: 32))
 window.contentView!.addSubview(field)
+var primarySelected = false
+final class FixtureActions: NSObject {
+  @objc func selectPrimary(_: Any?) {
+    primarySelected = true
+    emit(["primary_selected": true])
+  }
+  @objc func selectAlternative(_: Any?) {
+    emit(["alternative_selected": true])
+  }
+}
+let actions = FixtureActions()
+let primary = NSButton(title: "执行验证主动作", target: actions, action: #selector(FixtureActions.selectPrimary(_:)))
+primary.frame = NSRect(x: 24, y: 52, width: 176, height: 32)
+primary.setAccessibilityLabel("执行验证主动作")
+let alternative = NSButton(title: "执行无关备选动作", target: actions, action: #selector(FixtureActions.selectAlternative(_:)))
+alternative.frame = NSRect(x: 220, y: 52, width: 176, height: 32)
+alternative.setAccessibilityLabel("执行无关备选动作")
+window.contentView!.addSubview(primary)
+window.contentView!.addSubview(alternative)
 window.makeKeyAndOrderFront(nil)
 
 var launched = false
@@ -68,6 +87,7 @@ func report() {
     "target_key": window.isKeyWindow,
     "target_on_active_space": window.isOnActiveSpace,
     "input_matches": field.value == "YONDER_SDK_INPUT_A",
+    "primary_selected": primarySelected,
   ])
 }
 
