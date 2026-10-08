@@ -33,6 +33,12 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 
 2026-09-28用户追加要求把快慢脑过程同时透出。Application在每槽位进入选择前，通过既有`ComputerUsePort`的只读投影钩子发布候选数量；选择后只发布封闭`CuaActionKind`对应的用户可理解动作语义，单候选明确为慢脑直接授权，多候选明确为Jev已选择，HandBack明确为交回慢脑。该钩子不改变选择、CAS或Driver接口，不携带候选参数、置信度、模型原文或思维链。Hub在同一任务内保留`slow_brain_summary`与`fast_brain_summary`，UI和Driver均不是事实源。
 
+### Driver 轮次日志（2026-10-08用户变更）
+
+`CuaControlPort` 在既有 Driver 派发边界向 `CuaControlHub` 投影短生命周期轮次记录：派发前登记递增轮次、步骤标签与封闭动作类别，返回后更新为 `observed / failed / unknown` 和固定脱敏结论。Hub 只保留当前任务最近六轮；同任务 replan 保留，任务终结或接管后清理。投影不进入协议、SQLite、事件或 Outbox，锁失败或展示不可用不得阻塞 Driver。
+
+日志不接收动作 arguments、输入正文、截图路径、transcript、元素标签、attempt/Worker 身份或完整错误 Payload。Driver 的已观察成功只代表本轮动作事实，不代表用户目标完成；最终完成继续遵循 AD-TM-24，由归属慢脑基于最新 Observation 核验。
+
 窗口事件只用于低延迟提示，不能是唯一初始化路径。`cua-control.js`加载后必须主动调用受限`cua_control_presentation`取得当前投影；事件先于监听器、WebView重载或隐藏后重显都从同一Hub恢复。读取失败只保持安全默认文案，不影响执行。
 
 单步 `computer.step`/`computer.execute` 没有计划列表时只提供当前标签；Plan 读取失败明确标记不可用而不影响 Application 调用。UI 只渲染纯文本标签、索引和 `completed/executing/pending` 状态；不读取 action arguments、Agent payload 或任何 Adapter 原始观察数据。卡片开始、每次 Driver 派发、接管和结束均重取/清理投影，避免旧任务残留。
