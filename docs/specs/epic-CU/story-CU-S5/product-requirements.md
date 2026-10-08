@@ -23,13 +23,15 @@ Yonder 目前可能把“已打开企业切换面板”等中间步骤当作整�
 - GVR-08：顶部浮窗显示等待核验、核验通过或交回重规划，不展示思维链、截图正文和完整 Payload。
 - GVR-09：Rust 协议是 Schema 与 TypeScript 的唯一来源；旧客户端收到明确能力不支持错误。
 - GVR-10：macOS 正式 Gateway 样本证明中间界面不能完成任务，最新目标状态通过后才能完成；Windows 暂缓且不得外推。
+- GVR-11（2026-10-08用户变更）：Application 不得按 `CuaActionKind` 硬编码推导业务 Observe 事实；计划内只消费 Driver 直接返回的动作成功、Observe 有效和目标可见等结构状态。
+- GVR-12：目标歌曲是否播放等开放业务完成状态，由归属慢脑读取同一 Gateway 返回的最新 Observation 后提交 `task.goal.verify`；Driver、Application 和 Jev 均不得代替慢脑解释业务语义。
 
 ## 验收映射
 
 | 来源 | 验收 |
 |---|---|
 | 产品简报与补充材料 | GVR-01、GVR-05、GVR-08 |
-| 2026-10-07 用户变更 | GVR-01～GVR-04、GVR-10 |
+| 2026-10-07、2026-10-08 用户变更 | GVR-01～GVR-04、GVR-10～GVR-12 |
 | AD-CU-04、AD-EX-01、AD-AG-07 | GVR-02、GVR-05、GVR-07 |
 | AD-TM-23、AD-TM-24 | GVR-03、GVR-04、GVR-06 |
 | 协议单一来源约束 | GVR-09 |

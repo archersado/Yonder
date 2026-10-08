@@ -23,3 +23,12 @@
 ## 验证
 
 独立 Verification Goal 必须证明：无核验不能完成；陈旧核验不能完成；`not-achieved` 会交回且可提交新片段；最新 `achieved` 核验可完成；数据库延迟不阻塞活动运行时；macOS 正式 Gateway 样本不会把中间界面误判为用户目标完成。Windows 按用户决定暂缓。
+
+## 2026-10-08 修订：Driver 事实与慢脑结论分离
+
+用户进一步明确，完成判断必须由归属慢脑读取 Driver 返回的最新状态后作出，Application 不得根据动作种类硬编码推导 `target-resolved`、`composer-ready`、`delivery-confirmed` 或其他业务寓意。
+
+- 计划内只允许使用 Driver 直接报告的结构事实：动作是否明确成功、Observe 是否有效、目标窗口是否可见。Application 可以校验这些事实的新鲜度、身份和安全边界，但不得把 `activate-control` 等动作种类翻译成业务完成事实。
+- Driver 返回的受控 Observation 继续经同一 Gateway 提供给归属慢脑。目标歌曲是否播放、企业是否切换、消息是否送达等开放业务状态，只能由慢脑基于最新 Observation 提交 `task.goal.verify`。
+- 旧的业务寓意 Observe 条件保留 wire 解码兼容，但不再由 Application 合成，也不能成为步骤成功或任务完成依据。新计划使用结构事实；无法从 Driver 状态直接证明时返回慢脑判断。
+- 本修订不允许慢脑绕过安全门禁，也不允许重放 `unknown` 副作用。`task.goal.verify` 仍只保存封闭结论，不保存推理正文。

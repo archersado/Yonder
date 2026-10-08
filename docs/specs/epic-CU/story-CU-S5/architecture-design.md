@@ -14,6 +14,8 @@ Application 新增 `GoalVerification`：`verification_id`、`task_id`、`observa
 
 Rust 协议新增 `task.goal.verify`、`task.goal.verify` capability、`GoalVerifyParams` 与核验响应。`task.complete` 增加 `verification_id`。Gateway 校验握手、归属、deadline、CAS、Observation 序号和核验 ID，不解释模型语义。
 
+协议 1.47 将计划条件收敛到 Driver 可直接证明的结构事实：`action-succeeded`、`observe-valid`、`target-visible`。原有 `application-ready`、`target-resolved`、`composer-ready`、`delivery-confirmed` 仅保留解码兼容，Application 不再根据动作类型合成这些值。最新 Observation 的 transcript、元素与截图引用仍按既有能力协商返回归属慢脑，不进入 Jev 持久输入或任务日志。
+
 ## Application 与持久化
 
 Runtime 命令 `VerifyGoal` 追加连续事件并更新快照；`not-achieved` 同时形成 HandBack 状态，`achieved` 保持 Running 并开放终结门禁。SQLite projector 批量投影事件与 Outbox；尚未迁入 Runtime 的兼容链使用 `task_goal_verifications` 不可变记录完成同样 CAS。
@@ -23,6 +25,8 @@ Runtime 命令 `VerifyGoal` 追加连续事件并更新快照；`not-achieved` �
 ## 边界
 
 目标语义判断仍属于归属慢脑，不进入 Jev、Driver、SQLite trigger 或 React。核验不携带模型思维链，不自动重试动作，也不放宽发送确认和 unknown 规则。
+
+计划片段可以依据上一轮 Driver 结构事实选择下一个已授权候选；这只决定是否允许继续片段，不等同用户目标完成。片段耗尽后必须返回最新 Observation，由慢脑显式核验。Application 不再存在 `ObservedFacts::after(action_kind)` 一类业务寓意推导。
 
 ## 失败与验证
 
