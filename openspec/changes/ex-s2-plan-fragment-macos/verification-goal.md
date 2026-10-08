@@ -69,3 +69,9 @@ Application 不再把计划候选自行声明的 `preconditions` 当作已验证
 结构回归通过：`cargo test -p yonder-application -p yonder-adapters` 为 Application 63/63、Adapter 78/78；新增用例证明多候选缺少新鲜事实时不调用 Jev、唯一合格候选不调用 Jev、多个合格候选只向 Jev 暴露已验证候选及封闭事实。`node --check crates/adapters/src/jev_worker.mjs` 与 `openspec validate ex-s2-plan-fragment-macos --strict` 通过。
 
 合入 `dev` 并重建正式 debug `Yonda.app` 后，使用正式产品 MCP/Gateway 创建任务 `task_f7b49cc5ccec5f278de0171f0dffbcbf` 与 `task_5ecf9c907cee3f6f96d66e9c0b3fbfcc`。两条样本都在首个单候选 CUA 动作产生真实 Observe 之前返回 `unknown(worker-failed, observe_valid=false)`，序号均停在 6 并安全交回；因此没有进入第二槽位，不能作为远端 Jev 正向选择证据。验证任务已取消。该阻塞属于当前 Sky CUA Worker 启动/执行链路，不允许用直接 Driver、伪造 Observe 或绕过 Gateway 的方式替代；本轮只关闭结构实现项，真实产品正向样本仍待 CUA Worker 恢复后补跑。
+
+## 2026-10-08 正式产品快脑派发复验
+
+Sky MCP 冷启动预算修正后，正式 `Yonda.app` 通过安装包内 `yonder mcp → Gateway → Application → Jev → Sky` 运行任务 `task_6d52a58506b048f4a30da849d7b97ffe`。首槽位 `launch_app(com.apple.TextEdit)` 在序号 5 形成 `observed(action_succeeded=true, observe_valid=true)`；第二槽位的两个合法候选经本轮 Observe 筛选后进入 Jev。修正前模型会把与动作并列的 `handback` 选中并在动作前交回；修正后 `handback` 由 Application 作为低置信/异常的唯一安全边界，不再进入模型候选集。本次 Jev 实际选择并派发了第二槽位：序号 8 声明快脑步骤，序号 9 开始 `attempt_9`。
+
+第二个 Sky 动作的后置观察在序号 10 返回 `unknown(observe-failed, observe_valid=false)`，片段于序号 11 安全交回，未将动作或任务误报为成功。因此本样本证明“新鲜 Observe → Jev 选择 → 真实派发”链路 PASS；Driver 后置 Observe 的正向完成率仍须由 CU-S4 继续收敛，不在本结论中提升。验证后任务于序号 12 取消清理。Windows 仍按用户决定暂缓。
