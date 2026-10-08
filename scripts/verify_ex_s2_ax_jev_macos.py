@@ -4,6 +4,7 @@
 import json
 import os
 import pathlib
+import plistlib
 import queue
 import signal
 import subprocess
@@ -15,7 +16,8 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 YONDER = ROOT / "target/debug/Yonda.app/Contents/MacOS/yonder"
 FIXTURE_SOURCE = ROOT / "apps/desktop/tests/plan-fragment-fixture-macos.swift"
-FIXTURE_BINARY = pathlib.Path("/private/tmp/yonder-ex2-ax-jev-fixture")
+FIXTURE_APP = pathlib.Path("/private/tmp/YonderEX2AXFixture.app")
+FIXTURE_BINARY = FIXTURE_APP / "Contents/MacOS/YonderEX2AXFixture"
 FOCUS = ROOT / "target/debug/examples/work_focus_check"
 result = {"platform": "macos", "entry": "bundled-yonder-mcp", "passed": False}
 fixture_state: dict = {}
@@ -70,7 +72,18 @@ try:
     for path in (YONDER, FOCUS):
         if not path.is_file():
             raise RuntimeError(f"missing-artifact-{path.name}")
+    FIXTURE_BINARY.parent.mkdir(parents=True, exist_ok=True)
+    with (FIXTURE_APP / "Contents/Info.plist").open("wb") as stream:
+        plistlib.dump({
+            "CFBundleExecutable": FIXTURE_BINARY.name,
+            "CFBundleIdentifier": "com.yonder.fixture.exs2",
+            "CFBundleName": "Yonder EX-S2 AX Fixture",
+            "CFBundlePackageType": "APPL",
+            "CFBundleVersion": "1",
+            "LSMinimumSystemVersion": "13.0",
+        }, stream)
     subprocess.run(["swiftc", str(FIXTURE_SOURCE), "-o", str(FIXTURE_BINARY)], check=True)
+    subprocess.run(["codesign", "--force", "--sign", "-", str(FIXTURE_APP)], check=True)
     fixture = subprocess.Popen([str(FIXTURE_BINARY)], stdout=subprocess.PIPE, text=True)
     threading.Thread(target=read_fixture, args=(fixture.stdout,), daemon=True).start()
     until = time.monotonic() + 10
@@ -142,12 +155,12 @@ try:
         "slots": [
             {
                 "step_id": "observe-fixture-controls",
-                "label": "确认隔离验证窗口并观察控件",
+                "label": "打开隔离验证应用并观察控件",
                 "candidates": [{
-                    "candidate_id": "observe-bound-window",
-                    "tool_name": "bring_to_front",
-                    "arguments": {},
-                    "action_kind": "bring-to-front",
+                    "candidate_id": "launch-fixture-app",
+                    "tool_name": "launch_app",
+                    "arguments": {"bundle_id": "com.yonder.fixture.exs2"},
+                    "action_kind": "launch-application",
                     "target_ref": "isolated-fixture-window",
                     "preconditions": [{"fact": "target-resolved", "expected": True}],
                     "expected_observe": [{"fact": "target-resolved", "expected": True}],
