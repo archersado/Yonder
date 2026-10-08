@@ -198,8 +198,24 @@ try:
         "fragment-complete", "awaiting-goal-verification"
     )
     if fragment_finished and primary_selected:
+        observation_events = [
+            event for event in events
+            if event.get("attempt_result", {}).get("phase") == "observed"
+        ]
+        if not observation_events:
+            raise RuntimeError("latest-observation-missing")
+        verification_id = "verify-ax-natural-choice"
+        verified = tool("task_goal_verify", {
+            "task_id": task["task_id"],
+            "expected_sequence": executed["sequence"],
+            "observation_sequence": observation_events[-1]["sequence"],
+            "verification_id": verification_id,
+            "outcome": "achieved",
+        })
         completed = tool("task_complete", {
-            "task_id": task["task_id"], "expected_sequence": executed["sequence"],
+            "task_id": task["task_id"],
+            "expected_sequence": verified["task"]["sequence"],
+            "verification_id": verification_id,
         })["task"]
         result["passed"] = completed.get("status") == "completed"
     result.update({
