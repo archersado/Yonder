@@ -22,6 +22,7 @@ fixture_state: dict = {}
 fixture = None
 mcp = None
 task = None
+tool_fn = None
 
 
 def deadline(_signal, _frame):
@@ -118,6 +119,7 @@ try:
         if response.get("isError"):
             raise RuntimeError(f"tool-{name}-{payload.get('code', 'failed')}")
         return payload
+    tool_fn = tool
 
     rpc("initialize", {
         "protocolVersion": "2025-06-18",
@@ -140,12 +142,12 @@ try:
         "slots": [
             {
                 "step_id": "observe-fixture-controls",
-                "label": "在隔离窗口推进焦点并观察控件",
+                "label": "确认隔离验证窗口并观察控件",
                 "candidates": [{
-                    "candidate_id": "advance-safe-focus",
-                    "tool_name": "press_key",
-                    "arguments": {"key": "tab", "delivery_mode": "background"},
-                    "action_kind": "resolve-conversation",
+                    "candidate_id": "observe-bound-window",
+                    "tool_name": "bring_to_front",
+                    "arguments": {},
+                    "action_kind": "bring-to-front",
                     "target_ref": "isolated-fixture-window",
                     "preconditions": [{"fact": "target-resolved", "expected": True}],
                     "expected_observe": [{"fact": "target-resolved", "expected": True}],
@@ -198,6 +200,16 @@ except Exception as error:
     result["failure_class"] = str(error)
 finally:
     signal.alarm(0)
+    if task is not None and not result["passed"] and tool_fn is not None:
+        try:
+            snapshot = tool_fn("task_get", {"task_id": task["task_id"]})["task"]
+            if snapshot.get("status") in ("created", "running", "interrupted"):
+                tool_fn("task_cancel", {
+                    "task_id": task["task_id"],
+                    "expected_sequence": snapshot["sequence"],
+                })
+        except Exception:
+            pass
     for process in (mcp, fixture):
         if process is not None and process.poll() is None:
             process.terminate()
