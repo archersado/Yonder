@@ -17,5 +17,5 @@
 - [x] 过滤装饰性 image/disabled 候选并拒绝同尺寸 transcript 变化后的旧坐标
 - [x] 撤销错误的 backing-scale 换算，恢复原图像素不变传递并覆盖回归
 - [ ] 重跑企业微信 Retina 坐标正式回归并更新 macOS Verification Goal
-- [ ] 从 Worker 到协议、Gateway、顶部浮窗与任务面板透出有界 Driver 错误分类
+- [x] 从 Worker 到协议、Gateway、顶部浮窗与任务面板透出有界 Driver 错误分类
 - [ ] Windows 对等验证（依用户决定暂缓）

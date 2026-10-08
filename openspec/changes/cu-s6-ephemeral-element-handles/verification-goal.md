@@ -76,6 +76,16 @@ macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信�
 - 新鲜 Observation 上改用 AX 图像句柄验证执行链路：索引 19 成功打开个人菜单，并返回 `560×872` 的动作后 Observation；`bring-to-front` 随后重新绑定主窗口且验证通过。索引 2 没有产生界面变化。由此可排除 Gateway、WindowActivationPort、Sky AX 点击和动作后 Observe 全链路失效。
 - 当前阻断收敛为：企业微信左下角自绘企业切换入口既没有可区分标签/几何的临时句柄，原图坐标调用也未被 Driver 证明确认。继续枚举匿名 AX 图像或重放结果待核实坐标不满足安全边界，因此任务在序号 32 取消；OEH-09、OEH-13～OEH-15 仍未通过。
 
+## 2026-10-08 有界 Driver 错误透出
+
+- Accepted AD-CU-12 与协议 1.49 增加六个封闭 Attempt Unknown Reason：动作超时、动作拒绝、动作未确认、目标失效、Observe 失败与传输失败。协议 1.48 及以下分别降级为既有 `timed-out`、`observe-failed` 或 `worker-failed`。
+- Sky Worker 坐标动作错误继续执行唯一一次动作后 Observe，并只返回安全 stage；SDK/MCP 原文、动作参数、应用名、AX transcript、截图、PID、窗口 ID 与完整 Payload 均不进入事件或界面。
+- `python3 apps/desktop/check-sky-cua-worker.py`：通过；夹具分别证明超时返回 `driver-action-timed-out`、窗口/通用调用错误返回 `driver-action-rejected`、成功回执但无后置变化返回 `action-unconfirmed-*`，视觉引用失效仍在派发前拒绝。
+- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息引用和发送安全边界未受影响。
+- `cargo test -p yonder-protocol -p yonder-application -p yonder-adapters -p yonder-desktop --locked -- --test-threads=1`：211 项通过（Protocol 18、Application 71、Adapters 83、Desktop 39），覆盖 SQLite 往返、Gateway 旧协议降级及顶部浮窗中文文案。
+- `cargo run -p yonder-protocol --example generate --locked -- --check`、`node --check crates/adapters/src/sky_cua_worker.mjs`、`openspec validate cu-s6-ephemeral-element-handles --strict` 与 `git diff --check`：通过。
+- 本扩展完成 OEH-18、OEH-19；企业微信目标企业切换与 Windows 对等验证仍保持未通过/暂缓，Story 不 Archive/Done。
+
 ## 2026-10-07 企业切换回归
 
 - 正式任务 `task_a889c79782cb8d776a799d6a103b9d3d` 成功取得 transcript、元素句柄并通过句柄打开头像菜单。
