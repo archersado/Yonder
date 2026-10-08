@@ -69,6 +69,13 @@ macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信�
 - `cargo test -p yonder-adapters --locked -- --test-threads=1`：81 项通过；`node --check crates/adapters/src/sky_cua_worker.mjs` 与 `git diff --check`：通过。
 - 企业微信目标企业切换仍须在重新构建的正式 Yonder 产品链路中重跑；在动作后直接观察到“狼顾”之前，本节不提升 Story 状态。
 
+## 2026-10-08 重建后企业微信正式负样本
+
+- `dev` 已包含 `e5bd5c2`、`04b19fc`，重新构建并启动正式 `Yonda.app`；宿主重连后由 Yonder MCP 创建任务 `task_00fb7b644e67d92c30badc5a20ab50f2`，未改走 CLI、Local Socket 或独立 Driver。
+- 首次片段启动企业微信并取得 `3420×1986` 原图与 `observation_attempt_4`。慢脑依据原图裁切复核左下角图标中心为 `(58, 1929)`，提交绑定该引用的坐标点击；动作后 `observation_attempt_11` 的截图与 transcript 均未变化，Yonder 以 `suspected_noop/observe-failed` 交回，未自动重放。
+- 新鲜 Observation 上改用 AX 图像句柄验证执行链路：索引 19 成功打开个人菜单，并返回 `560×872` 的动作后 Observation；`bring-to-front` 随后重新绑定主窗口且验证通过。索引 2 没有产生界面变化。由此可排除 Gateway、WindowActivationPort、Sky AX 点击和动作后 Observe 全链路失效。
+- 当前阻断收敛为：企业微信左下角自绘企业切换入口既没有可区分标签/几何的临时句柄，原图坐标调用也未被 Driver 证明确认。继续枚举匿名 AX 图像或重放结果待核实坐标不满足安全边界，因此任务在序号 32 取消；OEH-09、OEH-13～OEH-15 仍未通过。
+
 ## 2026-10-07 企业切换回归
 
 - 正式任务 `task_a889c79782cb8d776a799d6a103b9d3d` 成功取得 transcript、元素句柄并通过句柄打开头像菜单。
