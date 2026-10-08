@@ -1,14 +1,25 @@
 # EX-S2 macOS 计划片段执行 Verification Goal
 
+## 2026-10-08 事件驱动交回边界复核
+
+状态：PASS。
+
+- `task.plan.execute` 已统一进入 `ExecutionRuntime`：交回原因先成为内存 `HandedBack` 事件和活动任务快照，Driver→Observe→下一槽位或交回不等待 SQLite、Outbox、慢脑读取或唤醒投递。
+- 独立 `RuntimeProjectionWorker` 通过有界通知队列批量投影 SQLite/events/Outbox，失败保留内存积压并重试，成功后才连续 ACK checkpoint；达到硬限只在下一副作用前进入 `persistence-backpressure`。
+- Desktop 的慢脑唤醒继续发生在 Gateway 响应写回与执行锁释放之后，顶部展示读取同一内存投影；无连接或投递失败不反写 Driver 结果，也不重试副作用。
+- 当前 `dev` 复核：`cargo test --offline --locked -p yonder-application --lib` 74/74 PASS，覆盖 `reducer_advances_without_a_persistence_ack`、`plan_cursor_advances_and_hands_back_without_a_persistence_ack`、projector失败重试以及 `unknown_result_and_handback_are_immediate_runtime_facts`；`cargo test --offline --locked -p yonder-desktop --lib` 28/28 PASS，覆盖独立SQLite连接投影与交回/重规划顶部汇总。
+- 本结论关闭任务清单中的事件驱动交回实现项，不替代下述正式QQ音乐步骤核验与企业微信语义/确认样本。
+
 ## 2026-10-08 AD-EX-05 步骤核验增量
 
 状态：代码与合约验证通过；正式 QQ 音乐原生回归 BLOCKED。
 
-- `cargo test -p yonder-application --lib`：69 项通过，覆盖 Jev 三值步骤结论、低置信交回和脱敏观察摘要。
+- `cargo test --offline --locked -p yonder-application --lib`：当前 `dev` 74 项通过，覆盖 Jev 三值步骤结论、低置信交回和脱敏观察摘要。
 - `cargo test -p yonder-adapters --lib`：本增量相关测试通过；完整运行 77/78，唯一失败的既有 Command 临时 PID 时序用例单独重跑通过。
 - 正式 `jev_worker.mjs` 配合固定 0.6.0 SDK fixture 已验证 `verify-step` 返回 complete，且不生成动作。
 - `python3 apps/desktop/check-cua-package.py`：Sky 0.7.1、Jev 0.6.0、签名 Bridge 和打包 Worker 全部通过。
 - 正式产品任务 `task_fc1d0e8c5f4db936cec416645803e91b` 经 `yonder mcp → Gateway` 创建；GUI 重启后两次 `launch_app(com.tencent.QQMusicMac)` 均在进入 Jev 前返回 `worker-failed`，序号 10/15，任务已于序号 17 正式取消。故本轮不能声称真实 QQ 音乐步骤核验通过，待 Sky Worker 会话恢复后重跑。
+- 2026-10-08 当前 Sky 正式产品链已由 CU-S2 双样本证明恢复；本次收尾重跑在创建任务前被当前 Codex 会话的 Yonder MCP `Transport closed` 阻断。Yonder GUI 已重启且保持运行，但已关闭的 MCP stdio 传输无法由仓库代码或产品任务绕过重建；未创建任务、未派发动作，也未以直连 Socket/Driver/SQLite 替代。重新连接 MCP 后必须继续本样本，未取得产品事实前本节仍保持 BLOCKED。
 
 状态：macOS 同步连续执行验证通过（2026-09-28）；Windows 按用户决定暂缓。
 
