@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory(prefix="yonder-sky-worker-") as directory:
 import base64, json, os, sys, time
 state_path = os.environ['YONDER_SKY_TEST_STATE']
 delay_marker = state_path + '.startup-delayed'
-text = '1 文本框 搜索\\n2 按钮 播放\\n3 row (selectable)\\n\\t4 单元格\\n\\t\\t5 文本 狼顾科技\\n6 图像' + open(state_path, encoding='utf-8').read()
+text = '1 文本框 搜索\\n2 按钮 播放\\n3 row (selectable)\\n\\t4 单元格\\n\\t\\t5 文本 狼顾科技\\n6 图像\\n7 按钮 账户\\n\\t8 图像\\n9 按钮 disabled 未读' + open(state_path, encoding='utf-8').read()
 calculator_text = '1 按钮 1\\n2 文本 0'
 approved = False
 log = os.environ['YONDER_SKY_TEST_LOG']
@@ -65,7 +65,8 @@ for line in sys.stdin:
                 approved = approval.get('result', {}).get('action') == 'accept'
                 with open(log, 'a', encoding='utf-8') as output:
                     output.write(json.dumps({'approval':approved}, ensure_ascii=False)+'\\n')
-            state = calculator_text if args['app'].endswith('Calculator.app') else text
+            semantic_change = '\\n10 文本 同尺寸新界面' if os.path.exists(state_path + '.semantic-changed') else ''
+            state = calculator_text if args['app'].endswith('Calculator.app') else text + semantic_change
             tree_state = '\\n'.join('├─ ' + item for item in state.split('\\n'))
             wrapped = 'App state follows:\\n```json\\n' + json.dumps({'app':args['app'],'text':tree_state}, ensure_ascii=False) + '\\n```' if args['app'].endswith('QQMusic.app') else state
             screenshot_size = 120 if os.path.exists(state_path + '.geometry-changed') else 100
@@ -156,7 +157,10 @@ for line in sys.stdin:
     process.wait(timeout=5)
     process = start_worker()
     focused = request("focus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
-    timed_coordinate = request("timeout-coordinate", "click", {"x": 30, "y": 40, "observation_ref": focused["observation_ref"], "_yonder_action_kind": "activate-control"})
+    semantic_marker = pathlib.Path(str(state) + ".semantic-changed")
+    semantic_marker.touch()
+    rejected_changed_semantics = request("rejected-changed-semantics", "click", {"x": 10, "y": 20, "observation_ref": focused["observation_ref"], "_yonder_action_kind": "activate-control"})
+    timed_coordinate = request("timeout-coordinate", "click", {"x": 30, "y": 40, "observation_ref": rejected_changed_semantics["observation_ref"], "_yonder_action_kind": "activate-control"})
     timed_noop = request("timeout-coordinate-noop", "click", {"x": 31, "y": 41, "observation_ref": timed_coordinate["observation_ref"], "_yonder_action_kind": "activate-control"})
     stale_coordinate = request("stale-coordinate", "click", {"x": 32, "y": 42, "observation_ref": timed_noop["observation_ref"], "_yonder_action_kind": "activate-control"})
     generic_coordinate_error = request("generic-coordinate-error", "click", {"x": 33, "y": 43, "observation_ref": stale_coordinate["observation_ref"], "_yonder_action_kind": "activate-control"})
@@ -197,14 +201,15 @@ for line in sys.stdin:
     successful_results = (launched, observed_element, image_element, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)
     assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"], result["failure_stage"], result["element_count"]) for result in successful_results]
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, stale_coordinate, generic_coordinate_error, entered, visual_entered))
-    assert all(result["action_known"] and not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "unverifiable" and result["failure_stage"] == "target-stale-visual-observation" for result in (rejected_stale_ref, rejected_out_of_bounds, rejected_changed_geometry))
+    assert all(result["action_known"] and not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "unverifiable" and result["failure_stage"] == "target-stale-visual-observation" for result in (rejected_changed_semantics, rejected_stale_ref, rejected_out_of_bounds, rejected_changed_geometry))
     assert all(result["screenshot_width_px"] == 100 and result["screenshot_height_px"] == 100 for result in (launched, focused, generic_coordinate_error))
     row = next(item for item in launched["elements"] if item["index"] == 3)
     assert row["role"] == "selectable-row" and "狼顾科技" in row["label"]
     image = next(item for item in launched["elements"] if item["index"] == 6)
     assert image == {"index": 6, "role": "image", "label": "图像"}
-    counts = (launched["element_count"], activated["element_count"], navigated["element_count"], activated_by_element["element_count"])
-    assert counts == (6, 6, 7, 8), counts
+    assert next(item for item in launched["elements"] if item["index"] == 7)["role"] == "button"
+    assert all(item["index"] not in (8, 9) for item in launched["elements"])
+    assert launched["element_count"] == 9
     assert [item["name"] for item in actions] == ["press_key", "click", "click", "click", "click", "click", "click", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
     assert actions[0]["args"]["key"] == "super+f"
     assert actions[1]["args"]["x"] == 30 and actions[1]["args"]["y"] == 40

@@ -13,6 +13,11 @@
 - `cargo test -p yonder-protocol -p yonder-application -p yonder-adapters --locked -- --test-threads=1`：155 项通过（Protocol 18、Application 59、Adapters 78）。
 - `openspec validate cu-s6-ephemeral-element-handles --strict` 与 `git diff --check`：通过。
 
+## 2026-10-08 企业微信负样本后的收紧
+
+- `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明同尺寸 transcript 变化会使旧坐标失效且不派发动作；可操作按钮下的装饰性 image 与 disabled 按钮不会形成候选，独立 image 仍可通过新鲜引用执行。
+- macOS Sky 0.7.1 的公开接口经本机安装包核对，不提供 `screenshotId`；实现没有伪造未受支持字段，也没有对坐标猜测 Retina 比例。
+
 ## 2026-10-08 Observation 绑定坐标扩展
 
 - Rust 协议升级至 1.48，并从唯一来源重新生成 TypeScript 与 Response Schema；含截图的 Observation 以原子字段返回原始像素宽高，坐标候选必须携带同次 `observation_ref`。

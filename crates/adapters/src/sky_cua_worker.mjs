@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline';
 import { execFile, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -486,10 +487,17 @@ function transcriptElements(state) {
   }
   for (const line of text.split('\n')) {
     const match = line.match(/^([\s│├└─>]*)(?:[-*]\s*)?(?:\[(\d+)\]|(\d+))[.):]?\s+(.+)$/);
+    const prefix = match?.[1] ?? '';
+    const tabs = (prefix.match(/\t/g) ?? []).length;
+    const treePrefix = prefix.replaceAll('\t', '');
+    const branch = treePrefix.search(/[├└>]/);
+    const treeDepth = Math.floor((branch < 0 ? treePrefix : treePrefix.slice(0, branch)).length / 3);
     if (match) elements.push({
       index: Number(match[2] ?? match[3]),
       text: match[4].trim(),
-      depth: (match[1].match(/\t/g) ?? []).length,
+      // Sky 的 transcript 可能用 tab，也可能用 `│  ├─` 树枝表达层级。
+      // 只数 tab 会把正式 AX 树全部压平，从而无法识别装饰性后代。
+      depth: tabs + treeDepth,
     });
   }
   return elements;
@@ -509,6 +517,25 @@ const actionableRoles = [
 ];
 
 const sensitiveElementPattern = /(?:密码|口令|安全输入|password|secure ?text)/i;
+const disabledElementPattern = /(?:\bdisabled\b|不可用|已禁用)/i;
+
+function actionableRole(text) {
+  if (disabledElementPattern.test(text)) return null;
+  return actionableRoles.find(candidate => candidate.pattern.test(text)) ?? null;
+}
+
+function hasActionableAncestor(elements, position) {
+  const element = elements[position];
+  let ancestorDepth = element.depth;
+  for (let cursor = position - 1; cursor >= 0 && ancestorDepth > 0; cursor -= 1) {
+    const candidate = elements[cursor];
+    if (candidate.depth >= ancestorDepth) continue;
+    ancestorDepth = candidate.depth;
+    const kind = actionableRole(candidate.text);
+    if (kind && kind.role !== 'image') return true;
+  }
+  return false;
+}
 
 function boundedElementLabel(elements, position, role) {
   const element = elements[position];
@@ -533,8 +560,9 @@ function actionableElements(state) {
     const element = elements[position];
     if (!Number.isInteger(element.index) || element.index < 1 || element.index > 65_535 || seen.has(element.index)) continue;
     if (sensitiveElementPattern.test(element.text)) continue;
-    const kind = actionableRoles.find(candidate => candidate.pattern.test(element.text));
+    const kind = actionableRole(element.text);
     if (!kind) continue;
+    if (kind.role === 'image' && hasActionableAncestor(elements, position)) continue;
     const label = boundedElementLabel(elements, position, kind.role);
     if (label == null) continue;
     seen.add(element.index);
@@ -565,6 +593,7 @@ function publishObservation(state, request, response, target, screenshot) {
     indexes: new Set(elements.map(element => element.index)),
     screenshotWidth: screenshot?.width,
     screenshotHeight: screenshot?.height,
+    transcriptFingerprint: createHash('sha256').update(ephemeralTranscript(state) ?? '').digest('hex'),
   };
   response.observation_ref = reference;
   response.transcript = ephemeralTranscript(state);
@@ -719,6 +748,8 @@ async function validateCoordinateObservation(request, target, state) {
       || latestObservation?.taskId !== request.task_id
       || latestObservation.applicationId !== target.applicationId
       || latestObservation.reference !== reference
+      || latestObservation.transcriptFingerprint
+        !== createHash('sha256').update(ephemeralTranscript(state) ?? '').digest('hex')
       || !Number.isInteger(latestObservation.screenshotWidth)
       || !Number.isInteger(latestObservation.screenshotHeight)
       || !current
