@@ -18,7 +18,12 @@
 #### Scenario: Yonder执行Sky动作
 
 - **WHEN** 受监管Worker需要列举应用、Observe或执行动作
-- **THEN** 同发行物的OpenAI签名Node运行Worker，Worker只通过同一签名Client的MCP stdio工具调用，并在会话结束时关闭该Client
+- **THEN** Yonder包内与Worker同组合根的受监管Node运行Worker，Worker只通过固定Sky发行物中官方签名Client的MCP stdio工具调用，并在会话结束时关闭该Client
+
+#### Scenario: Worker与Client身份不可被覆盖
+
+- **WHEN** 外部Sky包、环境变量或Agent尝试提供Worker Node或Client路径
+- **THEN** 组合根忽略外部覆盖，只接受包内Worker Node与固定Sky包相对定位的官方Client；Client身份校验失败时CUA unavailable
 
 #### Scenario: Client请求应用使用授权
 

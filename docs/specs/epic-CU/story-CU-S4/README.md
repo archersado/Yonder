@@ -52,3 +52,5 @@ FGD-28初次Gateway样本随后由正式Yonder Observation推翻：`task_080739e
 协议1.42正式包已证明元素索引与坐标动作在后置transcript不变时均安全交回，不再把光晕/悬停当成功；正式任务`task_1e18ae977a3560f236a1d9fc9de6da8e`为`handback@16 → cancelled@17`。
 
 2026-10-07 Codex CUA对照证明左下角入口是当前AX transcript的元素18，坐标路径在Codex中同样返回`noWindowsAvailable`，因此不能在AX可用时强行降级为坐标。正式Yonder Gateway任务`task_83ab460064455b4f0fc0bb49b5cfc2bb`以`observed_element_index=18`打开账号/企业入口面板，动作后Observe由260个主窗口元素变为68个面板元素，`fragment-complete@22 → completed@23`。本轮只验证入口激活，未选择“狼顾科技”、未搜索会话也未发送消息；Windows对等验证仍暂缓。
+
+2026-10-08正式Gateway首步回归出现`worker-failed`。对照探针确认官方签名Client本身可由标准MCP stdio完成`initialize`，失败只发生在同发行物OpenAI签名Node作为独立Worker父进程时；macOS同时拒绝该Node无法由provisioning profile证明的受限App Group claim。AD-CU-09第13项与FGD-31据此改为“Yonder包内受监管Node运行Worker → 官方签名Client”，Client身份与Sky版本校验、单栈边界和Socket禁令不变。正式Gateway正向回归完成前Story继续verifying。

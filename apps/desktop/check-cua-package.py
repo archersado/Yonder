@@ -8,12 +8,7 @@ root = Path(__file__).resolve().parents[2]
 cua = root / "target/debug/Yonda.app/Contents/Resources/cua"
 jev_package = json.loads((cua / "node_modules/@typesafe-ai/sdk/package.json").read_text())
 sky_package = Path("/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules/@oai/sky")
-sky_node = Path("/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node")
 sky_bridge = sky_package / "Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient"
-sky_node_identity = subprocess.run(
-    ["/usr/bin/codesign", "-dv", "--verbose=4", str(sky_node)],
-    capture_output=True, text=True, check=False,
-) if sky_node.is_file() else None
 sky_identity = subprocess.run(
     ["/usr/bin/codesign", "-dv", "--verbose=4", str(sky_bridge)],
     capture_output=True, text=True, check=False,
@@ -32,13 +27,12 @@ result = {
     "trycua_absent": not (cua / "node_modules/@trycua").exists() and not (cua / "cua_worker.mjs").exists(),
     "qwen_absent": not any((cua / "node_modules").rglob("*qwen*")),
     "sky_bridge_version": sky_package_identity.get("version"),
-    "sky_node_team": "2DC432GLL2" if sky_node_identity and "TeamIdentifier=2DC432GLL2" in sky_node_identity.stderr else None,
-    "sky_node_identifier_valid": bool(sky_node_identity and "Identifier=node" in sky_node_identity.stderr),
+    "worker_node_is_packaged": (cua / "node").is_file() and not (cua / "node").is_symlink(),
     "sky_bridge_team": "2DC432GLL2" if sky_identity and "TeamIdentifier=2DC432GLL2" in sky_identity.stderr else None,
     "sky_bridge_identifier_valid": bool(sky_identity and "Identifier=com.openai.sky.CUAService.cli" in sky_identity.stderr),
     "sky_bridge_app_group_valid": bool(sky_entitlements and "2DC432GLL2.com.openai.sky.CUAService" in (sky_entitlements.stdout + sky_entitlements.stderr)),
 }
-result["passed"] = result["jev_sdk_version"] == "0.6.0" and result["sky_bridge_version"] == "0.7.1" and all(result[key] for key in ("node_present", "sky_worker_matches", "jev_worker_matches", "trycua_absent", "qwen_absent", "sky_node_team", "sky_node_identifier_valid", "sky_bridge_team", "sky_bridge_identifier_valid", "sky_bridge_app_group_valid"))
+result["passed"] = result["jev_sdk_version"] == "0.6.0" and result["sky_bridge_version"] == "0.7.1" and all(result[key] for key in ("node_present", "worker_node_is_packaged", "sky_worker_matches", "jev_worker_matches", "trycua_absent", "qwen_absent", "sky_bridge_team", "sky_bridge_identifier_valid", "sky_bridge_app_group_valid"))
 evidence = root / "apps/desktop/evidence/cu-s4-sky-package-20260930/result.json"
 evidence.parent.mkdir(parents=True, exist_ok=True)
 evidence.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
