@@ -426,6 +426,17 @@ mod tests {
     }
 
     #[test]
+    fn active_runtime_overlays_uncheckpointed_task_get(){
+        let task=crate::Task{id:"runtime-task".into(),owner_agent_id:"a1".into(),name:Some("运行时任务".into()),source:crate::TaskSource::LocalAgent,status:crate::Status::Created,sequence:2};
+        let mut response=Response::Success{jsonrpc:Version::V2,id:"get".into(),result:QueryResult::Snapshot{task:snapshot(task)}};
+        let active=crate::execution_runtime::RuntimeSnapshot{task_id:"runtime-task".into(),sequence:7,checkpoint:2,phase:crate::execution_runtime::RuntimePhase::HandBack,current_step:None,last_step:None,last_step_succeeded:Some(false),last_observation_sequence:Some(5),goal_verification:None,browser_reference:None,active_plan:None,active_control:None,pending_events:1};
+        let pending=[crate::execution_runtime::RuntimeEvent{task_id:"runtime-task".into(),sequence:7,kind:crate::execution_runtime::RuntimeEventKind::HandedBack{reason:"需要慢脑重新规划".into()}}];
+        overlay_runtime_snapshot(&mut response,&active,Some(&pending));
+        let Response::Success{result:QueryResult::Snapshot{task},..}=response else{panic!("响应类型错误")};assert_eq!(task.sequence,"7");assert_eq!(task.status,yonder_protocol::TaskStatus::Running);assert_eq!(task.next_intent.as_deref(),Some("需要慢脑重新规划"));
+        let tail=runtime_tail_events(yonder_protocol::TaskStatus::Running,&pending,6,10);assert_eq!(tail.len(),1);assert_eq!(tail[0].sequence,"7");assert_eq!(tail[0].wait_reason.as_deref(),Some("需要慢脑重新规划"));
+    }
+
+    #[test]
     fn handshake_negotiates_and_isolates_sessions_without_storage() {
         fn request(method: &str, extra: &str, agent: &str) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"r1","method":"{method}","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,{extra}}}}}"#).into_bytes()
@@ -794,6 +805,18 @@ impl<'a> GatewaySession<'a> {
                 ));
             }
         }
+        if let Request::Get{params,..}=&request{
+            let mut response=self.handle(store,bytes,now_ms);
+            if let Some(runtime)=execution_runtime{if let Ok(active)=runtime.snapshot(&params.task_id){overlay_runtime_snapshot(&mut response,&active,runtime.pending(&params.task_id,crate::execution_runtime::DEFAULT_EVENT_HARD_LIMIT).ok().as_deref());}}
+            return Ok((yonder_protocol::encode(&response).map_err(|_|crate::Error::StorageUnavailable)?,false));
+        }
+        if let Request::Events{params,..}=&request{if let Some(runtime)=execution_runtime{if let Ok(active)=runtime.snapshot(&params.task_id){
+            if let Err(error)=query::validate(&request,self.auth,now_ms){let response=Response::Failure{jsonrpc:Version::V2,id:Some(request.request_id().into()),error};return Ok((yonder_protocol::encode(&response).map_err(|_|crate::Error::StorageUnavailable)?,false));}
+            let persisted=crate::get(store,&params.task_id)?;if !self.auth.can_read(&persisted){return Err(crate::Error::NotFound);}let after=yonder_protocol::sequence(&params.after_sequence).map_err(|_|crate::Error::InvalidInput)?;
+            let mut response=if after<active.checkpoint{self.handle(store,bytes,now_ms)}else{Response::Success{jsonrpc:Version::V2,id:request.request_id().into(),result:QueryResult::Events{task_id:params.task_id.clone(),events:Vec::new()}}};
+            if let Response::Success{result:QueryResult::Events{events,..},..}=&mut response{let covered=events.last().and_then(|event|event.sequence.parse::<u64>().ok()).unwrap_or(after);if covered>=active.checkpoint{let remaining=usize::from(params.limit).saturating_sub(events.len());let pending=runtime.pending(&params.task_id,crate::execution_runtime::DEFAULT_EVENT_HARD_LIMIT).unwrap_or_default();events.extend(runtime_tail_events(query::status(persisted.status),&pending,covered,remaining));}}
+            return Ok((yonder_protocol::encode(&response).map_err(|_|crate::Error::StorageUnavailable)?,false));
+        }}}
         if !matches!(
             request,
             Request::StepAdvance { .. }
@@ -1852,6 +1875,23 @@ fn runtime_error(error: crate::execution_runtime::RuntimeError) -> crate::Error 
         crate::execution_runtime::RuntimeError::Backpressure => crate::Error::StopRequired,
         crate::execution_runtime::RuntimeError::Unavailable => crate::Error::StorageUnavailable,
     }
+}
+
+fn overlay_runtime_snapshot(response:&mut Response,active:&crate::execution_runtime::RuntimeSnapshot,pending:Option<&[crate::execution_runtime::RuntimeEvent]>) {
+    let Response::Success{result:QueryResult::Snapshot{task},..}=response else{return};
+    if task.task_id!=active.task_id{return;}
+    task.sequence=active.sequence.to_string();task.status=match active.phase{crate::execution_runtime::RuntimePhase::Completed=>yonder_protocol::TaskStatus::Completed,crate::execution_runtime::RuntimePhase::Failed=>yonder_protocol::TaskStatus::Failed,crate::execution_runtime::RuntimePhase::Cancelled=>yonder_protocol::TaskStatus::Cancelled,crate::execution_runtime::RuntimePhase::Interrupted=>yonder_protocol::TaskStatus::Interrupted,crate::execution_runtime::RuntimePhase::Paused=>yonder_protocol::TaskStatus::Paused,_=>yonder_protocol::TaskStatus::Running};
+    task.current_step=active.current_step.as_ref().map(|step|yonder_protocol::StepDeclaration{step_id:step.step_id.clone(),label:step.label.clone(),accepted_sequence:active.sequence.to_string()});
+    if active.phase==crate::execution_runtime::RuntimePhase::HandBack{if let Some(reason)=pending.and_then(|events|events.iter().rev().find_map(|event|match &event.kind{crate::execution_runtime::RuntimeEventKind::HandedBack{reason}=>Some(reason.clone()),_=>None})){task.next_intent=Some(reason);}}
+}
+
+fn runtime_tail_events(mut status:yonder_protocol::TaskStatus,pending:&[crate::execution_runtime::RuntimeEvent],after:u64,limit:usize)->Vec<yonder_protocol::TaskEvent>{
+    let mut result=Vec::new();for event in pending{let previous=status;status=match &event.kind{crate::execution_runtime::RuntimeEventKind::ControlStopped{control_kind,..}=>if control_kind=="cancel"{yonder_protocol::TaskStatus::Cancelled}else{yonder_protocol::TaskStatus::Paused},crate::execution_runtime::RuntimeEventKind::Terminal{phase}=>match phase{crate::execution_runtime::RuntimePhase::Completed=>yonder_protocol::TaskStatus::Completed,crate::execution_runtime::RuntimePhase::Failed=>yonder_protocol::TaskStatus::Failed,crate::execution_runtime::RuntimePhase::Cancelled=>yonder_protocol::TaskStatus::Cancelled,crate::execution_runtime::RuntimePhase::Interrupted=>yonder_protocol::TaskStatus::Interrupted,crate::execution_runtime::RuntimePhase::Paused=>yonder_protocol::TaskStatus::Paused,_=>yonder_protocol::TaskStatus::Running},_=>yonder_protocol::TaskStatus::Running};if event.sequence<=after||result.len()>=limit{continue;}
+        let (step_declaration,attempt_started)=match &event.kind{crate::execution_runtime::RuntimeEventKind::StepStarted{step_id,label,attempt_id,worker_instance_id,host_session_id}=>(Some(yonder_protocol::StepDeclaration{step_id:step_id.clone(),label:label.clone(),accepted_sequence:event.sequence.to_string()}),Some(yonder_protocol::AttemptStarted{step_id:step_id.clone(),attempt_id:attempt_id.clone(),worker_instance_id:worker_instance_id.clone(),host_session_id:host_session_id.clone()})),_=>(None,None)};
+        let control_event=match &event.kind{crate::execution_runtime::RuntimeEventKind::ControlStopped{attempt_id,control_id,control_kind}=>Some(yonder_protocol::ControlEvent{attempt_id:attempt_id.clone(),control_id:control_id.clone(),kind:match control_kind.as_str(){"cancel"=>ProtocolControlKind::Cancel,"takeover"=>ProtocolControlKind::Takeover,_=>ProtocolControlKind::Pause},phase:ProtocolControlPhase::Stopped}),_=>None};
+        let wait_reason=match &event.kind{crate::execution_runtime::RuntimeEventKind::HandedBack{reason}=>Some(reason.clone()),_=>None};
+        result.push(yonder_protocol::TaskEvent{previous,status,sequence:event.sequence.to_string(),creation_event:None,step_declaration,attempt_started,attempt_result:None,observation:None,control_event,focus_event:None,wait_reason,artifact_manifest:None,user_confirmation:None,goal_verification:None});
+    }result
 }
 fn attempt_result(value: crate::AttemptResultRecord) -> ProtocolAttemptResult {
     let (phase, action_succeeded, observe_valid, unknown_reason) = match value.conclusion {
