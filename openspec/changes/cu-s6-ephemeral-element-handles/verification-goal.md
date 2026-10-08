@@ -57,6 +57,9 @@ macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信�
 - 正式诊断任务 `task_8ad9767345d4224afe9655020713cac2` 经 Yonder Gateway 创建和执行；任务结束前先读取序号 72 的快照与事件，再于序号 73 取消，没有留下运行态任务。
 - 企业微信个人菜单 Observation 的截图尺寸为 560×872。直接把截图像素坐标派发给 Sky 时界面无变化；将同一视觉位置按当前显示器系统 2x backing scale 转为窗口逻辑点后，动作立即打开账户详情，动作后 Observation 出现企业字段。
 - 该样本只证明 Sky macOS 0.7.1 的动作坐标单位与截图像素单位不同，不证明目标企业已经切换。AD-CU-11 已修订：外部继续使用原图像素，Adapter 必须从可信窗口/显示器取得倍率后在调用边界换算，不能由慢脑猜测。
+- `python3 apps/desktop/check-sky-cua-worker.py`：通过。2x 夹具证明原图 `(30,40)` 只在 Sky 调用边界转换为逻辑点 `(15,20)`；倍率缺失、从 2x 变为 1x 及重新绑定 2x 的旧引用均不派发动作，而是携带新鲜 Observation 交回。
+- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息引用、草稿幂等和发送 no-op 拒绝未受换算影响。
+- `cargo test -p yonder-adapters --locked -- --test-threads=1`：81 项通过；Objective-C 原生桥随 Adapter 完成编译和链接。
 
 ## 2026-10-07 企业切换回归
 

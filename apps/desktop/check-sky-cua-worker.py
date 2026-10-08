@@ -133,7 +133,7 @@ for line in sys.stdin:
 
     binding = None
 
-    def request(step, tool, arguments):
+    def request(step, tool, arguments, coordinate_scale_factor=2):
         payload = {
             "task_id": "task-sky",
             "step_id": step,
@@ -145,6 +145,8 @@ for line in sys.stdin:
             "tool_name": tool,
             "arguments": arguments,
         }
+        if coordinate_scale_factor is not None:
+            payload["coordinate_scale_factor"] = coordinate_scale_factor
         if tool != "launch_app" and binding is not None:
             payload["bound_application_id"] = binding
         process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
@@ -157,9 +159,12 @@ for line in sys.stdin:
     process.wait(timeout=5)
     process = start_worker()
     focused = request("focus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
+    rejected_missing_scale = request("rejected-missing-scale", "click", {"x": 10, "y": 20, "observation_ref": focused["observation_ref"], "_yonder_action_kind": "activate-control"}, None)
+    rejected_changed_scale = request("rejected-changed-scale", "click", {"x": 10, "y": 20, "observation_ref": rejected_missing_scale["observation_ref"], "_yonder_action_kind": "activate-control"}, 1)
+    rebound_scale = request("rebound-scale", "click", {"x": 10, "y": 20, "observation_ref": rejected_changed_scale["observation_ref"], "_yonder_action_kind": "activate-control"})
     semantic_marker = pathlib.Path(str(state) + ".semantic-changed")
     semantic_marker.touch()
-    rejected_changed_semantics = request("rejected-changed-semantics", "click", {"x": 10, "y": 20, "observation_ref": focused["observation_ref"], "_yonder_action_kind": "activate-control"})
+    rejected_changed_semantics = request("rejected-changed-semantics", "click", {"x": 10, "y": 20, "observation_ref": rebound_scale["observation_ref"], "_yonder_action_kind": "activate-control"})
     timed_coordinate = request("timeout-coordinate", "click", {"x": 30, "y": 40, "observation_ref": rejected_changed_semantics["observation_ref"], "_yonder_action_kind": "activate-control"})
     timed_noop = request("timeout-coordinate-noop", "click", {"x": 31, "y": 41, "observation_ref": timed_coordinate["observation_ref"], "_yonder_action_kind": "activate-control"})
     stale_coordinate = request("stale-coordinate", "click", {"x": 32, "y": 42, "observation_ref": timed_noop["observation_ref"], "_yonder_action_kind": "activate-control"})
@@ -201,7 +206,7 @@ for line in sys.stdin:
     successful_results = (launched, observed_element, image_element, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)
     assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"], result["failure_stage"], result["element_count"]) for result in successful_results]
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, stale_coordinate, generic_coordinate_error, entered, visual_entered))
-    assert all(result["action_known"] and not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "unverifiable" and result["failure_stage"] == "target-stale-visual-observation" for result in (rejected_changed_semantics, rejected_stale_ref, rejected_out_of_bounds, rejected_changed_geometry))
+    assert all(result["action_known"] and not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "unverifiable" and result["failure_stage"] == "target-stale-visual-observation" for result in (rejected_missing_scale, rejected_changed_scale, rebound_scale, rejected_changed_semantics, rejected_stale_ref, rejected_out_of_bounds, rejected_changed_geometry))
     assert all(result["screenshot_width_px"] == 100 and result["screenshot_height_px"] == 100 for result in (launched, focused, generic_coordinate_error))
     row = next(item for item in launched["elements"] if item["index"] == 3)
     assert row["role"] == "selectable-row" and "狼顾科技" in row["label"]
@@ -212,13 +217,13 @@ for line in sys.stdin:
     assert launched["element_count"] == 9
     assert [item["name"] for item in actions] == ["press_key", "click", "click", "click", "click", "click", "click", "click", "press_key", "press_key", "type_text", "press_key", "press_key", "click", "click", "click", "type_text", "type_text"]
     assert actions[0]["args"]["key"] == "super+f"
-    assert actions[1]["args"]["x"] == 30 and actions[1]["args"]["y"] == 40
+    assert actions[1]["args"]["x"] == 15 and actions[1]["args"]["y"] == 20
     assert actions[1]["args"]["mouse_button"] == "left" and actions[1]["args"]["click_count"] == 1
-    assert actions[2]["args"]["x"] == 31 and actions[2]["args"]["y"] == 41
+    assert actions[2]["args"]["x"] == 15.5 and actions[2]["args"]["y"] == 20.5
     assert actions[2]["args"]["mouse_button"] == "left" and actions[2]["args"]["click_count"] == 1
-    assert actions[3]["args"]["x"] == 32 and actions[3]["args"]["y"] == 42
+    assert actions[3]["args"]["x"] == 16 and actions[3]["args"]["y"] == 21
     assert actions[3]["args"]["mouse_button"] == "left" and actions[3]["args"]["click_count"] == 1
-    assert actions[4]["args"]["x"] == 33 and actions[4]["args"]["y"] == 43
+    assert actions[4]["args"]["x"] == 16.5 and actions[4]["args"]["y"] == 21.5
     assert actions[4]["args"]["mouse_button"] == "left" and actions[4]["args"]["click_count"] == 1
     assert actions[5]["args"]["element_index"] == "3" and "observed_element_index" not in actions[5]["args"] and "observation_ref" not in actions[5]["args"]
     assert actions[6]["args"]["element_index"] == "6" and "observed_element_index" not in actions[6]["args"] and "observation_ref" not in actions[6]["args"]
@@ -229,9 +234,9 @@ for line in sys.stdin:
     assert actions[11]["args"]["key"] == "Return"
     assert actions[12]["args"]["key"] == "Down"
     assert actions[13]["args"]["element_index"] == "3"
-    assert actions[14]["args"]["x"] == 10 and actions[14]["args"]["y"] == 20 and actions[14]["args"]["click_count"] == 2
+    assert actions[14]["args"]["x"] == 5 and actions[14]["args"]["y"] == 10 and actions[14]["args"]["click_count"] == 2
     assert actions[14]["args"]["mouse_button"] == "left"
-    assert actions[15]["args"]["x"] == 10 and actions[15]["args"]["y"] == 20
+    assert actions[15]["args"]["x"] == 5 and actions[15]["args"]["y"] == 10
     assert actions[16]["args"]["text"] == "visual query"
     assert actions[17]["args"]["text"] == "1+1"
     assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:17])
