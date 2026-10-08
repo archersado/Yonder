@@ -1,5 +1,15 @@
 # EX-S2 macOS 计划片段执行 Verification Goal
 
+## 2026-10-08 AD-EX-05 步骤核验增量
+
+状态：代码与合约验证通过；正式 QQ 音乐原生回归 BLOCKED。
+
+- `cargo test -p yonder-application --lib`：69 项通过，覆盖 Jev 三值步骤结论、低置信交回和脱敏观察摘要。
+- `cargo test -p yonder-adapters --lib`：本增量相关测试通过；完整运行 77/78，唯一失败的既有 Command 临时 PID 时序用例单独重跑通过。
+- 正式 `jev_worker.mjs` 配合固定 0.6.0 SDK fixture 已验证 `verify-step` 返回 complete，且不生成动作。
+- `python3 apps/desktop/check-cua-package.py`：Sky 0.7.1、Jev 0.6.0、签名 Bridge 和打包 Worker 全部通过。
+- 正式产品任务 `task_fc1d0e8c5f4db936cec416645803e91b` 经 `yonder mcp → Gateway` 创建；GUI 重启后两次 `launch_app(com.tencent.QQMusicMac)` 均在进入 Jev 前返回 `worker-failed`，序号 10/15，任务已于序号 17 正式取消。故本轮不能声称真实 QQ 音乐步骤核验通过，待 Sky Worker 会话恢复后重跑。
+
 状态：macOS 同步连续执行验证通过（2026-09-28）；Windows 按用户决定暂缓。
 
 ## 目标

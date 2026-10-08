@@ -3,7 +3,7 @@
 //! 此模块只接受已由 Gateway 鉴权的不可变 CUA 候选；它不解析外部 JSON、
 //! 不构造 Agent 身份，也不派发 Driver。实际副作用仍必须经 computer_use
 //! 的统一启动、桌面租约和 Observe 链路。
-use crate::{jev_config::JevCapability, jev_runtime::{self, JevCandidate, JevDecision, JevDecisionError, JevDecisionPort, JevDecisionRequest}, valid_id};
+use crate::{jev_config::JevCapability, jev_runtime::{self, JevCandidate, JevDecision, JevDecisionError, JevDecisionPort, JevDecisionRequest, JevStepDecision, JevStepVerificationRequest}, valid_id};
 
 pub const MAX_SLOTS: usize = 10;
 pub const MAX_TOKEN_BUDGET: u32 = 10_000;
@@ -205,11 +205,43 @@ fn execute_one(
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"Observe 未满足计划后置条件，需要慢脑重新规划")?;
         return Ok((task,"handback",observation));
     }
+    if matches!(action.action_kind,yonder_protocol::CuaActionKind::ActivateControl) {
+        let summary=step_observation_summary(&slot.label,observation.as_ref());
+        computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑正在核验当前步骤");
+        let request=JevStepVerificationRequest{task_id:task_id.into(),step_id:slot.step_id.clone(),step_label:slot.label.clone(),capability:JevCapability::Cua,action_kind:format!("{:?}",action.action_kind),observed_facts:fresh_facts.labels(),expected_observe:action.expected_observe.iter().map(|condition|format!("{:?}={}",condition.fact,condition.expected)).collect(),observation_summary:summary};
+        match jev_runtime::verify_step(config,jev,&request) {
+            Ok(JevStepDecision::Complete)=>computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑已确认当前步骤完成"),
+            Ok(JevStepDecision::Incomplete)=>{
+                computer.project_step_unverified(task_id,&slot.step_id);
+                computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑确认当前步骤未完成，已交回慢脑");
+                let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"快脑确认当前步骤未完成，需要慢脑重新规划")?;
+                return Ok((task,"handback",observation));
+            }
+            Ok(JevStepDecision::HandBack)|Err(_)=>{
+                computer.project_step_unverified(task_id,&slot.step_id);
+                computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑无法确认当前步骤完成，已交回慢脑");
+                let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"快脑无法确认当前步骤完成，需要慢脑重新规划")?;
+                return Ok((task,"handback",observation));
+            }
+        }
+    }
     let (observation_ref,elements)=observation.as_ref().map(|value|(value.observation_ref.clone(),value.elements.clone())).unwrap_or_default();
     *observed_context=Some(ObservedContext{facts:fresh_facts,observation_ref,elements});
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
     computer.project_step_completed(task_id,&slot.step_id);
     Ok((task,"advanced",observation))
+}
+
+fn step_observation_summary(step_label:&str,observation:Option<&crate::computer_use::ComputerObservation>)->Vec<String>{
+    const SENSITIVE:[&str;8]=["password","secure text","密码","口令","验证码","消息正文","收件人","联系人"];
+    const SEMANTIC:[&str;10]=["播放","暂停","歌曲名","选中","已选择","button","selected","playing","paused","track"];
+    let Some(observation)=observation else{return vec!["Driver 未返回可转移的界面文本".into()]};
+    let mut needles=step_label.to_lowercase().split(|character:char|!character.is_alphanumeric()).filter(|token|token.chars().count()>=3).map(str::to_owned).collect::<Vec<_>>();
+    needles.extend(SEMANTIC.into_iter().map(str::to_owned));
+    let mut result=Vec::new();
+    if let Some(transcript)=observation.transcript.as_deref(){for raw in transcript.lines(){let line=raw.trim();let lower=line.to_lowercase();if line.is_empty()||SENSITIVE.iter().any(|value|lower.contains(value))||!needles.iter().any(|value|lower.contains(value)){continue;}let bounded=line.chars().take(256).collect::<String>();if !result.contains(&bounded){result.push(bounded);}if result.len()==32{break;}}}
+    if result.is_empty(){result.push(format!("结构观察：元素数量 {}，未提取到相关语义文本",observation.element_count));}
+    result
 }
 
 fn action_kind_label(kind:yonder_protocol::CuaActionKind)->&'static str{match kind{
@@ -407,4 +439,5 @@ mod tests {
     #[test] fn send_candidate_requires_opaque_confirmation_and_no_body() { let mut value=fragment(); value.slots[0].candidates[0].action_kind=yonder_protocol::CuaActionKind::SendMessage; value.slots[0].candidates[0].tool_name="press_key".into(); value.slots[0].candidates[0].confirmation_ref=Some("confirm-1".into()); assert_eq!(validate(&value),Ok(())); value.slots[0].candidates[0].arguments_json=r#"{\"text\":\"hi\"}"#.into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn coordinates_are_only_valid_for_bounded_semantic_actions() { let mut value=fragment(); {let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::EnterTargetQuery;candidate.tool_name="type_text".into();candidate.target_ref="intent-1".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"x":10,"y":20,"delivery_mode":"foreground"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput));{let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::FocusTargetSearch;candidate.tool_name="click".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));{let candidate=&mut value.slots[0].candidates[0];candidate.tool_name="hotkey".into();candidate.arguments_json=r#"{"keys":["cmd","f"]}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"keys":["cmd","q"]}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn generic_desktop_plan_actions_are_bounded() { let mut value=fragment(); {let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::InputText;candidate.tool_name="type_text".into();candidate.arguments_json=r#"{"text":"one last kiss"}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"text":"one last kiss","delivery_mode":"foreground"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput));{let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::ActivateControl;candidate.tool_name="press_key".into();candidate.arguments_json=r#"{"key":"ENTER"}"#.into();}assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"key":"DELETE"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
+    #[test] fn step_summary_keeps_relevant_player_fact_and_drops_sensitive_lines(){let observation=crate::computer_use::ComputerObservation{element_count:4,screenshot_path:Some("/private/ignored.jpg".into()),screenshot_mime:Some("image/jpeg".into()),target_visible:None,observation_ref:Some("observation-1".into()),transcript:Some("1 文本 歌曲名：One Last Kiss - 歌手名：宇多田光\n2 按钮 暂停播放\n3 密码 secret\n4 文本 无关内容".into()),elements:vec![]};let summary=step_observation_summary("播放 One Last Kiss",Some(&observation));assert!(summary.iter().any(|line|line.contains("One Last Kiss")));assert!(summary.iter().any(|line|line.contains("暂停播放")));assert!(summary.iter().all(|line|!line.contains("secret")&&!line.contains("无关内容")&&!line.contains("ignored.jpg")));}
 }

@@ -1,5 +1,5 @@
 use crate::{
-    jev_config::{JEV_REMOTE_ENDPOINT, JevCapability, JevConfig, JevServiceMode},
+    jev_config::{JevCapability, JevConfig, JevServiceMode, JEV_REMOTE_ENDPOINT},
     valid_id,
 };
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,39 @@ pub struct JevModelChoice {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct JevStepVerificationRequest {
+    pub task_id: String,
+    pub step_id: String,
+    pub step_label: String,
+    pub capability: JevCapability,
+    pub action_kind: String,
+    pub observed_facts: Vec<String>,
+    pub expected_observe: Vec<String>,
+    /// 本轮 Observe 派生的短生命周期脱敏摘要；不得持久化或记录。
+    pub observation_summary: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum JevStepOutcome {
+    Complete,
+    Incomplete,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct JevModelStepVerification {
+    pub outcome: JevStepOutcome,
+    pub confidence: f32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum JevStepDecision {
+    Complete,
+    Incomplete,
+    HandBack,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum JevDecision {
     Dispatch { candidate_id: String },
     HandBack { reason: &'static str },
@@ -64,6 +97,34 @@ pub trait JevDecisionPort {
         config: &JevConfig,
         request: &JevDecisionRequest,
     ) -> Result<JevModelChoice, JevDecisionError>;
+    fn verify_step(
+        &self,
+        _config: &JevConfig,
+        _request: &JevStepVerificationRequest,
+    ) -> Result<JevModelStepVerification, JevDecisionError> {
+        Err(JevDecisionError::DependencyUnavailable)
+    }
+}
+
+pub fn verify_step(
+    config: &JevConfig,
+    port: &(impl JevDecisionPort + ?Sized),
+    request: &JevStepVerificationRequest,
+) -> Result<JevStepDecision, JevDecisionError> {
+    validate_config_and_capability(config, request.capability)?;
+    validate_step_verification_request(request)?;
+    let result = port.verify_step(config, request)?;
+    if !result.confidence.is_finite() {
+        return Err(JevDecisionError::InvalidResponse);
+    }
+    if result.confidence < CONFIDENCE_THRESHOLD || result.outcome == JevStepOutcome::Uncertain {
+        return Ok(JevStepDecision::HandBack);
+    }
+    Ok(match result.outcome {
+        JevStepOutcome::Complete => JevStepDecision::Complete,
+        JevStepOutcome::Incomplete => JevStepDecision::Incomplete,
+        JevStepOutcome::Uncertain => JevStepDecision::HandBack,
+    })
 }
 
 pub fn decide(
@@ -71,6 +132,16 @@ pub fn decide(
     port: &(impl JevDecisionPort + ?Sized),
     request: &JevDecisionRequest,
 ) -> Result<JevDecision, JevDecisionError> {
+    validate_config_and_capability(config, request.capability)?;
+    validate_request(request)?;
+    let choice = port.choose(config, request)?;
+    interpret(request, &choice)
+}
+
+fn validate_config_and_capability(
+    config: &JevConfig,
+    capability: JevCapability,
+) -> Result<(), JevDecisionError> {
     if !config.enabled {
         return Err(JevDecisionError::Disabled);
     }
@@ -85,12 +156,39 @@ pub fn decide(
     {
         return Err(JevDecisionError::InvalidConfig);
     }
-    if !config.capabilities.contains(&request.capability) {
+    if !config.capabilities.contains(&capability) {
         return Err(JevDecisionError::Disabled);
     }
-    validate_request(request)?;
-    let choice = port.choose(config, request)?;
-    interpret(request, &choice)
+    Ok(())
+}
+
+fn validate_step_verification_request(
+    request: &JevStepVerificationRequest,
+) -> Result<(), JevDecisionError> {
+    if !valid_id(&request.task_id)
+        || !valid_id(&request.step_id)
+        || !crate::valid_step_label(&request.step_label)
+        || request.action_kind.is_empty()
+        || request.action_kind.len() > 64
+        || request.observed_facts.is_empty()
+        || request.observed_facts.len() > 4
+        || request.expected_observe.is_empty()
+        || request.expected_observe.len() > 4
+        || request.observation_summary.is_empty()
+        || request.observation_summary.len() > 32
+        || request
+            .observed_facts
+            .iter()
+            .chain(&request.expected_observe)
+            .any(|value| value.is_empty() || value.len() > 64 || value.contains('\0'))
+        || request
+            .observation_summary
+            .iter()
+            .any(|value| value.is_empty() || value.len() > 256 || value.contains('\0'))
+    {
+        return Err(JevDecisionError::InvalidInput);
+    }
+    Ok(())
 }
 
 fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError> {
@@ -194,6 +292,37 @@ mod tests {
             _: &JevDecisionRequest,
         ) -> Result<JevModelChoice, JevDecisionError> {
             self.0.clone()
+        }
+    }
+
+    struct StepPort(JevModelStepVerification);
+    impl JevDecisionPort for StepPort {
+        fn choose(
+            &self,
+            _: &JevConfig,
+            _: &JevDecisionRequest,
+        ) -> Result<JevModelChoice, JevDecisionError> {
+            panic!("步骤核验不得选择动作")
+        }
+        fn verify_step(
+            &self,
+            _: &JevConfig,
+            _: &JevStepVerificationRequest,
+        ) -> Result<JevModelStepVerification, JevDecisionError> {
+            Ok(self.0.clone())
+        }
+    }
+
+    fn step_request() -> JevStepVerificationRequest {
+        JevStepVerificationRequest {
+            task_id: "task-1".into(),
+            step_id: "play-song".into(),
+            step_label: "播放 One Last Kiss".into(),
+            capability: JevCapability::Cua,
+            action_kind: "ActivateControl".into(),
+            observed_facts: vec!["ActionSucceeded=true".into(), "ObserveValid=true".into()],
+            expected_observe: vec!["ActionSucceeded=true".into()],
+            observation_summary: vec!["歌曲名：One Last Kiss - 歌手名：宇多田光".into()],
         }
     }
 
@@ -358,6 +487,54 @@ mod tests {
                 &request()
             ),
             Err(JevDecisionError::InvalidConfig)
+        );
+    }
+
+    #[test]
+    fn verifies_step_with_three_value_safety_boundary() {
+        assert_eq!(
+            verify_step(
+                &config(),
+                &StepPort(JevModelStepVerification {
+                    outcome: JevStepOutcome::Complete,
+                    confidence: 0.99
+                }),
+                &step_request()
+            ),
+            Ok(JevStepDecision::Complete)
+        );
+        assert_eq!(
+            verify_step(
+                &config(),
+                &StepPort(JevModelStepVerification {
+                    outcome: JevStepOutcome::Incomplete,
+                    confidence: 0.99
+                }),
+                &step_request()
+            ),
+            Ok(JevStepDecision::Incomplete)
+        );
+        assert_eq!(
+            verify_step(
+                &config(),
+                &StepPort(JevModelStepVerification {
+                    outcome: JevStepOutcome::Uncertain,
+                    confidence: 0.99
+                }),
+                &step_request()
+            ),
+            Ok(JevStepDecision::HandBack)
+        );
+        assert_eq!(
+            verify_step(
+                &config(),
+                &StepPort(JevModelStepVerification {
+                    outcome: JevStepOutcome::Complete,
+                    confidence: 0.5
+                }),
+                &step_request()
+            ),
+            Ok(JevStepDecision::HandBack)
         );
     }
 }

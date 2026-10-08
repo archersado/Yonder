@@ -1,6 +1,6 @@
 #[cfg(target_os = "macos")]
 use security_framework::passwords::{get_generic_password, set_generic_password};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
@@ -12,7 +12,10 @@ use std::{
 };
 use yonder_application::{
     jev_config::JevConfig,
-    jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
+    jev_runtime::{
+        JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice,
+        JevModelStepVerification, JevStepOutcome, JevStepVerificationRequest,
+    },
 };
 
 const MAX_JEV_WORKER_TIMEOUT: Duration = Duration::from_secs(30);
@@ -28,6 +31,7 @@ pub struct MacosJevPort {
 
 #[derive(Serialize)]
 struct WorkerRequest<'a> {
+    mode: &'static str,
     endpoint: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
@@ -36,9 +40,28 @@ struct WorkerRequest<'a> {
     candidates: &'a [yonder_application::jev_runtime::JevCandidate],
 }
 
+#[derive(Serialize)]
+struct StepVerificationWorkerRequest<'a> {
+    mode: &'static str,
+    endpoint: &'a str,
+    api_key: &'a str,
+    timeout_ms: u64,
+    step_label: &'a str,
+    action_kind: &'a str,
+    observed_facts: &'a [String],
+    expected_observe: &'a [String],
+    observation_summary: &'a [String],
+}
+
 #[derive(Deserialize)]
 struct WorkerResponse {
     candidate_id: String,
+    confidence: f32,
+}
+
+#[derive(Deserialize)]
+struct StepVerificationWorkerResponse {
+    outcome: String,
     confidence: f32,
 }
 
@@ -109,11 +132,11 @@ impl MacosJevPort {
         }
     }
 
-    fn run_worker(
+    fn run_worker<Request: Serialize, Response: DeserializeOwned>(
         &self,
-        request: &WorkerRequest<'_>,
+        request: &Request,
         timeout: Duration,
-    ) -> Result<WorkerResponse, JevDecisionError> {
+    ) -> Result<Response, JevDecisionError> {
         let payload =
             serde_json::to_string(request).map_err(|_| JevDecisionError::InvalidResponse)?;
         let mut child = Command::new(&self.node)
@@ -217,6 +240,7 @@ impl JevDecisionPort for MacosJevPort {
         // Gateway 执行槽位。两者均有界，且不进行自动重试。
         let timeout = Duration::from_millis(config.time_limit_ms).min(self.timeout);
         let worker_request = WorkerRequest {
+            mode: "choose",
             endpoint: &config.endpoint,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
@@ -224,9 +248,40 @@ impl JevDecisionPort for MacosJevPort {
             observed_facts: &request.observed_facts,
             candidates: &request.candidates,
         };
-        let response = self.run_worker(&worker_request, timeout)?;
+        let response: WorkerResponse = self.run_worker(&worker_request, timeout)?;
         Ok(JevModelChoice {
             candidate_id: response.candidate_id,
+            confidence: response.confidence,
+        })
+    }
+
+    fn verify_step(
+        &self,
+        config: &JevConfig,
+        request: &JevStepVerificationRequest,
+    ) -> Result<JevModelStepVerification, JevDecisionError> {
+        let api_key = self.credential()?;
+        let timeout = Duration::from_millis(config.time_limit_ms).min(self.timeout);
+        let worker_request = StepVerificationWorkerRequest {
+            mode: "verify-step",
+            endpoint: &config.endpoint,
+            api_key: &api_key,
+            timeout_ms: timeout.as_millis() as u64,
+            step_label: &request.step_label,
+            action_kind: &request.action_kind,
+            observed_facts: &request.observed_facts,
+            expected_observe: &request.expected_observe,
+            observation_summary: &request.observation_summary,
+        };
+        let response: StepVerificationWorkerResponse = self.run_worker(&worker_request, timeout)?;
+        let outcome = match response.outcome.as_str() {
+            "complete" => JevStepOutcome::Complete,
+            "incomplete" => JevStepOutcome::Incomplete,
+            "uncertain" => JevStepOutcome::Uncertain,
+            _ => return Err(JevDecisionError::InvalidResponse),
+        };
+        Ok(JevModelStepVerification {
+            outcome,
             confidence: response.confidence,
         })
     }
@@ -251,7 +306,18 @@ mod tests {
                 .join("@typesafe-ai/sdk");
             fs::create_dir_all(package.join("dist")).unwrap();
             fs::write(package.join("package.json"), r#"{"version":"0.6.0"}"#).unwrap();
-            fs::write(package.join("dist/index.mjs"), "export default {};\n").unwrap();
+            fs::write(package.join("dist/index.mjs"), r#"
+export function choice(prompt, options) { return { prompt, options }; }
+export class TypeSafeClient {
+  async systemOne(request) {
+    const name = Object.keys(request.questions)[0];
+    const answer = name === 'completion'
+      ? (request.state.observation_summary.join(' ').includes('One Last Kiss') ? 'complete' : 'incomplete')
+      : Object.keys(request.questions[name].options)[0];
+    return { answers: { [name]: { type: 'choice', choice: answer, confidence: 0.99 } } };
+  }
+}
+"#).unwrap();
             fs::canonicalize(package.join("dist/index.mjs")).unwrap()
         })
         .clone()
@@ -306,6 +372,7 @@ mod tests {
         )
         .unwrap();
         let request = WorkerRequest {
+            mode: "choose",
             endpoint: "https://api.typesafe.ai",
             api_key: "test-only",
             timeout_ms: 3000,
@@ -336,12 +403,45 @@ mod tests {
                 },
             ],
         };
-        let result = port
+        let result: WorkerResponse = port
             .run_worker(&request, Duration::from_millis(3000))
             .unwrap();
         assert_eq!(result.candidate_id, "cua.click");
         assert!((0.0..=1.0).contains(&result.confidence));
         let _ = fs::remove_file(script);
+    }
+
+    #[test]
+    fn official_worker_verifies_current_step_without_generating_an_action() {
+        let node = node_path();
+        let script =
+            fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/jev_worker.mjs"))
+                .unwrap();
+        let port = MacosJevPort::new(
+            &node,
+            &script,
+            &sdk_path(),
+            "Yonder",
+            "jev",
+            Duration::from_millis(3000),
+        )
+        .unwrap();
+        let request = StepVerificationWorkerRequest {
+            mode: "verify-step",
+            endpoint: "https://api.typesafe.ai",
+            api_key: "test-only",
+            timeout_ms: 3000,
+            step_label: "播放 One Last Kiss",
+            action_kind: "ActivateControl",
+            observed_facts: &["ActionSucceeded=true".into(), "ObserveValid=true".into()],
+            expected_observe: &["ActionSucceeded=true".into()],
+            observation_summary: &["歌曲名：One Last Kiss - 歌手名：宇多田光".into()],
+        };
+        let result: StepVerificationWorkerResponse = port
+            .run_worker(&request, Duration::from_millis(3000))
+            .unwrap();
+        assert_eq!(result.outcome, "complete");
+        assert!(result.confidence >= 0.75);
     }
 
     #[test]

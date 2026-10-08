@@ -49,6 +49,8 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 
 2026-10-07 按 Accepted [AD-TM-24](AD-TM-24-GOAL-VERIFICATION-GATE.md)，动作回执、步骤效果已 Observe 与用户目标达成是三个独立事实。计划片段耗尽后只进入等待目标核验；归属慢脑必须基于最新 Observation 经同一 Gateway 提交序号绑定的 achieved/not-achieved 核验，`task.complete` 仅接受最新且未被后续事件失效的 achieved 核验。活动核验由 ExecutionRuntime 持有并异步投影，不能以 SQLite 同步写入阻塞执行链。
 
+2026-10-08 按 Accepted [AD-EX-05](AD-EX-05-FAST-BRAIN-STEP-VERIFICATION.md)，Driver 动作后 Observe 的结构事实成立但不足以证明当前步骤语义时，Application 可让 Jev 快脑基于本轮有界脱敏观察摘要判断 `complete / incomplete / uncertain`。只有高置信 complete 才推进槽位；其他结论安全交回慢脑。该步骤核验不替代 AD-TM-24 规定的归属慢脑最终目标核验。
+
 - 2026-09-28 按 Accepted [AD-DS-05](AD-DS-05-NEWEST-TASK-PAGINATION.md)，任务空间以协议 1.32 请求 SQLite 按创建时间与任务 ID 倒序稳定分页；历史未知时间不伪造，前端不维护置顶副本。
 
 - Execution Session 是 Yonder 内部执行实体；ego-lite Task Space 是 BUA 外部实体；两者映射为统一 Task Status。

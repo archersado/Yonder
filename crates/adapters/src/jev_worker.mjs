@@ -21,6 +21,33 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       timeout: request.timeout_ms,
       retry: { maxRetries: 0 },
     });
+    if (request.mode === 'verify-step') {
+      const result = await client.systemOne({
+        model: 'jev-latest',
+        state: {
+          step_intent: request.step_label,
+          action_kind: request.action_kind,
+          expected_observe: request.expected_observe,
+          observed_facts: request.observed_facts,
+          observation_summary: request.observation_summary,
+        },
+        questions: {
+          completion: choice(
+            '只判断当前步骤是否已由最新观察证明完成。动作发生或界面变化本身不等于步骤完成；观察明确与步骤不符时选 incomplete，证据不足时选 uncertain。不得判断整个用户任务，不得生成下一动作。',
+            {
+              complete: '最新结构事实和观察摘要明确证明当前步骤意图已经成立。',
+              incomplete: '最新观察明确证明当前步骤尚未成立或结果与步骤目标不符。',
+              uncertain: '现有观察不足以可靠判断当前步骤是否完成。',
+            },
+          ),
+        },
+      });
+      const answer = result.answers.completion;
+      if (answer.type !== 'choice') throw new Error('unexpected-answer-type');
+      process.stdout.write(JSON.stringify({ outcome: answer.choice, confidence: answer.confidence }) + '\n');
+      continue;
+    }
+    if (request.mode !== 'choose') throw new Error('unexpected-mode');
     const criteria = Object.fromEntries(request.candidates.map(candidate => [
       candidate.id,
       `本步意图：${request.step_label}；已提交动作：${candidate.action_kind}；控件角色：${candidate.element_role ?? '未提供'}；控件短标签：${candidate.element_label ?? '未提供'}；目标引用：${candidate.target_ref}；前置 Observe 已由 Yonder 验证：${candidate.preconditions.join(', ')}；预期 Observe：${candidate.expected_observe.join(', ')}。该候选可直接派发。`,

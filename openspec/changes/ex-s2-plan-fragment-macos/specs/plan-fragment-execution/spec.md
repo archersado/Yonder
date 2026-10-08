@@ -33,3 +33,27 @@
 
 - **WHEN** unknown 结果尚未形成有效 handback 边界，或调用方尝试复用旧 step/attempt
 - **THEN** 系统拒绝新副作用，不把 unknown 提升为成功，也不自动重放原动作
+
+### Requirement: 快脑核验当前步骤完成
+
+系统 SHALL 在 Driver 动作后强制 Observe，并在结构事实成立后允许 Jev 基于当前步骤
+和本轮有界脱敏观察摘要判断 `complete`、`incomplete` 或 `uncertain`。只有高置信
+`complete` SHALL 推进片段槽位；其他结论 SHALL 停止片段并交回归属慢脑。
+
+#### Scenario: 播放了错误歌曲
+
+- **WHEN** 当前步骤要求播放指定歌曲，但最新 Observe 只证明播放器正在播放另一首歌曲
+- **THEN** 快脑返回 incomplete，Application 不为当前步骤投影成功图标且不推进槽位
+- **AND** 系统交回归属慢脑重新规划，不自动重试点击
+
+#### Scenario: 当前步骤语义已经成立
+
+- **WHEN** 最新 Observe 的有界摘要与结构事实共同证明当前步骤标签描述的效果成立
+- **THEN** 快脑高置信返回 complete，Application 推进当前槽位并继续片段
+- **AND** 该结论不产生用户目标 achieved，也不能直接完成任务
+
+#### Scenario: 核验输入不足或服务不可用
+
+- **WHEN** 观察摘要为空、Jev 低置信、返回 uncertain、超时或依赖不可用
+- **THEN** Application 安全交回慢脑，不把 Driver 动作回执冒充步骤完成
+- **AND** 截图、坐标、Driver 参数、消息正文、接收人、完整 transcript 和模型原文不进入持久化或日志

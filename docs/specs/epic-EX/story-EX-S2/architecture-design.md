@@ -62,6 +62,15 @@ Application在每个槽位派发前按任务归属和期限解析引用，把目
 
 连续推进由 Application 在一次 `task.plan.execute` 调用栈内完成，最多消费当前不可变片段的剩余槽位。每轮只派发一个动作，成功 Observe 与 attempt 停止边界提交后才推进 `current_slot`；下一轮重新读取片段、任务 sequence 与控制事实。返回响应后不保留执行线程或定时任务。片段完成返回 `fragment-complete`，但不替代归属慢脑提交 `task.complete`/`task.fail`。
 
+2026-10-08 按 Accepted AD-EX-05 增加动作后的快脑步骤核验。Application 先检查
+Driver 的 `action-succeeded / observe-valid / target-visible` 等封闭事实；通过后，将步骤
+标签、动作语义、预期条件、结构事实与本轮 transcript 派生的有界脱敏摘要交给同一
+Jev Port，取得 `complete / incomplete / uncertain` 三值结论。只有高置信 complete 才
+推进槽位；incomplete、uncertain、低置信、依赖失败或摘要不可用均停止片段并交回慢脑。
+观察摘要只驻留当前调用内存，不含截图、坐标、Driver 参数、消息正文、接收人、密码框
+或完整 transcript，也不得进入事件、Outbox、SQLite 和日志。该结论只决定当前步骤，
+片段结束后仍须由归属慢脑按 AD-TM-24 提交最终目标核验。
+
 产品 MCP 必须从同一 Rust 协议类型构造 `task.plan.submit` 与 `task.plan.execute` 请求，直接转发到既有私有 UDS Gateway；不得在 CLI 重写计划校验、执行循环或 Jev 选择。MCP schema 只镜像协议字段，Gateway 继续负责身份、版本、CAS、期限、候选和能力检查。该入口使 Codex 成为真实慢脑，不创建第二 Agent 通道。
 
 取消、接管、用户输入先冻结快脑新决策，再按既有步骤边界停止/Observe/事务确认。副作用超时、崩溃或断连为 `unknown`，原样保留结论且不推进旧片段；handback 与旧 attempt 的停止边界在同一事务提交，避免已结束 Worker attempt 永久占据执行槽。慢脑读取新鲜事实后只能以新 step/attempt 提交新片段，不能恢复旧候选、旧计划或自动重发。重启 running→interrupted。敏感操作继续走显式用户确认，不因高置信豁免。
