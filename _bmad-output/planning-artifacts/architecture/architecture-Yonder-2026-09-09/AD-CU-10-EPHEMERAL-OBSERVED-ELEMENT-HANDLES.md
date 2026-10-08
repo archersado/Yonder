@@ -20,6 +20,8 @@ AD-CU-09 要求元素优先，并已允许 `observed_element_index`，但同时�
 7. 坐标动作一旦派发，Sky 的返回错误也只表示结果待核实；Worker 必须继续一次动作后 Observe。后置事实不足仍为 unknown/handback，不因错误类型跳过 Observe 或重放动作。
 8. 协议 1.46 才向归属慢脑返回 `image` 句柄；1.44/1.45 客户端继续过滤该角色。`image` 不是持久语义定位器，只允许和同次 `observation_ref` 一起用于通用控件激活，动作前仍须确认索引存在。
 9. 2026-10-08 用户允许 Application 将这些句柄作为 Jev 的当轮临时动作空间。Jev 只获得封闭角色、脱敏短标签和不透明候选 ID，不获得 transcript、截图、坐标、窗口或进程身份。候选只活在同一 `task.plan.execute` 调用和同一 `observation_ref`；不写入片段、SQLite、事件、Outbox 或日志。
+10. `image` 只在自身没有可操作 AX 祖先时形成独立句柄。若图像是按钮、菜单项、链接等可操作节点的装饰性后代，Worker 只导出祖先，不同时导出图像；包含 `disabled` 的节点不得进入可操作集合。不得凭相邻节点、截图位置或应用名称把图像猜成另一个 AX 索引。
+11. `image` 句柄只证明 Driver 暴露了可尝试的 AX 节点，不证明该节点拥有可执行 AXAction。调用成功后仍必须由新鲜 Observe 证明预期界面已出现；无变化时交回慢脑，不能把 Driver 回执或截图微小变化提升为成功。
 
 ## 取代关系
 
@@ -29,7 +31,7 @@ AD-CU-09 要求元素优先，并已允许 `observed_element_index`，但同时�
 
 - Rust 协议、Schema 与 TypeScript 仅由单一来源生成，严格拒绝缺失或伪造引用的索引动作。
 - Worker 测试证明导出有界 transcript 和可操作短句柄，过滤安全字段并执行容量限制。
-- Worker 测试证明 selectable row 的句柄与后代标签不跨同级边界、无文本 image 仍可形成受引用保护的临时句柄，坐标调用错误后仍只 Observe 一次。
+- Worker 测试证明 selectable row 的句柄与后代标签不跨同级边界、无可操作祖先的 image 可形成受引用保护的临时句柄、装饰性 image 与 disabled 节点不会形成误导候选，坐标调用错误后仍只 Observe 一次。
 - Worker 测试证明引用替换、跨任务、重建和消失索引均拒绝且不派发动作。
 - Gateway 只把本次临时 Observation 返回归属 Agent，不写任务历史。
 - macOS 正式企业微信样本证明慢脑可使用句柄推进企业切换入口；Windows 对等验证继续暂缓。

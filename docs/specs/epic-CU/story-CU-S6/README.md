@@ -20,3 +20,5 @@ OpenSpec: cu-s6-ephemeral-element-handles
 macOS 协议、Worker、Gateway 临时 transcript 子范围已通过独立 Verification Goal。2026-10-07 企业切换回归发现可选择行未导出句柄、坐标点击错误会跳过动作后 Observe，已返回实施阶段；Windows 原生验证继续按主人决定暂缓。
 
 2026-10-08 QQ 音乐正式回归进一步证明裸 `x/y` 无法区分原始截图像素与对话缩放坐标；本 Story 依 AD-CU-11 增加 Observation 绑定的截图尺寸与坐标引用，禁止继续猜测 Retina 比例或窗口偏移。
+
+同日企业微信复核证明此前“企业切换通过”缺少目标企业名称事实，已撤回该结论。当前补充同尺寸 transcript 代次校验、装饰性 image/disabled 候选过滤，并要求正式回归直接观察到目标企业名称后才能通过。

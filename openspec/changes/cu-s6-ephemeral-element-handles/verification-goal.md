@@ -1,6 +1,6 @@
 # Verification Goal：CU-S6 临时 Observation transcript 与元素句柄
 
-状态：协议 1.48、隔离 Driver/Adapter 回归、正式 QQ 音乐原图坐标样本与企业微信企业切换回归通过（2026-10-08）。Windows 对等验证按主人决定暂缓，不 Archive/Done。
+状态：协议 1.48、隔离 Driver/Adapter 回归与正式 QQ 音乐原图坐标样本通过；企业微信企业切换证据经复核撤回并返回实施（2026-10-08）。Windows 对等验证按主人决定暂缓，不 Archive/Done。
 
 ## 目标
 
@@ -39,15 +39,13 @@
 
 ## 2026-10-08 企业微信企业切换正式回归
 
-- 正式任务 `task_3f654d71def2a3ffed138056fb7c4937` 经 Yonder MCP 创建并由 Agent Gateway 管理；未绕过到 Local Socket、Driver 或系统自动化脚本。
-- 初始 Observation 中企业入口没有文本标签。旧预览坐标候选未产生有效 Observe 后，慢脑没有重放旧动作，而是读取 `task.get` 与 `task.events`，基于新鲜 Observation 重新规划。
-- 计划版本 3 使用 `observation_attempt_10` 的 image 句柄打开个人菜单；动作结果为 `action_succeeded=true`、`observe_valid=true`。新鲜菜单 Observation 随后导出当前企业按钮，计划版本 4 使用绑定 `observation_attempt_15` 的元素句柄完成企业切换。
-- 切换后 Observation 中窗口内容由原企业会话集变为目标企业会话集；计划版本 5 再次执行无副作用的应用观察，得到 `observation_attempt_27`，其动作结果仍为 `action_succeeded=true`、`observe_valid=true`，并进入 `awaiting-goal-verification`。
-- 目标由 Observation 序号 28 核验为 `achieved`，任务在序号 32 进入 `completed`。本样本没有输入或发送消息；截图、transcript 与会话正文未写入持久验证证据。
+- 此节此前把菜单/窗口内容变化当成企业切换完成，未取得“当前企业为狼顾”的直接结构事实，结论无效。
+- 复核任务 `task_cdc4850bfde6b27541dd7ad4f87eda69` 明确观察到当前企业仍为“鼎捷数智”；左下角自绘入口的 AX image 与截图坐标尝试均未打开企业列表，任务在序号 118 取消。
+- 该负样本证明 QQ 音乐 `(700, 780)` 坐标成功不能外推到企业微信，也证明 image 存在不等于拥有可执行 AXAction。OEH-09、OEH-13～OEH-15 保持未通过，直至正式 Yonder 链路动作后直接观察到目标企业名称。
 
 ## 结论与边界
 
-macOS 子范围通过 OEH-01～OEH-12；正式 QQ 音乐与企业微信样本证明慢脑可用新鲜 transcript、元素/image 句柄和 Observation 绑定坐标完成消歧、动作后 Observe、交回重规划及目标核验。本 Goal 不证明 Windows 等价行为；Windows 验证继续暂缓，不能由本结果外推。
+macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信目标企业切换未通过，CU-S6 仍处于实施阶段。本 Goal 不证明 Windows 等价行为；Windows 验证继续暂缓，不能由 macOS 结果外推。
 
 ## 2026-10-07 企业切换回归
 

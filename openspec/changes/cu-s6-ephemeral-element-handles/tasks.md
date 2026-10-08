@@ -13,5 +13,6 @@
 - [x] 实现 Sky Worker 图片尺寸解析、引用/边界/几何校验和动作前拒绝
 - [x] 覆盖协议、Adapter、Retina 缩放、窗口变化与过期引用回归
 - [x] 重跑正式 QQ 音乐视觉双击并更新 macOS Verification Goal
-- [x] 重跑正式企业微信企业切换回归并更新 Verification Goal
+- [ ] 重跑正式企业微信企业切换回归，以目标企业名称的动作后事实更新 Verification Goal
+- [ ] 过滤装饰性 image/disabled 候选并拒绝同尺寸 transcript 变化后的旧坐标
 - [ ] Windows 对等验证（依用户决定暂缓）

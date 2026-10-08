@@ -21,6 +21,11 @@
 - **WHEN** transcript 包含只能由截图视觉消歧的 AX image 节点
 - **THEN** 协议 1.46 Observation 以 `image` 返回受最新引用保护的临时句柄，无文本节点只使用通用角色标签，协议 1.45 及以下不返回该句柄
 
+#### Scenario: 图像只是控件装饰或节点已禁用
+
+- **WHEN** AX image 是可操作按钮等节点的后代，或候选节点包含 disabled 状态
+- **THEN** Worker 不把装饰性 image 或 disabled 节点另行导出为可操作句柄，也不根据相邻节点猜测代理索引
+
 #### Scenario: 过滤安全输入且禁止持久化
 
 - **WHEN** transcript 包含密码/安全输入或普通界面正文
@@ -68,3 +73,8 @@
 
 - **WHEN** 引用过期或跨任务、坐标越界，或动作前截图尺寸与引用记录不一致
 - **THEN** Worker 不派发动作，返回新鲜 Observation 交回慢脑，不缩放或重放旧坐标
+
+#### Scenario: 同尺寸界面语义已变化
+
+- **WHEN** 动作前截图宽高未变化，但 transcript 已不同于产生 `observation_ref` 的 Observation
+- **THEN** Worker 将旧坐标视为失效，不派发动作，并以新鲜 Observation 交回慢脑

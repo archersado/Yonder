@@ -24,6 +24,8 @@ Worker 在任务运行态只持有最近一次对外 Observation 的引用与可
 
 Sky Worker 从 PNG/JPEG/WebP 字节头读取尺寸，将 `task_id + application_id + observation_ref + width + height` 作为最新临时视觉引用。坐标动作前重新 Observe 并读取当前截图尺寸；引用不匹配、坐标越界或尺寸变化时不调用 Sky。Sky 的 `app + coordinate` 继续负责将应用截图坐标解析到绑定窗口，因此外部协议不暴露窗口原点、显示器倍率或 PID。
 
+macOS Sky 0.7.1 不公开截图 ID，Worker 不添加未受支持字段，而是在同一临时引用中保存 transcript 指纹。动作前 Observe 的 transcript 与引用代次不一致时，即便宽高相同也拒绝旧坐标；单纯视觉像素差异不参与此门禁。元素导出同时折叠装饰性 image：若 image 位于可操作祖先内，只保留祖先句柄；disabled 节点不进入集合；没有可操作祖先的 image 不做相邻代理推断，仍以自身索引执行并等待后置事实。
+
 Gateway 只返回尺寸与引用，不持久化几何状态。调用方若查看了缩放后的图片，必须按响应的原始宽高换算；无法证明换算来源时不得生成坐标动作。动作后 Observe 与 unknown 不重试规则保持不变。
 
 ## 安全与数据生命周期
@@ -32,4 +34,4 @@ transcript 与短标签用于慢脑理解界面和控件消歧；Worker 对疑�
 
 ## 失败与验证
 
-测试覆盖 transcript 裁剪、敏感字段排除、上限、可选择行及后代标签边界、无文本 image 句柄、引用替换/跨任务/进程重建拒绝、动作前新鲜索引校验、坐标调用错误后的 Observe、协议严格解码和 Gateway 兼容。macOS 正式企业微信样本必须证明句柄点击可推进或安全交回；Windows 暂缓。
+测试覆盖 transcript 裁剪、敏感字段排除、上限、可选择行及后代标签边界、无祖先 image 句柄、装饰性 image/disabled 过滤、引用替换/跨任务/进程重建拒绝、同尺寸 transcript 变化、动作前新鲜索引校验、坐标调用错误后的 Observe、协议严格解码和 Gateway 兼容。macOS 正式企业微信样本必须证明目标企业名称已切换或安全交回；Windows 暂缓。

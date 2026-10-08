@@ -26,6 +26,9 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-10：坐标点击已经派发后，即使 Sky 返回超时、窗口代次变化或其他动作错误，Worker 仍必须执行一次动作后 Observe；后置事实不足时返回 unknown/handback，不得丢失新鲜 Observation 或自动重放点击。
 - OEH-11：含截图的 Observation 必须返回图片原始像素宽高；视觉坐标必须携带同次 `observation_ref`，并以原始截图像素表达。不得把对话界面的缩放渲染坐标、桌面全局坐标或猜测的 Retina 倍率直接交给 Driver。
 - OEH-12：Worker 必须以实际图片字节校验尺寸，并在动作前确认同任务、同应用、最新引用、坐标边界及当前截图尺寸一致；窗口缩放、截图裁剪、引用过期或越界时不得派发动作，只返回新鲜 Observation 交回慢脑。
+- OEH-13：同尺寸窗口内 transcript 已变化时，旧截图坐标同样失效；Worker 仅在内存保存该次 transcript 指纹，不持久化正文或指纹，也不得伪造当前 macOS Sky 未公开的 `screenshotId`。
+- OEH-14：可操作节点的装饰性 image 后代不得作为第二个独立候选；disabled 节点不得作为可操作候选。无可操作祖先的 image 仍可作为受引用保护的尝试句柄，但动作回执不代表该 AX 节点确实可点击。
+- OEH-15：正式样本必须通过动作后 Observation 中与目标直接相关的结构事实核验；QQ 音乐坐标成功不得外推为企业微信企业切换成功，截图任意变化也不得作为企业切换完成证据。
 
 ## 验收映射
 
@@ -34,6 +37,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 | 产品简报 | OEH-01、OEH-05、OEH-06 |
 | 2026-10-07 用户变更与后续真实样本 | OEH-01、OEH-03～OEH-06、OEH-08～OEH-10 |
 | 2026-10-08 QQ 音乐坐标偏移回归 | OEH-11、OEH-12 |
+| 2026-10-08 企业微信企业切换负样本 | OEH-13～OEH-15 |
 | AD-CU-09、AD-CU-10、AD-CU-11 | OEH-01～OEH-08、OEH-10～OEH-12 |
 | AD-TM-23 | OEH-07 |
 
