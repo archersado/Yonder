@@ -1,0 +1,43 @@
+{
+  "platform": "macOS",
+  "date": "2026-10-08",
+  "product_path": "Yonda.app -> bundled yonder mcp -> Agent Gateway -> ExecutionRuntime -> Sky CUA Worker -> Observe",
+  "direct_driver_or_storage_bypass": false,
+  "task_id": "task_b9e7241c78d7880acf822d6b9c7c2d56",
+  "task_final_status": "cancelled",
+  "task_final_sequence": 23,
+  "observed_results": [
+    {
+      "step": "launch-qqmusic",
+      "action_succeeded": true,
+      "observe_valid": true
+    },
+    {
+      "step": "focus-song-search",
+      "action_succeeded": true,
+      "observe_valid": true
+    },
+    {
+      "step": "enter-song-query",
+      "phase": "unknown",
+      "reason": "driver-action-unconfirmed",
+      "observe_valid": false
+    },
+    {
+      "step": "activate-observed-search-control",
+      "phase": "unknown",
+      "reason": "driver-action-unconfirmed",
+      "observe_valid": false
+    },
+    {
+      "step": "activate-player-with-space",
+      "phase": "unknown",
+      "reason": "driver-action-unconfirmed",
+      "observe_valid": false
+    }
+  ],
+  "automatic_retry": false,
+  "jev_step_verification_reached": false,
+  "blocking_story": "CU-S4",
+  "result": "BLOCKED"
+}

@@ -19,7 +19,8 @@
 - 正式 `jev_worker.mjs` 配合固定 0.6.0 SDK fixture 已验证 `verify-step` 返回 complete，且不生成动作。
 - `python3 apps/desktop/check-cua-package.py`：Sky 0.7.1、Jev 0.6.0、签名 Bridge 和打包 Worker 全部通过。
 - 正式产品任务 `task_fc1d0e8c5f4db936cec416645803e91b` 经 `yonder mcp → Gateway` 创建；GUI 重启后两次 `launch_app(com.tencent.QQMusicMac)` 均在进入 Jev 前返回 `worker-failed`，序号 10/15，任务已于序号 17 正式取消。故本轮不能声称真实 QQ 音乐步骤核验通过，待 Sky Worker 会话恢复后重跑。
-- 2026-10-08 当前 Sky 正式产品链已由 CU-S2 双样本证明恢复；本次收尾重跑在创建任务前被当前 Codex 会话的 Yonder MCP `Transport closed` 阻断。Yonder GUI 已重启且保持运行，但已关闭的 MCP stdio 传输无法由仓库代码或产品任务绕过重建；未创建任务、未派发动作，也未以直连 Socket/Driver/SQLite 替代。重新连接 MCP 后必须继续本样本，未取得产品事实前本节仍保持 BLOCKED。
+- 2026-10-08 MCP重新连接后，以正式产品任务 `task_b9e7241c78d7880acf822d6b9c7c2d56` 完成三版受限片段复验。`launch_app`与搜索入口聚焦分别在序号5/9得到`observed(action_succeeded=true, observe_valid=true)`；随后文本输入、绑定新鲜Observation的元素点击及封闭`SPACE`激活分别在序号13/17/21得到`unknown(driver-action-unconfirmed, observe_valid=false)`。每次均先交回慢脑、使用新plan/step/attempt身份且未自动重试旧副作用，任务最终在安全边界取消于序号23。
+- 因三个候选都在Driver结构事实成立前停止，正式样本尚未进入Jev三值步骤核验，不能把自动化通过外推为产品PASS。阻断点已收敛为CU-S4的Sky动作确认能力；结构化证据见 `apps/desktop/evidence/ex-s2-qqmusic-step-verification-20261008/result.json`。修复CU-S4并重建正式产品后重跑，本节继续保持BLOCKED。
 
 状态：macOS 同步连续执行验证通过（2026-09-28）；Windows 按用户决定暂缓。
 
