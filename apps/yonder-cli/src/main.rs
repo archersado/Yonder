@@ -103,7 +103,7 @@ fn tools() -> Value {
         "additionalProperties":false,
         "required":["fact","expected"],
         "properties":{
-            "fact":{"type":"string","enum":["application-ready","target-resolved","composer-ready","delivery-confirmed"]},
+            "fact":{"type":"string","enum":["action-succeeded","observe-valid","target-visible"]},
             "expected":{"type":"boolean"}
         }
     });
@@ -278,8 +278,8 @@ mod tests {
                     "arguments":{"bundle_id":"com.tencent.WeWorkMac"},
                     "action_kind":"launch-application",
                     "target_ref":"wecom-app",
-                    "preconditions":[{"fact":"application-ready","expected":false}],
-                    "expected_observe":[{"fact":"application-ready","expected":true}]
+                    "preconditions":[{"fact":"observe-valid","expected":false}],
+                    "expected_observe":[{"fact":"action-succeeded","expected":true},{"fact":"observe-valid","expected":true}]
                 }]
             }]
         });
@@ -295,5 +295,8 @@ mod tests {
         assert!(names.contains(&"task_cua_intent_propose"));
         assert!(names.contains(&"task_goal_verify"));
         assert!(!names.contains(&"computer_execute"));
+        let plan_tool=tools.as_array().unwrap().iter().find(|tool|tool["name"]=="task_plan_submit").unwrap();
+        let facts=plan_tool["inputSchema"]["properties"]["slots"]["items"]["properties"]["candidates"]["items"]["properties"]["expected_observe"]["items"]["properties"]["fact"]["enum"].as_array().unwrap();
+        assert_eq!(facts,json!(["action-succeeded","observe-valid","target-visible"]).as_array().unwrap());
     }
 }
