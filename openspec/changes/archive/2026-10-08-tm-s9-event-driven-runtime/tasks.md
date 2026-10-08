@@ -10,4 +10,4 @@
 - [x] 将 Driver 阶段/effect/Observe 分类直接投影到顶部控制条和 Gateway 活动查询。
 - [x] 覆盖延迟、失败、背压、取消/接管、HandBack、崩溃恢复与发送确认测试。
 - [x] 建立并运行 macOS 独立 Verification Goal；Windows 暂缓。
-- [ ] 四类执行与控制链路全部通过后 Archive。
+- [x] 四类执行与控制链路全部通过后 Archive。

@@ -2,10 +2,10 @@
 
 Story: TM-S9
 Epic: TM
-Status: verifying
+Status: done
 OpenSpec: tm-s9-event-driven-runtime
 
-状态：verifying。依据 [AD-TM-23](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-23-EVENT-DRIVEN-EXECUTION-RUNTIME.md)，活动任务不再由同步 SQLite 写入驱动。OpenSpec：[`tm-s9-event-driven-runtime`](../../../../openspec/changes/tm-s9-event-driven-runtime/)。
+状态：done。依据 [AD-TM-23](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-23-EVENT-DRIVEN-EXECUTION-RUNTIME.md)，活动任务不再由同步 SQLite 写入驱动。OpenSpec：[`tm-s9-event-driven-runtime`](../../../../openspec/changes/archive/2026-10-08-tm-s9-event-driven-runtime/)（2026-10-08 已归档）。
 
 ## 设计文档
 
