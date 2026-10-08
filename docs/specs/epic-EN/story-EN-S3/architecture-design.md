@@ -12,7 +12,7 @@
 
 - `valid_id`：保留 `crates/protocol/src/lib.rs:1292` 实现作为唯一来源；`crates/application/src/lib.rs` 的 `validate_id/valid_id` 改为引用 protocol（application 已依赖 protocol，方向合法）。application 公共导出保留 `pub use yonder_protocol::valid_id` 以免调用点扩散。
 - `UnknownReason`：application `computer_use::UnknownReason` 与 protocol `AttemptUnknownReason` 合并——application 侧保留内部枚举，转换收敛为单一 `impl From<internal> for wire` 实现（置于 protocol 或 application 其一），`gateway.rs` 尾部与 `attempt_result` 内的散落 match 删除。语义映射表（含 8 个 reason 值）由既有协议回归逐值断言保护。
-- 版本常量：`PROTOCOL_VERSION`（当前 1.31）从 `application/gateway.rs` 移入 `yonder-protocol`，application `pub use` 再导出；`apps/yonder-cli/src/main.rs` 握手参数改为引用该常量，删除 `minor: 31` 字面量。CLI 仅依赖 protocol，此下沉方向合法。
+- 版本常量：`PROTOCOL_VERSION` 从 `application/gateway.rs` 移入 `yonder-protocol`，application `pub use` 再导出；`apps/yonder-cli/src/main.rs` 握手参数引用该常量。Codex bridge 只声明自身实际支持的 `agent.input + replan-input` 能力面，因此有意钉定 1.33 并在代码中注明，不随产品协议升版漂移。CLI 仅依赖 protocol，此下沉方向合法。
 
 ### 阶段 2：能力协商等价重构（AC2/AC3，独立可合）
 

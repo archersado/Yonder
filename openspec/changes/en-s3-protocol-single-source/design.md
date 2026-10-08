@@ -6,7 +6,7 @@
 
 `PROTOCOL_VERSION: ProtocolVersion` 定义于 `crates/protocol/src/lib.rs` 顶部常量区，附注释声明"组合根与 CLI 须引用此常量，不得各写一份 minor 字面量"。`application/gateway.rs` 以 `pub use yonder_protocol::PROTOCOL_VERSION` 再导出，保持 `release_contract.rs` 的 `yonder_application::gateway::PROTOCOL_VERSION` 路径不变。`apps/yonder-cli/src/main.rs` 的 hello 握手改引常量，`ProtocolVersion` 字面量导入随之删除。
 
-偏差记录：`codex_agent_bridge.rs` 保留 `minor: 19`（钉定能力面，非遗漏），major 改为从 `PROTOCOL_VERSION.major` 派生并注明原因。这是有意的部分例外，验收时按"除 bridge 外 apps/ 无 minor 字面量"断言。
+偏差记录：`codex_agent_bridge.rs` 最初钉定 1.19，后续交回唤醒接入 `replan-input` 时将实际能力边界升级为 1.33。bridge 继续只从 `PROTOCOL_VERSION` 派生 major，minor 明确钉定 33 并注明原因；它不得随产品协议升版声明尚未实现的新能力。这是有意的部分例外，验收时按“除 bridge 外 apps/ 无握手 minor 字面量，bridge 仅允许 33”断言。
 
 ## UnknownReason 唯一映射
 

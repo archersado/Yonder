@@ -42,6 +42,36 @@ def check_dependencies(metadata):
                 raise ValueError(f"禁止依赖：{name} → {target} ({dep.get('kind') or 'normal'})")
 
 
+def check_protocol_single_source(root):
+    rust_files = list((root / "crates").glob("**/*.rs"))
+    valid_id_definitions = [
+        path for path in rust_files
+        if re.search(r"^(?:pub(?:\([^)]*\))?\s+)?fn\s+valid_id\s*\(", path.read_text(encoding="utf-8"), re.MULTILINE)
+    ]
+    expected_valid_id = root / "crates/protocol/src/lib.rs"
+    if valid_id_definitions != [expected_valid_id]:
+        names = ", ".join(str(path.relative_to(root)) for path in valid_id_definitions) or "无"
+        raise ValueError(f"valid_id 必须仅定义于 yonder-protocol，当前：{names}")
+
+    version_definitions = [
+        path for path in rust_files
+        if re.search(r"^pub\s+const\s+PROTOCOL_VERSION\b", path.read_text(encoding="utf-8"), re.MULTILINE)
+    ]
+    if version_definitions != [expected_valid_id]:
+        raise ValueError("PROTOCOL_VERSION 必须仅定义于 yonder-protocol")
+
+    application = root / "crates/application/src"
+    enums = [path for path in application.glob("**/*.rs") if re.search(r"^pub\s+enum\s+UnknownReason\b", path.read_text(encoding="utf-8"), re.MULTILINE)]
+    mappings = [path for path in application.glob("**/*.rs") if "impl From<UnknownReason> for yonder_protocol::AttemptUnknownReason" in path.read_text(encoding="utf-8")]
+    expected_reason = application / "unknown_reason.rs"
+    if enums != [expected_reason] or mappings != [expected_reason]:
+        raise ValueError("UnknownReason 与 wire 枚举必须只有 unknown_reason.rs 中的一份映射")
+
+    bridge = (root / "apps/yonder-cli/src/codex_agent_bridge.rs").read_text(encoding="utf-8")
+    if "有意钉定 1.33" not in bridge or not re.search(r"minor:\s*33\b", bridge) or "minor: PROTOCOL_VERSION.minor" in bridge:
+        raise ValueError("Codex bridge 必须显式钉定 replan-input 所需的协议 1.33")
+
+
 def repository_file(root, value):
     relative = Path(value)
     if relative.is_absolute() or ".." in relative.parts:
@@ -187,6 +217,7 @@ def main():
         cwd=root, text=True,
     )
     check_dependencies(json.loads(metadata))
+    check_protocol_single_source(root)
     check_planning(root)
     if args.event:
         check_pr(root, json.loads(args.event.read_text(encoding="utf-8")))

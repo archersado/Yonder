@@ -1,5 +1,6 @@
 //! 活动执行的单一内存状态所有者。SQLite projector 只消费这里产生的连续事件，
 //! 不参与 Driver、Observe 或下一步决策。
+use crate::valid_id;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::{
@@ -880,14 +881,6 @@ fn command_task_id(command: &RuntimeCommand) -> &str {
         | RuntimeCommand::Ack { task_id, .. } => task_id,
     }
 }
-fn valid_id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

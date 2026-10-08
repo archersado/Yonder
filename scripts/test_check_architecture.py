@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from check_architecture import DOCUMENTS, cargo_executable, check_dependencies, check_planning, check_pr, repository_file
+from check_architecture import DOCUMENTS, cargo_executable, check_dependencies, check_planning, check_pr, check_protocol_single_source, repository_file
 
 
 def metadata(name, dependencies):
@@ -51,6 +51,44 @@ class DependencyTests(unittest.TestCase):
             check_dependencies(metadata("yonder-application", [{
                 "name": "hidden-adapter", "path": "/tmp/hidden-adapter",
             }]))
+
+
+class ProtocolSingleSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        files = {
+            "crates/protocol/src/lib.rs": "pub const PROTOCOL_VERSION: u16 = 49;\npub fn valid_id(value: &str) -> bool { !value.is_empty() }\n",
+            "crates/application/src/unknown_reason.rs": "pub enum UnknownReason { Invalid }\nimpl From<UnknownReason> for yonder_protocol::AttemptUnknownReason {}\n",
+            "apps/yonder-cli/src/codex_agent_bridge.rs": "// 有意钉定 1.33\nlet version = ProtocolVersion { major: PROTOCOL_VERSION.major, minor: 33 };\n",
+        }
+        for name, content in files.items():
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+    def test_accepts_single_sources_and_documented_bridge_pin(self):
+        check_protocol_single_source(self.root)
+
+    def test_rejects_duplicate_id_version_reason_and_floating_bridge(self):
+        cases = {
+            "crates/application/src/runtime.rs": "fn valid_id(value: &str) -> bool { true }\n",
+            "crates/application/src/version.rs": "pub const PROTOCOL_VERSION: u16 = 50;\n",
+            "crates/application/src/reason.rs": "pub enum UnknownReason { Other }\n",
+        }
+        for name, content in cases.items():
+            with self.subTest(name=name):
+                path = self.root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    check_protocol_single_source(self.root)
+                path.unlink()
+        bridge = self.root / "apps/yonder-cli/src/codex_agent_bridge.rs"
+        bridge.write_text("let version = ProtocolVersion { major: PROTOCOL_VERSION.major, minor: PROTOCOL_VERSION.minor };\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            check_protocol_single_source(self.root)
 
 
 class AssociationTests(unittest.TestCase):

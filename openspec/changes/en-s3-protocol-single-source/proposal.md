@@ -12,7 +12,7 @@
 
 ## 方案
 
-- 版本常量下沉至 `yonder-protocol`，application `pub use` 再导出，CLI 引用常量；Codex 桥钉定 `minor: 19` 属既有能力边界（只使用 agent.input 文本通道），保留并以 `major: PROTOCOL_VERSION.major` 派生。
+- 版本常量下沉至 `yonder-protocol`，application `pub use` 再导出，CLI 引用常量；Codex 桥在后续接入 replan-input 后钉定 `minor: 33`，只声明 agent.input 与 replan-input 能力面，并以 `major: PROTOCOL_VERSION.major` 派生。
 - 新增 `crates/application/src/unknown_reason.rs`：内部枚举 + 唯一 `From<UnknownReason> -> yonder_protocol::AttemptUnknownReason` 映射 + 逐值序列化回归；gateway/query 两份手写 match 删除，改为 `reason.into()`。
 - `valid_id` 唯一实现回归 protocol；application 只做 `Error::InvalidInput` 映射并 `pub use` 保持调用点零改动。
 
@@ -25,4 +25,4 @@
 
 ## 非目标
 
-不实施 EN-S3 阶段 2–5（能力协商表、TaskStore 拆分、宿主并发、前端门禁）；不改 Codex 桥的钉定 minor 值；不修 EX-S2 的既有门禁关联缺失。
+不实施 EN-S3 阶段 2–5（能力协商表、TaskStore 拆分、宿主并发、前端门禁）；不让 Codex bridge 跟随产品最新 minor；不修 EX-S2 的既有门禁关联缺失。

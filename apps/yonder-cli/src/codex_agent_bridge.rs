@@ -363,8 +363,9 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
             deadline: now_ms()?.saturating_add(10_000),
             protocol_version: ProtocolVersion {
                 major: PROTOCOL_VERSION.major,
-                // 交回唤醒使用1.33的replan输入来源；仍只扩展既有agent.input通道。
-                minor: PROTOCOL_VERSION.minor,
+                // 有意钉定 1.33：桥只使用 agent.input 与该版本新增的 replan-input，
+                // 不得随产品协议升版而声明尚未实现的新能力面。
+                minor: 33,
             },
             session_id: Some(thread_id.clone()),
             offered_capabilities: Some(vec![OfferedCapability::UserInput,OfferedCapability::ReplanInput]),
