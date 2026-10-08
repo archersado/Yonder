@@ -16,4 +16,4 @@
 - [x] 建立并运行 macOS 独立 Verification Goal
 - [x] 在安装包 CLI/MCP 导出计划提交与执行，并以真实 Codex MCP 证明快慢脑产品入口
 - [ ] 归档 Change；Windows 证据保留为 EX-S2 Story 的未完成项
-- [ ] 实现新鲜 AX 元素动作空间、唯一元素直执行与多元素 Jev 选择，并跑正式 macOS 长链路对照
+- [x] 实现新鲜 AX 元素动作空间、唯一元素直执行与多元素 Jev 选择，并跑正式 macOS 长链路对照

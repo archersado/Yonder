@@ -32,3 +32,5 @@ OpenSpec: ex-s2-plan-fragment-macos
 2026-09-28：用户进一步明确快脑应在慢脑计划上连续判断和执行，而不是要求慢脑逐槽位续调。AD-AG-09 已修订为单次 Gateway 调用内的同步有界连续推进；每动作仍强制 Observe，槽位间重新检查控制与任务事实，异常立即交回，响应后不留后台执行。
 
 2026-09-24 用户变更：先实施 macOS-only Jev 决策接线，Windows 后补；API Key 只从 macOS 系统凭据入口读取，不进入配置、任务数据或日志。该子范围的真实 Keychain/远端调用、离线回归和独立 Verification Goal 已通过，见[已归档 macOS-only 接线 OpenSpec](../../../../openspec/changes/archive/2026-09-24-ex-s2-macos-only-jev-wiring/proposal.md)。Story 整体仍为 implementing；计划片段执行、Windows 与费用证据须先满足各自门禁并另建 Change。
+
+2026-10-08 用户修订：Jev 快脑改为从同次新鲜 AX Observe 自然形成的多控件动作空间中选择，不再为触发快脑构造应用恢复分支。正式安装包 MCP/Gateway macOS 样本已完成“语义模板→AX 多候选→Jev 选择→临时句柄复核→点击→动作后 Observe→Goal Verification→completed”，证据见[计划片段 Verification Goal](../../../../openspec/changes/ex-s2-plan-fragment-macos/verification-goal.md)。Windows 证据仍按决定暂缓，Story 保持 implementing。

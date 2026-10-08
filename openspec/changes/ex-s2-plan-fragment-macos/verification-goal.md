@@ -75,3 +75,15 @@ Application 不再把计划候选自行声明的 `preconditions` 当作已验证
 Sky MCP 冷启动预算修正后，正式 `Yonda.app` 通过安装包内 `yonder mcp → Gateway → Application → Jev → Sky` 运行任务 `task_6d52a58506b048f4a30da849d7b97ffe`。首槽位 `launch_app(com.apple.TextEdit)` 在序号 5 形成 `observed(action_succeeded=true, observe_valid=true)`；第二槽位的两个合法候选经本轮 Observe 筛选后进入 Jev。修正前模型会把与动作并列的 `handback` 选中并在动作前交回；修正后 `handback` 由 Application 作为低置信/异常的唯一安全边界，不再进入模型候选集。本次 Jev 实际选择并派发了第二槽位：序号 8 声明快脑步骤，序号 9 开始 `attempt_9`。
 
 第二个 Sky 动作的后置观察在序号 10 返回 `unknown(observe-failed, observe_valid=false)`，片段于序号 11 安全交回，未将动作或任务误报为成功。因此本样本证明“新鲜 Observe → Jev 选择 → 真实派发”链路 PASS；Driver 后置 Observe 的正向完成率仍须由 CU-S4 继续收敛，不在本结论中提升。验证后任务于序号 12 取消清理。Windows 仍按用户决定暂缓。
+
+## 2026-10-08 新鲜 AX 动作空间终局证据
+
+依据用户修订，不再以人为构造的应用恢复路径触发快脑。正式 debug `Yonda.app` 经安装包内 `yonder mcp → Gateway → Application → Jev → Sky` 运行任务 `task_91bc7bd44fe101091c0e0798104fcda9`。慢脑片段第一槽位只负责打开已签名隔离 App 并形成新鲜 Observe；第二槽位只提交一个 `activate-control + click {}` 语义模板“点击执行验证主动作按钮”。Application 从同次 AX Observe 展开多个真实按钮候选，按本步意图把封闭角色、最长 128 字节短标签和不透明候选 ID 交给 Jev；未向 Jev 暴露 transcript、截图、坐标、PID、窗口身份或 Driver 参数。
+
+Jev 选择目标按钮后，Application 仅在当次内存请求注入 `observation_ref + observed_element_index`，Sky 在点击前复核句柄属于最新 Observe。夹具收到真实点击并把 AX 标签变更为“验证主动作已完成”，动作后 Observe 独立确认状态变化。结构化结果为：
+
+```json
+{"platform":"macos","entry":"bundled-yonder-mcp","passed":true,"task_id":"task_91bc7bd44fe101091c0e0798104fcda9","disposition":"awaiting-goal-verification","elapsed_ms":19762,"primary_selected":true,"event_count":12,"observed_attempts":2}
+```
+
+随后归属慢脑以最新 observation sequence 提交 `task.goal.verify(achieved)`，再携同一 verification ID 完成任务。该样本证明“唯一慢脑语义模板 → 新鲜 AX 多候选 → Jev 自然选择 → 临时句柄注入 → Driver 复核并执行 → 动作后 Observe → Goal Verification → completed”正式产品链路 PASS；它不声称单次样本已经证明快慢脑相对纯慢脑的统计性能优势。Windows 仍按用户决定暂缓。
