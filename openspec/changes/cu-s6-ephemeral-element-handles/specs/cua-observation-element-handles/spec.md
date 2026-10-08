@@ -88,3 +88,27 @@
 
 - **WHEN** Sky 已接收一次原图坐标动作但后置 Observation 未证明目标变化
 - **THEN** Worker 返回新鲜 Observation 交回慢脑，且不得自动换算倍率或重放旧坐标
+
+### Requirement: Driver 错误以有界分类透出
+
+系统 MUST 把 Driver unknown 的安全分类通过既有 Attempt 事件同时提供给归属 Agent 和本机任务界面，不得只记录通用 `observe-failed` 或开发控制台文本。
+
+#### Scenario: 坐标动作超时或被拒绝
+
+- **WHEN** 坐标动作进入 Sky 调用边界后超时或返回错误
+- **THEN** Worker 仍只执行一次动作后 Observe，并分别返回 `driver-action-timed-out` 或 `driver-action-rejected`，不得重放动作
+
+#### Scenario: Driver 回执后没有可确认变化
+
+- **WHEN** Driver 调用返回但动作后 Observation 未证明界面变化
+- **THEN** Attempt 事件返回 `driver-action-unconfirmed`，顶部 Driver 轮次和任务面板显示对应安全文案
+
+#### Scenario: 目标代次、Observe 或传输失败
+
+- **WHEN** 新鲜引用校验失败、Driver Observe 失败或 Driver 通道失效
+- **THEN** 分别返回 `driver-target-stale`、`driver-observation-failed` 或 `driver-transport-failed`，且不包含原始错误正文
+
+#### Scenario: 旧协议读取新错误
+
+- **WHEN** 协议 1.48 及以下调用方读取包含新 Driver 错误的任务事件
+- **THEN** Gateway 将其降级为既有 `timed-out`、`observe-failed` 或 `worker-failed`，响应仍可解码

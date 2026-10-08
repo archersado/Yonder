@@ -2,7 +2,7 @@
 
 Story: CU-S6
 
-关联 [CU-S6](../../../docs/specs/epic-CU/story-CU-S6/README.md)、Accepted AD-CU-10 与 Accepted AD-CU-11。Architecture Impact：architecture-change（临时 Observation 协议、Worker 运行态引用与截图坐标契约）。
+关联 [CU-S6](../../../docs/specs/epic-CU/story-CU-S6/README.md)、Accepted AD-CU-10、Accepted AD-CU-11 与 Accepted AD-CU-12。Architecture Impact：architecture-change（临时 Observation 协议、Worker 运行态引用、截图坐标契约与有界 Driver 错误分类）。
 
 ## Why
 
@@ -17,6 +17,7 @@ Sky 已取得可操作 AX 元素，但 Gateway 只返回数量和截图，导致
 - 含截图的 Observation 返回原始像素宽高；所有坐标动作绑定同次引用并由 Worker 校验尺寸与边界。
 - 同尺寸但 transcript 已变化时拒绝旧坐标；装饰性 image 与 disabled 节点不进入独立动作候选。
 - macOS Adapter 将通过门禁的原图像素不变传给 Sky，不读取、保存或应用显示器 backing scale。
+- 协议 1.49 通过既有 Attempt Unknown Reason 透出有界 Driver 错误，Gateway 对旧协议降级，顶部 Driver 轮次与任务面板显示同一安全分类。
 - Gateway 只在当前响应返回有界 transcript 与临时句柄，不持久化、不投影到 UI。
 - 增加协议、Application、Adapter/Gateway 合约与 macOS 正式验证。
 

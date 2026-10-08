@@ -35,3 +35,7 @@ transcript 与短标签用于慢脑理解界面和控件消歧；Worker 对疑�
 ## 失败与验证
 
 测试覆盖 transcript 裁剪、敏感字段排除、上限、可选择行及后代标签边界、无祖先 image 句柄、装饰性 image/disabled 过滤、引用替换/跨任务/进程重建拒绝、同尺寸 transcript 变化、动作前新鲜索引校验、原始像素不变传递、坐标调用错误后的 Observe、协议严格解码和 Gateway 兼容。macOS 正式企业微信样本必须证明目标企业名称已切换或安全交回；Windows 暂缓。
+
+协议 1.49 依 AD-CU-12 扩展 Attempt Unknown Reason，而不是新增自由文本错误字段。Worker 只产生封闭 `failure_stage`，Adapter 将其穷举映射为动作超时、动作拒绝、动作未确认、目标失效、Observe 失败或传输失败；未识别值只能降级为 `worker-failed`，不得穿透。Application、SQLite 与 Outbox 继续复用既有 unknown reason 字段和事件事务。
+
+Gateway 仅向协商 1.49 的调用方返回新枚举值；旧客户端按类别降级为 `timed-out`、`observe-failed` 或 `worker-failed`。桌面顶部浮窗直接从进程内 DispatchOutcome 更新当前 Driver 轮次，任务面板从持久 Attempt 事件显示同一中文分类，两者都不展示 SDK 原文。

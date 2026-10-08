@@ -11,6 +11,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - 架构约束：AD-CU-09 保持 Sky 单栈、新鲜 transcript、动作后 Observe、unknown 不重试；AD-CU-10 允许临时可操作元素句柄并禁止完整 transcript 持久化；AD-TM-23 保持运行时轻量事件驱动。
 - 后续真实样本（2026-10-07）：企业微信左下角企业切换入口只暴露为无文本 AX image；坐标兜底因截图缩放难以稳定命中，要求继续保持元素优先并暴露受新鲜引用保护的 image 句柄。
 - 后续正式对照（2026-10-08）：短暂引入的 Retina backing-scale 换算使企业微信精确原图坐标稳定失效；此前两个不同点位的结果不足以证明坐标单位差异，必须恢复 Sky 原始截图像素契约。
+- 后续用户变更（2026-10-08）：Driver 错误必须透出；只能返回不含 SDK 原文、正文、截图或完整 Payload 的有界错误码，并在顶部浮窗、任务面板和 Gateway 使用同一事实。
 - 待审建议：未来是否为复杂表格、树增加更多结构字段，不在本 Story 自行扩展。
 
 ## 验收条件
@@ -32,6 +33,8 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-15：正式样本必须通过动作后 Observation 中与目标直接相关的结构事实核验；QQ 音乐坐标成功不得外推为企业微信企业切换成功，截图任意变化也不得作为企业切换完成证据。
 - OEH-16：Gateway、计划、慢脑与 Sky Adapter 均只使用同次 Observation 的原始截图像素；Adapter 不得读取、保存或应用显示器 backing scale。
 - OEH-17：原图坐标未命中时必须以后置 Observation 安全交回；不得把失败解释为倍率问题后自动换算或重放，后续慢脑只能基于新鲜截图修正点位或改用元素句柄。
+- OEH-18：Driver unknown 必须区分动作超时、动作拒绝、动作未确认、目标引用失效、Observe 失败与传输失败；错误码必须进入既有 Attempt 事件并同步显示在顶部 Driver 轮次、任务面板及协议 1.49 Gateway 响应。
+- OEH-19：错误透出不得包含 SDK/MCP 原文、动作参数、应用名、AX transcript、截图、PID、窗口 ID 或完整 Payload；协议 1.48 及以下必须降级为既有通用 unknown reason。
 
 ## 验收映射
 
@@ -41,7 +44,8 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 | 2026-10-07 用户变更与后续真实样本 | OEH-01、OEH-03～OEH-06、OEH-08～OEH-10 |
 | 2026-10-08 QQ 音乐坐标偏移回归 | OEH-11、OEH-12 |
 | 2026-10-08 企业微信企业切换负样本与 Retina 逻辑点诊断 | OEH-13～OEH-17 |
-| AD-CU-09、AD-CU-10、AD-CU-11 | OEH-01～OEH-08、OEH-10～OEH-17 |
+| 2026-10-08 Driver 错误透出用户变更 | OEH-18、OEH-19 |
+| AD-CU-09、AD-CU-10、AD-CU-11、AD-CU-12 | OEH-01～OEH-08、OEH-10～OEH-19 |
 | AD-TM-23 | OEH-07 |
 
 ## 范围与非目标

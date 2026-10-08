@@ -24,3 +24,5 @@ macOS 协议、Worker、Gateway 临时 transcript 子范围已通过独立 Verif
 同日企业微信复核证明此前“企业切换通过”缺少目标企业名称事实，已撤回该结论。当前补充同尺寸 transcript 代次校验、装饰性 image/disabled 候选过滤，并要求正式回归直接观察到目标企业名称后才能通过。
 
 后续正式对照撤销了“动作使用逻辑点”的推断：精确原图坐标经 2x 除法后稳定失效，既有成功点与失败点并非同一视觉位置。Story 继续处于实施阶段，并恢复从 Gateway 到 Sky 的原图像素不变契约。
+
+重建后的企业微信正式负样本进一步发现：Worker 已有 `failure_stage` 在 Adapter 边界被折叠为通用 `observe-failed`，用户与慢脑无法判断坐标动作是超时、被拒绝还是仅未观察到效果。依 AD-CU-12，Story 增加有界 Driver 错误码，经既有 Attempt 事件同步透出 Gateway、任务面板和顶部 Driver 轮次。
