@@ -4213,6 +4213,16 @@ mod tests {
         let (controlled,control)=yonder_application::execution_runtime::stop_for_control(&runtime_handle,&mut store,AuthContext::LocalUser("desktop"),&runtime_task.id,runtime_result.sequence,ControlKind::Takeover).unwrap();assert_eq!(controlled.status,Status::Paused);assert_eq!(control.phase,ControlPhase::Stopped);
         let runtime_events=runtime_handle.pending(&runtime_task.id,32).unwrap();let through=runtime_events.last().unwrap().sequence;RuntimeEventProjector::project(&mut store,&runtime_events).unwrap();runtime_handle.apply(RuntimeCommand::Ack{task_id:runtime_task.id.clone(),through_sequence:through}).unwrap();
         assert_eq!(store.get_plan_fragment(&runtime_task.id,&runtime_fragment.plan_id,1).unwrap().unwrap().current_slot,2);assert_eq!(store.get(&runtime_task.id).unwrap().sequence,controlled.sequence);assert_eq!(store.get_control(&runtime_task.id).unwrap().unwrap().kind,ControlKind::Takeover);
+        let replan_task=create(&mut store,"pre-action-handback-replan").unwrap();
+        let first_fragment=PlanFragment{task_id:replan_task.id.clone(),plan_id:"pre-action-plan-v1".into(),expected_sequence:replan_task.sequence,..fragment.clone()};
+        let first_submitted=store.submit_plan_fragment("a1",&first_fragment).unwrap();
+        let handed_back=store.hand_back_plan_fragment(&replan_task.id,&first_fragment.plan_id,1,first_submitted.sequence,"快脑决策不可用，需要慢脑重新 Observe 或规划").unwrap();
+        assert_eq!(handed_back.status,Status::Running);assert!(store.get_attempt(&replan_task.id).unwrap().is_none());
+        let second_fragment=PlanFragment{task_id:replan_task.id.clone(),plan_id:"pre-action-plan-v2".into(),plan_version:2,expected_sequence:handed_back.sequence,..fragment.clone()};
+        let second_submitted=store.submit_plan_fragment("a1",&second_fragment).unwrap();let replan_runtime=ExecutionRuntime::with_defaults().unwrap();let replan_admission=Admission::new(1).unwrap();let replan_port=Port(Mutex::new(Vec::new()));
+        assert!(!replan_admission.holds(&replan_task.id).unwrap());
+        let (_,replan_disposition,_)=execute_available_runtime(&mut store,&replan_runtime.handle(),&replan_admission,&replan_port,&Target,&config,&MustNotChoose,None,AuthContext::Agent("a1"),&replan_task.id,&second_fragment.plan_id,2,second_submitted.sequence,1_000,"host").unwrap();
+        assert_eq!(replan_disposition,"awaiting-goal-verification");assert_eq!(*replan_port.0.lock().unwrap(),vec!["launch_app","bring_to_front"]);assert!(replan_admission.holds(&replan_task.id).unwrap());
         let port = Port(Mutex::new(Vec::new()));
         let admission = Admission::new(1).unwrap();
         let (task, disposition, _) = execute_available(

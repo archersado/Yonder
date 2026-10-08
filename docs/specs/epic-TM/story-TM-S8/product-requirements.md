@@ -1,12 +1,16 @@
 # TM-S8 产品需求
 
-## 来源与目标
+## 问题与目标
 
 来源为产品简报“MVP 主干链路”“Task Space 与权限模型”、补充材料的 Agent Skill/本地主机 CLI/CUA-BUA Task Space，以及 2026-09-28 用户明确要求：“要的是一个可以运行 CUA/BUA/Office/Command 链路的完整产品”，并要求立即用正式链路验证。
 
 Yonder 的验收单位是用户可见、可控、可审计的完整任务，不是单个 Driver、测试脚本或内部 API 成功。
 
-## 验收
+## 范围与非目标
+
+范围覆盖真实 Codex MCP、正式 Yonder GUI、统一 Gateway、Jev 片段内选择，以及 CUA、BUA、Office、Command 四类产品闭环。Yonder 不内置首次规划慢脑；不得新增第二 Gateway、第二任务状态机或通用本地 HTTP 服务。Windows 本轮暂缓，macOS PASS 不代表双平台完成。
+
+## 验收条件
 
 | ID | 要求 |
 |---|---|
@@ -31,7 +35,3 @@ Yonder 的验收单位是用户可见、可控、可审计的完整任务，不�
 “快慢脑”由慢脑一次提交 2～10 个槽位的完整片段，多候选槽位真实调用 Jev；“纯慢脑”由同一 Codex 在每次 Observe 后经 Gateway 提交下一动作，禁止私有 Driver 或脚本代替决策。成功只接受最新 Observation 绑定的 `task.goal.verify=achieved` 和任务终态 `completed`。超时、`unknown`、错误目标、需要人工修正或未达到目标均计为未完成，不从分母剔除。
 
 计时从首个计划/动作请求发出，到目标核验提交为止；报告墙钟耗时和扣除显式用户等待后的主动耗时。预热与构建时间不计入，但不得排除 Jev 请求、Gateway、Driver、Observe、handback/replan。主结果报告每种模式的完成数/总数及 Wilson 95% 区间、主动耗时中位数/P95；只对两边均完成的配对另报耗时比，不能用它替代总体完成率。
-
-## 非目标
-
-Yonder 不内置首次规划慢脑；内置 Jev 仅是受限执行快脑。不得新增第二 Gateway、第二任务状态机或通用本地 HTTP 服务。Windows 本轮暂缓；macOS PASS 只代表 macOS 产品闭环。

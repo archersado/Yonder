@@ -22,3 +22,5 @@ OpenSpec: tm-s8-unified-product-chain
 2026-09-28 已完成统一执行浮窗的 macOS 增量验收：正式 Gateway 创建的 BUA 与 CUA 任务在运行期间均显示顶部浮窗、同步当前步骤，并在终态关闭；BUA 不显示桌面接管，CUA 保留接管触点。四类完整产品闭环及 Windows 证据仍按任务清单推进，不因本次增量验收提前标记 Story Done。
 
 同日按正式 `Codex MCP → Gateway → 计划片段 → Jev → Yonder CUA` 路径复验，发现首动作前交回后的恢复阻断：Jev 交回会正确把任务保持为 `running` 并写出慢脑意图，但尚未取得 Admission、也没有历史 attempt；慢脑经 Gateway 提交的新片段可接受，执行却固定返回 `-32012`。该失败已形成[macOS 结构化验证记录](../../../../openspec/changes/tm-s8-unified-product-chain/verification-fast-slow-gateway-macos.md)，修复并重跑前不得宣称快慢脑产品链路通过。
+
+2026-10-08 已关闭上述 replan 恢复边界：TM-S9 的事件驱动执行入口会先为同一 `running` 任务恢复 Runtime 投影，再在新片段首个副作用前幂等取得 Admission；精确回归覆盖“首动作前交回、无 attempt、无 Admission、同任务提交新片段并连续执行两个槽位”。详见[macOS 独立验证记录](../../../../openspec/changes/tm-s8-unified-product-chain/verification-replan-recovery-macos.md)。该结论只关闭 `-32012` 实现阻断；真实 CUA/BUA/Office/Command 产品闭环及快慢脑配对样本仍未完成，Story 继续保持 `verifying`。
