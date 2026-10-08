@@ -10,7 +10,7 @@
 - [x] 外置同任务窗口绑定到Rust Adapter并覆盖Worker重建/跨任务回归
 - [x] 修复Sky坐标点击超时误报、接入新鲜AX元素激活并完成企业微信入口回归
 - [x] 将官方Sky MCP Client首次XPC/MCP握手预算从5秒校正为15秒，并覆盖慢启动回归
-- [ ] 修正Worker父Node身份边界并完成正式Gateway首步回归
+- [ ] 补齐Yonder Automation用途声明并完成系统授权后的正式Gateway首步回归
 - [ ] Windows对等验证（依用户决定暂缓）
 
 2026-10-01正式验证返回Apply：包边界与隔离Worker通过，但正式Yonder在`list_apps`前的Sky native-pipe握手被服务关闭，阶段为`transport-closed`。2026-10-04进一步确认固定Sky发行物提供官方签名MCP Client，且Client要求OpenAI Team ID父进程；同发行物签名Node派生Client的`list_apps/get_app_state`已通过隔离探针。产品实现改走该签名MCP桥，仍须完成正式Gateway与独立Goal后才能合入dev。

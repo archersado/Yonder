@@ -43,7 +43,7 @@
 - FGD-28：Sky对无业务副作用的坐标控件激活若在动作投递后不返回，Yonder必须在宿主总超时前停止旧Client并重新Observe同一应用；不得重放点击，且只有可验证的界面变化才能继续。消息发送、删除等副作用动作不得使用该收敛路径。
 - FGD-29：企业微信样本证明截图指纹变化不足以证明坐标点击已投递。协议1.42允许通用`activate-control + click`携带唯一受限`observed_element_index`，仅引用当前新鲜AX transcript中的`1..=65535`元素；Worker必须在动作前重新Observe确认元素存在并在内部转换，动作后transcript未变化则交回。坐标点击超时一律单次Observe后交回，不得自报成功或重放。
 - FGD-30：2026-10-07后续用户变更要求坐标动作参考Codex Computer Use闭环：在同一任务执行环境中按原始截图像素只派发一次动作，保留Client与应用绑定并返回动作后新鲜截图/AX；动作调用超时或菜单导致窗口代次变化时不得提前销毁环境、不得重放动作，应先按可信bundle id重新Observe。只有后置事实证明预期界面变化才推进，否则携带Observation交回慢脑。
-- FGD-31：2026-10-08正式Yonder回归证明，同发行物OpenAI签名Node作为独立Worker父进程时其受限App Group claim被macOS拒绝并导致首次XPC握手退出。Yonder必须由包内、与Worker同组合根的受监管Node运行Worker，且仍只通过固定Sky发行物的官方签名Client执行；Client的Team ID、identifier、App Group和包版本继续严格校验。不得由Agent或环境覆盖Node/Client路径，不得直连服务Socket、复制签名能力或恢复trycua回退。
+- FGD-31：2026-10-08正式Yonder回归证明，官方Client向Sky服务发送Apple Event时，macOS把负责身份追溯为Yonder；开发包重建后旧Automation授权不再匹配，而包内缺少用途声明，TCC拒绝事件并使Client以XPC assertion退出。正式包必须声明`NSAppleEventsUsageDescription`并纳入包审计；系统未授权时保持CUA不可用或有界交回，用户授权只经系统界面取得。不得修改TCC数据库、伪造签名、直连服务Socket或恢复trycua回退。
 
 ## 范围与非目标
 
@@ -62,4 +62,4 @@ Spike不发送消息、不使用用户正文、不改产品Gateway/协议/SQLite
 | 2026-10-06窗口绑定外置用户变更与AD-CU-09修订 | FGD-27 |
 | 2026-10-07参考Codex Computer Use循环的后续用户变更 | FGD-30 |
 | 2026-10-06企业微信企业入口真实回归与AD-CU-09修订 | FGD-28、FGD-29 |
-| 2026-10-08正式Gateway `worker-failed`诊断与AD-CU-09父进程身份修订 | FGD-31 |
+| 2026-10-08正式Gateway `worker-failed`诊断与AD-CU-09 Automation声明修订 | FGD-31 |

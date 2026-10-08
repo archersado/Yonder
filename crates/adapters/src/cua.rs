@@ -77,20 +77,25 @@ enum ActionEffect { Confirmed,Partial,Unverifiable,SuspectedNoop,Refused }
 fn valid_sky_app_id(value:&str)->bool {value.len()<=255&&!value.is_empty()&&value.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-'))}
 
 #[cfg(all(target_os="macos",not(test)))]
-fn valid_sky_release_identity(bridge:&Path)->bool {
-    if !Command::new("/usr/bin/codesign").args(["--verify","--strict","--verbose=0"]).arg(bridge).status().is_ok_and(|status|status.success()){return false}
+fn valid_sky_release_identity(node:&Path,bridge:&Path)->bool {
+    for path in [node,bridge] {
+        if !Command::new("/usr/bin/codesign").args(["--verify","--strict","--verbose=0"]).arg(path).status().is_ok_and(|status|status.success()){return false}
+    }
+    let node_identity=Command::new("/usr/bin/codesign").args(["-dv","--verbose=4"]).arg(node).output();
     let identity=Command::new("/usr/bin/codesign").args(["-dv","--verbose=4"]).arg(bridge).output();
     let entitlements=Command::new("/usr/bin/codesign").args(["-d","--entitlements",":-"]).arg(bridge).output();
-    let (Ok(identity),Ok(entitlements))=(identity,entitlements) else{return false};
+    let (Ok(node_identity),Ok(identity),Ok(entitlements))=(node_identity,identity,entitlements) else{return false};
+    let node_identity=String::from_utf8_lossy(&node_identity.stderr);
     let identity=String::from_utf8_lossy(&identity.stderr);
     let entitlements=format!("{}{}",String::from_utf8_lossy(&entitlements.stdout),String::from_utf8_lossy(&entitlements.stderr));
-    identity.contains("Identifier=com.openai.sky.CUAService.cli")
+    node_identity.contains("Identifier=node") && node_identity.contains("TeamIdentifier=2DC432GLL2")
+        && identity.contains("Identifier=com.openai.sky.CUAService.cli")
         && identity.contains("TeamIdentifier=2DC432GLL2")
         && entitlements.contains("2DC432GLL2.com.openai.sky.CUAService")
 }
 
 #[cfg(any(not(target_os="macos"),test))]
-fn valid_sky_release_identity(_bridge:&Path)->bool {true}
+fn valid_sky_release_identity(_node:&Path,_bridge:&Path)->bool {true}
 
 impl CuaWorker {
     /// 三个路径只能由可信组合根提供；SDK入口必须属于固定Sky包。
@@ -112,14 +117,14 @@ impl CuaWorker {
         let version = identity.as_ref().and_then(|value| value.get("version")).and_then(|value| value.as_str());
         if name != Some("@oai/sky") || version != Some("0.7.1") { return Err(UnknownReason::DependencyUnavailable); }
         let package_root=package.parent().ok_or(UnknownReason::DependencyUnavailable)?;
-        // Worker运行时属于Yonder组合根；外部Sky包只提供经过身份校验的官方Client。
-        let node=script.parent().ok_or(UnknownReason::DependencyUnavailable)?.join("node");
+        let runtime_root=package_root.ancestors().nth(4).ok_or(UnknownReason::DependencyUnavailable)?;
+        let node=runtime_root.join("bin/node");
         let bridge=package_root.join("Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient");
         let node_metadata=fs::symlink_metadata(&node).map_err(|_|UnknownReason::DependencyUnavailable)?;
         let bridge_metadata=fs::symlink_metadata(&bridge).map_err(|_|UnknownReason::DependencyUnavailable)?;
         if !node.is_absolute() || !node_metadata.is_file() || node_metadata.file_type().is_symlink()
             || !bridge.is_absolute() || !bridge_metadata.is_file() || bridge_metadata.file_type().is_symlink()
-            || !valid_sky_release_identity(&bridge){return Err(UnknownReason::DependencyUnavailable)}
+            || !valid_sky_release_identity(&node,&bridge){return Err(UnknownReason::DependencyUnavailable)}
         let worker=Self { node, script: script.into(), bridge, evidence:evidence.into(), timeout, window_activation,
             runtime:Mutex::new(WorkerRuntime{process:None,binding:None}) };
         worker.cleanup();Ok(worker)
@@ -322,7 +327,8 @@ mod tests {
         let runtime=root.join("cua_node");
         let package=runtime.join("lib/node_modules/@oai/sky");
         std::fs::create_dir_all(package.join("dist")).unwrap();
-        let node=root.join("node");std::fs::write(&node,b"#!/bin/sh\nexec /bin/sh \"$@\"\n").unwrap();
+        std::fs::create_dir_all(runtime.join("bin")).unwrap();
+        let node=runtime.join("bin/node");std::fs::write(&node,b"#!/bin/sh\nexec /bin/sh \"$@\"\n").unwrap();
         use std::os::unix::fs::PermissionsExt;std::fs::set_permissions(&node,std::fs::Permissions::from_mode(0o700)).unwrap();
         std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
         let sdk=package.join("dist/index.js");std::fs::write(&sdk,b"").unwrap();
@@ -348,7 +354,7 @@ mod tests {
         let runtime=root.join("cua_node");
         let package=runtime.join("lib/node_modules/@oai/sky");
         std::fs::create_dir_all(package.join("dist/project/cua/sky_js/src")).unwrap();
-        std::fs::write(root.join("node"),b"").unwrap();
+        std::fs::create_dir_all(runtime.join("bin")).unwrap();std::fs::write(runtime.join("bin/node"),b"").unwrap();
         let sdk=package.join("dist/project/cua/sky_js/src/index.js");std::fs::write(&sdk,b"").unwrap();
         let bridge=package.join("Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS");std::fs::create_dir_all(&bridge).unwrap();std::fs::write(bridge.join("SkyComputerUseClient"),b"").unwrap();
         let script=root.join("worker.mjs");std::fs::write(&script,b"").unwrap();

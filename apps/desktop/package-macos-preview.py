@@ -148,6 +148,7 @@ def main():
             "NSMicrophoneUsageDescription": "仅在你点击小龙旁的语音输入后采集本次语音并转成文字。",
             "NSSpeechRecognitionUsageDescription": "将你主动录制的语音转换为文字。",
             "NSScreenCaptureUsageDescription": "仅在你主动使用圈选提问时截取所选区域，并只在本机内存中预览。",
+            "NSAppleEventsUsageDescription": "通过官方签名的Computer Use服务执行你已授权的桌面任务。",
     }, output)
     subprocess.run(["/usr/bin/codesign", "--force", "--deep", "--sign", args.identity, bundle], check=True)
     subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", bundle], check=True)
