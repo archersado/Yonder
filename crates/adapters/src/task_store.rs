@@ -272,6 +272,7 @@ fn projected_state(
         | RuntimeEventKind::StepCompleted { .. }
         | RuntimeEventKind::StepUnverified { .. }
         | RuntimeEventKind::StepBoundaryAdvanced { .. }
+        | RuntimeEventKind::PlanSlotAdvanced { .. }
         | RuntimeEventKind::BrowserReferenceUpdated { .. }
         | RuntimeEventKind::HandedBack { .. }
         | RuntimeEventKind::GoalVerified { .. }
@@ -338,19 +339,12 @@ impl RuntimeEventProjector for SqliteTaskStore {
                 return Err(RuntimeProjectionError::Conflict);
             }
             let next_state = projected_state(&current_state, &event.kind)?;
-            if tx
-                .execute(
-                    "UPDATE tasks SET state=?1,sequence=?2 WHERE id=?3 AND sequence=?4",
-                    params![
-                        next_state,
-                        event.sequence as i64,
-                        event.task_id,
-                        current_sequence as i64
-                    ],
-                )
-                .map_err(|_| RuntimeProjectionError::Unavailable)?
-                != 1
-            {
+            let changed=match &event.kind{
+                RuntimeEventKind::HandedBack{reason}=>tx.execute("UPDATE tasks SET state=?1,sequence=?2,next_intent=?3 WHERE id=?4 AND sequence=?5",params![next_state,event.sequence as i64,reason,event.task_id,current_sequence as i64]),
+                RuntimeEventKind::StepStarted{..}=>tx.execute("UPDATE tasks SET state=?1,sequence=?2,next_intent=NULL WHERE id=?3 AND sequence=?4",params![next_state,event.sequence as i64,event.task_id,current_sequence as i64]),
+                _=>tx.execute("UPDATE tasks SET state=?1,sequence=?2 WHERE id=?3 AND sequence=?4",params![next_state,event.sequence as i64,event.task_id,current_sequence as i64]),
+            }.map_err(|_|RuntimeProjectionError::Unavailable)?;
+            if changed!=1{
                 return Err(RuntimeProjectionError::Conflict);
             }
             tx.execute(
@@ -445,6 +439,14 @@ impl RuntimeEventProjector for SqliteTaskStore {
                     {
                         return Err(RuntimeProjectionError::Conflict);
                     }
+                }
+                RuntimeEventKind::PlanSlotAdvanced{plan_id,plan_version,from_slot,..}=>{
+                    if tx.execute("UPDATE task_plan_fragments SET current_slot=current_slot+1 WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3 AND current_slot=?4",params![event.task_id,plan_id,*plan_version as i64,*from_slot as i64]).map_err(|_|RuntimeProjectionError::Unavailable)?!=1{return Err(RuntimeProjectionError::Conflict);}
+                }
+                RuntimeEventKind::HandedBack{reason}=>{
+                    tx.execute("UPDATE task_attempts SET handback_sequence=?1 WHERE task_id=?2 AND phase='unknown' AND result_sequence IS NOT NULL AND handback_sequence IS NULL",params![event.sequence as i64,event.task_id]).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                    let payload=format!(r#"{{"next_intent":{}}}"#,serde_json::to_string(reason).map_err(|_|RuntimeProjectionError::Unavailable)?);
+                    tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![event.task_id,event.sequence as i64,payload]).map_err(|_|RuntimeProjectionError::Unavailable)?;
                 }
                 RuntimeEventKind::BrowserReferenceUpdated { reference } => {
                     tx.execute(
@@ -4023,8 +4025,8 @@ mod tests {
             },
             jev_config::{JevCapability, JevServiceMode, JEV_REMOTE_ENDPOINT},
             jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
-            plan_fragment::{execute_available, CandidateAction, PlanSlot},
-            execution_runtime::ExecutionRuntime,
+            plan_fragment::{execute_available,execute_available_runtime,CandidateAction,PlanSlot},
+            execution_runtime::{ExecutionRuntime,RuntimeCommand,RuntimeEventProjector},
         };
 
         struct Target;
@@ -4196,6 +4198,14 @@ mod tests {
             token_limit: 10_000,
             capabilities: vec![JevCapability::Cua],
         };
+        let runtime_task=create(&mut store,"runtime-continuous-plan").unwrap();
+        let runtime_fragment=PlanFragment{task_id:runtime_task.id.clone(),plan_id:"runtime-continuous-plan-v1".into(),expected_sequence:runtime_task.sequence,..fragment.clone()};
+        let runtime_submitted=store.submit_plan_fragment("a1",&runtime_fragment).unwrap();let runtime=ExecutionRuntime::with_defaults().unwrap();let runtime_handle=runtime.handle();let runtime_port=Port(Mutex::new(Vec::new()));
+        let (runtime_result,runtime_disposition,_)=execute_available_runtime(&mut store,&runtime_handle,&Admission::new(1).unwrap(),&runtime_port,&Target,&config,&MustNotChoose,None,AuthContext::Agent("a1"),&runtime_task.id,&runtime_fragment.plan_id,1,runtime_submitted.sequence,1_000,"host").unwrap();
+        assert_eq!(runtime_disposition,"awaiting-goal-verification");assert_eq!(*runtime_port.0.lock().unwrap(),vec!["launch_app","bring_to_front"]);
+        assert_eq!(store.get_plan_fragment(&runtime_task.id,&runtime_fragment.plan_id,1).unwrap().unwrap().current_slot,0);assert_eq!(runtime_handle.snapshot(&runtime_task.id).unwrap().active_plan.unwrap().current_slot,2);
+        let runtime_events=runtime_handle.pending(&runtime_task.id,32).unwrap();let through=runtime_events.last().unwrap().sequence;RuntimeEventProjector::project(&mut store,&runtime_events).unwrap();runtime_handle.apply(RuntimeCommand::Ack{task_id:runtime_task.id.clone(),through_sequence:through}).unwrap();
+        assert_eq!(store.get_plan_fragment(&runtime_task.id,&runtime_fragment.plan_id,1).unwrap().unwrap().current_slot,2);assert_eq!(store.get(&runtime_task.id).unwrap().sequence,runtime_result.sequence);
         let port = Port(Mutex::new(Vec::new()));
         let admission = Admission::new(1).unwrap();
         let (task, disposition, _) = execute_available(

@@ -99,16 +99,19 @@ pub fn submit(
 /// 以保证每轮都重新读取计划、任务序列和控制事实。
 fn execute_one(
     store: &mut impl crate::TaskStore, admission: &crate::admission::Admission,
+    runtime:Option<&crate::execution_runtime::ExecutionRuntimeHandle>,runtime_plan:Option<&StoredPlanFragment>,
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
     config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized), intents: Option<&crate::cua_intent::CuaIntentRegistry>,
     auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str, observed_context:&mut Option<ObservedContext>,
 ) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
     if !matches!(auth, crate::AuthContext::Agent(_)) { return Err(crate::Error::PermissionDenied); }
-    if computer.explicit_takeover_requested(task_id) { return Ok((store.get(task_id)?, "takeover-requested", None)); }
-    let stored=store.get_plan_fragment(task_id,plan_id,plan_version)?.ok_or(crate::Error::NotFound)?;
-    let current_task=store.get(task_id)?;
+    let stored=runtime_plan.cloned().map_or_else(||store.get_plan_fragment(task_id,plan_id,plan_version),|value|Ok(Some(value)))?.ok_or(crate::Error::NotFound)?;
+    let persisted_task=store.get(task_id)?;
+    let current_task=if let Some(runtime)=runtime{let snapshot=runtime.snapshot(task_id).map_err(runtime_error)?;let cursor=snapshot.active_plan.as_ref().ok_or(crate::Error::Conflict)?;if cursor.plan_id!=plan_id||cursor.plan_version!=plan_version{return Err(crate::Error::Conflict);}crate::Task{status:runtime_status(&snapshot.phase),sequence:snapshot.sequence,..persisted_task}}else{persisted_task};
+    if computer.explicit_takeover_requested(task_id) { return Ok((current_task, "takeover-requested", None)); }
     if stored.owner_agent_id != auth.agent_id() || stored.fragment.deadline_ms <= now_ms || expected != current_task.sequence { return Err(crate::Error::Conflict); }
-    let index=usize::from(stored.current_slot);
+    let current_slot=runtime.and_then(|runtime|runtime.snapshot(task_id).ok()).and_then(|snapshot|snapshot.active_plan.map(|cursor|cursor.current_slot)).unwrap_or(stored.current_slot);
+    let index=usize::from(current_slot);
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "awaiting-goal-verification", None)); }
     let slot=&stored.fragment.slots[index];
     let observed_element_count=if slot.candidates.len()==1&&is_observed_element_template(&slot.candidates[0]){observed_context.as_ref().map(|value|value.elements.iter().filter(|element|actionable_element(element.role)).take(jev_runtime::MAX_CANDIDATES).count())}else{None};
@@ -120,7 +123,7 @@ fn execute_one(
         Ok(choice)=>choice,
         Err(_)=>{
             computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑决策不可用，已交回慢脑");
-            let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"快脑决策不可用，需要慢脑重新 Observe 或规划")?;
+            let task=hand_back(store,runtime,&current_task,task_id,plan_id,plan_version,expected,"快脑决策不可用，需要慢脑重新 Observe 或规划")?;
             return Ok((task,"handback",None));
         }
     };
@@ -132,7 +135,7 @@ fn execute_one(
             _=>("快脑未返回可派发候选，已交回慢脑","快脑未返回可派发候选，需要慢脑重新 Observe 或规划"),
         };
         computer.project_decision(task_id,&slot.step_id,&slot.label,projection);
-        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,handoff)?;
+        let task=hand_back(store,runtime,&current_task,task_id,plan_id,plan_version,expected,handoff)?;
         return Ok((task, "handback", None));
     };
     let decision = if via_jev {
@@ -178,7 +181,7 @@ fn execute_one(
         registry.consume_send(auth,&current_task,&action.target_ref,confirmation,now_ms).map_err(cua_intent_error)?;
     }
     let runtime_arguments=serde_json::to_string(&arguments).map_err(|_|crate::Error::InvalidInput)?;
-    let (task,result,observation)=crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?;
+    let (task,result,observation)=if let Some(runtime)=runtime{crate::computer_use::execute_agent_step_runtime(store,runtime,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?}else{crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?};
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
         computer.project_step_unverified(task_id,&slot.step_id);
         // user-input 会把任务原子地转为 interrupted，并已写入事件/Outbox；此时
@@ -186,12 +189,12 @@ fn execute_one(
         if !matches!(task.status, crate::Status::Created | crate::Status::Running) {
             return Ok((task, "handback", observation));
         }
-        match store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"需要慢脑重新 Observe 或规划") {
+        match hand_back(store,runtime,&task,task_id,plan_id,plan_version,task.sequence,"需要慢脑重新 Observe 或规划") {
             Ok(task) => return Ok((task,"handback",observation)),
             // 用户输入可在 unknown 结果落库后、交回事件写入前原子地中断任务。
             // 此时保留已写入的 interrupted 事实，不能用过期 CAS 再写第二个交回。
             Err(crate::Error::Conflict) => {
-                let current=store.get(task_id)?;
+                let current=runtime.map_or_else(||store.get(task_id),|runtime|runtime.snapshot(task_id).map(|snapshot|crate::Task{status:runtime_status(&snapshot.phase),sequence:snapshot.sequence,..task.clone()}).map_err(runtime_error))?;
                 if !matches!(current.status, crate::Status::Created | crate::Status::Running) {
                     return Ok((current,"handback",observation));
                 }
@@ -203,7 +206,7 @@ fn execute_one(
     let fresh_facts=ObservedFacts::from_driver(&result.conclusion,observation.as_ref());
     if !fresh_facts.satisfies(&action.expected_observe) {
         computer.project_step_unverified(task_id,&slot.step_id);
-        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"Observe 未满足计划后置条件，需要慢脑重新规划")?;
+        let task=hand_back(store,runtime,&task,task_id,plan_id,plan_version,task.sequence,"Observe 未满足计划后置条件，需要慢脑重新规划")?;
         return Ok((task,"handback",observation));
     }
     if matches!(action.action_kind,yonder_protocol::CuaActionKind::ActivateControl) {
@@ -215,23 +218,27 @@ fn execute_one(
             Ok(JevStepDecision::Incomplete)=>{
                 computer.project_step_unverified(task_id,&slot.step_id);
                 computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑确认当前步骤未完成，已交回慢脑");
-                let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"快脑确认当前步骤未完成，需要慢脑重新规划")?;
+                let task=hand_back(store,runtime,&task,task_id,plan_id,plan_version,task.sequence,"快脑确认当前步骤未完成，需要慢脑重新规划")?;
                 return Ok((task,"handback",observation));
             }
             Ok(JevStepDecision::HandBack)|Err(_)=>{
                 computer.project_step_unverified(task_id,&slot.step_id);
                 computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑无法确认当前步骤完成，已交回慢脑");
-                let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"快脑无法确认当前步骤完成，需要慢脑重新规划")?;
+                let task=hand_back(store,runtime,&task,task_id,plan_id,plan_version,task.sequence,"快脑无法确认当前步骤完成，需要慢脑重新规划")?;
                 return Ok((task,"handback",observation));
             }
         }
     }
     let (observation_ref,elements)=observation.as_ref().map(|value|(value.observation_ref.clone(),value.elements.clone())).unwrap_or_default();
     *observed_context=Some(ObservedContext{facts:fresh_facts,observation_ref,elements});
-    let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
+    let task=if let Some(runtime)=runtime{let snapshot=runtime.apply(crate::execution_runtime::RuntimeCommand::AdvancePlanSlot{task_id:task_id.into(),plan_id:plan_id.into(),plan_version,expected_slot:current_slot,step_id:slot.step_id.clone()}).map_err(runtime_error)?;crate::Task{status:runtime_status(&snapshot.phase),sequence:snapshot.sequence,..task}}else{store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?};
     computer.project_step_completed(task_id,&slot.step_id);
     Ok((task,"advanced",observation))
 }
+
+fn runtime_status(phase:&crate::execution_runtime::RuntimePhase)->crate::Status{match phase{crate::execution_runtime::RuntimePhase::Completed=>crate::Status::Completed,crate::execution_runtime::RuntimePhase::Failed=>crate::Status::Failed,crate::execution_runtime::RuntimePhase::Cancelled=>crate::Status::Cancelled,crate::execution_runtime::RuntimePhase::Interrupted=>crate::Status::Interrupted,_=>crate::Status::Running}}
+fn runtime_error(error:crate::execution_runtime::RuntimeError)->crate::Error{match error{crate::execution_runtime::RuntimeError::InvalidInput=>crate::Error::InvalidInput,crate::execution_runtime::RuntimeError::NotFound=>crate::Error::NotFound,crate::execution_runtime::RuntimeError::Conflict=>crate::Error::Conflict,crate::execution_runtime::RuntimeError::Backpressure=>crate::Error::StopRequired,crate::execution_runtime::RuntimeError::Unavailable=>crate::Error::StorageUnavailable}}
+fn hand_back(store:&mut impl crate::TaskStore,runtime:Option<&crate::execution_runtime::ExecutionRuntimeHandle>,task:&crate::Task,task_id:&str,plan_id:&str,plan_version:u64,expected:u64,reason:&str)->Result<crate::Task,crate::Error>{if let Some(runtime)=runtime{let current=runtime.snapshot(task_id).map_err(runtime_error)?;if current.sequence!=expected{return Err(crate::Error::Conflict);}let cursor=current.active_plan.as_ref().ok_or(crate::Error::Conflict)?;if cursor.plan_id!=plan_id||cursor.plan_version!=plan_version{return Err(crate::Error::Conflict);}let snapshot=runtime.apply(crate::execution_runtime::RuntimeCommand::HandBack{task_id:task_id.into(),reason:reason.into()}).map_err(runtime_error)?;Ok(crate::Task{status:crate::Status::Running,sequence:snapshot.sequence,..task.clone()})}else{store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,reason)}}
 
 fn step_observation_summary(step_label:&str,observation:Option<&crate::computer_use::ComputerObservation>)->Vec<String>{
     const SENSITIVE:[&str;8]=["password","secure text","密码","口令","验证码","消息正文","收件人","联系人"];
@@ -289,7 +296,7 @@ pub fn execute_available(
             return Ok((store.get(task_id)?, "takeover-requested", None));
         }
         let (task, disposition, observation) = execute_one(
-            store, admission, computer, targets, config, jev, intents, auth, task_id, plan_id,
+            store, admission, None, None, computer, targets, config, jev, intents, auth, task_id, plan_id,
             plan_version, sequence, now_ms, host_session_id,&mut observed_context,
         )?;
         sequence = task.sequence;
@@ -308,6 +315,35 @@ pub fn execute_available(
         task_id, plan_id, plan_version, sequence, "计划片段步数预算已耗尽",
     )?;
     Ok((task, "handback", None))
+}
+
+/// 由单一内存运行时连续消费计划槽位；SQLite 仅在入口读取不可变片段，
+/// Driver 结果、片段游标与交回先形成连续事件，再异步投影。
+pub fn execute_available_runtime(
+    store:&mut impl crate::TaskStore,runtime:&crate::execution_runtime::ExecutionRuntimeHandle,admission:&crate::admission::Admission,
+    computer:&(impl crate::computer_use::ComputerUsePort+?Sized),targets:&(impl crate::computer_use::WorkTargetPort+?Sized),config:&crate::jev_config::JevConfig,jev:&(impl JevDecisionPort+?Sized),intents:Option<&crate::cua_intent::CuaIntentRegistry>,
+    auth:crate::AuthContext<'_>,task_id:&str,plan_id:&str,plan_version:u64,expected:u64,now_ms:u64,host_session_id:&str,
+)->Result<(crate::Task,&'static str,Option<crate::computer_use::ComputerObservation>),crate::Error>{
+    let stored=store.get_plan_fragment(task_id,plan_id,plan_version)?.ok_or(crate::Error::NotFound)?;let persisted=store.get(task_id)?;
+    if stored.owner_agent_id!=auth.agent_id()||stored.fragment.deadline_ms<=now_ms{return Err(crate::Error::Conflict);}
+    let (initial,newly_activated)=match runtime.snapshot(task_id){Ok(snapshot)=>(snapshot,false),Err(crate::execution_runtime::RuntimeError::NotFound)=>(runtime.apply(crate::execution_runtime::RuntimeCommand::Activate{task_id:task_id.into(),checkpoint:expected}).map_err(runtime_error)?,true),Err(error)=>return Err(runtime_error(error))};
+    match initial.active_plan.as_ref(){
+        Some(cursor) if cursor.plan_id==plan_id&&cursor.plan_version==plan_version=>if initial.sequence!=expected{return Err(crate::Error::Conflict)},
+        Some(_)=>if initial.phase!=crate::execution_runtime::RuntimePhase::HandBack||initial.pending_events!=0||expected!=stored.accepted_sequence||expected!=persisted.sequence{return Err(crate::Error::Conflict)},
+        None if !newly_activated&&(initial.sequence!=expected||expected!=persisted.sequence)=>return Err(crate::Error::Conflict),
+        None if expected!=persisted.sequence=>return Err(crate::Error::Conflict),None=>{}
+    }
+    let bound=runtime.apply(crate::execution_runtime::RuntimeCommand::BindPlan{task_id:task_id.into(),plan_id:plan_id.into(),plan_version,current_slot:stored.current_slot,source_sequence:stored.accepted_sequence}).map_err(runtime_error)?;
+    let mut task=crate::Task{status:runtime_status(&bound.phase),sequence:bound.sequence,..persisted};
+    let remaining=stored.fragment.slots.len().saturating_sub(usize::from(bound.active_plan.as_ref().ok_or(crate::Error::Conflict)?.current_slot));if remaining==0{return Ok((task,"awaiting-goal-verification",None));}
+    let allowed=remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));let mut observed_context=None;let mut last_observation=None;
+    for _ in 0..allowed{
+        if computer.explicit_takeover_requested(task_id){return Ok((task,"takeover-requested",None));}
+        let (next,disposition,observation)=execute_one(store,admission,Some(runtime),Some(&stored),computer,targets,config,jev,intents,auth,task_id,plan_id,plan_version,task.sequence,now_ms,host_session_id,&mut observed_context)?;task=next;last_observation=observation;
+        if disposition!="advanced"{return Ok((task,disposition,last_observation));}
+        let cursor=runtime.snapshot(task_id).map_err(runtime_error)?.active_plan.ok_or(crate::Error::Conflict)?;if usize::from(cursor.current_slot)>=stored.fragment.slots.len(){return Ok((task,"awaiting-goal-verification",last_observation));}
+    }
+    let sequence=task.sequence;task=hand_back(store,Some(runtime),&task,task_id,plan_id,plan_version,sequence,"计划片段步数预算已耗尽")?;Ok((task,"handback",last_observation))
 }
 
 fn cua_intent_error(error:crate::cua_intent::CuaIntentError)->crate::Error{match error{

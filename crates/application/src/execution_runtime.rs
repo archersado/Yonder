@@ -51,6 +51,8 @@ pub struct RuntimeBrowserReference {
     pub managed_pages: usize,
     pub finished: bool,
 }
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct RuntimePlanCursor { pub plan_id:String, pub plan_version:u64, pub current_slot:u16 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RuntimeSnapshot {
@@ -63,6 +65,7 @@ pub struct RuntimeSnapshot {
     pub last_observation_sequence: Option<u64>,
     pub goal_verification: Option<crate::GoalVerificationRecord>,
     pub browser_reference: Option<RuntimeBrowserReference>,
+    pub active_plan: Option<RuntimePlanCursor>,
     pub pending_events: usize,
 }
 
@@ -86,6 +89,7 @@ pub enum RuntimeEventKind {
         reason: crate::unknown_reason::UnknownReason,
     },
     StepBoundaryAdvanced { step_id: String },
+    PlanSlotAdvanced { plan_id:String, plan_version:u64, from_slot:u16, step_id:String },
     BrowserReferenceUpdated { reference: RuntimeBrowserReference },
     HandedBack { reason: String },
     GoalVerified {
@@ -137,6 +141,8 @@ pub enum RuntimeCommand {
         reason: crate::unknown_reason::UnknownReason,
     },
     AdvanceStepBoundary { task_id: String, step_id: String },
+    BindPlan { task_id:String, plan_id:String, plan_version:u64, current_slot:u16, source_sequence:u64 },
+    AdvancePlanSlot { task_id:String, plan_id:String, plan_version:u64, expected_slot:u16, step_id:String },
     UpdateBrowserReference {
         task_id: String,
         reference: RuntimeBrowserReference,
@@ -559,6 +565,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     last_observation_sequence: None,
                     goal_verification: None,
                     browser_reference: None,
+                    active_plan: None,
                     pending_events: 0,
                 },
                 pending: VecDeque::new(),
@@ -691,6 +698,28 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     task.snapshot.current_step = None;
                     append(task, RuntimeEventKind::StepBoundaryAdvanced { step_id })?;
                 }
+                RuntimeCommand::BindPlan { plan_id,plan_version,current_slot,source_sequence,.. } => {
+                    if !valid_id(&plan_id)||plan_version==0||source_sequence==0{return Err(RuntimeError::InvalidInput);}
+                    match task.snapshot.active_plan.as_ref(){
+                        Some(cursor) if cursor.plan_id==plan_id&&cursor.plan_version==plan_version&&cursor.current_slot==current_slot=>{}
+                        Some(_)=>{
+                            if task.snapshot.phase!=RuntimePhase::HandBack||task.snapshot.current_step.as_ref().is_some_and(|step|step.phase==RuntimeStepPhase::Executing)||!task.pending.is_empty()||source_sequence<task.snapshot.sequence{return Err(RuntimeError::Conflict);}
+                            task.snapshot.sequence=source_sequence;task.snapshot.checkpoint=source_sequence;task.snapshot.phase=RuntimePhase::Running;task.snapshot.current_step=None;task.snapshot.last_step_succeeded=None;task.snapshot.last_observation_sequence=None;task.snapshot.goal_verification=None;
+                            task.snapshot.active_plan=Some(RuntimePlanCursor{plan_id,plan_version,current_slot});
+                        }
+                        None=>{
+                            if source_sequence>task.snapshot.sequence{return Err(RuntimeError::Conflict);}
+                            task.snapshot.active_plan=Some(RuntimePlanCursor{plan_id,plan_version,current_slot});
+                        }
+                    }
+                }
+                RuntimeCommand::AdvancePlanSlot { plan_id,plan_version,expected_slot,step_id,.. } => {
+                    if !valid_id(&step_id){return Err(RuntimeError::InvalidInput);}
+                    let cursor=task.snapshot.active_plan.as_mut().ok_or(RuntimeError::Conflict)?;
+                    if cursor.plan_id!=plan_id||cursor.plan_version!=plan_version||cursor.current_slot!=expected_slot||task.snapshot.current_step.is_some(){return Err(RuntimeError::Conflict);}
+                    cursor.current_slot=cursor.current_slot.checked_add(1).ok_or(RuntimeError::Conflict)?;
+                    append(task,RuntimeEventKind::PlanSlotAdvanced{plan_id,plan_version,from_slot:expected_slot,step_id})?;
+                }
                 RuntimeCommand::UpdateBrowserReference { reference, .. } => {
                     if !reference
                         .external_task_ref
@@ -708,7 +737,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     append(task, RuntimeEventKind::BrowserReferenceUpdated { reference })?;
                 }
                 RuntimeCommand::HandBack { reason, .. } => {
-                    if reason.is_empty() || reason.len() > 160 {
+                    if reason.is_empty()||reason.as_bytes().len()>1024||reason.chars().any(|value|value.is_control()&&value!='\n') {
                         return Err(RuntimeError::InvalidInput);
                     }
                     task.snapshot.phase = RuntimePhase::HandBack;
@@ -810,6 +839,8 @@ fn command_task_id(command: &RuntimeCommand) -> &str {
         | RuntimeCommand::CompleteStep { task_id, .. }
         | RuntimeCommand::UnverifyStep { task_id, .. }
         | RuntimeCommand::AdvanceStepBoundary { task_id, .. }
+        | RuntimeCommand::BindPlan { task_id, .. }
+        | RuntimeCommand::AdvancePlanSlot { task_id, .. }
         | RuntimeCommand::UpdateBrowserReference { task_id, .. }
         | RuntimeCommand::HandBack { task_id, .. }
         | RuntimeCommand::VerifyGoal { task_id, .. }
@@ -869,6 +900,19 @@ mod tests {
             RuntimeStepPhase::Completed
         );
         assert_eq!(handle.pending("task-1", 8).unwrap().len(), 3);
+    }
+    #[test]
+    fn plan_cursor_advances_and_hands_back_without_a_persistence_ack(){
+        let runtime=ExecutionRuntime::start(16,16).unwrap();let handle=runtime.handle();
+        handle.apply(RuntimeCommand::Activate{task_id:"plan-task".into(),checkpoint:2}).unwrap();
+        handle.apply(RuntimeCommand::BindPlan{task_id:"plan-task".into(),plan_id:"plan-v1".into(),plan_version:1,current_slot:0,source_sequence:2}).unwrap();
+        handle.apply(start_step("plan-task","open","打开应用")).unwrap();
+        handle.apply(RuntimeCommand::CompleteStep{task_id:"plan-task".into(),step_id:"open".into(),action_succeeded:true}).unwrap();
+        handle.apply(RuntimeCommand::AdvanceStepBoundary{task_id:"plan-task".into(),step_id:"open".into()}).unwrap();
+        let advanced=handle.apply(RuntimeCommand::AdvancePlanSlot{task_id:"plan-task".into(),plan_id:"plan-v1".into(),plan_version:1,expected_slot:0,step_id:"open".into()}).unwrap();
+        assert_eq!(advanced.active_plan.unwrap().current_slot,1);assert_eq!(advanced.checkpoint,2);
+        let handed_back=handle.apply(RuntimeCommand::HandBack{task_id:"plan-task".into(),reason:"需要慢脑重新规划".into()}).unwrap();
+        assert_eq!(handed_back.phase,RuntimePhase::HandBack);assert_eq!(handed_back.checkpoint,2);assert_eq!(handle.pending("plan-task",16).unwrap().len(),6);
     }
     #[test]
     fn hard_backpressure_stops_the_next_side_effect_but_accepts_the_current_result() {
