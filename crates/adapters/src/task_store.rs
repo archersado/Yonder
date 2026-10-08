@@ -4085,14 +4085,14 @@ mod tests {
                 DispatchOutcome::UnknownObserved {
                     reason: UnknownReason::ObserveFailed,
                     observation: ComputerObservation {
-                        element_count: 0,
-                        screenshot_path: None,
-                        screenshot_mime: None,
-                        screenshot_width_px: None,
-                        screenshot_height_px: None,
+                        element_count: 1,
+                        screenshot_path: Some("/private/tmp/visual-replan.png".into()),
+                        screenshot_mime: Some("image/png".into()),
+                        screenshot_width_px: Some(1440),
+                        screenshot_height_px: Some(900),
                         target_visible: None,
-                        observation_ref: None,
-                        transcript: None,
+                        observation_ref: Some("observation-unknown-attempt".into()),
+                        transcript: Some("[7] 按钮 重新选择".into()),
                         elements: Vec::new(),
                     },
                 }
@@ -4401,7 +4401,7 @@ mod tests {
             .submit_plan_fragment("a1", &unknown_fragment)
             .unwrap();
         let unknown_admission = Admission::new(1).unwrap();
-        let (unknown_result, unknown_disposition, _) = execute_available(
+        let (unknown_result, unknown_disposition, unknown_observation) = execute_available(
             &mut store,
             &unknown_admission,
             &UnknownPort,
@@ -4419,6 +4419,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(unknown_disposition, "handback");
+        let unknown_observation=unknown_observation.expect("同次有效 Observe 必须随交回返回");
+        assert_eq!(unknown_observation.screenshot_path.as_deref(),Some("/private/tmp/visual-replan.png"));
+        assert_eq!(unknown_observation.observation_ref.as_deref(),Some("observation-unknown-attempt"));
         assert_eq!(
             store.get_attempt(&unknown_task.id).unwrap().unwrap().phase,
             AttemptPhase::Stopped

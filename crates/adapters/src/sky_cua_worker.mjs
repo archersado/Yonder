@@ -1002,9 +1002,16 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.observe_valid = true;
     response.target_visible = request.tool_name === 'launch_app' ? false : externalMacFocus ? true : null;
     response.element_count = Math.min(65_535, transcriptElements(after).length);
-    const screenshot = await persistScreenshot(after, request, response);
+    const confirmed = request.tool_name === 'launch_app' || externalMacFocus || actionConfirmed(expectation, before, after);
+    const coordinateAction = Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y);
+    // 正常 AX/transcript 路径只发布结构化临时 Observation。截图仅服务三种
+    // 边界：慢脑已提交坐标动作、Driver 无法确认动作结果、或 catch 中元素
+    // 解析失败且尚未执行副作用。不得把每步 Observe 隐式升级成视觉路径。
+    const screenshot = coordinateAction || !confirmed
+      ? await persistScreenshot(after, request, response)
+      : null;
     publishObservation(after, request, response, target, screenshot);
-    response.action_effect = request.tool_name === 'launch_app' || externalMacFocus || actionConfirmed(expectation, before, after)
+    response.action_effect = confirmed
       ? 'confirmed'
       : 'suspected_noop';
     response.action_succeeded = response.action_effect === 'confirmed';
@@ -1020,14 +1027,16 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
   } catch (error) {
     if (error instanceof WorkerFailure) {
       response.failure_stage = error.stage;
-      if (error.stage === 'target-stale-visual-observation' && before && target) {
+      if (['target-semantic-element', 'target-stale-visual-observation'].includes(error.stage) && before && target) {
         try {
           const screenshot = await persistScreenshot(before, request, response);
           response.element_count = Math.min(65_535, transcriptElements(before).length);
           publishObservation(before, request, response, target, screenshot);
           response.action_known = true;
           response.action_succeeded = false;
-          response.action_effect = 'unverifiable';
+          // target-semantic-element 在派发前失败，故是已知拒绝；坐标引用过期时
+          // 无法排除先前输入状态变化，继续保持 unknown/unverifiable。
+          response.action_effect = error.stage === 'target-semantic-element' ? 'refused' : 'unverifiable';
           response.observe_valid = true;
         } catch {
           response.action_known = false;

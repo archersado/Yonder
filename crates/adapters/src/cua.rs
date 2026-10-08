@@ -325,12 +325,25 @@ mod tests {
         let attempt=ExecutionAttempt{task_id:"task".into(),step_id:"step".into(),attempt_id:"attempt".into(),worker_instance_id:"worker".into(),host_session_id:"host".into(),phase:AttemptPhase::Prepared,accepted_sequence:2};
         let response=format!(r#"{{"task_id":"task","step_id":"step","attempt_id":"attempt","worker_instance_id":"worker","host_session_id":"host","action_known":true,"action_succeeded":true,"action_effect":"confirmed","observe_valid":true,"screenshot_path":{},"screenshot_mime":"image/png","screenshot_width_px":1440,"screenshot_height_px":900,"observation_ref":"observation_attempt"}}"#,serde_json::to_string(&path.to_string_lossy()).unwrap());
         assert!(matches!(classify(&attempt,response.as_bytes(),&evidence),DispatchOutcome::Known{observation:Some(ComputerObservation{screenshot_width_px:Some(1440),screenshot_height_px:Some(900),..}),..}));
+        let refused=response.replace("\"action_succeeded\":true,\"action_effect\":\"confirmed\"","\"action_succeeded\":false,\"action_effect\":\"refused\"");
+        assert!(matches!(classify(&attempt,refused.as_bytes(),&evidence),DispatchOutcome::Known{action_succeeded:false,observation:Some(ComputerObservation{screenshot_path:Some(_),..})}));
+        let unverified=response.replace("\"action_succeeded\":true,\"action_effect\":\"confirmed\"","\"action_succeeded\":false,\"action_effect\":\"suspected_noop\"");
+        assert!(matches!(classify(&attempt,unverified.as_bytes(),&evidence),DispatchOutcome::UnknownObserved{observation:ComputerObservation{screenshot_path:Some(_),..},..}));
         let missing_height=response.replace(",\"screenshot_height_px\":900","");
         assert_eq!(classify(&attempt,missing_height.as_bytes(),&evidence),DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
         let missing_reference=response.replace(",\"observation_ref\":\"observation_attempt\"","");
         assert_eq!(classify(&attempt,missing_reference.as_bytes(),&evidence),DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
         std::fs::remove_file(path).unwrap();
         std::fs::remove_dir(evidence).unwrap();
+    }
+
+    #[test]
+    fn sky_worker_visual_evidence_is_bounded_to_replan_boundaries() {
+        let source=include_str!("sky_cua_worker.mjs");
+        assert!(source.contains("const screenshot = coordinateAction || !confirmed"));
+        assert!(source.contains("['target-semantic-element', 'target-stale-visual-observation'].includes(error.stage)"));
+        assert!(source.contains("error.stage === 'target-semantic-element' ? 'refused' : 'unverifiable'"));
+        assert!(!source.contains("const screenshot = await persistScreenshot(after, request, response);\n    publishObservation"));
     }
 
     #[test]

@@ -50,3 +50,5 @@ Element/Visual Observation Increment: [cu-s2-element-visual-observation](../../.
 2026-09-18：重新启动正式预览后，真实UDS协议1.12报告`computer.execute=available`，与既有同一正式应用路径的连续动作/Observe成功证据闭合宿主权限责任链。本轮复测期间两次真实用户输入均使动作安全转为`unknown/user-input`且未重试，符合用户输入优先约束。
 
 2026-09-28 企业微信连续计划复测发现 Worker 把 `launch_app` 返回的瞬时窗口引用直接用于下一次 `bring_to_front`，与本设计要求的动作前目标刷新不一致。实现已修为在显式前置前按 bundle id 重新解析主进程及最大普通窗口；产品 Worker 独立样本取得 `launch=true`、`bring_to_front=true`、后置 Observe 有效及 `target_visible=true`。正式 Gateway 复测仍发现 trycua 的跨 Space 前置会产生来源 PID 为 0 的合成鼠标事件，现有 HID 监控将其安全分类为 `unknown/user-input`；不得通过忽略 PID=0 点击绕过用户输入优先门禁，后续须建立可证明的 Agent 注入来源分类后再关闭该兼容性缺口。
+
+2026-10-08 修正 Sky 正式 Worker 的元素优先/视觉兜底回归：正常 AX/transcript 成功路径不再落盘或向 Gateway 返回截图；元素缺失或歧义在副作用前返回已知拒绝与临时窗口 Observation，坐标动作及动作结果不可核实时才保留视觉证据。Application、Adapter 与 Gateway 合约测试证明交回响应保留本轮临时 Observation 且不改变 `unknown`/不重试语义。正式 macOS GUI 的元素成功与视觉兜底双样本仍待运行，CU-S2 保持 `verifying`。

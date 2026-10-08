@@ -297,6 +297,20 @@ fn protocol_observed_elements(enabled:bool,selectable_rows:bool,images:bool,elem
     enabled.then(||elements.into_iter().filter(|element|(selectable_rows||element.role!=ObservedElementRole::SelectableRow)&&(images||element.role!=ObservedElementRole::Image)).collect())
 }
 
+fn protocol_computer_observation(value:crate::computer_use::ComputerObservation,coordinates:bool,handles:bool,selectable_rows:bool,images:bool)->ProtocolComputerObservation{
+    ProtocolComputerObservation {
+        element_count:value.element_count,
+        screenshot_path:value.screenshot_path,
+        screenshot_mime:value.screenshot_mime,
+        screenshot_width_px:coordinates.then_some(value.screenshot_width_px).flatten(),
+        screenshot_height_px:coordinates.then_some(value.screenshot_height_px).flatten(),
+        target_visible:value.target_visible,
+        observation_ref:handles.then_some(value.observation_ref).flatten(),
+        transcript:handles.then_some(value.transcript).flatten(),
+        elements:protocol_observed_elements(handles,selectable_rows,images,value.elements),
+    }
+}
+
 pub struct GatewaySession<'a> {
     auth: AuthContext<'a>,
     platform: Platform,
@@ -673,6 +687,41 @@ mod tests {
     }
 
     #[test]
+    fn plan_handback_observation_keeps_ephemeral_evidence_and_version_gates_handles() {
+        let value=crate::computer_use::ComputerObservation{
+            element_count:1,
+            screenshot_path:Some("/private/tmp/yonder-observation.png".into()),
+            screenshot_mime:Some("image/png".into()),
+            screenshot_width_px:Some(1440),
+            screenshot_height_px:Some(900),
+            target_visible:Some(true),
+            observation_ref:Some("observation-attempt-7".into()),
+            transcript:Some("[7] 按钮 播放".into()),
+            elements:vec![ObservedElement{index:7,role:ObservedElementRole::Button,label:Some("播放".into())}],
+        };
+        let current=protocol_computer_observation(value.clone(),true,true,true,true);
+        assert_eq!(current.screenshot_width_px,Some(1440));
+        assert_eq!(current.observation_ref.as_deref(),Some("observation-attempt-7"));
+        assert_eq!(current.elements.as_ref().map(Vec::len),Some(1));
+        let legacy=protocol_computer_observation(value,false,false,false,false);
+        assert_eq!(legacy.screenshot_path.as_deref(),Some("/private/tmp/yonder-observation.png"));
+        assert_eq!(legacy.screenshot_width_px,None);
+        assert_eq!(legacy.observation_ref,None);
+        assert_eq!(legacy.transcript,None);
+        assert_eq!(legacy.elements,None);
+
+        let response=Response::Success{jsonrpc:Version::V2,id:"r1".into(),result:QueryResult::Plan{
+            task_id:"task_1".into(),plan_id:"plan_1".into(),plan_version:1,sequence:"8".into(),disposition:"handback".into(),
+            handoff_reason:Some("需要慢脑重新 Observe 或规划".into()),observation:Some(current),
+        }};
+        let bytes=yonder_protocol::encode(&response).unwrap();
+        assert_eq!(replan_wake(&bytes),Some(ReplanWake{task_id:"task_1".into(),sequence:"8".into(),reason:"需要慢脑重新 Observe 或规划".into()}));
+        let Response::Success{result:QueryResult::Plan{observation:Some(observation),..},..}=yonder_protocol::decode_response(&bytes).unwrap()else{panic!()};
+        assert_eq!(observation.screenshot_path.as_deref(),Some("/private/tmp/yonder-observation.png"));
+        assert_eq!(observation.observation_ref.as_deref(),Some("observation-attempt-7"));
+    }
+
+    #[test]
     fn protocol_148_downgrades_new_driver_error_reasons() {
         for(reason,legacy)in[
             (AttemptUnknownReason::DriverActionTimedOut,AttemptUnknownReason::TimedOut),
@@ -876,7 +925,7 @@ impl<'a> GatewaySession<'a> {
                 let expected=yonder_protocol::sequence(&params.expected_sequence)?;
                 let (task,disposition,observation)=if let Some(runtime)=execution_runtime{crate::plan_fragment::execute_available_runtime(store,runtime,admission,computer,targets,config,jev,cua_intents,self.auth,&params.task_id,&params.plan_id,params.plan_version,expected,now_ms,host_session_id)}else{crate::plan_fragment::execute_available(store,admission,computer,targets,config,jev,cua_intents,self.auth,&params.task_id,&params.plan_id,params.plan_version,expected,now_ms,host_session_id)}.map_err(query::error)?;
                 let handoff_reason = plan_handoff_reason(disposition).map(str::to_owned);
-                Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into(), handoff_reason, observation:self.can_plan_visual_observation.then_some(observation).flatten().map(|value| ProtocolComputerObservation { element_count:value.element_count, screenshot_path:value.screenshot_path, screenshot_mime:value.screenshot_mime, screenshot_width_px:self.can_plan_screenshot_coordinates.then_some(value.screenshot_width_px).flatten(), screenshot_height_px:self.can_plan_screenshot_coordinates.then_some(value.screenshot_height_px).flatten(), target_visible:value.target_visible, observation_ref:self.can_plan_element_handles.then_some(value.observation_ref).flatten(), transcript:self.can_plan_element_handles.then_some(value.transcript).flatten(), elements:protocol_observed_elements(self.can_plan_element_handles,self.can_plan_selectable_rows,self.can_plan_image_handles,value.elements) }) })
+                Ok(QueryResult::Plan { task_id:task.id,plan_id:params.plan_id,plan_version:params.plan_version,sequence:task.sequence.to_string(),disposition:disposition.into(), handoff_reason, observation:self.can_plan_visual_observation.then_some(observation).flatten().map(|value|protocol_computer_observation(value,self.can_plan_screenshot_coordinates,self.can_plan_element_handles,self.can_plan_selectable_rows,self.can_plan_image_handles)) })
             },
             Request::FileGrants { params, .. } => {
                 if !self.negotiated {
@@ -1148,17 +1197,7 @@ impl<'a> GatewaySession<'a> {
                     sequence: task.sequence.to_string(),
                     action_succeeded: result.action_succeeded,
                     unknown_reason: result.unknown_reason,
-                    observation: observation.map(|value| ProtocolComputerObservation {
-                        element_count: value.element_count,
-                        screenshot_path: value.screenshot_path,
-                        screenshot_mime: value.screenshot_mime,
-                        screenshot_width_px: self.can_plan_screenshot_coordinates.then_some(value.screenshot_width_px).flatten(),
-                        screenshot_height_px: self.can_plan_screenshot_coordinates.then_some(value.screenshot_height_px).flatten(),
-                        target_visible: value.target_visible,
-                        observation_ref: self.can_plan_element_handles.then_some(value.observation_ref).flatten(),
-                        transcript: self.can_plan_element_handles.then_some(value.transcript).flatten(),
-                        elements: protocol_observed_elements(self.can_plan_element_handles,self.can_plan_selectable_rows,self.can_plan_image_handles,value.elements),
-                    }),
+                    observation: observation.map(|value|protocol_computer_observation(value,self.can_plan_screenshot_coordinates,self.can_plan_element_handles,self.can_plan_selectable_rows,self.can_plan_image_handles)),
                 })
             }
             Request::Complete { params, .. } => {
