@@ -30,7 +30,7 @@ use yonder_application::{
     execution_runtime::{ExecutionRuntime, RuntimeProjectionWorker},
     jev_config::JevConfig,
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
-    work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
+    work_focus::{WorkFocusPort, WorkRef, capture_after_observe},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
@@ -837,13 +837,11 @@ impl TaskHost {
     /// 未来GUI命令还须校验本地task-space窗口；不能对Agent暴露本机权限。
     pub fn query(&mut self, request: &[u8], now_ms: u64) -> Result<Vec<u8>, HostError> {
         let cancel_task = yonder_application::gateway::cancel_request_task(request);
-        let response = yonder_application::query::handle_encoded_current(
-            &mut self.store,
-            AuthContext::LocalUser("desktop"),
-            request,
-            now_ms,
-        )
-        .map_err(|_| HostError::StorageUnavailable)?;
+        let runtime=self.runtime.handle();
+        let response=match yonder_application::gateway::handle_local_runtime_control(&mut self.store,&runtime,request,now_ms){
+            Some(result)=>result.map_err(|_|HostError::StorageUnavailable)?,
+            None=>yonder_application::query::handle_encoded_current(&mut self.store,AuthContext::LocalUser("desktop"),request,now_ms).map_err(|_|HostError::StorageUnavailable)?,
+        };
         if cancel_task.as_deref().is_some_and(|task_id|yonder_application::gateway::terminal_task_id(&response).as_deref()==Some(task_id)) {
             if let Err(error)=self.finish_cancelled_runtime(cancel_task.as_deref().unwrap()){eprintln!("取消后的运行时清理失败：{error:?}");}
         }
@@ -863,34 +861,8 @@ impl TaskHost {
                     self.admission
                         .set_desktop_taken_over(true)
                         .map_err(|_| HostError::StorageUnavailable)?;
-                    if let Some(reference) = self.work_refs.get(&task_id).cloned() {
-                        focus_takeover(&mut self.store, &mut self.focus, &reference)
-                            .map_err(|_| HostError::StorageUnavailable)?;
-                    } else {
-                        let current = self
-                            .store
-                            .get_control(&task_id)
-                            .map_err(|_| HostError::StorageUnavailable)?
-                            .ok_or(HostError::StorageUnavailable)?;
-                        self.store
-                            .begin_focus(&task_id, &current.control_id)
-                            .map_err(|_| HostError::StorageUnavailable)?;
-                        self.store
-                            .finish_focus(
-                                &task_id,
-                                &current.control_id,
-                                Some(FocusFailure::ReferenceUnavailable),
-                            )
-                            .map_err(|_| HostError::StorageUnavailable)?;
-                    }
                 }
-                return yonder_application::query::handle_encoded_current(
-                    &mut self.store,
-                    AuthContext::LocalUser("desktop"),
-                    request,
-                    now_ms,
-                )
-                .map_err(|_| HostError::StorageUnavailable);
+                return Ok(response);
             }
         }
         Ok(response)

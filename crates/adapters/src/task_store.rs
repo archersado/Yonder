@@ -280,11 +280,13 @@ fn projected_state(
         {
             Ok("running")
         }
+        RuntimeEventKind::ControlStopped{control_kind,..} if current=="running"=>if control_kind=="cancel"{Ok("cancelled")}else{Ok("paused")},
         RuntimeEventKind::Terminal { phase } => match phase {
             RuntimePhase::Completed => Ok("completed"),
             RuntimePhase::Failed => Ok("failed"),
             RuntimePhase::Cancelled => Ok("cancelled"),
             RuntimePhase::Interrupted => Ok("interrupted"),
+            RuntimePhase::Paused => Ok("paused"),
             _ => Err(RuntimeProjectionError::Conflict),
         },
         _ => Err(RuntimeProjectionError::Conflict),
@@ -447,6 +449,10 @@ impl RuntimeEventProjector for SqliteTaskStore {
                     tx.execute("UPDATE task_attempts SET handback_sequence=?1 WHERE task_id=?2 AND phase='unknown' AND result_sequence IS NOT NULL AND handback_sequence IS NULL",params![event.sequence as i64,event.task_id]).map_err(|_|RuntimeProjectionError::Unavailable)?;
                     let payload=format!(r#"{{"next_intent":{}}}"#,serde_json::to_string(reason).map_err(|_|RuntimeProjectionError::Unavailable)?);
                     tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![event.task_id,event.sequence as i64,payload]).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                }
+                RuntimeEventKind::ControlStopped{attempt_id,control_id,control_kind}=>{
+                    tx.execute("INSERT INTO task_controls(task_id,attempt_id,control_id,kind,phase,accepted_sequence,stopped_sequence) VALUES(?1,?2,?3,?4,'stopped',?5,?5)",params![event.task_id,attempt_id,control_id,control_kind,event.sequence as i64]).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                    tx.execute("UPDATE task_attempts SET phase='stopped',stop_sequence=?1,control_id=?2,control_kind=?3 WHERE task_id=?4 AND attempt_id=?5 AND phase IN ('prepared','observed','unknown','stopped')",params![event.sequence as i64,control_id,control_kind,event.task_id,attempt_id]).map_err(|_|RuntimeProjectionError::Unavailable)?;
                 }
                 RuntimeEventKind::BrowserReferenceUpdated { reference } => {
                     tx.execute(
@@ -4204,8 +4210,9 @@ mod tests {
         let (runtime_result,runtime_disposition,_)=execute_available_runtime(&mut store,&runtime_handle,&Admission::new(1).unwrap(),&runtime_port,&Target,&config,&MustNotChoose,None,AuthContext::Agent("a1"),&runtime_task.id,&runtime_fragment.plan_id,1,runtime_submitted.sequence,1_000,"host").unwrap();
         assert_eq!(runtime_disposition,"awaiting-goal-verification");assert_eq!(*runtime_port.0.lock().unwrap(),vec!["launch_app","bring_to_front"]);
         assert_eq!(store.get_plan_fragment(&runtime_task.id,&runtime_fragment.plan_id,1).unwrap().unwrap().current_slot,0);assert_eq!(runtime_handle.snapshot(&runtime_task.id).unwrap().active_plan.unwrap().current_slot,2);
+        let (controlled,control)=yonder_application::execution_runtime::stop_for_control(&runtime_handle,&mut store,AuthContext::LocalUser("desktop"),&runtime_task.id,runtime_result.sequence,ControlKind::Takeover).unwrap();assert_eq!(controlled.status,Status::Paused);assert_eq!(control.phase,ControlPhase::Stopped);
         let runtime_events=runtime_handle.pending(&runtime_task.id,32).unwrap();let through=runtime_events.last().unwrap().sequence;RuntimeEventProjector::project(&mut store,&runtime_events).unwrap();runtime_handle.apply(RuntimeCommand::Ack{task_id:runtime_task.id.clone(),through_sequence:through}).unwrap();
-        assert_eq!(store.get_plan_fragment(&runtime_task.id,&runtime_fragment.plan_id,1).unwrap().unwrap().current_slot,2);assert_eq!(store.get(&runtime_task.id).unwrap().sequence,runtime_result.sequence);
+        assert_eq!(store.get_plan_fragment(&runtime_task.id,&runtime_fragment.plan_id,1).unwrap().unwrap().current_slot,2);assert_eq!(store.get(&runtime_task.id).unwrap().sequence,controlled.sequence);assert_eq!(store.get_control(&runtime_task.id).unwrap().unwrap().kind,ControlKind::Takeover);
         let port = Port(Mutex::new(Vec::new()));
         let admission = Admission::new(1).unwrap();
         let (task, disposition, _) = execute_available(

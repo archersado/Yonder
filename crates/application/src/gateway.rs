@@ -27,6 +27,7 @@ use yonder_protocol::{
     FileGrantSummary as ProtocolFileGrantSummary, CommandExecutionOutcome as ProtocolCommandExecutionOutcome,
     CommandExecutionResult as ProtocolCommandExecutionResult, ProtocolVersion, QueryResult, Request, Response,
     ObservedElement, ObservedElementRole, RpcError, TaskSnapshot, Version,
+    ControlRecord as ProtocolControl, ControlPhase as ProtocolControlPhase, ControlKind as ProtocolControlKind,
 };
 
 pub use yonder_protocol::Platform;
@@ -205,6 +206,20 @@ pub fn local_takeover_request(
         },
     })
     .map_err(|_| crate::Error::StorageUnavailable)
+}
+
+/// 本机 UI 控制也进入与 Gateway 执行相同的 Runtime；返回 `None` 表示不是控制请求。
+pub fn handle_local_runtime_control(
+    store:&mut impl TaskStore,runtime:&crate::execution_runtime::ExecutionRuntimeHandle,bytes:&[u8],now_ms:u64,
+)->Option<Result<Vec<u8>,crate::Error>>{
+    let request=yonder_protocol::decode(bytes).ok()?;if !matches!(request,Request::Cancel{..}|Request::Control{..}){return None;}let id=request.request_id().to_owned();let auth=AuthContext::LocalUser("desktop");
+    let result=query::validate(&request,auth,now_ms).and_then(|()|match request{
+        Request::Cancel{params,..}=>{let expected=yonder_protocol::sequence(&params.expected_sequence)?;let task=match runtime.snapshot(&params.task_id){Ok(_)=>crate::execution_runtime::stop_for_control(runtime,store,auth,&params.task_id,expected,crate::ControlKind::Cancel).map(|value|value.0),Err(crate::execution_runtime::RuntimeError::NotFound)=>crate::cancel_pending(store,auth,&params.task_id,expected),Err(error)=>Err(runtime_error(error))}.map_err(query::error)?;Ok(QueryResult::Snapshot{task:snapshot(task)})}
+        Request::Control{params,..}=>{let kind=match params.kind{ProtocolControlKind::Pause=>crate::ControlKind::Pause,ProtocolControlKind::Cancel=>crate::ControlKind::Cancel,ProtocolControlKind::Takeover=>crate::ControlKind::Takeover};let (task,control)=crate::execution_runtime::stop_for_control(runtime,store,auth,&params.task_id,yonder_protocol::sequence(&params.expected_sequence)?,kind).map_err(query::error)?;Ok(QueryResult::Control{task:snapshot(task),control:ProtocolControl{attempt_id:control.attempt_id,control_id:control.control_id,kind:params.kind,phase:ProtocolControlPhase::Stopped,accepted_sequence:control.accepted_sequence.to_string(),stopped_sequence:control.stopped_sequence.map(|value|value.to_string()),focus_phase:None,focus_failure:None}})}
+        _=>unreachable!(),
+    });
+    let response=match result{Ok(result)=>Response::Success{jsonrpc:Version::V2,id,result},Err(error)=>Response::Failure{jsonrpc:Version::V2,id:Some(id),error}};
+    Some(yonder_protocol::encode(&response).map_err(|_|crate::Error::StorageUnavailable))
 }
 pub fn computer_request_task(bytes: &[u8]) -> Option<String> {
     match yonder_protocol::decode(bytes).ok()? {
@@ -782,6 +797,8 @@ impl<'a> GatewaySession<'a> {
         if !matches!(
             request,
             Request::StepAdvance { .. }
+                | Request::Cancel { .. }
+                | Request::Control { .. }
                 | Request::BrowserExecute { .. }
                 | Request::ComputerExecute { .. }
                 | Request::ComputerStep { .. }
@@ -802,6 +819,18 @@ impl<'a> GatewaySession<'a> {
         }
         let id = request.request_id().to_owned();
         let result = query::validate(&request, self.auth, now_ms).and_then(|()| match request {
+            Request::Cancel{params,..}=>{
+                if !self.negotiated{return Err(RpcError::new(-32002,"请先完成Gateway握手"));}if !self.can_cancel{return Err(RpcError::new(-32010,"任务取消需要协议1.2及取消能力"));}
+                let expected=yonder_protocol::sequence(&params.expected_sequence)?;
+                let task=if let Some(runtime)=execution_runtime{match runtime.snapshot(&params.task_id){Ok(_)=>crate::execution_runtime::stop_for_control(runtime,store,self.auth,&params.task_id,expected,crate::ControlKind::Cancel).map(|value|value.0),Err(crate::execution_runtime::RuntimeError::NotFound)=>crate::cancel_pending(store,self.auth,&params.task_id,expected),Err(error)=>Err(runtime_error(error))}}else{crate::cancel_pending(store,self.auth,&params.task_id,expected)}.map_err(query::error)?;
+                Ok(QueryResult::Snapshot{task:snapshot(task)})
+            }
+            Request::Control{params,..}=>{
+                if !self.negotiated{return Err(RpcError::new(-32002,"请先完成Gateway握手"));}if !self.can_controls{return Err(RpcError::new(-32010,"任务控制需要协议1.6及控制能力"));}
+                let runtime=execution_runtime.ok_or_else(||RpcError::new(-32020,"活动任务控制运行时不可用"))?;let kind=match params.kind{ProtocolControlKind::Pause=>crate::ControlKind::Pause,ProtocolControlKind::Cancel=>crate::ControlKind::Cancel,ProtocolControlKind::Takeover=>crate::ControlKind::Takeover};
+                let (task,control)=crate::execution_runtime::stop_for_control(runtime,store,self.auth,&params.task_id,yonder_protocol::sequence(&params.expected_sequence)?,kind).map_err(query::error)?;
+                Ok(QueryResult::Control{task:snapshot(task),control:ProtocolControl{attempt_id:control.attempt_id,control_id:control.control_id,kind:params.kind,phase:ProtocolControlPhase::Stopped,accepted_sequence:control.accepted_sequence.to_string(),stopped_sequence:control.stopped_sequence.map(|value|value.to_string()),focus_phase:None,focus_failure:None}})
+            }
             Request::PlanSubmit { params, .. } => {
                 if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
                 if !self.can_plan_submit { return Err(RpcError::new(-32010, "计划片段提交需要协议1.31及本机片段存储")); }

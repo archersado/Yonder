@@ -19,6 +19,7 @@ pub const DEFAULT_EVENT_HARD_LIMIT: usize = 256;
 pub enum RuntimePhase {
     Running,
     HandBack,
+    Paused,
     Completed,
     Failed,
     Cancelled,
@@ -53,6 +54,8 @@ pub struct RuntimeBrowserReference {
 }
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RuntimePlanCursor { pub plan_id:String, pub plan_version:u64, pub current_slot:u16 }
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct RuntimeControl { pub attempt_id:String, pub control_id:String, pub kind:String, pub accepted_sequence:u64 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RuntimeSnapshot {
@@ -61,11 +64,13 @@ pub struct RuntimeSnapshot {
     pub checkpoint: u64,
     pub phase: RuntimePhase,
     pub current_step: Option<RuntimeStep>,
+    pub last_step: Option<RuntimeStep>,
     pub last_step_succeeded: Option<bool>,
     pub last_observation_sequence: Option<u64>,
     pub goal_verification: Option<crate::GoalVerificationRecord>,
     pub browser_reference: Option<RuntimeBrowserReference>,
     pub active_plan: Option<RuntimePlanCursor>,
+    pub active_control: Option<RuntimeControl>,
     pub pending_events: usize,
 }
 
@@ -90,6 +95,7 @@ pub enum RuntimeEventKind {
     },
     StepBoundaryAdvanced { step_id: String },
     PlanSlotAdvanced { plan_id:String, plan_version:u64, from_slot:u16, step_id:String },
+    ControlStopped { attempt_id:String, control_id:String, control_kind:String },
     BrowserReferenceUpdated { reference: RuntimeBrowserReference },
     HandedBack { reason: String },
     GoalVerified {
@@ -143,6 +149,7 @@ pub enum RuntimeCommand {
     AdvanceStepBoundary { task_id: String, step_id: String },
     BindPlan { task_id:String, plan_id:String, plan_version:u64, current_slot:u16, source_sequence:u64 },
     AdvancePlanSlot { task_id:String, plan_id:String, plan_version:u64, expected_slot:u16, step_id:String },
+    StopForControl { task_id:String, control_kind:String },
     UpdateBrowserReference {
         task_id: String,
         reference: RuntimeBrowserReference,
@@ -340,6 +347,19 @@ pub fn advance_boundary(
         step_id: step.step_id,
     })
 }
+
+pub fn stop_for_control(
+    runtime:&ExecutionRuntimeHandle,store:&mut impl crate::TaskStore,auth:crate::AuthContext<'_>,task_id:&str,expected:u64,kind:crate::ControlKind,
+)->Result<(crate::Task,crate::ControlRequestRecord),crate::Error>{
+    let task=store.get(task_id)?;if !auth.can_read(&task){return Err(crate::Error::NotFound);}
+    let current=runtime.snapshot(task_id).map_err(runtime_application_error)?;if current.sequence!=expected{return Err(crate::Error::Conflict);}
+    let kind_name=match kind{crate::ControlKind::Pause=>"pause",crate::ControlKind::Cancel=>"cancel",crate::ControlKind::Takeover=>"takeover"};
+    let stopped=runtime.apply(RuntimeCommand::StopForControl{task_id:task_id.into(),control_kind:kind_name.into()}).map_err(runtime_application_error)?;
+    let control=stopped.active_control.clone().ok_or(crate::Error::Conflict)?;
+    Ok((crate::Task{status:if kind==crate::ControlKind::Cancel{crate::Status::Cancelled}else{crate::Status::Paused},sequence:stopped.sequence,..task},crate::ControlRequestRecord{task_id:task_id.into(),attempt_id:control.attempt_id,control_id:control.control_id,kind,phase:crate::ControlPhase::Stopped,accepted_sequence:control.accepted_sequence,stopped_sequence:Some(control.accepted_sequence),focus_phase:None,focus_failure:None}))
+}
+
+fn runtime_application_error(error:RuntimeError)->crate::Error{match error{RuntimeError::InvalidInput=>crate::Error::InvalidInput,RuntimeError::NotFound=>crate::Error::NotFound,RuntimeError::Conflict=>crate::Error::Conflict,RuntimeError::Backpressure=>crate::Error::StopRequired,RuntimeError::Unavailable=>crate::Error::StorageUnavailable}}
 
 impl ExecutionRuntime {
     pub fn start(command_capacity: usize, event_hard_limit: usize) -> Result<Self, RuntimeError> {
@@ -561,11 +581,13 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     checkpoint,
                     phase: RuntimePhase::Running,
                     current_step: None,
+                    last_step: None,
                     last_step_succeeded: None,
                     last_observation_sequence: None,
                     goal_verification: None,
                     browser_reference: None,
                     active_plan: None,
+                    active_control: None,
                     pending_events: 0,
                 },
                 pending: VecDeque::new(),
@@ -695,7 +717,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     }) {
                         return Err(RuntimeError::Conflict);
                     }
-                    task.snapshot.current_step = None;
+                    task.snapshot.last_step=task.snapshot.current_step.take();
                     append(task, RuntimeEventKind::StepBoundaryAdvanced { step_id })?;
                 }
                 RuntimeCommand::BindPlan { plan_id,plan_version,current_slot,source_sequence,.. } => {
@@ -719,6 +741,15 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     if cursor.plan_id!=plan_id||cursor.plan_version!=plan_version||cursor.current_slot!=expected_slot||task.snapshot.current_step.is_some(){return Err(RuntimeError::Conflict);}
                     cursor.current_slot=cursor.current_slot.checked_add(1).ok_or(RuntimeError::Conflict)?;
                     append(task,RuntimeEventKind::PlanSlotAdvanced{plan_id,plan_version,from_slot:expected_slot,step_id})?;
+                }
+                RuntimeCommand::StopForControl{control_kind,..}=>{
+                    if !matches!(control_kind.as_str(),"pause"|"cancel"|"takeover"){return Err(RuntimeError::InvalidInput);}
+                    if !matches!(task.snapshot.phase,RuntimePhase::Running|RuntimePhase::HandBack){return Err(RuntimeError::Conflict);}
+                    let attempt_id=task.snapshot.current_step.as_ref().or(task.snapshot.last_step.as_ref()).map(|step|step.attempt_id.clone()).ok_or(RuntimeError::Conflict)?;
+                    let accepted_sequence=task.snapshot.sequence.checked_add(1).ok_or(RuntimeError::Conflict)?;let control_id=format!("control_{accepted_sequence}");
+                    task.snapshot.current_step=None;task.snapshot.phase=if control_kind=="cancel"{RuntimePhase::Cancelled}else{RuntimePhase::Paused};
+                    task.snapshot.active_control=Some(RuntimeControl{attempt_id:attempt_id.clone(),control_id:control_id.clone(),kind:control_kind.clone(),accepted_sequence});
+                    append(task,RuntimeEventKind::ControlStopped{attempt_id,control_id,control_kind})?;
                 }
                 RuntimeCommand::UpdateBrowserReference { reference, .. } => {
                     if !reference
@@ -841,6 +872,7 @@ fn command_task_id(command: &RuntimeCommand) -> &str {
         | RuntimeCommand::AdvanceStepBoundary { task_id, .. }
         | RuntimeCommand::BindPlan { task_id, .. }
         | RuntimeCommand::AdvancePlanSlot { task_id, .. }
+        | RuntimeCommand::StopForControl { task_id, .. }
         | RuntimeCommand::UpdateBrowserReference { task_id, .. }
         | RuntimeCommand::HandBack { task_id, .. }
         | RuntimeCommand::VerifyGoal { task_id, .. }
