@@ -22,13 +22,11 @@ Worker 在任务运行态只持有最近一次对外 Observation 的引用与可
 
 协议 1.48 为含截图的 Observation 增加原始像素宽高；同次 `observation_ref` 同时保护 AX 句柄和视觉坐标。坐标候选继续使用 `x/y`，但必须额外携带该引用，且 `x/y` 只表示持久化截图字节的原始像素，不表示对话渲染坐标或桌面坐标。
 
-Sky Worker 从 PNG/JPEG/WebP 字节头读取尺寸，将 `task_id + application_id + observation_ref + width + height + trusted_backing_scale` 作为最新临时视觉引用。坐标动作前重新 Observe 并读取当前截图尺寸；引用不匹配、坐标越界、尺寸变化或可信倍率变化时不调用 Sky。
-
-macOS Adapter 使用 Application 每次派发前取得的可信 `pid + window_id`，通过原生 WindowServer 映射窗口所在显示器，并以显示器像素宽度与逻辑 bounds 宽度的比值取得 backing scale。倍率必须有限且位于受限范围；窗口不存在、所有者不匹配、显示器无法解析或横纵倍率不一致均视为不可用。Adapter 把该只读事实注入 Worker；Worker 仍以原始截图像素校验边界，只在 Sky `click` 调用边界执行 `logical_x = pixel_x / scale`、`logical_y = pixel_y / scale`。外部协议不暴露窗口原点、显示器倍率或 PID，慢脑也不得推断倍率。
+Sky Worker 从 PNG/JPEG/WebP 字节头读取尺寸，将 `task_id + application_id + observation_ref + width + height` 作为最新临时视觉引用。坐标动作前重新 Observe 并读取当前截图尺寸；引用不匹配、坐标越界或尺寸变化时不调用 Sky。通过门禁后，Worker 把 `x/y` 原始截图像素原样传给 Sky；macOS Adapter 不读取显示器 backing scale，也不进行像素到逻辑点换算。
 
 macOS Sky 0.7.1 不公开截图 ID，Worker 不添加未受支持字段，而是在同一临时引用中保存 transcript 指纹。动作前 Observe 的 transcript 与引用代次不一致时，即便宽高相同也拒绝旧坐标；单纯视觉像素差异不参与此门禁。元素导出同时折叠装饰性 image：若 image 位于可操作祖先内，只保留祖先句柄；disabled 节点不进入集合；没有可操作祖先的 image 不做相邻代理推断，仍以自身索引执行并等待后置事实。
 
-Gateway 只返回尺寸与引用，不持久化几何状态。调用方若查看了缩放后的图片，必须按响应的原始宽高换算；无法证明换算来源时不得生成坐标动作。系统 backing scale 只存在于 Adapter/Worker 当前请求与最近 Observation 内存，不写入协议、SQLite、事件、Outbox、日志或浮窗。动作后 Observe 与 unknown 不重试规则保持不变。
+Gateway 只返回尺寸与引用，不持久化几何状态。调用方若查看了缩放后的图片，必须按响应的原始宽高换算；无法证明换算来源时不得生成坐标动作。动作后 Observe 与 unknown 不重试规则保持不变。
 
 ## 安全与数据生命周期
 
@@ -36,4 +34,4 @@ transcript 与短标签用于慢脑理解界面和控件消歧；Worker 对疑�
 
 ## 失败与验证
 
-测试覆盖 transcript 裁剪、敏感字段排除、上限、可选择行及后代标签边界、无祖先 image 句柄、装饰性 image/disabled 过滤、引用替换/跨任务/进程重建拒绝、同尺寸 transcript 变化、动作前新鲜索引校验、1x/2x 可信 backing scale 换算、倍率缺失/变化拒绝、坐标调用错误后的 Observe、协议严格解码和 Gateway 兼容。macOS 正式企业微信样本必须证明目标企业名称已切换或安全交回；Windows 暂缓。
+测试覆盖 transcript 裁剪、敏感字段排除、上限、可选择行及后代标签边界、无祖先 image 句柄、装饰性 image/disabled 过滤、引用替换/跨任务/进程重建拒绝、同尺寸 transcript 变化、动作前新鲜索引校验、原始像素不变传递、坐标调用错误后的 Observe、协议严格解码和 Gateway 兼容。macOS 正式企业微信样本必须证明目标企业名称已切换或安全交回；Windows 暂缓。

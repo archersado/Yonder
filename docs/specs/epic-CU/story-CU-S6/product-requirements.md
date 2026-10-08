@@ -10,7 +10,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - 后续用户变更（2026-10-07）：真实企业微信测试失败后要求修正，并要求具备与 Codex Computer Use 类似的观察—动作—验证循环。
 - 架构约束：AD-CU-09 保持 Sky 单栈、新鲜 transcript、动作后 Observe、unknown 不重试；AD-CU-10 允许临时可操作元素句柄并禁止完整 transcript 持久化；AD-TM-23 保持运行时轻量事件驱动。
 - 后续真实样本（2026-10-07）：企业微信左下角企业切换入口只暴露为无文本 AX image；坐标兜底因截图缩放难以稳定命中，要求继续保持元素优先并暴露受新鲜引用保护的 image 句柄。
-- 后续正式诊断（2026-10-08）：macOS Sky 0.7.1 截图为 Retina backing 像素、动作坐标为窗口逻辑点；同一目标在原始像素直接派发时无效，经系统可信 2x backing scale 换算后立即生效。
+- 后续正式对照（2026-10-08）：短暂引入的 Retina backing-scale 换算使企业微信精确原图坐标稳定失效；此前两个不同点位的结果不足以证明坐标单位差异，必须恢复 Sky 原始截图像素契约。
 - 待审建议：未来是否为复杂表格、树增加更多结构字段，不在本 Story 自行扩展。
 
 ## 验收条件
@@ -30,8 +30,8 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-13：同尺寸窗口内 transcript 已变化时，旧截图坐标同样失效；Worker 仅在内存保存该次 transcript 指纹，不持久化正文或指纹，也不得伪造当前 macOS Sky 未公开的 `screenshotId`。
 - OEH-14：可操作节点的装饰性 image 后代不得作为第二个独立候选；disabled 节点不得作为可操作候选。无可操作祖先的 image 仍可作为受引用保护的尝试句柄，但动作回执不代表该 AX 节点确实可点击。
 - OEH-15：正式样本必须通过动作后 Observation 中与目标直接相关的结构事实核验；QQ 音乐坐标成功不得外推为企业微信企业切换成功，截图任意变化也不得作为企业切换完成证据。
-- OEH-16：Gateway、计划与慢脑继续只使用原始截图像素；macOS Adapter 必须从当前可信窗口所在显示器读取 backing scale，并仅在 Sky 调用边界转换为逻辑点。倍率不得由 Agent、UI 或计划参数提供。
-- OEH-17：Observation 的临时视觉引用必须同时绑定可信 backing scale；倍率缺失、越界、窗口不匹配或跨显示器变化时不得派发旧坐标，只返回新鲜 Observation 交回慢脑。
+- OEH-16：Gateway、计划、慢脑与 Sky Adapter 均只使用同次 Observation 的原始截图像素；Adapter 不得读取、保存或应用显示器 backing scale。
+- OEH-17：原图坐标未命中时必须以后置 Observation 安全交回；不得把失败解释为倍率问题后自动换算或重放，后续慢脑只能基于新鲜截图修正点位或改用元素句柄。
 
 ## 验收映射
 

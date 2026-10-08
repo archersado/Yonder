@@ -79,12 +79,12 @@
 - **WHEN** 动作前截图宽高未变化，但 transcript 已不同于产生 `observation_ref` 的 Observation
 - **THEN** Worker 将旧坐标视为失效，不派发动作，并以新鲜 Observation 交回慢脑
 
-#### Scenario: macOS 调用边界使用可信 backing scale
+#### Scenario: macOS 调用边界保持原图像素
 
-- **WHEN** 最新 Observation 的原始截图像素坐标通过全部引用与边界校验，且 Adapter 从当前可信窗口所在显示器取得有效 backing scale
-- **THEN** Worker 只在 Sky 调用边界将原图像素转换为窗口逻辑点，Agent、UI 与计划参数均不提供倍率
+- **WHEN** 最新 Observation 的原始截图像素坐标通过全部引用与边界校验
+- **THEN** Worker 将 `x/y` 不变传给 Sky，Agent、UI 与 Adapter 均不读取或应用显示器倍率
 
-#### Scenario: backing scale 不可用或已变化
+#### Scenario: 原图坐标动作后未命中
 
-- **WHEN** 当前窗口/显示器无法解析可信倍率，或倍率不同于产生最新 Observation 时的倍率
-- **THEN** Worker 不派发坐标动作，返回新鲜 Observation 交回慢脑，且不得猜测倍率或重放旧坐标
+- **WHEN** Sky 已接收一次原图坐标动作但后置 Observation 未证明目标变化
+- **THEN** Worker 返回新鲜 Observation 交回慢脑，且不得自动换算倍率或重放旧坐标
