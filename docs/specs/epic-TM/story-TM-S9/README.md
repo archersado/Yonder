@@ -1,6 +1,17 @@
 # TM-S9 事件驱动执行运行时
 
-状态：implementing。依据 [AD-TM-23](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-23-EVENT-DRIVEN-EXECUTION-RUNTIME.md)，活动任务不再由同步 SQLite 写入驱动。OpenSpec：[`tm-s9-event-driven-runtime`](../../../../openspec/changes/tm-s9-event-driven-runtime/)。
+Story: TM-S9
+Epic: TM
+Status: verifying
+OpenSpec: tm-s9-event-driven-runtime
+
+状态：verifying。依据 [AD-TM-23](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-TM-23-EVENT-DRIVEN-EXECUTION-RUNTIME.md)，活动任务不再由同步 SQLite 写入驱动。OpenSpec：[`tm-s9-event-driven-runtime`](../../../../openspec/changes/tm-s9-event-driven-runtime/)。
+
+## 设计文档
+
+- [产品需求](product-requirements.md)
+- [架构设计](architecture-design.md)
+- [视觉交互设计](visual-interaction-design.md)
 
 2026-10-08 已完成 EX-S2 `task.plan.execute` 迁移：不可变片段仅在执行入口读取一次，连续槽位、游标与 HandBack 由同一内存 reducer 推进，SQLite/events/Outbox 通过连续事件异步投影；测试证明 projector 尚未 ACK 时两个槽位仍可连续执行。
 
