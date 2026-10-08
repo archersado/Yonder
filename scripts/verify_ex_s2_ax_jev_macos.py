@@ -194,7 +194,10 @@ try:
         "task_id": task["task_id"], "after_sequence": "0", "limit": 100,
     })["events"]
     primary_selected = fixture_state.get("primary_selected") is True
-    if executed.get("disposition") == "fragment-complete" and primary_selected:
+    fragment_finished = executed.get("disposition") in (
+        "fragment-complete", "awaiting-goal-verification"
+    )
+    if fragment_finished and primary_selected:
         completed = tool("task_complete", {
             "task_id": task["task_id"], "expected_sequence": executed["sequence"],
         })["task"]
