@@ -31,6 +31,7 @@ struct WorkerRequest<'a> {
     endpoint: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
+    step_label: &'a str,
     observed_facts: &'a [String],
     candidates: &'a [yonder_application::jev_runtime::JevCandidate],
 }
@@ -108,7 +109,11 @@ impl MacosJevPort {
         }
     }
 
-    fn run_worker(&self, request: &WorkerRequest<'_>, timeout: Duration) -> Result<WorkerResponse, JevDecisionError> {
+    fn run_worker(
+        &self,
+        request: &WorkerRequest<'_>,
+        timeout: Duration,
+    ) -> Result<WorkerResponse, JevDecisionError> {
         let payload =
             serde_json::to_string(request).map_err(|_| JevDecisionError::InvalidResponse)?;
         let mut child = Command::new(&self.node)
@@ -147,9 +152,7 @@ impl MacosJevPort {
             match child.try_wait() {
                 Ok(Some(status)) if status.success() => break,
                 Ok(Some(_)) => return Err(JevDecisionError::RemoteError),
-                Ok(None) if started.elapsed() < timeout => {
-                    thread::sleep(Duration::from_millis(10))
-                }
+                Ok(None) if started.elapsed() < timeout => thread::sleep(Duration::from_millis(10)),
                 _ => {
                     let _ = child.kill();
                     let _ = child.wait();
@@ -217,6 +220,7 @@ impl JevDecisionPort for MacosJevPort {
             endpoint: &config.endpoint,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
+            step_label: &request.step_label,
             observed_facts: &request.observed_facts,
             candidates: &request.candidates,
         };
@@ -305,23 +309,36 @@ mod tests {
             endpoint: "https://api.typesafe.ai",
             api_key: "test-only",
             timeout_ms: 3000,
-            observed_facts:&["ApplicationReady=true".into()],
+            step_label: "选择并激活目标控件",
+            observed_facts: &["ApplicationReady=true".into()],
             candidates: &[
                 JevCandidate {
                     id: "cua.click".into(),
                     dispatchable: true,
                     parameter_complete: true,
-                    action_kind: "bring-to-front".into(), target_ref: "app-1".into(), preconditions: vec!["application-ready=true".into()], expected_observe: vec!["target-resolved=true".into()],
+                    action_kind: "bring-to-front".into(),
+                    target_ref: "app-1".into(),
+                    preconditions: vec!["application-ready=true".into()],
+                    expected_observe: vec!["target-resolved=true".into()],
+                    element_role: None,
+                    element_label: None,
                 },
                 JevCandidate {
                     id: "cua.raise".into(),
                     dispatchable: true,
                     parameter_complete: true,
-                    action_kind: "bring-to-front".into(), target_ref: "app-1".into(), preconditions: vec!["application-ready=true".into()], expected_observe: vec!["target-resolved=true".into()],
+                    action_kind: "bring-to-front".into(),
+                    target_ref: "app-1".into(),
+                    preconditions: vec!["application-ready=true".into()],
+                    expected_observe: vec!["target-resolved=true".into()],
+                    element_role: None,
+                    element_label: None,
                 },
             ],
         };
-        let result = port.run_worker(&request, Duration::from_millis(3000)).unwrap();
+        let result = port
+            .run_worker(&request, Duration::from_millis(3000))
+            .unwrap();
         assert_eq!(result.candidate_id, "cua.click");
         assert!((0.0..=1.0).contains(&result.confidence));
         let _ = fs::remove_file(script);

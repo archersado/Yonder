@@ -5,7 +5,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 const CONFIDENCE_THRESHOLD: f32 = 0.75;
-const MAX_CANDIDATES: usize = 10;
+pub(crate) const MAX_CANDIDATES: usize = 10;
 pub(crate) const HAND_BACK: &str = "handback";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -18,12 +18,16 @@ pub struct JevCandidate {
     pub target_ref: String,
     pub preconditions: Vec<String>,
     pub expected_observe: Vec<String>,
+    /// 仅供新鲜 AX/UIA 动作空间选择的有界控件摘要。
+    pub element_role: Option<String>,
+    pub element_label: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct JevDecisionRequest {
     pub task_id: String,
     pub step_id: String,
+    pub step_label: String,
     pub capability: JevCapability,
     pub observed_facts: Vec<String>,
     pub candidates: Vec<JevCandidate>,
@@ -90,10 +94,18 @@ pub fn decide(
 }
 
 fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError> {
-    let mut observed=std::collections::HashSet::new();
+    let mut observed = std::collections::HashSet::new();
     if !valid_id(&request.task_id)
         || !valid_id(&request.step_id)
-        || !(2..=MAX_CANDIDATES).contains(&request.candidates.len()) || request.observed_facts.len()>4 || request.observed_facts.iter().any(|fact|fact.is_empty()||fact.len()>64||fact.contains('\0')||!observed.insert(fact.as_str()))
+        || !crate::valid_step_label(&request.step_label)
+        || !(2..=MAX_CANDIDATES).contains(&request.candidates.len())
+        || request.observed_facts.len() > 4
+        || request.observed_facts.iter().any(|fact| {
+            fact.is_empty()
+                || fact.len() > 64
+                || fact.contains('\0')
+                || !observed.insert(fact.as_str())
+        })
     {
         return Err(JevDecisionError::InvalidInput);
     }
@@ -116,8 +128,24 @@ fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError
             || candidate.target_ref.len() > 64
             || candidate.preconditions.len() > 4
             || candidate.expected_observe.len() > 4
-            || candidate.preconditions.iter().chain(&candidate.expected_observe).any(|condition| condition.is_empty() || condition.len() > 64 || condition.contains('\0'))
-        { return Err(JevDecisionError::InvalidInput); }
+            || candidate
+                .element_role
+                .as_ref()
+                .is_some_and(|value| value.is_empty() || value.len() > 32 || value.contains('\0'))
+            || candidate
+                .element_label
+                .as_ref()
+                .is_some_and(|value| value.is_empty() || value.len() > 128 || value.contains('\0'))
+            || candidate
+                .preconditions
+                .iter()
+                .chain(&candidate.expected_observe)
+                .any(|condition| {
+                    condition.is_empty() || condition.len() > 64 || condition.contains('\0')
+                })
+        {
+            return Err(JevDecisionError::InvalidInput);
+        }
     }
     Ok(())
 }
@@ -173,6 +201,7 @@ mod tests {
         JevDecisionRequest {
             task_id: "task-1".into(),
             step_id: "step-1".into(),
+            step_label: "选择并激活目标控件".into(),
             capability: JevCapability::Cua,
             observed_facts: vec!["ApplicationReady=true".into()],
             candidates: vec![
@@ -184,6 +213,8 @@ mod tests {
                     target_ref: "app-1".into(),
                     preconditions: vec!["application-ready=true".into()],
                     expected_observe: vec!["target-resolved=true".into()],
+                    element_role: None,
+                    element_label: None,
                 },
                 JevCandidate {
                     id: "cua.raise".into(),
@@ -193,6 +224,8 @@ mod tests {
                     target_ref: "app-1".into(),
                     preconditions: vec!["application-ready=true".into()],
                     expected_observe: vec!["target-resolved=true".into()],
+                    element_role: None,
+                    element_label: None,
                 },
             ],
         }

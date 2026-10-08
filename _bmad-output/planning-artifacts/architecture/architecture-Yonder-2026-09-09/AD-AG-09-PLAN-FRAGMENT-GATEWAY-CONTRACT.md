@@ -31,6 +31,8 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 2026-09-30 unknown 交回边界补充（正式样本反馈，已接受）：Driver 动作结论为 `unknown` 时，结论、原因和同次可用 Observe 证据必须原样保留，旧片段游标不得推进，副作用不得自动重试；但交回事件提交必须同时把该次 attempt 关闭为停止边界，不能让已结束的 Worker attempt 永久占据单槽位。归属慢脑读取 `task.get/task.events` 与交回证据后，才可从原 Gateway 提交新片段；新片段产生新的 step/attempt 身份并重新通过授权、租约和 Observe，不得把旧 `unknown` 提升为成功。
 
+2026-10-08 AX 动作空间修订（用户变更，已接受）：快脑不得为了“启用 Jev”而在人为构造的应用恢复路径中选择。慢脑仍只声明语义步骤、允许动作类型与成功条件；Application 将同一轮新鲜 AX/UIA Observe 中符合该动作类型的临时元素句柄展开为有界动作空间。唯一元素由 Application 直接派发；多个元素时，Jev 只接收步骤标签、封闭角色、最多 128 字符的脱敏短标签及既有条件摘要，返回已提交的不透明候选 ID。Application 把所选句柄与同次 `observation_ref` 仅注入当次 Driver 请求，Driver 在副作用前重新 Observe 并校验句柄。完整 transcript、截图、坐标、PID、窗口身份、正文和联系人仍不得进入 Jev；候选为空、低置信或句柄失效立即交回慢脑。
+
 ## 待决问题
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。

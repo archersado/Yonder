@@ -2,6 +2,23 @@
 
 ## ADDED Requirements
 
+### Requirement: 快脑从新鲜 AX 动作空间自然选择
+
+系统 SHALL 由 Application 把同一执行调用中新鲜 Observe 的临时元素句柄展开为已声明语义步骤的有界动作空间。唯一句柄 SHALL 直接派发；多句柄 SHALL 由 Jev 在脱敏元素摘要中选择。系统 MUST NOT 为强制调用 Jev 构造无业务意义的恢复候选。
+
+#### Scenario: 多个 AX 控件进入 Jev
+
+- **WHEN** 前一动作已完成 Observe，当前语义步骤映射到两个以上合法的临时 AX 句柄
+- **THEN** Jev 只接收步骤标签、封闭角色、脱敏短标签、条件摘要和不透明候选 ID
+- **AND** Application 将所选索引与同次引用仅注入当次 Driver 请求，Driver 在动作前重新 Observe 校验
+- **AND** transcript、截图、坐标、敏感文本和完整 Agent Payload 不进入 Jev、SQLite、事件、Outbox 或日志
+
+#### Scenario: 唯一元素不调用 Jev
+
+- **WHEN** 当前语义步骤只有一个合法临时句柄
+- **THEN** Application 直接派发并保持动作后 Observe
+- **AND** 不调用 Jev，不生成人工候选以追求快脑命中
+
 ### Requirement: unknown 交回允许新片段重新观察
 
 系统 SHALL 在 Driver 动作结果为 `unknown` 时保留原始结论、原因与可用 Observe 证据，不推进旧片段游标，也不自动重试副作用。交回事件、Outbox 与独立 handback 边界 SHALL 同事务提交，使已结束的旧 attempt 不再占据步骤执行槽；归属慢脑读取 `task.get` 与 `task.events` 后，MAY 通过原 Gateway 以新的 step/attempt 提交受限片段。

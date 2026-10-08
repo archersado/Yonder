@@ -31,6 +31,7 @@ fn main() {
     let request = JevDecisionRequest {
         task_id: "verification-task".into(),
         step_id: "verification-step".into(),
+        step_label: "选择并激活目标控件".into(),
         capability: JevCapability::Cua,
         observed_facts: vec!["ApplicationReady=true".into()],
         candidates: vec![
@@ -42,6 +43,8 @@ fn main() {
                 target_ref: "verification-app".into(),
                 preconditions: vec!["application-ready=true".into()],
                 expected_observe: vec!["target-resolved=true".into()],
+                element_role: None,
+                element_label: None,
             },
             JevCandidate {
                 id: "handback".into(),
@@ -51,6 +54,8 @@ fn main() {
                 target_ref: "none".into(),
                 preconditions: vec![],
                 expected_observe: vec![],
+                element_role: None,
+                element_label: None,
             },
         ],
     };

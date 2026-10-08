@@ -9,3 +9,5 @@ Rust 协议是唯一模型来源，新增 `task.plan.submit` 与 `task.plan.exec
 MCP 增量只增加 `task_plan_submit` 与 `task_plan_execute` 两个薄适配工具：把 MCP JSON 参数反序列化为 Rust `PlanSubmitParams`/`PlanExecuteParams`，再复用现有 `gateway()` 的协议 1.31 握手与 UDS 请求。候选嵌套结构由 Rust 协议反序列化和 Gateway 验证，CLI 不接受自由 DSL、不直接调用 Jev/Driver，也不返回完整模型请求。
 
 交回响应提交后由Desktop组合根在TaskHost锁外调用AG-S5既有`AgentInputHub`，以Rust协议新增的`source=replan`向唯一归属Agent会话投递有界唤醒文本。投递不参与动作结果事务、不阻塞Gateway执行，也不代替事件/Outbox；失败只形成短生命周期展示。顶部浮窗Hub增加`replanning`投影：交回时保留失败步骤，投递被Agent接受后显示慢脑正在规划，新`task.plan.submit`成功后从权威片段刷新计划摘要。慢脑仍从同一Gateway读取事实、提交和执行新片段。
+
+2026-10-08 自然快脑选择增量：Application 在同一执行调用内从最近一次新鲜 AX Observe 展开有界临时元素候选。不变更外部计划的慢脑语义模板，不持久化动态候选。Jev 仅在自然形成多个合法元素时获得步骤标签、封闭角色、脱敏短标签与不透明 ID；唯一元素直接执行。所选句柄与同次 `observation_ref` 只注入本次 Driver 请求，Worker 动作前复核；失效或低置信交回慢脑。

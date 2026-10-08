@@ -58,6 +58,8 @@ Application在每个槽位派发前按任务归属和期限解析引用，把目
 
 当前 Observe 只在一次 `task.plan.execute` 调用栈内以封闭布尔事实传递。Application 先以这些事实过滤候选：无候选满足时直接交回，唯一候选满足时确定性派发，至少两个候选满足时才把合格候选与事实摘要交给 Jev；不得把候选自行声明的前置条件当作已经成立。每次动作成功仍须由 Driver 完成后置 Observe，Application 再复核候选的 `expected_observe`，不满足即停止片段并交回慢脑。跨调用不复用瞬态事实，恢复执行时须由单候选慢脑授权或重新 Observe。
 
+2026-10-08 修订后，上述调用栈还保留最近一次 `ComputerObservation` 的 `observation_ref + elements`。对慢脑声明的通用控件语义模板，Application 按封闭角色筛选最多十个当轮句柄，不把这些瞬态候选写回不可变片段。唯一句柄由 Application 直接注入并执行；多句柄时 Jev 获得步骤标签、角色、脱敏短标签和已有条件摘要。选中后 Application 只在本次内存 Driver 参数中注入索引与引用；Worker 动作前重新 Observe 复核。完整 transcript、截图、坐标、窗口身份和敏感文本不进入 Jev、事件、Outbox 或日志。
+
 连续推进由 Application 在一次 `task.plan.execute` 调用栈内完成，最多消费当前不可变片段的剩余槽位。每轮只派发一个动作，成功 Observe 与 attempt 停止边界提交后才推进 `current_slot`；下一轮重新读取片段、任务 sequence 与控制事实。返回响应后不保留执行线程或定时任务。片段完成返回 `fragment-complete`，但不替代归属慢脑提交 `task.complete`/`task.fail`。
 
 产品 MCP 必须从同一 Rust 协议类型构造 `task.plan.submit` 与 `task.plan.execute` 请求，直接转发到既有私有 UDS Gateway；不得在 CLI 重写计划校验、执行循环或 Jev 选择。MCP schema 只镜像协议字段，Gateway 继续负责身份、版本、CAS、期限、候选和能力检查。该入口使 Codex 成为真实慢脑，不创建第二 Agent 通道。

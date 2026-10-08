@@ -62,6 +62,10 @@ impl ObservedFacts {
     fn labels(self)->Vec<String>{[("ApplicationReady",self.application_ready),("TargetResolved",self.target_resolved),("ComposerReady",self.composer_ready),("DeliveryConfirmed",self.delivery_confirmed)].into_iter().filter_map(|(name,value)|value.map(|value|format!("{name}={value}"))).collect()}
 }
 
+/// 只在一次 Gateway 执行调用中存活的新鲜 Observe；临时句柄不进入持久化。
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct ObservedContext { facts:ObservedFacts, observation_ref:Option<String>, elements:Vec<yonder_protocol::ObservedElement> }
+
 pub fn submit(
     store: &mut impl crate::TaskStore,
     auth: crate::AuthContext<'_>,
@@ -86,7 +90,7 @@ fn execute_one(
     store: &mut impl crate::TaskStore, admission: &crate::admission::Admission,
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
     config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized), intents: Option<&crate::cua_intent::CuaIntentRegistry>,
-    auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str, observed_facts:&mut Option<ObservedFacts>,
+    auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str, observed_context:&mut Option<ObservedContext>,
 ) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
     if !matches!(auth, crate::AuthContext::Agent(_)) { return Err(crate::Error::PermissionDenied); }
     if computer.explicit_takeover_requested(task_id) { return Ok((store.get(task_id)?, "takeover-requested", None)); }
@@ -95,8 +99,11 @@ fn execute_one(
     let index=usize::from(stored.current_slot);
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "awaiting-goal-verification", None)); }
     let slot=&stored.fragment.slots[index];
-    computer.project_decision(task_id,&slot.step_id,&slot.label,&format!("正在评估 {} 个受支持候选",slot.candidates.len()));
-    let choice=match select(config,jev,&stored.fragment,index,*observed_facts){
+    let observed_element_count=if slot.candidates.len()==1&&is_observed_element_template(&slot.candidates[0]){observed_context.as_ref().map(|value|value.elements.iter().filter(|element|actionable_element(element.role)).take(jev_runtime::MAX_CANDIDATES).count())}else{None};
+    let choice_count=observed_element_count.unwrap_or(slot.candidates.len());
+    let evaluating=observed_element_count.map_or_else(||format!("正在评估 {choice_count} 个受支持候选"),|_|format!("正在依据最新 Observe 评估 {choice_count} 个控件候选"));
+    computer.project_decision(task_id,&slot.step_id,&slot.label,&evaluating);
+    let choice=match select(config,jev,&stored.fragment,index,observed_context.as_ref()){
         Ok(choice)=>choice,
         Err(_)=>{
             computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑决策不可用，已交回慢脑");
@@ -116,7 +123,7 @@ fn execute_one(
         return Ok((task, "handback", None));
     };
     let decision = if via_jev {
-        format!("Jev 已从 {} 个候选中选择：{}",slot.candidates.len(),action_kind_label(action.action_kind))
+        format!("Jev 已从 {choice_count} 个候选中选择：{}",action_kind_label(action.action_kind))
     } else {
         format!("唯一可执行候选直接授权：{}",action_kind_label(action.action_kind))
     };
@@ -187,7 +194,8 @@ fn execute_one(
         let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,task.sequence,"Observe 未满足计划后置条件，需要慢脑重新规划")?;
         return Ok((task,"handback",observation));
     }
-    *observed_facts=Some(fresh_facts);
+    let (observation_ref,elements)=observation.as_ref().map(|value|(value.observation_ref.clone(),value.elements.clone())).unwrap_or_default();
+    *observed_context=Some(ObservedContext{facts:fresh_facts,observation_ref,elements});
     let task=store.advance_plan_fragment(task_id,plan_id,plan_version,stored.current_slot,task.sequence)?;
     computer.project_step_completed(task_id,&slot.step_id);
     Ok((task,"advanced",observation))
@@ -231,14 +239,14 @@ pub fn execute_available(
     }
     let allowed = remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));
     let mut sequence = expected;
-    let mut observed_facts=None;
+    let mut observed_context=None;
     for _ in 0..allowed {
         if computer.explicit_takeover_requested(task_id) {
             return Ok((store.get(task_id)?, "takeover-requested", None));
         }
         let (task, disposition, observation) = execute_one(
             store, admission, computer, targets, config, jev, intents, auth, task_id, plan_id,
-            plan_version, sequence, now_ms, host_session_id,&mut observed_facts,
+            plan_version, sequence, now_ms, host_session_id,&mut observed_context,
         )?;
         sequence = task.sequence;
         if disposition != "advanced" {
@@ -321,10 +329,12 @@ fn select(
     port: &(impl JevDecisionPort + ?Sized),
     fragment: &PlanFragment,
     slot_index: usize,
-    observed_facts:Option<ObservedFacts>,
+    observed:Option<&ObservedContext>,
 ) -> Result<Selection, JevDecisionError> {
     validate(fragment).map_err(|_| JevDecisionError::InvalidInput)?;
     let slot = fragment.slots.get(slot_index).ok_or(JevDecisionError::InvalidInput)?;
+    if slot.candidates.len()==1&&is_observed_element_template(&slot.candidates[0]){if let Some(observed)=observed{return select_observed_element(config,port,fragment,slot,&slot.candidates[0],observed);}}
+    let observed_facts=observed.map(|value|value.facts);
     let eligible=slot.candidates.iter().filter(|candidate|observed_facts.is_some_and(|facts|facts.satisfies(&candidate.preconditions))||(observed_facts.is_none()&&slot.candidates.len()==1)).collect::<Vec<_>>();
     if eligible.is_empty(){return Ok(Selection::HandBack{reason:"preconditions-not-observed"});}
     if eligible.len()==1{return Ok(Selection::Dispatch{action:eligible[0].clone(),via_jev:false});}
@@ -333,11 +343,23 @@ fn select(
         action_kind: format!("{:?}", candidate.action_kind), target_ref: candidate.target_ref.clone(),
         preconditions: candidate.preconditions.iter().map(|condition| format!("{:?}={}", condition.fact, condition.expected)).collect(),
         expected_observe: candidate.expected_observe.iter().map(|condition| format!("{:?}={}", condition.fact, condition.expected)).collect(),
+        element_role:None, element_label:None,
     }).collect::<Vec<_>>();
-    match jev_runtime::decide(config, port, &JevDecisionRequest { task_id: fragment.task_id.clone(), step_id: slot.step_id.clone(), capability: JevCapability::Cua, observed_facts:observed_facts.expect("多个合格候选一定有新鲜事实").labels(), candidates })? {
+    match jev_runtime::decide(config, port, &JevDecisionRequest { task_id: fragment.task_id.clone(), step_id: slot.step_id.clone(), step_label:slot.label.clone(), capability: JevCapability::Cua, observed_facts:observed_facts.expect("多个合格候选一定有新鲜事实").labels(), candidates })? {
         JevDecision::Dispatch { candidate_id } => Ok(Selection::Dispatch{action:slot.candidates.iter().find(|candidate| candidate.candidate_id == candidate_id).expect("Jev decision only returns submitted candidate").clone(),via_jev:true}),
         JevDecision::HandBack { reason } => Ok(Selection::HandBack { reason }),
     }
+}
+
+fn is_observed_element_template(candidate:&CandidateAction)->bool{candidate.action_kind==yonder_protocol::CuaActionKind::ActivateControl&&candidate.tool_name=="click"&&serde_json::from_str::<serde_json::Value>(&candidate.arguments_json).is_ok_and(|value|value.as_object().is_some_and(serde_json::Map::is_empty))}
+fn actionable_element(role:yonder_protocol::ObservedElementRole)->bool{use yonder_protocol::ObservedElementRole::*;matches!(role,Button|MenuItem|CheckBox|RadioButton|Link|Tab|SelectableRow|Image)}
+fn bounded_element_label(value:&str)->String{let mut label=String::new();for character in value.chars(){if label.len()+character.len_utf8()>128{break;}label.push(character);}label}
+fn select_observed_element(config:&crate::jev_config::JevConfig,port:&(impl JevDecisionPort + ?Sized),fragment:&PlanFragment,slot:&PlanSlot,template:&CandidateAction,observed:&ObservedContext)->Result<Selection,JevDecisionError>{
+    let Some(reference)=observed.observation_ref.as_deref().filter(|value|valid_id(value))else{return Ok(Selection::HandBack{reason:"preconditions-not-observed"});};
+    if !observed.facts.satisfies(&template.preconditions){return Ok(Selection::HandBack{reason:"preconditions-not-observed"});}
+    let actions=observed.elements.iter().filter(|element|actionable_element(element.role)).take(jev_runtime::MAX_CANDIDATES).map(|element|{let id=format!("ax-element-{}",element.index);let mut action=template.clone();action.candidate_id=id.clone();action.arguments_json=serde_json::json!({"observed_element_index":element.index,"observation_ref":reference}).to_string();let candidate=JevCandidate{id,dispatchable:true,parameter_complete:true,action_kind:format!("{:?}",template.action_kind),target_ref:template.target_ref.clone(),preconditions:template.preconditions.iter().map(|condition|format!("{:?}={}",condition.fact,condition.expected)).collect(),expected_observe:template.expected_observe.iter().map(|condition|format!("{:?}={}",condition.fact,condition.expected)).collect(),element_role:Some(format!("{:?}",element.role)),element_label:element.label.as_deref().map(str::trim).filter(|value|!value.is_empty()).map(bounded_element_label)};(action,candidate)}).collect::<Vec<_>>();
+    if actions.is_empty(){return Ok(Selection::HandBack{reason:"preconditions-not-observed"});}if actions.len()==1{return Ok(Selection::Dispatch{action:actions[0].0.clone(),via_jev:false});}
+    let candidates=actions.iter().map(|(_,candidate)|candidate.clone()).collect();match jev_runtime::decide(config,port,&JevDecisionRequest{task_id:fragment.task_id.clone(),step_id:slot.step_id.clone(),step_label:slot.label.clone(),capability:JevCapability::Cua,observed_facts:observed.facts.labels(),candidates})?{JevDecision::Dispatch{candidate_id}=>Ok(Selection::Dispatch{action:actions.into_iter().find(|(_,candidate)|candidate.id==candidate_id).expect("Jev decision only returns submitted candidate").0,via_jev:true}),JevDecision::HandBack{reason}=>Ok(Selection::HandBack{reason})}
 }
 
 #[cfg(test)]
@@ -358,8 +380,15 @@ mod tests {
     struct RecordingPort { request:RefCell<Option<JevDecisionRequest>> }
     impl JevDecisionPort for RecordingPort { fn choose(&self,_:&JevConfig,request:&JevDecisionRequest)->Result<JevModelChoice,JevDecisionError>{self.request.replace(Some(request.clone()));Ok(JevModelChoice{candidate_id:"click".into(),confidence:0.9})} }
     #[test] fn multiple_candidates_require_fresh_observe(){let mut value=fragment();let mut second=candidate();second.candidate_id="click-alternative".into();value.slots[0].candidates.push(second);assert_eq!(select(&config(),&MustNotChoose,&value,0,None).unwrap(),Selection::HandBack{reason:"preconditions-not-observed"});}
-    #[test] fn jev_receives_fresh_facts_and_only_eligible_candidates(){let mut value=fragment();let mut eligible=candidate();eligible.candidate_id="click-alternative".into();let mut ineligible=candidate();ineligible.candidate_id="compose".into();ineligible.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ComposerReady,expected:true}];value.slots[0].candidates.extend([eligible,ineligible]);let port=RecordingPort{request:RefCell::new(None)};let facts=ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()};assert!(matches!(select(&config(),&port,&value,0,Some(facts)).unwrap(),Selection::Dispatch{via_jev:true,..}));let request=port.request.borrow();let request=request.as_ref().unwrap();assert_eq!(request.observed_facts,vec!["ApplicationReady=true","TargetResolved=true"]);assert_eq!(request.candidates.iter().map(|candidate|candidate.id.as_str()).collect::<Vec<_>>(),vec!["click","click-alternative"]);}
-    #[test] fn one_observe_eligible_candidate_bypasses_jev(){let mut value=fragment();let mut ineligible=candidate();ineligible.candidate_id="compose".into();ineligible.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ComposerReady,expected:true}];value.slots[0].candidates.push(ineligible);let facts=ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()};assert_eq!(select(&config(),&MustNotChoose,&value,0,Some(facts)).unwrap(),Selection::Dispatch{action:candidate(),via_jev:false});}
+    #[test] fn jev_receives_fresh_facts_and_only_eligible_candidates(){let mut value=fragment();let mut eligible=candidate();eligible.candidate_id="click-alternative".into();let mut ineligible=candidate();ineligible.candidate_id="compose".into();ineligible.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ComposerReady,expected:true}];value.slots[0].candidates.extend([eligible,ineligible]);let port=RecordingPort{request:RefCell::new(None)};let observed=ObservedContext{facts:ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()},..ObservedContext::default()};assert!(matches!(select(&config(),&port,&value,0,Some(&observed)).unwrap(),Selection::Dispatch{via_jev:true,..}));let request=port.request.borrow();let request=request.as_ref().unwrap();assert_eq!(request.step_label,"点击继续");assert_eq!(request.observed_facts,vec!["ApplicationReady=true","TargetResolved=true"]);assert_eq!(request.candidates.iter().map(|candidate|candidate.id.as_str()).collect::<Vec<_>>(),vec!["click","click-alternative"]);}
+    #[test] fn one_observe_eligible_candidate_bypasses_jev(){let mut value=fragment();let mut ineligible=candidate();ineligible.candidate_id="compose".into();ineligible.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ComposerReady,expected:true}];value.slots[0].candidates.push(ineligible);let observed=ObservedContext{facts:ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()},..ObservedContext::default()};assert_eq!(select(&config(),&MustNotChoose,&value,0,Some(&observed)).unwrap(),Selection::Dispatch{action:candidate(),via_jev:false});}
+    fn observed_element(index:u16,label:&str)->yonder_protocol::ObservedElement{yonder_protocol::ObservedElement{index,role:yonder_protocol::ObservedElementRole::Button,label:Some(label.into())}}
+    fn element_fragment()->PlanFragment{let mut value=fragment();let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::ActivateControl;candidate.tool_name="click".into();candidate.arguments_json="{}".into();value.slots[0].label="播放 One Last Kiss".into();value}
+    #[test] fn one_observed_element_bypasses_jev_and_injects_fresh_handle(){let observed=ObservedContext{facts:ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()},observation_ref:Some("observation-7".into()),elements:vec![observed_element(3,"播放")]};let Selection::Dispatch{action,via_jev}=select(&config(),&MustNotChoose,&element_fragment(),0,Some(&observed)).unwrap()else{panic!()};assert!(!via_jev);assert_eq!(serde_json::from_str::<serde_json::Value>(&action.arguments_json).unwrap(),serde_json::json!({"observed_element_index":3,"observation_ref":"observation-7"}));}
+    struct ElementPort{request:RefCell<Option<JevDecisionRequest>>}
+    impl JevDecisionPort for ElementPort{fn choose(&self,_:&JevConfig,request:&JevDecisionRequest)->Result<JevModelChoice,JevDecisionError>{self.request.replace(Some(request.clone()));Ok(JevModelChoice{candidate_id:"ax-element-8".into(),confidence:0.9})}}
+    #[test] fn jev_selects_from_natural_observed_element_candidates(){let observed=ObservedContext{facts:ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()},observation_ref:Some("observation-7".into()),elements:vec![observed_element(3,"歌曲结果"),observed_element(8,"播放 One Last Kiss")]};let port=ElementPort{request:RefCell::new(None)};let Selection::Dispatch{action,via_jev}=select(&config(),&port,&element_fragment(),0,Some(&observed)).unwrap()else{panic!()};assert!(via_jev);assert_eq!(serde_json::from_str::<serde_json::Value>(&action.arguments_json).unwrap(),serde_json::json!({"observed_element_index":8,"observation_ref":"observation-7"}));let request=port.request.borrow();let request=request.as_ref().unwrap();assert_eq!(request.step_label,"播放 One Last Kiss");assert_eq!(request.candidates[1].element_role.as_deref(),Some("Button"));assert_eq!(request.candidates[1].element_label.as_deref(),Some("播放 One Last Kiss"));}
+    #[test] fn missing_fresh_observation_handle_hands_back_without_jev(){let observed=ObservedContext{facts:ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()},observation_ref:None,elements:vec![observed_element(3,"播放")]};assert_eq!(select(&config(),&MustNotChoose,&element_fragment(),0,Some(&observed)).unwrap(),Selection::HandBack{reason:"preconditions-not-observed"});}
     #[test] fn rejects_free_form_or_oversized_fragment() { let mut value=fragment(); value.slots[0].candidates[0].tool_name="Shell".into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment(); value.slots=vec![]; assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment();value.slots[0].candidates[0].candidate_id=jev_runtime::HAND_BACK.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn send_candidate_requires_opaque_confirmation_and_no_body() { let mut value=fragment(); value.slots[0].candidates[0].action_kind=yonder_protocol::CuaActionKind::SendMessage; value.slots[0].candidates[0].tool_name="press_key".into(); value.slots[0].candidates[0].confirmation_ref=Some("confirm-1".into()); assert_eq!(validate(&value),Ok(())); value.slots[0].candidates[0].arguments_json=r#"{\"text\":\"hi\"}"#.into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn coordinates_are_only_valid_for_bounded_semantic_actions() { let mut value=fragment(); {let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::EnterTargetQuery;candidate.tool_name="type_text".into();candidate.target_ref="intent-1".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"x":10,"y":20,"delivery_mode":"foreground"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput));{let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::FocusTargetSearch;candidate.tool_name="click".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));{let candidate=&mut value.slots[0].candidates[0];candidate.tool_name="hotkey".into();candidate.arguments_json=r#"{"keys":["cmd","f"]}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"keys":["cmd","q"]}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }

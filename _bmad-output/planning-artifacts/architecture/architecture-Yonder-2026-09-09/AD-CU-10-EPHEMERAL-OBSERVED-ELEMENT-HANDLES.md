@@ -19,6 +19,7 @@ AD-CU-09 要求元素优先，并已允许 `observed_element_index`，但同时�
 6. 动作后 Observe 规则不变。Sky 调用成功但 transcript/视觉事实不足时仍为 unknown/handback，绝不自动重试。
 7. 坐标动作一旦派发，Sky 的返回错误也只表示结果待核实；Worker 必须继续一次动作后 Observe。后置事实不足仍为 unknown/handback，不因错误类型跳过 Observe 或重放动作。
 8. 协议 1.46 才向归属慢脑返回 `image` 句柄；1.44/1.45 客户端继续过滤该角色。`image` 不是持久语义定位器，只允许和同次 `observation_ref` 一起用于通用控件激活，动作前仍须确认索引存在。
+9. 2026-10-08 用户允许 Application 将这些句柄作为 Jev 的当轮临时动作空间。Jev 只获得封闭角色、脱敏短标签和不透明候选 ID，不获得 transcript、截图、坐标、窗口或进程身份。候选只活在同一 `task.plan.execute` 调用和同一 `observation_ref`；不写入片段、SQLite、事件、Outbox 或日志。
 
 ## 取代关系
 
