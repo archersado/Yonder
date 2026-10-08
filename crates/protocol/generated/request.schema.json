@@ -1188,12 +1188,42 @@
       ]
     },
     "CuaObserveFact": {
-      "type": "string",
-      "enum": [
-        "application-ready",
-        "target-resolved",
-        "composer-ready",
-        "delivery-confirmed"
+      "oneOf": [
+        {
+          "description": "Driver 明确报告本轮动作是否成功；不表达用户目标是否达成。",
+          "type": "string",
+          "const": "action-succeeded"
+        },
+        {
+          "description": "Driver 本轮动作后 Observe 是否有效。",
+          "type": "string",
+          "const": "observe-valid"
+        },
+        {
+          "description": "Driver 直接返回的目标窗口可见状态。",
+          "type": "string",
+          "const": "target-visible"
+        },
+        {
+          "description": "1.46 及更早计划兼容值；Application 不再按动作类型合成。",
+          "type": "string",
+          "const": "application-ready"
+        },
+        {
+          "description": "1.46 及更早计划兼容值；Application 不再按动作类型合成。",
+          "type": "string",
+          "const": "target-resolved"
+        },
+        {
+          "description": "1.46 及更早计划兼容值；Application 不再按动作类型合成。",
+          "type": "string",
+          "const": "composer-ready"
+        },
+        {
+          "description": "1.46 及更早计划兼容值；Application 不再按动作类型合成。",
+          "type": "string",
+          "const": "delivery-confirmed"
+        }
       ]
     },
     "DocumentExecuteParams": {

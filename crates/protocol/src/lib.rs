@@ -9,7 +9,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 46 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 47 };
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -528,9 +528,19 @@ pub struct CuaObserveConditionParams {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum CuaObserveFact {
+    /// Driver 明确报告本轮动作是否成功；不表达用户目标是否达成。
+    ActionSucceeded,
+    /// Driver 本轮动作后 Observe 是否有效。
+    ObserveValid,
+    /// Driver 直接返回的目标窗口可见状态。
+    TargetVisible,
+    /// 1.46 及更早计划兼容值；Application 不再按动作类型合成。
     ApplicationReady,
+    /// 1.46 及更早计划兼容值；Application 不再按动作类型合成。
     TargetResolved,
+    /// 1.46 及更早计划兼容值；Application 不再按动作类型合成。
     ComposerReady,
+    /// 1.46 及更早计划兼容值；Application 不再按动作类型合成。
     DeliveryConfirmed,
 }
 

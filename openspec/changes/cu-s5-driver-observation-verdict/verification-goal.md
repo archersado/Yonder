@@ -14,4 +14,11 @@
 
 ## 结果
 
-待实施后填写。
+2026-10-08 自动化基线通过：
+
+- `cargo test --offline --locked -p yonder-protocol -p yonder-application`：协议 18 项、Application 67 项全部通过。
+- `cargo test --offline --locked -p yonder-adapters task_store::tests::plan_fragment_continuously_executes_verified_slots_in_one_call`：结构条件连续片段通过。
+- `cargo test --offline --locked -p yonder-desktop --lib`：25 项全部通过，发布契约已更新至协议 1.47。
+- `check_architecture.py` 被既有、非本变更的 `CU-S6/architecture-design.md` 缺少“状态与契约”章节阻断；本增量没有修改 CU-S6。
+
+正式 macOS Gateway 播放样本尚待重建产品后执行，因此本 Goal 仍为进行中，不能 Archive。

@@ -4123,11 +4123,11 @@ mod tests {
                 action_kind,
                 target_ref: "verified-target".into(),
                 preconditions: vec![yonder_protocol::CuaObserveConditionParams {
-                    fact: yonder_protocol::CuaObserveFact::ApplicationReady,
+                    fact: yonder_protocol::CuaObserveFact::ObserveValid,
                     expected: true,
                 }],
                 expected_observe: vec![yonder_protocol::CuaObserveConditionParams {
-                    fact: yonder_protocol::CuaObserveFact::TargetResolved,
+                    fact: yonder_protocol::CuaObserveFact::ActionSucceeded,
                     expected: true,
                 }],
                 confirmation_ref: None,
