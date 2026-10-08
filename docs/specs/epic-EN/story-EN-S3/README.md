@@ -33,4 +33,4 @@ OpenSpec: en-s3-protocol-single-source
 
 ## OpenSpec 与验证
 
-[OpenSpec Change：en-s3-protocol-single-source](../../../../openspec/changes/en-s3-protocol-single-source/proposal.md)——阶段 1（协议单一来源）已按本 Change 实施并合入 dev（merge b4c3ba6）；Codex 桥随后因 replan-input 能力边界从 1.19 明确升级并钉定为 1.33。等价性证明、偏差记录与[独立 Verification Goal](../../../../openspec/changes/en-s3-protocol-single-source/verification-goal.md)均由该 Change 留存，2026-10-08 复核 PASS。阶段 2–5 沿用本 Story 设计，待审阅转 ready 后按阶段另建 Change。Windows 证据门禁保留、暂缓不视为通过。
+[已归档 OpenSpec Change：en-s3-protocol-single-source](../../../../openspec/changes/archive/2026-10-08-en-s3-protocol-single-source/proposal.md)——阶段 1（协议单一来源）已按本 Change 实施并合入 dev（merge b4c3ba6）；Codex 桥随后因 replan-input 能力边界从 1.19 明确升级并钉定为 1.33。等价性证明、偏差记录与[独立 Verification Goal](../../../../openspec/changes/archive/2026-10-08-en-s3-protocol-single-source/verification-goal.md)均由该 Change 留存，2026-10-08 复核 PASS。阶段 2–5 沿用本 Story 设计，待审阅转 ready 后按阶段另建 Change。Windows 证据门禁保留、暂缓不视为通过。

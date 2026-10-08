@@ -8,4 +8,4 @@
 - [x] adapters task_store 的存储字符串转换注明同源于 protocol 派生形状
 - [x] workspace 测试与协议生成 --check 全绿（161 项）
 - [x] 独立 Verification Goal：复核等价性断言（wire/schema/依赖方向）与 bridge 例外声明
-- [ ] 归档 Change；Story EN-S3 保持 design-review 直至阶段 2 设计审阅通过
+- [x] 归档 Change；Story EN-S3 保持 design-review 直至阶段 2 设计审阅通过
