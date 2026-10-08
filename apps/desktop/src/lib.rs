@@ -120,7 +120,7 @@ impl CuaControlHub {
         let (state_name,result)=match outcome{
             yonder_application::computer_use::DispatchOutcome::Known{action_succeeded:true,..}=>("observed","动作已明确成功，Observe 有效"),
             yonder_application::computer_use::DispatchOutcome::Known{action_succeeded:false,..}=>("failed","动作明确未成功，Observe 有效"),
-            yonder_application::computer_use::DispatchOutcome::UnknownObserved{..}=>("unknown","结果待核实，已取得新 Observe"),
+            yonder_application::computer_use::DispatchOutcome::UnknownObserved{reason,..}=>("unknown",driver_unknown_summary(*reason)),
             yonder_application::computer_use::DispatchOutcome::Unknown(reason)=>("unknown",driver_unknown_summary(*reason)),
         };
         entry.state=state_name.into();entry.result=result.into();
@@ -235,7 +235,7 @@ struct CuaControlPort<'a> { inner: &'a CuaWorker, hub: Option<&'a CuaControlHub>
 #[cfg(target_os = "macos")]
 fn driver_action_summary(tool_name:&str)->&'static str{match tool_name{"launch_app"=>"打开应用","bring_to_front"=>"前置窗口","click"=>"激活控件","press_key"|"hotkey"=>"键盘操作","type_text"=>"输入文本",_=>"执行桌面动作"}}
 
-fn driver_unknown_summary(reason:yonder_application::computer_use::UnknownReason)->&'static str{use yonder_application::unknown_reason::UnknownReason as Reason;match reason{Reason::InvalidInput=>"请求无效，结果待核实",Reason::DependencyUnavailable=>"执行依赖不可用",Reason::WorkerFailed=>"Driver Worker 异常",Reason::TimedOut=>"Driver 超时，结果待核实",Reason::InvalidResponse=>"Driver 返回无效",Reason::IdentityMismatch=>"执行身份不匹配",Reason::ObserveFailed=>"动作后 Observe 失败",Reason::UserInput=>"执行已被用户控制中断"}}
+fn driver_unknown_summary(reason:yonder_application::computer_use::UnknownReason)->&'static str{use yonder_application::unknown_reason::UnknownReason as Reason;match reason{Reason::InvalidInput=>"请求无效，结果待核实",Reason::DependencyUnavailable=>"执行依赖不可用",Reason::WorkerFailed=>"Driver Worker 异常",Reason::TimedOut=>"Driver 超时，结果待核实",Reason::InvalidResponse=>"Driver 返回无效",Reason::IdentityMismatch=>"执行身份不匹配",Reason::ObserveFailed=>"动作后 Observe 失败",Reason::UserInput=>"执行已被用户控制中断",Reason::DriverActionTimedOut=>"Driver 动作超时，结果待核实",Reason::DriverActionRejected=>"Driver 拒绝动作",Reason::DriverActionUnconfirmed=>"Driver 已返回但效果未确认",Reason::DriverTargetStale=>"目标界面已变化，需要重新观察",Reason::DriverObservationFailed=>"Driver Observe 失败",Reason::DriverTransportFailed=>"Driver 连接失败"}}
 
 #[cfg(target_os = "macos")]
 impl ComputerUsePort for CuaControlPort<'_> {
@@ -1469,6 +1469,17 @@ mod tests {
     fn driver_action_summary_never_exposes_arguments() {
         assert_eq!(driver_action_summary("type_text"),"输入文本");
         assert_eq!(driver_action_summary("untrusted-private-body"),"执行桌面动作");
+    }
+
+    #[test]
+    fn bounded_driver_errors_have_safe_top_overlay_copy() {
+        use yonder_application::computer_use::UnknownReason;
+        assert_eq!(driver_unknown_summary(UnknownReason::DriverActionTimedOut),"Driver 动作超时，结果待核实");
+        assert_eq!(driver_unknown_summary(UnknownReason::DriverActionRejected),"Driver 拒绝动作");
+        assert_eq!(driver_unknown_summary(UnknownReason::DriverActionUnconfirmed),"Driver 已返回但效果未确认");
+        assert_eq!(driver_unknown_summary(UnknownReason::DriverTargetStale),"目标界面已变化，需要重新观察");
+        assert_eq!(driver_unknown_summary(UnknownReason::DriverObservationFailed),"Driver Observe 失败");
+        assert_eq!(driver_unknown_summary(UnknownReason::DriverTransportFailed),"Driver 连接失败");
     }
 
     #[test]

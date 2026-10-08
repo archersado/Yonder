@@ -19,7 +19,7 @@ use crate::{
     query,
 };
 use yonder_protocol::{
-    AttemptResult as ProtocolAttemptResult, AttemptResultPhase, Availability,
+    AttemptResult as ProtocolAttemptResult, AttemptResultPhase, AttemptUnknownReason, Availability,
     BrowserOperation, BrowserReference, Capability, CapabilityInfo,
     ComputerObservation as ProtocolComputerObservation, DocumentExecutionResult as ProtocolDocumentExecutionResult,
     DocumentFormat as ProtocolDocumentFormat, FileExecutionResult as ProtocolFileExecutionResult,
@@ -291,6 +291,7 @@ pub struct GatewaySession<'a> {
     can_name: bool,
     can_steps: bool,
     can_attempt_results: bool,
+    can_driver_error_reasons: bool,
     can_controls: bool,
     can_focus: bool,
     can_advance: bool,
@@ -643,6 +644,19 @@ mod tests {
         let accepted=r#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"plan","task_id":"task_1","plan_id":"plan_2","plan_version":2,"sequence":"9","disposition":"accepted"}}"#;
         assert_eq!(accepted_plan_presentation_hint(request.as_bytes(),accepted.as_bytes(),"agent",1000),Some(ExecutionPresentationHint::PlanSlot{task_id:"task_1".into(),plan_id:"plan_2".into(),plan_version:2}));
         assert_eq!(accepted_plan_presentation_hint(request.as_bytes(),accepted.as_bytes(),"other",1000),None);
+    }
+
+    #[test]
+    fn protocol_148_downgrades_new_driver_error_reasons() {
+        for(reason,legacy)in[
+            (AttemptUnknownReason::DriverActionTimedOut,AttemptUnknownReason::TimedOut),
+            (AttemptUnknownReason::DriverActionRejected,AttemptUnknownReason::WorkerFailed),
+            (AttemptUnknownReason::DriverActionUnconfirmed,AttemptUnknownReason::ObserveFailed),
+            (AttemptUnknownReason::DriverTargetStale,AttemptUnknownReason::ObserveFailed),
+            (AttemptUnknownReason::DriverObservationFailed,AttemptUnknownReason::ObserveFailed),
+            (AttemptUnknownReason::DriverTransportFailed,AttemptUnknownReason::WorkerFailed),
+        ]{assert_eq!(legacy_driver_error(reason),legacy);}
+        assert_eq!(legacy_driver_error(AttemptUnknownReason::UserInput),AttemptUnknownReason::UserInput);
     }
 }
 
@@ -1202,6 +1216,7 @@ impl<'a> GatewaySession<'a> {
             can_name: false,
             can_steps: false,
             can_attempt_results: false,
+            can_driver_error_reasons: false,
             can_controls: false,
             can_focus: false,
             can_advance: false,
@@ -1542,6 +1557,7 @@ impl<'a> GatewaySession<'a> {
                     control.focus_failure = None;
                 }
             }
+            if !self.can_driver_error_reasons { downgrade_driver_error_reasons(&mut response); }
             return response;
         }
         let result = (|| {
@@ -1563,6 +1579,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_attempt_results = self.can_steps
                     && params.protocol_version.minor >= 5
                     && store.supports_execution_attempts();
+                self.can_driver_error_reasons=self.can_attempt_results&&params.protocol_version.minor>=49;
                 self.can_controls = self.can_attempt_results
                     && params.protocol_version.minor >= 6
                     && store.supports_controls();
@@ -1621,9 +1638,10 @@ impl<'a> GatewaySession<'a> {
                 let has_image_handles=self.can_plan_image_handles;
                 let has_driver_observe_facts=self.can_plan_execute&&params.protocol_version.minor>=47;
                 let has_screenshot_coordinates=self.can_plan_screenshot_coordinates;
+                let has_driver_error_reasons=self.can_driver_error_reasons;
                 let observed_elements_version=if has_image_handles{46}else if has_selectable_rows{45}else if has_element_handles{44}else{0};
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if has_screenshot_coordinates {48} else if has_driver_observe_facts {47} else if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
+                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if has_driver_error_reasons {49} else if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
+                let version = ProtocolVersion { major: 1, minor: if has_driver_error_reasons {49} else if has_screenshot_coordinates {48} else if has_driver_observe_facts {47} else if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
                 if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
                 if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("支持非终态任务直接取消".into()) }); }
                 if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
@@ -1647,7 +1665,7 @@ impl<'a> GatewaySession<'a> {
             }
             Err(RpcError::new(-32002, "请先完成 Gateway 握手"))
         })();
-        match result {
+        let mut response=match result {
             Ok(result) => Response::Success {
                 jsonrpc: Version::V2,
                 id,
@@ -1658,7 +1676,26 @@ impl<'a> GatewaySession<'a> {
                 id: Some(id),
                 error,
             },
-        }
+        };
+        if !self.can_driver_error_reasons { downgrade_driver_error_reasons(&mut response); }
+        response
+    }
+}
+
+fn legacy_driver_error(reason:AttemptUnknownReason)->AttemptUnknownReason{match reason{
+    AttemptUnknownReason::DriverActionTimedOut=>AttemptUnknownReason::TimedOut,
+    AttemptUnknownReason::DriverActionRejected|AttemptUnknownReason::DriverTransportFailed=>AttemptUnknownReason::WorkerFailed,
+    AttemptUnknownReason::DriverActionUnconfirmed|AttemptUnknownReason::DriverTargetStale|AttemptUnknownReason::DriverObservationFailed=>AttemptUnknownReason::ObserveFailed,
+    value=>value,
+}}
+
+fn downgrade_driver_error_reasons(response:&mut Response){
+    let Response::Success{result,..}=response else{return};
+    match result{
+        QueryResult::Events{events,..}=>for event in events{if let Some(attempt)=event.attempt_result.as_mut(){attempt.unknown_reason=attempt.unknown_reason.map(legacy_driver_error);}},
+        QueryResult::Computer{attempt_result,..}=>attempt_result.unknown_reason=attempt_result.unknown_reason.map(legacy_driver_error),
+        QueryResult::ComputerStep{unknown_reason,..}=>*unknown_reason=unknown_reason.map(legacy_driver_error),
+        _=>{},
     }
 }
 

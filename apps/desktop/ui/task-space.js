@@ -7,7 +7,7 @@ const next = byId('next'), refresh = byId('refresh');
 const labels = { created: '已创建', running: '执行中', 'waiting-for-user': '等待用户', paused: '已暂停', interrupted: '已中断', completed: '已完成', failed: '失败', cancelled: '已取消' };
 const sourceLabels = { 'local-agent': '本地 Agent', 'cloud-agent': '云端 Agent' };
 const observationLabels = { matched: '已匹配', 'not-matched': '未匹配', unknown: '未知' };
-const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable': '依赖不可用', 'worker-failed': '执行器失败', 'timed-out': '执行超时', 'invalid-response': '响应无效', 'identity-mismatch': '执行身份不匹配', 'observe-failed': '观察失败', 'user-input': '用户已接管输入' };
+const unknownLabels = { 'invalid-input': '输入无效', 'dependency-unavailable': '依赖不可用', 'worker-failed': '执行器失败', 'timed-out': '执行超时', 'invalid-response': '响应无效', 'identity-mismatch': '执行身份不匹配', 'observe-failed': '观察失败', 'user-input': '用户已接管输入', 'driver-action-timed-out': 'Driver 动作超时，结果待核实', 'driver-action-rejected': 'Driver 拒绝动作', 'driver-action-unconfirmed': 'Driver 已返回但效果未确认', 'driver-target-stale': '目标界面已变化，需要重新观察', 'driver-observation-failed': 'Driver Observe 失败', 'driver-transport-failed': 'Driver 连接失败' };
 const focusFailureLabels = { 'permission-unavailable':'缺少辅助功能权限', 'process-changed':'目标进程已变化', 'window-missing':'目标窗口不存在', 'mapping-not-unique':'无法唯一识别目标窗口', 'activation-failed':'窗口前置失败', 'verification-failed':'前置结果未通过核验', 'geometry-changed':'窗口身份已变化', 'reference-unavailable':'工作引用不可用' };
 const artifactAvailabilityLabels = { available:'可用', missing:'缺失', changed:'已变化', unverified:'未验证' };
 const fileGrantPurposeLabels = { read:'读取', 'create-new':'新建', replace:'替换', trash:'移至回收站' };

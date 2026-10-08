@@ -20,6 +20,8 @@
 
 协议1.46把 AX `image` 节点纳入受最新`observation_ref`保护的临时元素句柄，角色为`image`；无文本图像只返回通用角色标签。协议1.45及以下客户端继续过滤该角色。
 
+协议1.49为 Attempt Unknown Reason 增加有界 Driver 错误分类，区分动作超时、拒绝、未确认、目标失效、Observe失败和传输失败。错误码不携带SDK原文或业务内容；Gateway向1.48及以下客户端降级为既有`timed-out`、`observe-failed`或`worker-failed`。
+
 ## 生成与检查
 
 在仓库根目录运行：

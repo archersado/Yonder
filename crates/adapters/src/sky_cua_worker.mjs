@@ -166,6 +166,16 @@ function boundedFailureStage(error, fallback) {
   return fallback;
 }
 
+function coordinateActionFailureStage(error) {
+  if (error instanceof WorkerFailure) {
+    if (error.stage === 'transport-timeout') return 'driver-action-timed-out';
+    if (error.stage.startsWith('transport-')) return 'driver-transport-failed';
+    return 'driver-action-rejected';
+  }
+  const message = error instanceof Error ? error.message.toLocaleLowerCase() : '';
+  return message.includes('timed out') ? 'driver-action-timed-out' : 'driver-action-rejected';
+}
+
 let bridge;
 let bridgeFailureStage = null;
 try {
@@ -823,16 +833,16 @@ async function perform(request, target, before) {
     // 显式归一化，避免把SDK的可选字段差异泄漏到外部协议。
     clickArguments.mouse_button = 'left';
     clickArguments.click_count ??= 1;
-    let resultUncertain = false;
+    let failureStage = null;
     try {
       await callAction('click', clickArguments, target.applicationId, coordinateActionTimeoutMs);
-    } catch {
+    } catch (error) {
       // 坐标请求进入Sky后，任何返回错误都不能证明动作未发生。保留当前
       // Client/桌面会话，不重放点击，立即进入公共动作后Observe。只有Observe
       // 本身证明窗口已失效时，observe()才会刷新Client并重新绑定同一应用。
-      resultUncertain = true;
+      failureStage = coordinateActionFailureStage(error);
     }
-    return { kind: resultUncertain ? 'coordinate-uncertain' : 'transcript-changed' };
+    return failureStage ? { kind: 'coordinate-uncertain', failureStage } : { kind: 'transcript-changed' };
   }
   if (request.tool_name === 'click' && ['focus-target-search', 'focus-control'].includes(semantic)) {
     const element = searchField(before);
@@ -1003,9 +1013,10 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     }
     response.failure_stage = response.action_succeeded
       ? null
-      : stateText(after).trim() === ''
-        ? 'action-unconfirmed-empty-transcript'
-        : 'action-unconfirmed-unparsed-transcript';
+      : expectation?.failureStage
+        ?? (stateText(after).trim() === ''
+          ? 'action-unconfirmed-empty-transcript'
+          : 'action-unconfirmed-unparsed-transcript');
   } catch (error) {
     if (error instanceof WorkerFailure) {
       response.failure_stage = error.stage;

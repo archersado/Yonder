@@ -201,6 +201,12 @@ for line in sys.stdin:
     successful_results = (launched, observed_element, image_element, focused, activated, navigated, activated_by_element, double_activated, calculator_launched, calculator_input, installed_fallback)
     assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"], result["failure_stage"], result["element_count"]) for result in successful_results]
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, stale_coordinate, generic_coordinate_error, entered, visual_entered))
+    assert timed_coordinate["failure_stage"] == "driver-action-timed-out"
+    assert timed_noop["failure_stage"] == "driver-action-timed-out"
+    assert stale_coordinate["failure_stage"] == "driver-action-rejected"
+    assert generic_coordinate_error["failure_stage"] == "driver-action-rejected"
+    assert entered["failure_stage"] == "action-unconfirmed-unparsed-transcript"
+    assert visual_entered["failure_stage"] == "action-unconfirmed-unparsed-transcript"
     assert all(result["action_known"] and not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "unverifiable" and result["failure_stage"] == "target-stale-visual-observation" for result in (rejected_changed_semantics, rejected_stale_ref, rejected_out_of_bounds, rejected_changed_geometry))
     assert all(result["screenshot_width_px"] == 100 and result["screenshot_height_px"] == 100 for result in (launched, focused, generic_coordinate_error))
     row = next(item for item in launched["elements"] if item["index"] == 3)

@@ -188,6 +188,12 @@ fn reason(value: UnknownReason) -> &'static str {
         UnknownReason::IdentityMismatch => "identity-mismatch",
         UnknownReason::ObserveFailed => "observe-failed",
         UnknownReason::UserInput => "user-input",
+        UnknownReason::DriverActionTimedOut => "driver-action-timed-out",
+        UnknownReason::DriverActionRejected => "driver-action-rejected",
+        UnknownReason::DriverActionUnconfirmed => "driver-action-unconfirmed",
+        UnknownReason::DriverTargetStale => "driver-target-stale",
+        UnknownReason::DriverObservationFailed => "driver-observation-failed",
+        UnknownReason::DriverTransportFailed => "driver-transport-failed",
     }
 }
 
@@ -201,6 +207,12 @@ fn parse_reason(value: &str) -> Result<UnknownReason, Error> {
         "identity-mismatch" => Ok(UnknownReason::IdentityMismatch),
         "observe-failed" => Ok(UnknownReason::ObserveFailed),
         "user-input" => Ok(UnknownReason::UserInput),
+        "driver-action-timed-out" => Ok(UnknownReason::DriverActionTimedOut),
+        "driver-action-rejected" => Ok(UnknownReason::DriverActionRejected),
+        "driver-action-unconfirmed" => Ok(UnknownReason::DriverActionUnconfirmed),
+        "driver-target-stale" => Ok(UnknownReason::DriverTargetStale),
+        "driver-observation-failed" => Ok(UnknownReason::DriverObservationFailed),
+        "driver-transport-failed" => Ok(UnknownReason::DriverTransportFailed),
         _ => Err(Error::StorageUnavailable),
     }
 }
@@ -3795,6 +3807,13 @@ impl TaskStore for SqliteTaskStore {
 mod tests {
     use super::*;
     use yonder_application::{transition, Action, AuthContext};
+
+    #[test]
+    fn bounded_driver_error_reasons_roundtrip_storage_strings() {
+        for value in [UnknownReason::DriverActionTimedOut,UnknownReason::DriverActionRejected,UnknownReason::DriverActionUnconfirmed,UnknownReason::DriverTargetStale,UnknownReason::DriverObservationFailed,UnknownReason::DriverTransportFailed] {
+            assert_eq!(parse_reason(reason(value)).unwrap(),value);
+        }
+    }
 
     #[test]
     fn event_queries_report_first_middle_and_tail_gaps_without_mutation() {

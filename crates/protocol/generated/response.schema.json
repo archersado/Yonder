@@ -168,7 +168,13 @@
         "invalid-response",
         "identity-mismatch",
         "observe-failed",
-        "user-input"
+        "user-input",
+        "driver-action-timed-out",
+        "driver-action-rejected",
+        "driver-action-unconfirmed",
+        "driver-target-stale",
+        "driver-observation-failed",
+        "driver-transport-failed"
       ]
     },
     "Availability": {

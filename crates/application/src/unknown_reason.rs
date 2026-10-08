@@ -14,6 +14,12 @@ pub enum UnknownReason {
     IdentityMismatch,
     ObserveFailed,
     UserInput,
+    DriverActionTimedOut,
+    DriverActionRejected,
+    DriverActionUnconfirmed,
+    DriverTargetStale,
+    DriverObservationFailed,
+    DriverTransportFailed,
 }
 
 /// 唯一的内部 → wire 映射；新增 reason 时必须同步本实现，漏映射即编译失败。
@@ -28,6 +34,12 @@ impl From<UnknownReason> for yonder_protocol::AttemptUnknownReason {
             UnknownReason::IdentityMismatch => Self::IdentityMismatch,
             UnknownReason::ObserveFailed => Self::ObserveFailed,
             UnknownReason::UserInput => Self::UserInput,
+            UnknownReason::DriverActionTimedOut => Self::DriverActionTimedOut,
+            UnknownReason::DriverActionRejected => Self::DriverActionRejected,
+            UnknownReason::DriverActionUnconfirmed => Self::DriverActionUnconfirmed,
+            UnknownReason::DriverTargetStale => Self::DriverTargetStale,
+            UnknownReason::DriverObservationFailed => Self::DriverObservationFailed,
+            UnknownReason::DriverTransportFailed => Self::DriverTransportFailed,
         }
     }
 }
@@ -48,6 +60,12 @@ mod tests {
             (UnknownReason::IdentityMismatch, "identity-mismatch"),
             (UnknownReason::ObserveFailed, "observe-failed"),
             (UnknownReason::UserInput, "user-input"),
+            (UnknownReason::DriverActionTimedOut, "driver-action-timed-out"),
+            (UnknownReason::DriverActionRejected, "driver-action-rejected"),
+            (UnknownReason::DriverActionUnconfirmed, "driver-action-unconfirmed"),
+            (UnknownReason::DriverTargetStale, "driver-target-stale"),
+            (UnknownReason::DriverObservationFailed, "driver-observation-failed"),
+            (UnknownReason::DriverTransportFailed, "driver-transport-failed"),
         ];
         for (internal, wire_name) in pairs {
             let wire: yonder_protocol::AttemptUnknownReason = internal.into();

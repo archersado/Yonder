@@ -232,8 +232,8 @@ fn classify(attempt: &ExecutionAttempt, output: &[u8], evidence:&Path) -> Dispat
         || response.worker_instance_id != attempt.worker_instance_id || response.host_session_id != attempt.host_session_id {
         return DispatchOutcome::Unknown(UnknownReason::IdentityMismatch);
     }
-    if !response.action_known { #[cfg(debug_assertions)] eprintln!("cua worker failed at {}",response.failure_stage.as_deref().unwrap_or("unknown")); return DispatchOutcome::Unknown(UnknownReason::WorkerFailed); }
-    if !response.observe_valid { #[cfg(debug_assertions)] eprintln!("cua worker failed at {}",response.failure_stage.as_deref().unwrap_or("unknown")); return DispatchOutcome::Unknown(UnknownReason::ObserveFailed); }
+    if !response.action_known { #[cfg(debug_assertions)] eprintln!("cua worker failed at {}",response.failure_stage.as_deref().unwrap_or("unknown")); return DispatchOutcome::Unknown(driver_unknown_reason(response.failure_stage.as_deref(),UnknownReason::WorkerFailed)); }
+    if !response.observe_valid { #[cfg(debug_assertions)] eprintln!("cua worker failed at {}",response.failure_stage.as_deref().unwrap_or("unknown")); return DispatchOutcome::Unknown(driver_unknown_reason(response.failure_stage.as_deref(),UnknownReason::ObserveFailed)); }
     let effect=match response.action_effect{Some(effect)=>effect,None=>return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)};
     if response.action_succeeded!=matches!(effect,ActionEffect::Confirmed){return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}
     let screenshot=match (response.screenshot_path,response.screenshot_mime,response.screenshot_width_px,response.screenshot_height_px){
@@ -251,9 +251,21 @@ fn classify(attempt: &ExecutionAttempt, output: &[u8], evidence:&Path) -> Dispat
     let valid_transcript=response.transcript.as_deref().is_none_or(|value|value.len()<=64*1024&&!value.contains('\0'));
     if !valid_elements||!valid_reference||!valid_transcript||((!response.elements.is_empty()||response.transcript.is_some()||screenshot.is_some())&&response.observation_ref.is_none()){return DispatchOutcome::Unknown(UnknownReason::InvalidResponse)}
     let observation=ComputerObservation{element_count:response.element_count,screenshot_path:screenshot.as_ref().map(|value|value.0.clone()),screenshot_mime:screenshot.as_ref().map(|value|value.1.clone()),screenshot_width_px:screenshot.as_ref().map(|value|value.2),screenshot_height_px:screenshot.as_ref().map(|value|value.3),target_visible:response.target_visible,observation_ref:response.observation_ref,transcript:response.transcript,elements:response.elements};
-    if matches!(effect,ActionEffect::Partial|ActionEffect::Unverifiable|ActionEffect::SuspectedNoop){#[cfg(debug_assertions)] eprintln!("cua worker unverified at {}",response.failure_stage.as_deref().unwrap_or("action-unconfirmed"));return DispatchOutcome::UnknownObserved { reason:UnknownReason::ObserveFailed, observation }}
+    if matches!(effect,ActionEffect::Partial|ActionEffect::Unverifiable|ActionEffect::SuspectedNoop){#[cfg(debug_assertions)] eprintln!("cua worker unverified at {}",response.failure_stage.as_deref().unwrap_or("action-unconfirmed"));return DispatchOutcome::UnknownObserved { reason:driver_unknown_reason(response.failure_stage.as_deref(),UnknownReason::ObserveFailed), observation }}
     DispatchOutcome::Known { action_succeeded: matches!(effect,ActionEffect::Confirmed), observation:Some(observation) }
 }
+
+fn driver_unknown_reason(stage:Option<&str>,fallback:UnknownReason)->UnknownReason{match stage{
+    Some("driver-action-timed-out")=>UnknownReason::DriverActionTimedOut,
+    Some("driver-action-rejected")=>UnknownReason::DriverActionRejected,
+    Some("action-unconfirmed-empty-transcript"|"action-unconfirmed-unparsed-transcript")=>UnknownReason::DriverActionUnconfirmed,
+    Some("target-stale-visual-observation"|"target-window-unavailable"|"target-semantic-element")=>UnknownReason::DriverTargetStale,
+    Some("target-policy"|"target-approval")=>UnknownReason::DriverActionRejected,
+    Some("observe-before"|"observe-after"|"driver-observation-failed")=>UnknownReason::DriverObservationFailed,
+    Some("driver-transport-failed")=>UnknownReason::DriverTransportFailed,
+    Some(value) if value.starts_with("transport-")=>UnknownReason::DriverTransportFailed,
+    _=>fallback,
+}}
 
 #[cfg(test)]
 mod tests {
@@ -277,6 +289,17 @@ mod tests {
         assert_eq!(classify(&attempt, response("worker", true,false,"refused").as_bytes(),&evidence), DispatchOutcome::Known { action_succeeded:false, observation:Some(ComputerObservation{element_count:0,screenshot_path:None,screenshot_mime:None,screenshot_width_px:None,screenshot_height_px:None,target_visible:None,observation_ref:None,transcript:None,elements:Vec::new()}) });
         assert_eq!(classify(&attempt, response("worker", true,true,"unverifiable").as_bytes(),&evidence), DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
         assert_eq!(classify(&attempt, b"{}",&evidence), DispatchOutcome::Unknown(UnknownReason::InvalidResponse));
+    }
+
+    #[test]
+    fn bounded_driver_stages_map_without_exposing_free_text() {
+        let evidence=std::env::temp_dir();
+        let attempt=ExecutionAttempt{task_id:"task".into(),step_id:"step".into(),attempt_id:"attempt".into(),worker_instance_id:"worker".into(),host_session_id:"host".into(),phase:AttemptPhase::Prepared,accepted_sequence:2};
+        let response=|stage:&str|format!(r#"{{"task_id":"task","step_id":"step","attempt_id":"attempt","worker_instance_id":"worker","host_session_id":"host","action_known":true,"action_succeeded":false,"action_effect":"suspected_noop","observe_valid":true,"failure_stage":"{stage}"}}"#);
+        for(stage,reason)in[("driver-action-timed-out",UnknownReason::DriverActionTimedOut),("driver-action-rejected",UnknownReason::DriverActionRejected),("action-unconfirmed-unparsed-transcript",UnknownReason::DriverActionUnconfirmed),("target-stale-visual-observation",UnknownReason::DriverTargetStale),("driver-transport-failed",UnknownReason::DriverTransportFailed)]{
+            assert!(matches!(classify(&attempt,response(stage).as_bytes(),&evidence),DispatchOutcome::UnknownObserved{reason:actual,..}if actual==reason));
+        }
+        assert!(matches!(classify(&attempt,response("sdk said contact secret").as_bytes(),&evidence),DispatchOutcome::UnknownObserved{reason:UnknownReason::ObserveFailed,..}));
     }
 
     #[test]
