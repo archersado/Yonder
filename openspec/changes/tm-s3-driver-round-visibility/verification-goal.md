@@ -13,4 +13,10 @@
 
 ## 结果
 
-待实施后填写。
+2026-10-08 自动化验证通过：
+
+- `cargo test --offline --locked -p yonder-desktop`：lib 27 项、main 11 项全部通过；覆盖轮次执行中/成功/失败/unknown、六轮上限、replan 保留、Hub 清理、动作摘要脱敏与发布契约。
+- `node apps/desktop/check-cua-control.mjs`：轮次顺序、状态可访问文本、敏感正文不进入日志及既有接管/确认交互全部通过。
+- 控制条原生尺寸契约和 AX 探针已更新为 560×300，并要求存在“Driver 轮次”标题。
+
+正式 macOS GUI 的两轮真实 Driver 样本尚待重建产品后执行，因此本 Goal 仍为进行中，不能 Archive。
