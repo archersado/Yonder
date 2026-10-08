@@ -1,0 +1,37 @@
+{
+  "platform": "macOS",
+  "date": "2026-10-08",
+  "product_path": "Yonda.app -> MCP stdio -> Agent Gateway -> immutable plan fragment -> Sky CUA Worker -> Observe",
+  "direct_driver_or_storage_bypass": false,
+  "element_first": {
+    "task_id": "task_15bdcb973c7dd129d751b20539f5d451",
+    "application": "QQMusic",
+    "unique_semantic_element_resolved": true,
+    "action_succeeded": true,
+    "observe_valid": true,
+    "element_count": 250,
+    "screenshot_returned": false,
+    "goal_verification": "achieved",
+    "final_status": "completed",
+    "final_sequence": 13
+  },
+  "visual_fallback": {
+    "task_id": "task_00a26226111bc47c9a6ce2c070267b99",
+    "application": "TextEdit",
+    "semantic_element_missing": true,
+    "action_succeeded": false,
+    "observe_valid": true,
+    "action_effect": "refused-before-side-effect",
+    "observation_returned": true,
+    "screenshot_returned": true,
+    "screenshot_mime": "image/jpeg",
+    "screenshot_width_px": 1172,
+    "screenshot_height_px": 976,
+    "disposition": "handback",
+    "unknown": false,
+    "automatic_retry": false,
+    "final_status": "cancelled",
+    "final_sequence": 12
+  },
+  "result": "PASS"
+}
