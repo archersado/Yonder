@@ -288,7 +288,7 @@ mod tests {
             std::env::temp_dir().join(format!("yonder-jev-worker-{}.mjs", std::process::id()));
         fs::write(
             &script,
-            "process.stdout.write(JSON.stringify({candidate_id:'handback',confidence:1})+'\\n');\n",
+            "process.stdout.write(JSON.stringify({candidate_id:'cua.click',confidence:1})+'\\n');\n",
         )
         .unwrap();
         let node = node_path();
@@ -314,15 +314,15 @@ mod tests {
                     action_kind: "bring-to-front".into(), target_ref: "app-1".into(), preconditions: vec!["application-ready=true".into()], expected_observe: vec!["target-resolved=true".into()],
                 },
                 JevCandidate {
-                    id: "handback".into(),
+                    id: "cua.raise".into(),
                     dispatchable: true,
                     parameter_complete: true,
-                    action_kind: "handback".into(), target_ref: "none".into(), preconditions: vec![], expected_observe: vec![],
+                    action_kind: "bring-to-front".into(), target_ref: "app-1".into(), preconditions: vec!["application-ready=true".into()], expected_observe: vec!["target-resolved=true".into()],
                 },
             ],
         };
         let result = port.run_worker(&request, Duration::from_millis(3000)).unwrap();
-        assert_eq!(result.candidate_id, "handback");
+        assert_eq!(result.candidate_id, "cua.click");
         assert!((0.0..=1.0).contains(&result.confidence));
         let _ = fs::remove_file(script);
     }

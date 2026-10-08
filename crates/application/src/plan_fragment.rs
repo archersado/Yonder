@@ -96,10 +96,23 @@ fn execute_one(
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "awaiting-goal-verification", None)); }
     let slot=&stored.fragment.slots[index];
     computer.project_decision(task_id,&slot.step_id,&slot.label,&format!("正在评估 {} 个受支持候选",slot.candidates.len()));
-    let choice=select(config,jev,&stored.fragment,index,*observed_facts).map_err(|_|crate::Error::StopRequired)?;
+    let choice=match select(config,jev,&stored.fragment,index,*observed_facts){
+        Ok(choice)=>choice,
+        Err(_)=>{
+            computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑决策不可用，已交回慢脑");
+            let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"快脑决策不可用，需要慢脑重新 Observe 或规划")?;
+            return Ok((task,"handback",None));
+        }
+    };
     let Selection::Dispatch { action,via_jev }=choice else {
-        computer.project_decision(task_id,&slot.step_id,&slot.label,"已交回慢脑重新观察或规划");
-        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"需要慢脑重新 Observe 或规划")?;
+        let Selection::HandBack { reason }=choice else { unreachable!() };
+        let (projection,handoff)=match reason{
+            "low-confidence"=>("快脑置信度不足，已交回慢脑","快脑置信度不足，需要慢脑重新 Observe 或规划"),
+            "preconditions-not-observed"=>("前置 Observe 不足，已交回慢脑","需要慢脑重新 Observe 或规划"),
+            _=>("快脑未返回可派发候选，已交回慢脑","快脑未返回可派发候选，需要慢脑重新 Observe 或规划"),
+        };
+        computer.project_decision(task_id,&slot.step_id,&slot.label,projection);
+        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,handoff)?;
         return Ok((task, "handback", None));
     };
     let decision = if via_jev {
@@ -273,6 +286,7 @@ pub fn validate(fragment: &PlanFragment) -> Result<(), crate::Error> {
 
 fn valid_candidate(candidate: &CandidateAction) -> bool {
     valid_id(&candidate.candidate_id)
+        && candidate.candidate_id != jev_runtime::HAND_BACK
         && yonder_protocol::valid_sdk_tool_name(&candidate.tool_name)
         && !candidate.arguments_json.is_empty()
         && candidate.arguments_json.len() <= 16 * 1024
@@ -314,13 +328,12 @@ fn select(
     let eligible=slot.candidates.iter().filter(|candidate|observed_facts.is_some_and(|facts|facts.satisfies(&candidate.preconditions))||(observed_facts.is_none()&&slot.candidates.len()==1)).collect::<Vec<_>>();
     if eligible.is_empty(){return Ok(Selection::HandBack{reason:"preconditions-not-observed"});}
     if eligible.len()==1{return Ok(Selection::Dispatch{action:eligible[0].clone(),via_jev:false});}
-    let mut candidates = eligible.iter().map(|candidate| JevCandidate {
+    let candidates = eligible.iter().map(|candidate| JevCandidate {
         id: candidate.candidate_id.clone(), dispatchable: true, parameter_complete: true,
         action_kind: format!("{:?}", candidate.action_kind), target_ref: candidate.target_ref.clone(),
         preconditions: candidate.preconditions.iter().map(|condition| format!("{:?}={}", condition.fact, condition.expected)).collect(),
         expected_observe: candidate.expected_observe.iter().map(|condition| format!("{:?}={}", condition.fact, condition.expected)).collect(),
     }).collect::<Vec<_>>();
-    candidates.push(JevCandidate { id: jev_runtime::HAND_BACK.into(), dispatchable: true, parameter_complete: true, action_kind:"handback".into(), target_ref:"none".into(), preconditions:vec![], expected_observe:vec![] });
     match jev_runtime::decide(config, port, &JevDecisionRequest { task_id: fragment.task_id.clone(), step_id: slot.step_id.clone(), capability: JevCapability::Cua, observed_facts:observed_facts.expect("多个合格候选一定有新鲜事实").labels(), candidates })? {
         JevDecision::Dispatch { candidate_id } => Ok(Selection::Dispatch{action:slot.candidates.iter().find(|candidate| candidate.candidate_id == candidate_id).expect("Jev decision only returns submitted candidate").clone(),via_jev:true}),
         JevDecision::HandBack { reason } => Ok(Selection::HandBack { reason }),
@@ -345,9 +358,9 @@ mod tests {
     struct RecordingPort { request:RefCell<Option<JevDecisionRequest>> }
     impl JevDecisionPort for RecordingPort { fn choose(&self,_:&JevConfig,request:&JevDecisionRequest)->Result<JevModelChoice,JevDecisionError>{self.request.replace(Some(request.clone()));Ok(JevModelChoice{candidate_id:"click".into(),confidence:0.9})} }
     #[test] fn multiple_candidates_require_fresh_observe(){let mut value=fragment();let mut second=candidate();second.candidate_id="click-alternative".into();value.slots[0].candidates.push(second);assert_eq!(select(&config(),&MustNotChoose,&value,0,None).unwrap(),Selection::HandBack{reason:"preconditions-not-observed"});}
-    #[test] fn jev_receives_fresh_facts_and_only_eligible_candidates(){let mut value=fragment();let mut eligible=candidate();eligible.candidate_id="click-alternative".into();let mut ineligible=candidate();ineligible.candidate_id="compose".into();ineligible.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ComposerReady,expected:true}];value.slots[0].candidates.extend([eligible,ineligible]);let port=RecordingPort{request:RefCell::new(None)};let facts=ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()};assert!(matches!(select(&config(),&port,&value,0,Some(facts)).unwrap(),Selection::Dispatch{via_jev:true,..}));let request=port.request.borrow();let request=request.as_ref().unwrap();assert_eq!(request.observed_facts,vec!["ApplicationReady=true","TargetResolved=true"]);assert_eq!(request.candidates.iter().map(|candidate|candidate.id.as_str()).collect::<Vec<_>>(),vec!["click","click-alternative","handback"]);}
+    #[test] fn jev_receives_fresh_facts_and_only_eligible_candidates(){let mut value=fragment();let mut eligible=candidate();eligible.candidate_id="click-alternative".into();let mut ineligible=candidate();ineligible.candidate_id="compose".into();ineligible.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ComposerReady,expected:true}];value.slots[0].candidates.extend([eligible,ineligible]);let port=RecordingPort{request:RefCell::new(None)};let facts=ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()};assert!(matches!(select(&config(),&port,&value,0,Some(facts)).unwrap(),Selection::Dispatch{via_jev:true,..}));let request=port.request.borrow();let request=request.as_ref().unwrap();assert_eq!(request.observed_facts,vec!["ApplicationReady=true","TargetResolved=true"]);assert_eq!(request.candidates.iter().map(|candidate|candidate.id.as_str()).collect::<Vec<_>>(),vec!["click","click-alternative"]);}
     #[test] fn one_observe_eligible_candidate_bypasses_jev(){let mut value=fragment();let mut ineligible=candidate();ineligible.candidate_id="compose".into();ineligible.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ComposerReady,expected:true}];value.slots[0].candidates.push(ineligible);let facts=ObservedFacts{application_ready:Some(true),target_resolved:Some(true),..ObservedFacts::default()};assert_eq!(select(&config(),&MustNotChoose,&value,0,Some(facts)).unwrap(),Selection::Dispatch{action:candidate(),via_jev:false});}
-    #[test] fn rejects_free_form_or_oversized_fragment() { let mut value=fragment(); value.slots[0].candidates[0].tool_name="Shell".into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment(); value.slots=vec![]; assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
+    #[test] fn rejects_free_form_or_oversized_fragment() { let mut value=fragment(); value.slots[0].candidates[0].tool_name="Shell".into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment(); value.slots=vec![]; assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); value=fragment();value.slots[0].candidates[0].candidate_id=jev_runtime::HAND_BACK.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn send_candidate_requires_opaque_confirmation_and_no_body() { let mut value=fragment(); value.slots[0].candidates[0].action_kind=yonder_protocol::CuaActionKind::SendMessage; value.slots[0].candidates[0].tool_name="press_key".into(); value.slots[0].candidates[0].confirmation_ref=Some("confirm-1".into()); assert_eq!(validate(&value),Ok(())); value.slots[0].candidates[0].arguments_json=r#"{\"text\":\"hi\"}"#.into(); assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn coordinates_are_only_valid_for_bounded_semantic_actions() { let mut value=fragment(); {let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::EnterTargetQuery;candidate.tool_name="type_text".into();candidate.target_ref="intent-1".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"x":10,"y":20,"delivery_mode":"foreground"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput));{let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::FocusTargetSearch;candidate.tool_name="click".into();candidate.arguments_json=r#"{"x":10,"y":20}"#.into();} assert_eq!(validate(&value),Ok(()));{let candidate=&mut value.slots[0].candidates[0];candidate.tool_name="hotkey".into();candidate.arguments_json=r#"{"keys":["cmd","f"]}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"keys":["cmd","q"]}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }
     #[test] fn generic_desktop_plan_actions_are_bounded() { let mut value=fragment(); {let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::InputText;candidate.tool_name="type_text".into();candidate.arguments_json=r#"{"text":"one last kiss"}"#.into();} assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"text":"one last kiss","delivery_mode":"foreground"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput));{let candidate=&mut value.slots[0].candidates[0];candidate.action_kind=yonder_protocol::CuaActionKind::ActivateControl;candidate.tool_name="press_key".into();candidate.arguments_json=r#"{"key":"ENTER"}"#.into();}assert_eq!(validate(&value),Ok(()));value.slots[0].candidates[0].arguments_json=r#"{"key":"DELETE"}"#.into();assert_eq!(validate(&value),Err(crate::Error::InvalidInput)); }

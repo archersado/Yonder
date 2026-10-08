@@ -4,9 +4,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const HAND_BACK: &str = "handback";
 const CONFIDENCE_THRESHOLD: f32 = 0.75;
 const MAX_CANDIDATES: usize = 10;
+pub(crate) const HAND_BACK: &str = "handback";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct JevCandidate {
@@ -98,10 +98,10 @@ fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError
         return Err(JevDecisionError::InvalidInput);
     }
     let mut seen = std::collections::HashSet::new();
-    let mut hand_back_count = 0;
     for candidate in &request.candidates {
         if candidate.id.is_empty()
             || candidate.id.len() > 64
+            || candidate.id == HAND_BACK
             || candidate
                 .id
                 .chars()
@@ -118,15 +118,6 @@ fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError
             || candidate.expected_observe.len() > 4
             || candidate.preconditions.iter().chain(&candidate.expected_observe).any(|condition| condition.is_empty() || condition.len() > 64 || condition.contains('\0'))
         { return Err(JevDecisionError::InvalidInput); }
-        if candidate.id == HAND_BACK {
-            hand_back_count += 1;
-            if !candidate.dispatchable || !candidate.parameter_complete {
-                return Err(JevDecisionError::InvalidInput);
-            }
-        }
-    }
-    if hand_back_count != 1 {
-        return Err(JevDecisionError::InvalidInput);
     }
     Ok(())
 }
@@ -150,11 +141,6 @@ fn interpret(
     if choice.confidence < CONFIDENCE_THRESHOLD {
         return Ok(JevDecision::HandBack {
             reason: "low-confidence",
-        });
-    }
-    if candidate.id == HAND_BACK {
-        return Ok(JevDecision::HandBack {
-            reason: "hand-back",
         });
     }
     if !candidate.dispatchable || !candidate.parameter_complete {
@@ -200,13 +186,13 @@ mod tests {
                     expected_observe: vec!["target-resolved=true".into()],
                 },
                 JevCandidate {
-                    id: HAND_BACK.into(),
+                    id: "cua.raise".into(),
                     dispatchable: true,
                     parameter_complete: true,
-                    action_kind: "handback".into(),
-                    target_ref: "none".into(),
-                    preconditions: vec![],
-                    expected_observe: vec![],
+                    action_kind: "bring-to-front".into(),
+                    target_ref: "app-1".into(),
+                    preconditions: vec!["application-ready=true".into()],
+                    expected_observe: vec!["target-resolved=true".into()],
                 },
             ],
         }
@@ -308,6 +294,20 @@ mod tests {
                     confidence: 1.0
                 })),
                 &invalid
+            ),
+            Err(JevDecisionError::InvalidInput)
+        );
+
+        let mut reserved = request();
+        reserved.candidates[0].id = HAND_BACK.into();
+        assert_eq!(
+            decide(
+                &valid_config,
+                &FakePort(Ok(JevModelChoice {
+                    candidate_id: HAND_BACK.into(),
+                    confidence: 1.0
+                })),
+                &reserved
             ),
             Err(JevDecisionError::InvalidInput)
         );
