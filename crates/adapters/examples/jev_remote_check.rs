@@ -30,6 +30,9 @@ fn main() {
     };
     let request = JevDecisionRequest {
         task_id: "verification-task".into(),
+        task_goal: "完成远端 Jev 候选验证".into(),
+        plan_steps: vec!["选择并激活目标控件".into()],
+        current_step_index: 0,
         step_id: "verification-step".into(),
         step_label: "选择并激活目标控件".into(),
         capability: JevCapability::Cua,

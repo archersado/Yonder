@@ -57,3 +57,16 @@
 - **WHEN** 观察摘要为空、Jev 低置信、返回 uncertain、超时或依赖不可用
 - **THEN** Application 安全交回慢脑，不把 Driver 动作回执冒充步骤完成
 - **AND** 截图、坐标、Driver 参数、消息正文、接收人、完整 transcript 和模型原文不进入持久化或日志
+
+### Requirement: AX 候选选择携带完整目标与步骤上下文
+
+Jev 从新鲜 AX/UIA 元素动作空间选择候选时，Application SHALL 提供有界任务整体目标、
+完整片段步骤标签、当前步骤序号与当前步骤标签；这些字段 SHALL 只驻留本轮内存，且不得
+包含任务说明、消息正文、坐标、完整 transcript 或历史模型 Payload。
+
+#### Scenario: 同页存在全局播放与目标行内播放
+
+- **GIVEN** 当前 Observation 同时包含全局播放按钮和多个歌曲行内播放按钮
+- **WHEN** 当前步骤要求播放指定歌曲
+- **THEN** Jev 请求同时包含任务整体目标、计划步骤上下文和当前步骤位置
+- **AND** 不得仅凭“播放”短标签把全局控件当作目标行内控件

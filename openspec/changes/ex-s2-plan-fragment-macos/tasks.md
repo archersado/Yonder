@@ -17,4 +17,5 @@
 - [x] 在安装包 CLI/MCP 导出计划提交与执行，并以真实 Codex MCP 证明快慢脑产品入口
 - [ ] 归档 Change；Windows 证据保留为 EX-S2 Story 的未完成项
 - [x] 实现新鲜 AX 元素动作空间、唯一元素直执行与多元素 Jev 选择，并跑正式 macOS 长链路对照
+- [x] 为 AX 多候选 Jev 决策注入有界整体任务目标、完整片段步骤与当前步骤位置，并覆盖 Application/Adapter 载荷回归
 - [ ] 实现 Jev 动作后步骤完成三值核验、有界脱敏观察摘要、交回策略与顶部投影，并覆盖 Application/Adapter/macOS 真实 QQ 音乐回归

@@ -22,7 +22,7 @@ AG-S1 的慢脑接入边界已由 Accepted [AD-AG-07](../../../../_bmad-output/p
 
 Jev 配置由 Application 拥有并通过既有桌面命令提交；独立 Jev 设置窗口只渲染和收集，不直接读写 Adapter、配置文件或模型端点。非敏感配置包含启用状态、AD-EX-02 定稿的服务形态与端点、全局步数/时间/token 上限、CUA/BUA/Document/Command 能力上限；实际片段取计划授权值与全局上限的较小值。配置在片段开始时形成快照；片段运行中修改不改变已冻结片段，但关闭 Jev 等同用户控制，必须立即冻结下一次决策并交回慢脑。无效配置拒绝保存/启用并给出字段级错误。API Key、证书与刷新令牌不属于本配置模型；API Key 仅允许设置面板以非空密码框提交给 macOS Keychain Adapter，读取接口只回传布尔状态。UI 与日志不得展示或持久化完整端点查询串、密钥和模型请求正文。Task Space 不承载配置交互。
 
-macOS-only 接线不新增任务状态。Application 校验配置、能力范围和 2..10 个有界合法动作候选；Jev 只能在这些已由本轮 Observe 校验合格的候选 ID 中选择并返回置信度。`handback` 是 Application 拥有的唯一安全边界，不作为可与合法动作竞争的模型候选；低置信、未知候选、不可派发候选或缺少发送确认一律交回，不自动重试。交回与任务序列、事件、Outbox 及受限 `next_intent` 同一事务提交；归属慢脑消费 Outbox 后经既有 Gateway 重新 Observe、规划或执行，Yonder 不作本地兜底。模型失败、凭据缺失、依赖缺失或超时仅返回可区分错误，仍由未来片段执行用例统一映射到既有状态与事件。API Key 从设置页密码框一次性进入 macOS Keychain Adapter；状态查询与写入不依赖 `TaskHost` 或 SQLite，UI 只能查询是否存在，禁止经 `security` CLI 参数、环境变量或临时文件传输。
+macOS-only 接线不新增任务状态。Application 校验配置、能力范围和 2..10 个有界合法动作候选；Jev 只能在这些已由本轮 Observe 校验合格的候选 ID 中选择并返回置信度。AX/UIA 自然候选选择请求由 Application 补齐任务名称形成的整体目标、片段内全部步骤标签、当前步骤序号与标签；缺少合法任务名称时不得调用 Jev，必须交回慢脑补全上下文。Adapter 不自行查询任务或拼接历史。该上下文只用于本轮选择，最多十个步骤，不进入 SQLite、事件、Outbox 或日志，也不得携带任务说明、正文、坐标和完整 transcript。`handback` 是 Application 拥有的唯一安全边界，不作为可与合法动作竞争的模型候选；低置信、未知候选、不可派发候选或缺少发送确认一律交回，不自动重试。交回与任务序列、事件、Outbox 及受限 `next_intent` 同一事务提交；归属慢脑消费 Outbox 后经既有 Gateway 重新 Observe、规划或执行，Yonder 不作本地兜底。模型失败、凭据缺失、依赖缺失或超时仅返回可区分错误，仍由未来片段执行用例统一映射到既有状态与事件。API Key 从设置页密码框一次性进入 macOS Keychain Adapter；状态查询与写入不依赖 `TaskHost` 或 SQLite，UI 只能查询是否存在，禁止经 `security` CLI 参数、环境变量或临时文件传输。
 
 配置字段定稿为：
 

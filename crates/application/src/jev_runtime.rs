@@ -26,6 +26,11 @@ pub struct JevCandidate {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct JevDecisionRequest {
     pub task_id: String,
+    /// 用户可见任务名称形成的整体目标；不含任务说明或敏感正文。
+    pub task_goal: String,
+    /// 当前不可变片段的完整步骤标签，最多十项。
+    pub plan_steps: Vec<String>,
+    pub current_step_index: u16,
     pub step_id: String,
     pub step_label: String,
     pub capability: JevCapability,
@@ -194,6 +199,15 @@ fn validate_step_verification_request(
 fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError> {
     let mut observed = std::collections::HashSet::new();
     if !valid_id(&request.task_id)
+        || !crate::valid_step_label(&request.task_goal)
+        || request.plan_steps.is_empty()
+        || request.plan_steps.len() > 10
+        || usize::from(request.current_step_index) >= request.plan_steps.len()
+        || request
+            .plan_steps
+            .iter()
+            .any(|label| !crate::valid_step_label(label))
+        || request.plan_steps[usize::from(request.current_step_index)] != request.step_label
         || !valid_id(&request.step_id)
         || !crate::valid_step_label(&request.step_label)
         || !(2..=MAX_CANDIDATES).contains(&request.candidates.len())
@@ -329,6 +343,9 @@ mod tests {
     fn request() -> JevDecisionRequest {
         JevDecisionRequest {
             task_id: "task-1".into(),
+            task_goal: "完成控件选择验证".into(),
+            plan_steps: vec!["选择并激活目标控件".into()],
+            current_step_index: 0,
             step_id: "step-1".into(),
             step_label: "选择并激活目标控件".into(),
             capability: JevCapability::Cua,

@@ -50,7 +50,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     if (request.mode !== 'choose') throw new Error('unexpected-mode');
     const criteria = Object.fromEntries(request.candidates.map(candidate => [
       candidate.id,
-      `本步意图：${request.step_label}；已提交动作：${candidate.action_kind}；控件角色：${candidate.element_role ?? '未提供'}；控件短标签：${candidate.element_label ?? '未提供'}；目标引用：${candidate.target_ref}；前置 Observe 已由 Yonder 验证：${candidate.preconditions.join(', ')}；预期 Observe：${candidate.expected_observe.join(', ')}。该候选可直接派发。`,
+      `任务整体目标：${request.task_goal}；当前步骤：第 ${request.current_step_index + 1}/${request.plan_steps.length} 步「${request.step_label}」；完整计划步骤：${request.plan_steps.map((step, index) => `${index + 1}.${step}`).join(' → ')}；已提交动作：${candidate.action_kind}；控件角色：${candidate.element_role ?? '未提供'}；控件短标签：${candidate.element_label ?? '未提供'}；目标引用：${candidate.target_ref}；前置 Observe 已由 Yonder 验证：${candidate.preconditions.join(', ')}；预期 Observe：${candidate.expected_observe.join(', ')}。该候选可直接派发。`,
     ]));
     const state = Object.fromEntries(request.candidates.map(candidate => [
       candidate.id,
@@ -66,9 +66,16 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     ]));
     const result = await client.systemOne({
       model: 'jev-latest',
-      state: { step_intent: request.step_label, observed_facts: request.observed_facts, candidates: state },
+      state: {
+        task_goal: request.task_goal,
+        plan_steps: request.plan_steps,
+        current_step_index: request.current_step_index,
+        step_intent: request.step_label,
+        observed_facts: request.observed_facts,
+        candidates: state,
+      },
       questions: {
-        next: choice('Yonder 已依据本轮真实 Observe 筛除不合格候选。请在已提交的可派发候选中快速选择下一步；语义等价时选择第一个。不得推断或索取未提供的联系人、消息正文、坐标、控件或 Driver 参数。低置信、未知返回或调用异常由 Yonder Application 统一交回慢脑。', criteria),
+        next: choice('结合任务整体目标、完整计划步骤和当前步骤位置，在 Yonder 已依据本轮真实 Observe 筛出的可派发候选中选择最能完成当前步骤且服务于整体目标的控件。不要仅凭“播放”“确认”等通用短标签选择全局控件；语义等价时选择第一个。不得推断或索取未提供的联系人、消息正文、坐标、控件或 Driver 参数。低置信、未知返回或调用异常由 Yonder Application 统一交回慢脑。', criteria),
       },
     });
     const answer = result.answers.next;

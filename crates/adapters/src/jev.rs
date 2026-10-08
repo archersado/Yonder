@@ -35,6 +35,9 @@ struct WorkerRequest<'a> {
     endpoint: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
+    task_goal: &'a str,
+    plan_steps: &'a [String],
+    current_step_index: u16,
     step_label: &'a str,
     observed_facts: &'a [String],
     candidates: &'a [yonder_application::jev_runtime::JevCandidate],
@@ -244,6 +247,9 @@ impl JevDecisionPort for MacosJevPort {
             endpoint: &config.endpoint,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
+            task_goal: &request.task_goal,
+            plan_steps: &request.plan_steps,
+            current_step_index: request.current_step_index,
             step_label: &request.step_label,
             observed_facts: &request.observed_facts,
             candidates: &request.candidates,
@@ -376,6 +382,9 @@ export class TypeSafeClient {
             endpoint: "https://api.typesafe.ai",
             api_key: "test-only",
             timeout_ms: 3000,
+            task_goal: "完成控件选择验证",
+            plan_steps: &["选择并激活目标控件".into()],
+            current_step_index: 0,
             step_label: "选择并激活目标控件",
             observed_facts: &["ApplicationReady=true".into()],
             candidates: &[
@@ -409,6 +418,39 @@ export class TypeSafeClient {
         assert_eq!(result.candidate_id, "cua.click");
         assert!((0.0..=1.0).contains(&result.confidence));
         let _ = fs::remove_file(script);
+    }
+
+    #[test]
+    fn candidate_worker_payload_contains_goal_and_current_plan_context() {
+        let plan_steps = vec!["打开 QQ 音乐".into(), "播放 One Last Kiss".into()];
+        let candidates = vec![JevCandidate {
+            id: "ax-element-73".into(),
+            dispatchable: true,
+            parameter_complete: true,
+            action_kind: "ActivateControl".into(),
+            target_ref: "one-last-kiss".into(),
+            preconditions: vec!["ObserveValid=true".into()],
+            expected_observe: vec!["ActionSucceeded=true".into()],
+            element_role: Some("Link".into()),
+            element_label: Some("播放".into()),
+        }];
+        let payload = serde_json::to_value(WorkerRequest {
+            mode: "choose",
+            endpoint: "https://api.typesafe.ai",
+            api_key: "test-only",
+            timeout_ms: 3000,
+            task_goal: "在 QQ 音乐播放宇多田光版本",
+            plan_steps: &plan_steps,
+            current_step_index: 1,
+            step_label: "播放 One Last Kiss",
+            observed_facts: &["ObserveValid=true".into()],
+            candidates: &candidates,
+        })
+        .unwrap();
+        assert_eq!(payload["task_goal"], "在 QQ 音乐播放宇多田光版本");
+        assert_eq!(payload["plan_steps"], serde_json::json!(plan_steps));
+        assert_eq!(payload["current_step_index"], 1);
+        assert_eq!(payload["step_label"], "播放 One Last Kiss");
     }
 
     #[test]
