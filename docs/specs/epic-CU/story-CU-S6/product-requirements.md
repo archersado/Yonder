@@ -24,6 +24,8 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-08：Rust Protocol 是 JSON Schema 与 TypeScript 的唯一来源，能力版本显式升级；协议 1.45 及以下过滤 `image`，旧客户端仍只得到其已协商的观察字段。
 - OEH-09：macOS 正式企业微信样本可从新鲜句柄选择企业切换入口并推进；不能解析时返回明确交回事实。Windows 暂缓且不得外推。
 - OEH-10：坐标点击已经派发后，即使 Sky 返回超时、窗口代次变化或其他动作错误，Worker 仍必须执行一次动作后 Observe；后置事实不足时返回 unknown/handback，不得丢失新鲜 Observation 或自动重放点击。
+- OEH-11：含截图的 Observation 必须返回图片原始像素宽高；视觉坐标必须携带同次 `observation_ref`，并以原始截图像素表达。不得把对话界面的缩放渲染坐标、桌面全局坐标或猜测的 Retina 倍率直接交给 Driver。
+- OEH-12：Worker 必须以实际图片字节校验尺寸，并在动作前确认同任务、同应用、最新引用、坐标边界及当前截图尺寸一致；窗口缩放、截图裁剪、引用过期或越界时不得派发动作，只返回新鲜 Observation 交回慢脑。
 
 ## 验收映射
 
@@ -31,7 +33,8 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 |---|---|
 | 产品简报 | OEH-01、OEH-05、OEH-06 |
 | 2026-10-07 用户变更与后续真实样本 | OEH-01、OEH-03～OEH-06、OEH-08～OEH-10 |
-| AD-CU-09、AD-CU-10 | OEH-01～OEH-08、OEH-10 |
+| 2026-10-08 QQ 音乐坐标偏移回归 | OEH-11、OEH-12 |
+| AD-CU-09、AD-CU-10、AD-CU-11 | OEH-01～OEH-08、OEH-10～OEH-12 |
 | AD-TM-23 | OEH-07 |
 
 ## 范围与非目标

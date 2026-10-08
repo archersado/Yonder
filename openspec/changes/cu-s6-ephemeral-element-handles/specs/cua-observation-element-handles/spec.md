@@ -49,3 +49,22 @@
 
 - **WHEN** 坐标点击已提交给 Sky 后返回超时、窗口失效或其他动作错误
 - **THEN** Worker 不重放点击，仍执行唯一一次动作后 Observe，并携带新鲜事实返回 unknown/handback
+
+### Requirement: 视觉坐标绑定原始截图 Observation
+
+系统 MUST 只接受绑定同次 Observation 的原始截图像素坐标，不得把渲染坐标或猜测的显示缩放直接传给 Driver。
+
+#### Scenario: 返回原始截图尺寸
+
+- **WHEN** Observation 携带截图
+- **THEN** 同时返回从实际图片字节读取的原始像素宽高与 `observation_ref`
+
+#### Scenario: 最新引用与坐标有效
+
+- **WHEN** 坐标候选携带同任务最新 `observation_ref`，且原始像素坐标位于截图边界内、动作前截图尺寸未变化
+- **THEN** Worker 只向同一绑定应用派发一次 Sky 坐标动作，并在动作后重新 Observe
+
+#### Scenario: 引用、边界或截图几何失效
+
+- **WHEN** 引用过期或跨任务、坐标越界，或动作前截图尺寸与引用记录不一致
+- **THEN** Worker 不派发动作，返回新鲜 Observation 交回慢脑，不缩放或重放旧坐标
