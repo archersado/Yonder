@@ -49,8 +49,12 @@ let field = FixtureField(frame: NSRect(x: 24, y: 120, width: 390, height: 32))
 window.contentView!.addSubview(field)
 var primarySelected = false
 final class FixtureActions: NSObject {
-  @objc func selectPrimary(_: Any?) {
+  @objc func selectPrimary(_ sender: Any?) {
     primarySelected = true
+    if let button = sender as? NSButton {
+      button.title = "验证主动作已完成"
+      button.setAccessibilityLabel("验证主动作已完成")
+    }
     emit(["primary_selected": true])
   }
   @objc func selectAlternative(_: Any?) {
