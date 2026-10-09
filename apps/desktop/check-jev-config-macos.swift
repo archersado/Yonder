@@ -96,12 +96,13 @@ guard capture("jev-config-saved.png") else { exit(12) }
 guard setValue(endpoint, "http://127.0.0.1:1234/jev?secret=1"), press(save) else { exit(16) }
 Thread.sleep(forTimeInterval: 1)
 guard capture("jev-config-invalid.png") else { exit(16) }
-guard containsValue(settings, "置信阈值 0.75、动作后强制 Observe、敏感操作须确认；这些安全闸不可降低。") else { exit(17) }
+guard containsValue(settings, "动作后强制 Observe、敏感操作须确认、unknown 不重试；这些硬安全闸不可关闭。") else { exit(17) }
 
 guard let afterCounts = sql(countsStatement), beforeCounts == afterCounts,
       let configRows = sql("SELECT count(*) FROM jev_config"), configRows.trimmingCharacters(in: .whitespacesAndNewlines) == "1",
       let config = sql("SELECT config_json FROM jev_config WHERE id=1"),
-      config.contains("\"enabled\":true"), config.contains("\"endpoint\":\"http://127.0.0.1:1234/jev\"") else { exit(18) }
+      config.contains("\"enabled\":true"), config.contains("\"endpoint\":\"http://127.0.0.1:1234/jev\""),
+      config.contains("\"confidence_metric\":"), config.contains("\"confidence_threshold\":") else { exit(18) }
 
 let report: [String: Any] = [
     "pid": Int(app.processIdentifier),

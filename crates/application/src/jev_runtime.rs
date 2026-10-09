@@ -1,7 +1,6 @@
 use crate::{jev_config::{JevCapability, JevConfig}, valid_id};
 use serde::{Deserialize, Serialize};
 
-const CONFIDENCE_THRESHOLD: f32 = 0.75;
 pub(crate) const MAX_CANDIDATES: usize = 10;
 pub(crate) const HAND_BACK: &str = "handback";
 
@@ -119,7 +118,7 @@ pub fn verify_step(
     if !result.confidence.is_finite() {
         return Err(JevDecisionError::InvalidResponse);
     }
-    if result.confidence < CONFIDENCE_THRESHOLD || result.outcome == JevStepOutcome::Uncertain {
+    if result.confidence < config.confidence_threshold || result.outcome == JevStepOutcome::Uncertain {
         return Ok(JevStepDecision::HandBack);
     }
     Ok(match result.outcome {
@@ -137,7 +136,7 @@ pub fn decide(
     validate_config_and_capability(config, request.capability)?;
     validate_request(request)?;
     let choice = port.choose(config, request)?;
-    interpret(request, &choice)
+    interpret(config, request, &choice)
 }
 
 fn validate_config_and_capability(
@@ -252,6 +251,7 @@ fn validate_request(request: &JevDecisionRequest) -> Result<(), JevDecisionError
 }
 
 fn interpret(
+    config: &JevConfig,
     request: &JevDecisionRequest,
     choice: &JevModelChoice,
 ) -> Result<JevDecision, JevDecisionError> {
@@ -267,7 +267,7 @@ fn interpret(
             reason: "unknown-candidate",
         });
     };
-    if choice.confidence < CONFIDENCE_THRESHOLD {
+    if choice.confidence < config.confidence_threshold {
         return Ok(JevDecision::HandBack {
             reason: "low-confidence",
         });
@@ -433,6 +433,28 @@ mod tests {
             Ok(JevDecision::HandBack {
                 reason: "candidate-not-dispatchable"
             })
+        );
+    }
+
+    #[test]
+    fn applies_configured_confidence_threshold_to_choice_and_step_verification() {
+        let mut configured = config();
+        configured.confidence_threshold = 0.4;
+        assert!(matches!(
+            decide(
+                &configured,
+                &FakePort(Ok(JevModelChoice { candidate_id: "cua.click".into(), confidence: 0.5 })),
+                &request()
+            ),
+            Ok(JevDecision::Dispatch { .. })
+        ));
+        assert_eq!(
+            verify_step(
+                &configured,
+                &StepPort(JevModelStepVerification { outcome: JevStepOutcome::Complete, confidence: 0.5 }),
+                &step_request()
+            ),
+            Ok(JevStepDecision::Complete)
         );
     }
 

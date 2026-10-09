@@ -8,7 +8,7 @@ AG-S1 的慢脑接入边界已由 Accepted [AD-AG-07](../../../../_bmad-output/p
 
 当前实施基线保持 AD-EX-01 的“每步 Jev 决策”。[AD-EX-04](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-EX-04-BOUNDED-ACTION-RECIPE.md) 保持 Proposed，仅作为后续对照观察路线；在 Accepted 前不进入 EX-S2 实施、协议、迁移或运行时代码，且须计划片段契约修订后才能另行创建对照 OpenSpec。
 
-2026-09-24 用户变更：先实施 macOS-only 远端 Jev 决策接线，Windows 后补。Application 拥有有界候选请求、置信阈值和交回策略；macOS Adapter 从系统凭据入口读取 API Key，经固定 `@typesafe-ai/sdk@0.6.0` 调用配置 base URL 下的 `/v1/systemone`。2026-10-09 后模型标识由 Application 配置快照提供，不再固定为 `jev-latest`；本地模式允许经校验的 HTTP/HTTPS base URL，远端模式仍只允许 `https://api.typesafe.ai`。API Key 不进入 Jev 配置、SQLite、任务数据、日志或 UI；Windows 路径不编译、不注册、不验证。
+2026-09-24 用户变更：先实施 macOS-only 远端 Jev 决策接线，Windows 后补。Application 拥有有界候选请求、置信策略和交回策略；macOS Adapter 从系统凭据入口读取 API Key，经固定 `@typesafe-ai/sdk@0.6.0` 调用配置 base URL 下的 `/v1/systemone`。2026-10-09 后模型标识、置信度字段和阈值均由 Application 配置快照提供；本地模式允许经校验的 HTTP/HTTPS base URL，远端模式仍只允许 `https://api.typesafe.ai`。API Key 不进入 Jev 配置、SQLite、任务数据、日志或 UI；Windows 路径不编译、不注册、不验证。
 
 ## 跨 Story 联审前置
 
@@ -32,6 +32,8 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 | `service_mode` | enum：`local` / `remote` | 服务形态，首版只开放 AD-EX-02 定稿的取值。 |
 | `endpoint` | URL | SDK base URL；macOS-only 远端固定为 `https://api.typesafe.ai`，SDK 再调用 `/v1/systemone`；不保存查询串、fragment、用户名或密码。 |
 | `model` | string，1..128 字节，字符集 `[A-Za-z0-9._:/-]` | `/v1/models` 发布的模型标识；候选选择与步骤核验使用同一配置快照值，Worker 不设第二默认值。 |
+| `confidence_metric` | enum：`answer_confidence` / `confidence` | 决策门禁读取的响应字段；选定字段缺失或非法时交回，不跨尺度回退。 |
+| `confidence_threshold` | number，`0..1` | 候选选择与步骤核验共用的最低置信度。 |
 | `step_limit` | integer，`1..100` | 每片段最大步数。 |
 | `time_limit_ms` | integer，`1000..600000` | 每片段最大执行时长。 |
 | `token_limit` | integer，`1..100000` | 每片段最大模型 token 数。 |
@@ -39,7 +41,7 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 非敏感配置持久化为 SQLite `jev_config` 单行 JSON，由 Application 在同一事务内校验并原子写入；不写任务、事件或 Outbox。保存成功仅表示配置已通过结构校验，不代表模型可用，运行时仍须在派发前检查当前配置和外部服务可用性。
 
-既有 JSON 缺少 `model` 时以 `jev-latest` 反序列化，避免升级使配置表不可读；用户随后可在面板改为本地服务实际发布的模型。Application 的运行时校验接受合法 `local` 配置，不再重复施加远端固定端点门禁；`remote` 白名单仍由 `JevConfig::validate` 统一执行。Adapter 将 `endpoint + model` 原样放入一次性 Worker 请求，选择与核验不得分叉。
+既有 JSON 缺少 `model` 时以 `jev-latest` 反序列化；缺少置信策略时按历史行为读取为 `confidence + 0.75`，避免升级静默改变已保存配置。新配置默认使用 `answer_confidence + 0.75`。Application 的运行时校验接受合法 `local` 配置，不再重复施加远端固定端点门禁；`remote` 白名单仍由 `JevConfig::validate` 统一执行。Adapter 将 `endpoint + model + confidence_metric` 原样放入一次性 Worker 请求，选择与核验不得分叉；Application 使用同一快照中的阈值做门禁。
 
 ## 状态与契约
 

@@ -4,6 +4,15 @@ import { pathToFileURL } from 'node:url';
 const sdk = await import(pathToFileURL(process.argv[2]).href);
 const { choice, TypeSafeClient } = sdk;
 
+function selectedConfidence(answer, metric) {
+  if (metric !== 'answer_confidence' && metric !== 'confidence') throw new Error('unexpected-confidence-metric');
+  const value = answer[metric];
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error('invalid-selected-confidence');
+  }
+  return value;
+}
+
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   let request;
   try {
@@ -44,7 +53,10 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       });
       const answer = result.answers.completion;
       if (answer.type !== 'choice') throw new Error('unexpected-answer-type');
-      process.stdout.write(JSON.stringify({ outcome: answer.choice, confidence: answer.confidence }) + '\n');
+      process.stdout.write(JSON.stringify({
+        outcome: answer.choice,
+        confidence: selectedConfidence(answer, request.confidence_metric),
+      }) + '\n');
       continue;
     }
     if (request.mode !== 'choose') throw new Error('unexpected-mode');
@@ -82,7 +94,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     if (answer.type !== 'choice') throw new Error('unexpected-answer-type');
     process.stdout.write(JSON.stringify({
       candidate_id: answer.choice,
-      confidence: answer.confidence,
+      confidence: selectedConfidence(answer, request.confidence_metric),
     }) + '\n');
   } catch {
     process.exitCode = 3;

@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 use yonder_application::{
-    jev_config::JevConfig,
+    jev_config::{JevConfig, JevConfidenceMetric},
     jev_runtime::{
         JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice,
         JevModelStepVerification, JevStepOutcome, JevStepVerificationRequest,
@@ -34,6 +34,7 @@ struct WorkerRequest<'a> {
     mode: &'static str,
     endpoint: &'a str,
     model: &'a str,
+    confidence_metric: JevConfidenceMetric,
     api_key: &'a str,
     timeout_ms: u64,
     task_goal: &'a str,
@@ -49,6 +50,7 @@ struct StepVerificationWorkerRequest<'a> {
     mode: &'static str,
     endpoint: &'a str,
     model: &'a str,
+    confidence_metric: JevConfidenceMetric,
     api_key: &'a str,
     timeout_ms: u64,
     step_label: &'a str,
@@ -248,6 +250,7 @@ impl JevDecisionPort for MacosJevPort {
             mode: "choose",
             endpoint: &config.endpoint,
             model: &config.model,
+            confidence_metric: config.confidence_metric,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
             task_goal: &request.task_goal,
@@ -275,6 +278,7 @@ impl JevDecisionPort for MacosJevPort {
             mode: "verify-step",
             endpoint: &config.endpoint,
             model: &config.model,
+            confidence_metric: config.confidence_metric,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
             step_label: &request.step_label,
@@ -324,7 +328,9 @@ export class TypeSafeClient {
     const answer = name === 'completion'
       ? (request.state.observation_summary.join(' ').includes('One Last Kiss') ? 'complete' : 'incomplete')
       : Object.keys(request.questions[name].options)[0];
-    return { answers: { [name]: { type: 'choice', choice: answer, confidence: 0.99 } } };
+    const value = { type: 'choice', choice: answer, confidence: 0.99 };
+    if (request.model !== 'confidence-only') value.answer_confidence = 0.98;
+    return { answers: { [name]: value } };
   }
 }
 "#).unwrap();
@@ -385,6 +391,7 @@ export class TypeSafeClient {
             mode: "choose",
             endpoint: "https://api.typesafe.ai",
             model: "fixture-model",
+            confidence_metric: JevConfidenceMetric::Confidence,
             api_key: "test-only",
             timeout_ms: 3000,
             task_goal: "完成控件选择验证",
@@ -443,6 +450,7 @@ export class TypeSafeClient {
             mode: "choose",
             endpoint: "https://api.typesafe.ai",
             model: "fixture-model",
+            confidence_metric: JevConfidenceMetric::AnswerConfidence,
             api_key: "test-only",
             timeout_ms: 3000,
             task_goal: "在 QQ 音乐播放宇多田光版本",
@@ -455,6 +463,7 @@ export class TypeSafeClient {
         .unwrap();
         assert_eq!(payload["task_goal"], "在 QQ 音乐播放宇多田光版本");
         assert_eq!(payload["model"], "fixture-model");
+        assert_eq!(payload["confidence_metric"], "answer_confidence");
         assert_eq!(payload["plan_steps"], serde_json::json!(plan_steps));
         assert_eq!(payload["current_step_index"], 1);
         assert_eq!(payload["step_label"], "播放 One Last Kiss");
@@ -479,6 +488,7 @@ export class TypeSafeClient {
             mode: "verify-step",
             endpoint: "https://api.typesafe.ai",
             model: "fixture-model",
+            confidence_metric: JevConfidenceMetric::AnswerConfidence,
             api_key: "test-only",
             timeout_ms: 3000,
             step_label: "播放 One Last Kiss",
@@ -491,7 +501,42 @@ export class TypeSafeClient {
             .run_worker(&request, Duration::from_millis(3000))
             .unwrap();
         assert_eq!(result.outcome, "complete");
-        assert!(result.confidence >= 0.75);
+        assert_eq!(result.confidence, 0.98);
+    }
+
+    #[test]
+    fn official_worker_never_falls_back_when_selected_confidence_is_missing() {
+        let node = node_path();
+        let script =
+            fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/jev_worker.mjs"))
+                .unwrap();
+        let port = MacosJevPort::new(
+            &node,
+            &script,
+            &sdk_path(),
+            "Yonder",
+            "jev",
+            Duration::from_millis(3000),
+        )
+        .unwrap();
+        let request = StepVerificationWorkerRequest {
+            mode: "verify-step",
+            endpoint: "https://api.typesafe.ai",
+            model: "confidence-only",
+            confidence_metric: JevConfidenceMetric::AnswerConfidence,
+            api_key: "test-only",
+            timeout_ms: 3000,
+            step_label: "播放 One Last Kiss",
+            action_kind: "ActivateControl",
+            observed_facts: &["ActionSucceeded=true".into(), "ObserveValid=true".into()],
+            expected_observe: &["ActionSucceeded=true".into()],
+            observation_summary: &["歌曲名：One Last Kiss - 歌手名：宇多田光".into()],
+        };
+        let result = port.run_worker::<_, StepVerificationWorkerResponse>(
+            &request,
+            Duration::from_millis(3000),
+        );
+        assert!(matches!(result, Err(JevDecisionError::RemoteError)));
     }
 
     #[test]

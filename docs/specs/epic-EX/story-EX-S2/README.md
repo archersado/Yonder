@@ -38,3 +38,5 @@ OpenSpec: ex-s2-plan-fragment-macos
 2026-10-08 收尾复核确认事件驱动交回已由TM-S9运行时完整承接并通过当前回归；正式QQ音乐AD-EX-05样本仍被CU-S4动作确认阻断。产品任务成功完成启动和搜索入口聚焦，但文本输入、临时元素句柄点击与封闭`SPACE`激活均在进入Jev步骤核验前返回`unknown(driver-action-unconfirmed)`；系统逐次安全交回且未自动重试，测试任务最终取消。修复CU-S4并重建产品前，EX-S2不得Archive。
 
 2026-10-09 用户要求本地 Jev 模型名成为面板配置。增量 Change [ex-s2-configurable-jev-model](../../../../openspec/changes/ex-s2-configurable-jev-model/proposal.md) 修复设置面板已允许 `local`、运行时却只接受远端的契约分裂，并使候选选择与步骤核验统一使用配置快照中的受限模型标识；不改变计划片段、任务状态或敏感数据边界。
+
+同日用户进一步要求置信度字段与阈值可配置。AD-EX-03 与本 Change 已扩展为显式 `answer_confidence / confidence` 字段选择和 `0..1` 阈值；新配置默认答案概率，历史配置保持旧字段与 `0.75`，选定字段缺失时安全交回且不得跨尺度回退。结构回归已通过，待重建正式 macOS GUI 后补面板保存与真实 Gateway 样本。

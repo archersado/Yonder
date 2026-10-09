@@ -4200,6 +4200,8 @@ mod tests {
             service_mode: JevServiceMode::Remote,
             endpoint: JEV_REMOTE_ENDPOINT.into(),
             model: "jev-latest".into(),
+            confidence_metric: yonder_application::jev_config::JevConfidenceMetric::AnswerConfidence,
+            confidence_threshold: 0.75,
             step_limit: 10,
             time_limit_ms: 60_000,
             token_limit: 10_000,

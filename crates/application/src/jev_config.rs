@@ -2,8 +2,11 @@ use serde::{Deserialize, Serialize};
 
 pub const JEV_REMOTE_ENDPOINT: &str = "https://api.typesafe.ai";
 pub const DEFAULT_JEV_MODEL: &str = "jev-latest";
+pub const DEFAULT_JEV_CONFIDENCE_THRESHOLD: f32 = 0.75;
 
 fn default_jev_model() -> String { DEFAULT_JEV_MODEL.into() }
+fn default_jev_confidence_threshold() -> f32 { DEFAULT_JEV_CONFIDENCE_THRESHOLD }
+fn legacy_jev_confidence_metric() -> JevConfidenceMetric { JevConfidenceMetric::Confidence }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -13,13 +16,21 @@ pub enum JevServiceMode { Local, Remote }
 #[serde(rename_all = "UPPERCASE")]
 pub enum JevCapability { Cua, Bua, Document, Command }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JevConfidenceMetric { AnswerConfidence, Confidence }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JevConfig {
     pub enabled: bool,
     pub service_mode: JevServiceMode,
     pub endpoint: String,
     #[serde(default = "default_jev_model")]
     pub model: String,
+    #[serde(default = "legacy_jev_confidence_metric")]
+    pub confidence_metric: JevConfidenceMetric,
+    #[serde(default = "default_jev_confidence_threshold")]
+    pub confidence_threshold: f32,
     pub step_limit: u32,
     pub time_limit_ms: u64,
     pub token_limit: u64,
@@ -30,6 +41,7 @@ pub struct JevConfig {
 pub enum JevConfigError {
     InvalidEndpoint,
     InvalidModel,
+    InvalidConfidenceThreshold,
     InvalidStepLimit,
     InvalidTimeLimit,
     InvalidTokenLimit,
@@ -43,6 +55,8 @@ impl Default for JevConfig {
             service_mode: JevServiceMode::Local,
             endpoint: "http://localhost".into(),
             model: DEFAULT_JEV_MODEL.into(),
+            confidence_metric: JevConfidenceMetric::AnswerConfidence,
+            confidence_threshold: DEFAULT_JEV_CONFIDENCE_THRESHOLD,
             step_limit: 10,
             time_limit_ms: 60_000,
             token_limit: 10_000,
@@ -79,6 +93,11 @@ impl JevConfig {
             })
         {
             return Err(JevConfigError::InvalidModel);
+        }
+        if !self.confidence_threshold.is_finite()
+            || !(0.0..=1.0).contains(&self.confidence_threshold)
+        {
+            return Err(JevConfigError::InvalidConfidenceThreshold);
         }
         if !(1..=100).contains(&self.step_limit) { return Err(JevConfigError::InvalidStepLimit); }
         if !(1_000..=600_000).contains(&self.time_limit_ms) { return Err(JevConfigError::InvalidTimeLimit); }
@@ -117,6 +136,9 @@ mod tests {
         let legacy = r#"{"enabled":true,"service_mode":"local","endpoint":"http://127.0.0.1:8002","step_limit":10,"time_limit_ms":60000,"token_limit":10000,"capabilities":["CUA"]}"#;
         let decoded: JevConfig = serde_json::from_str(legacy).unwrap();
         assert_eq!(decoded.model, DEFAULT_JEV_MODEL);
+        assert_eq!(decoded.confidence_metric, JevConfidenceMetric::Confidence);
+        assert_eq!(decoded.confidence_threshold, DEFAULT_JEV_CONFIDENCE_THRESHOLD);
+        assert_eq!(JevConfig::default().confidence_metric, JevConfidenceMetric::AnswerConfidence);
     }
 
     #[test]
@@ -134,6 +156,11 @@ mod tests {
         config.token_limit = 0;
         assert_eq!(config.validate(), Err(JevConfigError::InvalidTokenLimit));
         config.token_limit = 10_000;
+        config.confidence_threshold = f32::NAN;
+        assert_eq!(config.validate(), Err(JevConfigError::InvalidConfidenceThreshold));
+        config.confidence_threshold = 1.01;
+        assert_eq!(config.validate(), Err(JevConfigError::InvalidConfidenceThreshold));
+        config.confidence_threshold = DEFAULT_JEV_CONFIDENCE_THRESHOLD;
         config.capabilities = Vec::new();
         assert_eq!(config.validate(), Err(JevConfigError::InvalidCapability));
     }
