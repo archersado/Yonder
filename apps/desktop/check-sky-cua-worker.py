@@ -87,23 +87,23 @@ for line in sys.stdin:
                 text += '\\n10 文本 企业菜单已打开'
             elif name == 'click' and args.get('click_count') == 2:
                 text += '\\n8 文本 已双击激活自绘结果'
-            elif name == 'click' and args.get('x') == 30 and args.get('y') == 40:
+            elif name == 'click' and args.get('x') == 30 and args.get('y') == 59:
                 text += '\\n9 文本 企业菜单已打开'
                 with open(state_path, 'a', encoding='utf-8') as state_output:
                     state_output.write('\\n9 文本 企业菜单已打开')
                 result = {'isError':True,'content':[{'type':'text','text':'request timed out'}]}
                 print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}, ensure_ascii=False), flush=True)
                 continue
-            elif name == 'click' and args.get('x') == 31 and args.get('y') == 41:
+            elif name == 'click' and args.get('x') == 31 and args.get('y') == 58:
                 result = {'isError':True,'content':[{'type':'text','text':'request timed out'}]}
                 print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}, ensure_ascii=False), flush=True)
                 continue
-            elif name == 'click' and args.get('x') == 32 and args.get('y') == 42:
+            elif name == 'click' and args.get('x') == 32 and args.get('y') == 57:
                 text += '\\n11 文本 窗口代次已变化'
                 result = {'isError':True,'content':[{'type':'text','text':'Computer Use server error -10005: cgWindowNotFound'}]}
                 print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}, ensure_ascii=False), flush=True)
                 continue
-            elif name == 'click' and args.get('x') == 33 and args.get('y') == 43:
+            elif name == 'click' and args.get('x') == 33 and args.get('y') == 56:
                 result = {'isError':True,'content':[{'type':'text','text':'click failed after dispatch'}]}
                 print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}, ensure_ascii=False), flush=True)
                 continue
@@ -222,13 +222,13 @@ for line in sys.stdin:
     expected_action_names = ["press_key", "click", "click", "click", "click", "click", "click", "set_value", "press_key", "press_key", "click", "press_key", "type_text", "set_value", "click", "click", "type_text", "type_text"]
     assert [item["name"] for item in actions] == expected_action_names, [item["name"] for item in actions]
     assert actions[0]["args"]["key"] == "super+f"
-    assert actions[1]["args"]["x"] == 30 and actions[1]["args"]["y"] == 40
+    assert actions[1]["args"]["x"] == 30 and actions[1]["args"]["y"] == 59
     assert actions[1]["args"]["mouse_button"] == "left" and actions[1]["args"]["click_count"] == 1
-    assert actions[2]["args"]["x"] == 31 and actions[2]["args"]["y"] == 41
+    assert actions[2]["args"]["x"] == 31 and actions[2]["args"]["y"] == 58
     assert actions[2]["args"]["mouse_button"] == "left" and actions[2]["args"]["click_count"] == 1
-    assert actions[3]["args"]["x"] == 32 and actions[3]["args"]["y"] == 42
+    assert actions[3]["args"]["x"] == 32 and actions[3]["args"]["y"] == 57
     assert actions[3]["args"]["mouse_button"] == "left" and actions[3]["args"]["click_count"] == 1
-    assert actions[4]["args"]["x"] == 33 and actions[4]["args"]["y"] == 43
+    assert actions[4]["args"]["x"] == 33 and actions[4]["args"]["y"] == 56
     assert actions[4]["args"]["mouse_button"] == "left" and actions[4]["args"]["click_count"] == 1
     assert actions[5]["args"]["element_index"] == "3" and "observed_element_index" not in actions[5]["args"] and "observation_ref" not in actions[5]["args"]
     assert actions[6]["args"]["element_index"] == "6" and "observed_element_index" not in actions[6]["args"] and "observation_ref" not in actions[6]["args"]
@@ -239,9 +239,9 @@ for line in sys.stdin:
     assert actions[11]["args"]["key"] == "super+f"
     assert actions[12]["args"]["text"] == "focused query"
     assert actions[13]["args"]["element_index"] == "1" and actions[13]["args"]["value"] == "ignored value"
-    assert actions[14]["args"]["x"] == 10 and actions[14]["args"]["y"] == 20 and actions[14]["args"]["click_count"] == 2
+    assert actions[14]["args"]["x"] == 10 and actions[14]["args"]["y"] == 79 and actions[14]["args"]["click_count"] == 2
     assert actions[14]["args"]["mouse_button"] == "left"
-    assert actions[15]["args"]["x"] == 10 and actions[15]["args"]["y"] == 20
+    assert actions[15]["args"]["x"] == 10 and actions[15]["args"]["y"] == 79
     assert actions[16]["args"]["text"] == "visual query"
     assert actions[17]["args"]["text"] == "1+1"
     assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:17])

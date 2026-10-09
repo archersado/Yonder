@@ -16,6 +16,7 @@
 - [ ] 重跑正式企业微信企业切换回归，以目标企业名称的动作后事实更新 Verification Goal
 - [x] 过滤装饰性 image/disabled 候选并拒绝同尺寸 transcript 变化后的旧坐标
 - [x] 撤销错误的 backing-scale 换算，恢复原图像素不变传递并覆盖回归
+- [ ] 按 AD-CU-11 修订实现截图左上原点到 Sky 底部原点的 Y 轴变换并覆盖隔离/正式回归
 - [ ] 重跑企业微信 Retina 坐标正式回归并更新 macOS Verification Goal
 - [x] 从 Worker 到协议、Gateway、顶部浮窗与任务面板透出有界 Driver 错误分类
 - [ ] Windows 对等验证（依用户决定暂缓）

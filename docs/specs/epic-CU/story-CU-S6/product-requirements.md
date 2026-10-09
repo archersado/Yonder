@@ -31,8 +31,9 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-13：同尺寸窗口内 transcript 已变化时，旧截图坐标同样失效；Worker 仅在内存保存该次 transcript 指纹，不持久化正文或指纹，也不得伪造当前 macOS Sky 未公开的 `screenshotId`。
 - OEH-14：可操作节点的装饰性 image 后代不得作为第二个独立候选；disabled 节点不得作为可操作候选。无可操作祖先的 image 仍可作为受引用保护的尝试句柄，但动作回执不代表该 AX 节点确实可点击。
 - OEH-15：正式样本必须通过动作后 Observation 中与目标直接相关的结构事实核验；QQ 音乐坐标成功不得外推为企业微信企业切换成功，截图任意变化也不得作为企业切换完成证据。
-- OEH-16：Gateway、计划、慢脑与 Sky Adapter 均只使用同次 Observation 的原始截图像素；Adapter 不得读取、保存或应用显示器 backing scale。
+- OEH-16：Gateway、计划与慢脑均只使用同次 Observation 的左上原点原始截图像素；Adapter 不得读取、保存或应用显示器 backing scale，但 Worker 必须在 Sky 调用边界依据已验证截图高度把 Y 轴转换为底部原点，X 与像素单位不变。
 - OEH-17：原图坐标未命中时必须以后置 Observation 安全交回；不得把失败解释为倍率问题后自动换算或重放，后续慢脑只能基于新鲜截图修正点位或改用元素句柄。
+- OEH-20：坐标轴向变换必须是纯函数 `sky_y = screenshot_height - 1 - screenshot_y`，只在单次动作派发前执行；不得加入窗口偏移、显示器高度、比例缩放或第二次点击。
 - OEH-18：Driver unknown 必须区分动作超时、动作拒绝、动作未确认、目标引用失效、Observe 失败与传输失败；错误码必须进入既有 Attempt 事件并同步显示在顶部 Driver 轮次、任务面板及协议 1.49 Gateway 响应。
 - OEH-19：错误透出不得包含 SDK/MCP 原文、动作参数、应用名、AX transcript、截图、PID、窗口 ID 或完整 Payload；协议 1.48 及以下必须降级为既有通用 unknown reason。
 
