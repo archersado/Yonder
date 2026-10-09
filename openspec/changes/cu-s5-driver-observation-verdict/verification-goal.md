@@ -43,7 +43,7 @@
   安全取消。
 
 本次实机证据通过了“无 achieved 不得完成”“not-achieved 后可继续规划”和
-“结构动作事实不得合成业务成功”三项边界；但 TryCUA 尚不能对该样本产出可核验的
+“结构动作事实不得合成业务成功”三项边界；但当前 Sky 产品 Driver 尚不能对该样本产出可核验的
 播放动作，因此缺少最终 `achieved → task.complete` 正向证据。Verification Goal
 保持进行中，任务清单不勾选，Change 不得 Archive。后续应先在对应 Driver Story
 修复受 Observation 约束的控件激活，再新建独立任务重跑正向样本。
