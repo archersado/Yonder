@@ -1,10 +1,10 @@
 # goal-verification Delta Specification
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: 用户目标只能由归属慢脑基于最新 Observation 核验
 
-系统必须区分 Driver 动作状态、计划片段推进和用户目标完成。Application 只消费 Driver 直接返回的结构事实，不得根据动作类型合成业务状态；用户目标完成只接受归属慢脑绑定最新 Observation 的 `task.goal.verify`。
+系统 MUST 区分 Driver 动作状态、计划片段推进和用户目标完成。Application 只消费 Driver 直接返回的结构事实，不得根据动作类型合成业务状态；用户目标完成只接受归属慢脑绑定最新 Observation 的 `task.goal.verify`。
 
 #### Scenario: 播放动作返回后由慢脑核验
 
