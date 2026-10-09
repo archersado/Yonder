@@ -1866,6 +1866,13 @@ pub fn replan_wake(bytes: &[u8]) -> Option<ReplanWake> {
     })
 }
 
+/// 只暴露已通过 Gateway 编码的 achieved 任务身份，供组合根异步投影经验；
+/// 不暴露核验正文或允许调用方据此完成任务。
+pub fn achieved_goal_task_id(bytes:&[u8])->Option<String>{
+    let yonder_protocol::Response::Success{result:yonder_protocol::QueryResult::GoalVerification{task,verification},..}=yonder_protocol::decode_response(bytes).ok()? else{return None;};
+    (verification.outcome==yonder_protocol::GoalVerificationOutcome::Achieved&&crate::valid_id(&task.task_id)).then_some(task.task_id)
+}
+
 pub fn accepted_plan_presentation_hint(
     request: &[u8],
     response: &[u8],

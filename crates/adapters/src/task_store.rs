@@ -10,6 +10,7 @@ use yonder_application::{
     execution_runtime::{
         RuntimeEvent, RuntimeEventKind, RuntimeEventProjector, RuntimePhase, RuntimeProjectionError,
     },
+    execution_experience::{ExecutionExperience, ExecutionExperienceStore, ExperienceQuery, MAX_RECALLED_EXPERIENCES},
     jev_config::JevConfig,
     plan_fragment::{PlanFragment, StoredPlanFragment},
     work_focus::FocusFailure,
@@ -23,7 +24,26 @@ use yonder_application::{
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 24;
+pub const SQLITE_SCHEMA_VERSION: i64 = 25;
+
+enum ExperienceProjectionCommand{Record(Vec<ExecutionExperience>),Recall(ExperienceQuery,usize,std::sync::mpsc::Sender<Result<Vec<ExecutionExperience>,Error>>),Stop}
+
+pub struct ExecutionExperienceProjectionWorker{sender:std::sync::mpsc::SyncSender<ExperienceProjectionCommand>,thread:Option<std::thread::JoinHandle<()>>}
+impl ExecutionExperienceProjectionWorker{
+    pub fn start(mut store:SqliteTaskStore,capacity:usize)->Result<Self,Error>{
+        if capacity==0{return Err(Error::InvalidInput);}
+        let(sender,receiver)=std::sync::mpsc::sync_channel(capacity);
+        let thread=std::thread::Builder::new().name("yonder-experience-projector".into()).spawn(move||while let Ok(command)=receiver.recv(){match command{ExperienceProjectionCommand::Record(values)=>for value in values{let _=store.record_verified_experience(&value);},ExperienceProjectionCommand::Recall(query,limit,reply)=>{let _=reply.send(store.recall_experiences(&query,limit));},ExperienceProjectionCommand::Stop=>break}}).map_err(|_|Error::StorageUnavailable)?;
+        Ok(Self{sender,thread:Some(thread)})
+    }
+    pub fn record(&self,values:Vec<ExecutionExperience>)->Result<(),Error>{if values.is_empty(){return Ok(());}self.sender.try_send(ExperienceProjectionCommand::Record(values)).map_err(|_|Error::QuotaExceeded)}
+    pub fn recall(&self,query:ExperienceQuery,limit:usize,timeout:Duration)->Result<Vec<ExecutionExperience>,Error>{
+        let(reply,result)=std::sync::mpsc::channel();
+        self.sender.try_send(ExperienceProjectionCommand::Recall(query,limit,reply)).map_err(|_|Error::StorageUnavailable)?;
+        result.recv_timeout(timeout).map_err(|_|Error::StorageUnavailable)?
+    }
+}
+impl Drop for ExecutionExperienceProjectionWorker{fn drop(&mut self){let _=self.sender.send(ExperienceProjectionCommand::Stop);if let Some(thread)=self.thread.take(){let _=thread.join();}}}
 
 fn now_ms() -> Result<i64, Error> {
     let value = SystemTime::now()
@@ -31,6 +51,28 @@ fn now_ms() -> Result<i64, Error> {
         .map_err(|_| Error::StorageUnavailable)?
         .as_millis();
     i64::try_from(value).map_err(|_| Error::StorageUnavailable)
+}
+
+#[cfg(test)]
+mod execution_experience_tests{
+    use super::*;
+    use yonder_application::execution_experience::{ExecutionExperienceStore,ExperienceQuery};
+
+    fn value(interaction:&str,verified:u64)->ExecutionExperience{ExecutionExperience{platform:"macos".into(),driver:"sky".into(),application_id:"com.example.Music".into(),action_kind:"activate-control".into(),control_role:"control".into(),interaction:interaction.into(),precondition:"observe-valid=true".into(),success_condition:"action-succeeded=true".into(),success_count:1,failure_count:0,last_verified_at_ms:verified}}
+
+    #[test]
+    fn verified_experience_is_aggregated_and_recalled_with_a_hard_limit(){
+        let mut store=SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(),true).unwrap();
+        store.record_verified_experience(&value("visual-double-click",10)).unwrap();
+        store.record_verified_experience(&value("visual-double-click",20)).unwrap();
+        store.record_verified_experience(&value("fresh-ax-element-click",30)).unwrap();
+        let query=ExperienceQuery{platform:"macos".into(),driver:"sky".into(),application_id:"com.example.Music".into(),action_kind:Some("activate-control".into()),control_role:Some("control".into())};
+        let values=store.recall_experiences(&query,99).unwrap();
+        assert_eq!(values.len(),2);
+        assert_eq!(values[0].interaction,"visual-double-click");
+        assert_eq!(values[0].success_count,2);
+        assert_eq!(values[0].last_verified_at_ms,20);
+    }
 }
 
 fn next_created_at(connection: &Connection) -> Result<i64, Error> {
@@ -510,7 +552,7 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
         ]
         .contains(&schema)
         {
@@ -556,7 +598,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
         ]
         .contains(&schema)
         {
@@ -654,6 +696,10 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_goal_verification_schema.sql"))
                 .map_err(storage)?;
         }
+        if schema < 25 {
+            tx.execute_batch(include_str!("execution_experience_schema.sql"))
+                .map_err(storage)?;
+        }
         // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
         // 的三张业务表。全缺意味着不存在该组业务记录，可以只建空表；部分
         // 缺失可能已经丢失关联事实，必须失败关闭，不能猜测或补造。
@@ -734,6 +780,14 @@ impl SqliteTaskStore {
         Ok(config.clone())
     }
 
+    pub fn latest_plan_fragment(&mut self, task_id:&str)->Result<Option<StoredPlanFragment>,Error>{
+        let identity:Option<(String,i64)>=self.0.query_row(
+            "SELECT plan_id,plan_version FROM task_plan_fragments WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",
+            [task_id],|row|Ok((row.get(0)?,row.get(1)?))
+        ).optional().map_err(storage)?;
+        identity.map(|(plan_id,version)|self.get_plan_fragment(task_id,&plan_id,u64::try_from(version).map_err(|_|Error::StorageUnavailable)?)).transpose().map(Option::flatten)
+    }
+
     fn get_agent_registration(
         tx: &rusqlite::Transaction<'_>,
         agent_id: &str,
@@ -753,6 +807,24 @@ impl SqliteTaskStore {
             AgentRegistrationStatus::Disabled => "disabled",
             AgentRegistrationStatus::Revoked => "revoked",
         }
+    }
+}
+
+impl ExecutionExperienceStore for SqliteTaskStore{
+    fn record_verified_experience(&mut self,value:&ExecutionExperience)->Result<(),Error>{
+        if value.success_count==0||value.last_verified_at_ms==0||[&value.platform,&value.driver,&value.application_id,&value.action_kind,&value.control_role,&value.interaction,&value.precondition,&value.success_condition].iter().any(|field|field.len()>256||field.chars().any(char::is_control)){return Err(Error::InvalidInput);}
+        self.0.execute(
+            "INSERT INTO execution_experiences(platform,driver,application_id,action_kind,control_role,interaction,precondition,success_condition,success_count,failure_count,last_verified_at_ms) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11) ON CONFLICT(platform,driver,application_id,action_kind,control_role,interaction,precondition,success_condition) DO UPDATE SET success_count=success_count+excluded.success_count,failure_count=failure_count+excluded.failure_count,last_verified_at_ms=MAX(last_verified_at_ms,excluded.last_verified_at_ms)",
+            params![value.platform,value.driver,value.application_id,value.action_kind,value.control_role,value.interaction,value.precondition,value.success_condition,value.success_count as i64,value.failure_count as i64,value.last_verified_at_ms as i64]
+        ).map_err(storage)?;
+        Ok(())
+    }
+
+    fn recall_experiences(&mut self,query:&ExperienceQuery,limit:usize)->Result<Vec<ExecutionExperience>,Error>{
+        let limit=limit.min(MAX_RECALLED_EXPERIENCES);
+        if limit==0{return Ok(Vec::new());}
+        let mut statement=self.0.prepare("SELECT platform,driver,application_id,action_kind,control_role,interaction,precondition,success_condition,success_count,failure_count,last_verified_at_ms FROM execution_experiences WHERE platform=?1 AND driver=?2 AND application_id=?3 AND (?4 IS NULL OR action_kind=?4) AND (?5 IS NULL OR control_role=?5) ORDER BY (success_count * 1.0 / (success_count + failure_count)) DESC, success_count DESC, last_verified_at_ms DESC, interaction ASC LIMIT ?6").map_err(storage)?;
+        statement.query_map(params![query.platform,query.driver,query.application_id,query.action_kind,query.control_role,limit as i64],|row|Ok(ExecutionExperience{platform:row.get(0)?,driver:row.get(1)?,application_id:row.get(2)?,action_kind:row.get(3)?,control_role:row.get(4)?,interaction:row.get(5)?,precondition:row.get(6)?,success_condition:row.get(7)?,success_count:row.get::<_,i64>(8)? as u64,failure_count:row.get::<_,i64>(9)? as u64,last_verified_at_ms:row.get::<_,i64>(10)? as u64})).map_err(storage)?.collect::<Result<Vec<_>,_>>().map_err(storage)
     }
 }
 

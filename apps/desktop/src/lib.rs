@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{Manager, WebviewWindow};
-use yonder_adapters::{command::StructuredCommandAdapter, document::OoxmlDocumentAdapter, file::ControlledFileAdapter, task_store::SqliteTaskStore};
+use yonder_adapters::{command::StructuredCommandAdapter, document::OoxmlDocumentAdapter, file::ControlledFileAdapter, task_store::{ExecutionExperienceProjectionWorker,SqliteTaskStore}};
 #[cfg(target_os = "macos")]
 use yonder_adapters::{
     cua::{CuaWorker, MacosFrontmostTarget},
@@ -28,6 +28,7 @@ use yonder_application::{
     command_approval::{CommandApprovalError, CommandApprovalPreview, CommandApprovalRegistry, CommandApprovalSummary},
     cua_intent::{CuaIntentError, CuaIntentPreview, CuaIntentRegistry, CuaIntentSummary},
     execution_runtime::{ExecutionRuntime, RuntimeProjectionWorker},
+    execution_experience::{MAX_RECALLED_EXPERIENCES,recall_query,replan_hint,verified_experiences},
     jev_config::JevConfig,
     jev_runtime::{JevDecision, JevDecisionRequest, JevDecisionError},
     work_focus::{WorkFocusPort, WorkRef, capture_after_observe},
@@ -173,11 +174,15 @@ impl CuaControlHub {
     }
 
     pub fn mark_replanning(&self,task_id:&str,reason:&str){
+        self.mark_replanning_with_recall(task_id,reason,false)
+    }
+
+    pub fn mark_replanning_with_recall(&self,task_id:&str,reason:&str,recalled:bool){
         if reason.is_empty()||reason.len()>160||reason.contains('\0'){return}
         let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
         active.executing_step_id=None;
         active.presentation.plan_status="replanning".into();
-        active.presentation.current_step="等待慢脑重新规划".into();
+        active.presentation.current_step=if recalled{"已召回执行经验，等待慢脑重新规划"}else{"无可用经验，等待慢脑重新规划"}.into();
         active.presentation.slow_brain_summary=format!("已交回慢脑：{reason}");
         active.presentation.fast_brain_summary="快脑已停止，等待新计划".into();
     }
@@ -525,6 +530,7 @@ pub fn emit_pet_agent_connection(window:&WebviewWindow,presence:agent_input::Age
 
 pub struct TaskHost {
     store: SqliteTaskStore,
+    _experience_projector: ExecutionExperienceProjectionWorker,
     // projector 必须先于 runtime 停止，避免退出时留下仍在读取 mailbox 的线程。
     _runtime_projector: RuntimeProjectionWorker,
     runtime: ExecutionRuntime,
@@ -598,6 +604,10 @@ impl TaskHost {
             Duration::from_millis(50),
         )
         .map_err(|_| HostError::StorageUnavailable)?;
+        let experience_store = SqliteTaskStore::open_unencrypted(&directory.join("tasks.db"))
+            .map_err(|_| HostError::StorageUnavailable)?;
+        let experience_projector=ExecutionExperienceProjectionWorker::start(experience_store,32)
+            .map_err(|_|HostError::StorageUnavailable)?;
         // 当前只读宿主尚无执行器；后续执行必须共用此实例。
         let admission = Admission::new(4).map_err(|_| HostError::StorageUnavailable)?;
         #[cfg(target_os = "macos")]
@@ -638,6 +648,7 @@ impl TaskHost {
         });
         Ok(Self {
             store,
+            _experience_projector:experience_projector,
             _runtime_projector: runtime_projector,
             runtime,
             admission,
@@ -1073,6 +1084,14 @@ impl TaskHost {
                 now_ms,
             )
             .map_err(|_| HostError::StorageUnavailable)?;
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(task_id)=yonder_application::gateway::achieved_goal_task_id(&response){
+                if let Ok(Some(fragment))=self.store.latest_plan_fragment(&task_id){
+                    let _=self._experience_projector.record(verified_experiences(&fragment,"macos","sky",now_ms));
+                }
+            }
+        }
         if cancel_task.as_deref().is_some_and(|task_id|yonder_application::gateway::terminal_task_id(&response).as_deref()==Some(task_id)) {
             if let Err(error)=self.finish_cancelled_runtime(cancel_task.as_deref().unwrap()){eprintln!("取消后的运行时清理失败：{error:?}");}
         }
@@ -1100,6 +1119,18 @@ impl TaskHost {
             self.task_space_open_pending = true;
         }
         Ok(response)
+    }
+
+    /// 建议性经验读取失败按空结果降级，不能阻塞 handback 或改变任务事实。
+    pub fn recall_replan_experiences(&mut self,task_id:&str)->Vec<String>{
+        #[cfg(target_os = "macos")]
+        {
+        let Ok(Some(fragment))=self.store.latest_plan_fragment(task_id) else{return Vec::new();};
+        let Some(query)=recall_query(&fragment,"macos","sky") else{return Vec::new();};
+        self._experience_projector.recall(query,MAX_RECALLED_EXPERIENCES,Duration::from_millis(20)).unwrap_or_default().iter().map(replan_hint).collect()
+        }
+        #[cfg(not(target_os = "macos"))]
+        { let _=task_id; Vec::new() }
     }
 
     fn finish_cancelled_runtime(&mut self, task_id: &str) -> Result<(), HostError> {

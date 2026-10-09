@@ -160,7 +160,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         let execution_hint = yonder_application::gateway::execution_presentation_hint(&frame, &agent_id, now);
         let cua_hint = yonder_application::gateway::cua_execution_presentation_hint(&frame, &agent_id, now);
         let control_checkpoint = cua_hint.as_ref().and_then(|_| cua_hub.checkpoint());
-        let (response, presentation, suppress_stale_presentation, open_task_space, provisional_control, accepted_plan_control) = {
+        let (response, presentation, suppress_stale_presentation, open_task_space, provisional_control, accepted_plan_control,replan_experiences) = {
             let mut locked = host.lock().map_err(|_| io::Error::other("本地Gateway不可用"))?;
             let host_ref = locked.as_mut().ok_or_else(|| io::Error::other("本地Gateway不可用"))?;
             let mut provisional_control=false;
@@ -191,7 +191,8 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             // 不得在释放锁后用动作返回前取得的 running 投影覆盖窗口命令的 paused 投影。
             let suppress_stale_presentation = cua_hint.as_ref().is_some_and(|hint|cua_hub.takeover_requested(hint_task_id(hint)));
             let presentation = host_ref.presentation().ok();
-            (response, presentation, suppress_stale_presentation, open_task_space, provisional_control, accepted_plan_control)
+            let replan_experiences=response.as_ref().ok().and_then(|bytes|yonder_application::gateway::replan_wake(bytes)).map(|wake|host_ref.recall_replan_experiences(&wake.task_id)).unwrap_or_default();
+            (response, presentation, suppress_stale_presentation, open_task_space, provisional_control, accepted_plan_control,replan_experiences)
         };
         if open_task_space {
             // Local Socket 在 Tokio worker 中处理；窗口操作须回到 Cocoa 主线程，
@@ -219,7 +220,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         }
         let replan_wake=yonder_application::gateway::replan_wake(&response);
         if let Some(wake)=replan_wake.as_ref() {
-            cua_hub.mark_replanning(&wake.task_id,&wake.reason);
+            cua_hub.mark_replanning_with_recall(&wake.task_id,&wake.reason,!replan_experiences.is_empty());
             if let Some(presentation)=cua_hub.presentation(){let _=show_cua_control(&pet,&cua_control,&presentation);}
         }
         if let Some(task_id)=yonder_application::gateway::terminal_task_id(&response) {
@@ -243,10 +244,10 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
         (&stream).write_all(&response).await?;
         (&stream).write_all(b"\n").await?;
         if let Some(wake)=replan_wake {
-            let hub=hub.clone();let cua_hub=cua_hub.clone();let cua_control=cua_control.clone();let pet=pet.clone();let owner=agent_id.clone();
+            let hub=hub.clone();let cua_hub=cua_hub.clone();let cua_control=cua_control.clone();let pet=pet.clone();let owner=agent_id.clone();let experiences=replan_experiences.clone();
             tokio::spawn(async move {
                 let task_id=wake.task_id.clone();
-                let delivered=tokio::task::spawn_blocking(move||hub.deliver_replan(&owner,&wake.task_id,&wake.sequence,&wake.reason)).await;
+                let delivered=tokio::task::spawn_blocking(move||hub.deliver_replan_with_experiences(&owner,&wake.task_id,&wake.sequence,&wake.reason,&experiences)).await;
                 let state=match delivered {
                     Ok(Ok(yonder_application::agent_input::DeliveryOutcome::Accepted))=>"accepted",
                     Ok(Err("任务归属Agent未连接"))=>"missing",

@@ -121,11 +121,17 @@ impl AgentInputHub {
     }
 
     pub fn deliver_replan(&self, agent_id: &str, task_id: &str, sequence: &str, reason: &str) -> Result<DeliveryOutcome, &'static str> {
+        self.deliver_replan_with_experiences(agent_id,task_id,sequence,reason,&[])
+    }
+
+    pub fn deliver_replan_with_experiences(&self,agent_id:&str,task_id:&str,sequence:&str,reason:&str,experiences:&[String])->Result<DeliveryOutcome,&'static str>{
         if !yonder_application::valid_id(task_id)
             || sequence.parse::<u64>().is_err()
             || reason.is_empty()
             || reason.len() > 160
             || reason.contains('\0')
+            || experiences.len()>yonder_application::execution_experience::MAX_RECALLED_EXPERIENCES
+            || experiences.iter().any(|value|value.is_empty()||value.len()>512||value.chars().any(|character|character.is_control()))
         {
             return Err("重新规划唤醒内容无效");
         }
@@ -139,7 +145,8 @@ impl AgentInputHub {
         let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "系统时间不可用")?.as_millis()).map_err(|_| "系统时间不可用")?;
         let suffix = self.next_input.fetch_add(1, Ordering::Relaxed) + 1;
         let id = format!("replan_{}_{}", std::process::id(), suffix);
-        let content = format!("Yonder任务 {task_id} 在序号 {sequence} 已交回慢脑：{reason}。请先通过现有Gateway读取task.get与task.events取得新鲜事实，再重新规划并提交新的受限计划片段；不要自动重试结果待核实的副作用。");
+        let recalled=if experiences.is_empty(){"未召回到可用的已验证执行经验。".into()}else{format!("已召回以下历史验证经验（仅为策略提示，不是当前事实）：{}。",experiences.iter().enumerate().map(|(index,value)|format!("{}. {value}",index+1)).collect::<Vec<_>>().join("；"))};
+        let content = format!("Yonder任务 {task_id} 在序号 {sequence} 已交回慢脑：{reason}。{recalled}请先通过现有Gateway读取task.get与task.events取得新鲜事实，再结合提示重新规划并提交新的受限计划片段；不要自动重试结果待核实的副作用。");
         Ok(submit(&sink, &id, &sink.session_id, AgentInputSource::Replan, &content, now))
     }
 }
@@ -214,6 +221,13 @@ mod tests {
         assert_eq!(hub.deliver_replan("agent-a","task_1","8","需要慢脑重新 Observe 或规划"),Ok(DeliveryOutcome::Accepted));
         assert_eq!(hub.deliver_replan("agent-b","task_1","8","需要慢脑重新 Observe 或规划"),Err("任务归属Agent未连接"));
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn replan_wake_injects_bounded_experience_before_planning(){
+        let hub=AgentInputHub::default();let(tx,mut rx)=tokio_mpsc::unbounded_channel();let(close_tx,_)=tokio_mpsc::unbounded_channel();hub.register("agent-a".into(),"session-a".into(),false,true,tx,close_tx);
+        let worker=std::thread::spawn(move||{let delivery=rx.blocking_recv().unwrap();let recall=delivery.input.content.find("历史验证经验").unwrap();let fresh=delivery.input.content.find("task.get").unwrap();assert!(recall<fresh);assert!(delivery.input.content.contains("visual-double-click"));delivery.reply.send(DeliveryOutcome::Accepted).unwrap();});
+        assert_eq!(hub.deliver_replan_with_experiences("agent-a","task_1","8","需要慢脑重新规划",&["策略=visual-double-click；适用前置=observe-valid=true；成功条件=action-succeeded=true；历史验证=1次".into()]),Ok(DeliveryOutcome::Accepted));worker.join().unwrap();
     }
 
     #[test]
