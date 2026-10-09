@@ -797,6 +797,12 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                         verified_sequence,
                         outcome,
                     });
+                    // not-achieved 是慢脑给出的终局否定事实：任务保持非终态，
+                    // 但当前片段必须进入可重规划的 HandBack，而不能继续保留
+                    // Running + 旧 active_plan 形成一个永远无法绑定新版本的状态。
+                    if outcome == crate::GoalVerificationOutcome::NotAchieved {
+                        task.snapshot.phase = RuntimePhase::HandBack;
+                    }
                     append(
                         task,
                         RuntimeEventKind::GoalVerified {
@@ -1180,5 +1186,14 @@ mod tests {
         handle.apply(start_step("task-goal","continue","继续执行")).unwrap();
         assert!(handle.snapshot("task-goal").unwrap().goal_verification.is_none());
         assert!(boundary.sequence < verified.sequence);
+
+        handle.apply(RuntimeCommand::Activate{task_id:"task-replan".into(),checkpoint:0}).unwrap();
+        handle.apply(start_step("task-replan","inspect","检查目标")).unwrap();
+        let observed=handle.apply(RuntimeCommand::CompleteStep{task_id:"task-replan".into(),step_id:"inspect".into(),action_succeeded:true}).unwrap();
+        let observation_sequence=observed.last_observation_sequence.unwrap();
+        handle.apply(RuntimeCommand::AdvanceStepBoundary{task_id:"task-replan".into(),step_id:"inspect".into()}).unwrap();
+        let not_achieved=handle.apply(RuntimeCommand::VerifyGoal{task_id:"task-replan".into(),verification_id:"verify-replan".into(),observation_sequence,outcome:crate::GoalVerificationOutcome::NotAchieved}).unwrap();
+        assert_eq!(not_achieved.phase,RuntimePhase::HandBack);
+        assert_eq!(not_achieved.goal_verification.unwrap().outcome,crate::GoalVerificationOutcome::NotAchieved);
     }
 }

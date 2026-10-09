@@ -22,3 +22,5 @@ Windows 原生验证按主人决定暂缓；macOS 完成协议、Application、G
 2026-10-07 macOS 独立 Verification Goal PASS：协议 1.43、ExecutionRuntime、SQLite 事后投影、Gateway/CLI、任务事件与顶部浮窗均已接入；全 Workspace 196 个测试通过。Windows 对等证据继续暂缓，因此保持 verifying、不 Archive。验证记录见 [verification-goal.md](../../../../openspec/changes/cu-s5-goal-verification-loop/verification-goal.md)。
 
 2026-10-08：按用户修订建立 `cu-s5-driver-observation-verdict` 增量。计划片段不再按动作类型合成业务事实；Application 只消费 Driver 结构状态，开放业务目标完成仍由归属慢脑基于最新 Observation 通过 `task.goal.verify` 判断。
+
+2026-10-09：正式产品回归修正活动Runtime重规划边界。`not-achieved`现在形成真实`HandBack`，非交回状态的计划提交在持久化前拒绝，Gateway读取也不会用旧Runtime序号覆盖已接受的新计划；同任务新版本片段的Runtime/SQLite集成回归通过。

@@ -24,4 +24,10 @@ Windows 对等验证按用户决定暂缓，macOS 证据不得外推。
 - `cargo test --workspace --locked -- --test-threads=1`：196 个单元/集成测试全部通过，Doc tests 全部通过。
 - `openspec validate cu-s5-goal-verification-loop --strict`：PASS。
 
+## 2026-10-09 正式链路回归修正
+
+- 正式Yonder任务`task_62569dbd9e848494033501c858d3a348`在新鲜Observe后提交后续计划时复现：Store接受新版本并返回序号20，但活动Runtime仍以序号19绑定旧片段，导致`task.get`倒退且新片段永久CAS冲突。
+- Runtime的`not-achieved`现显式进入`HandBack`；Gateway在写入不可变片段前拒绝非交回边界的replan，避免Store与Runtime分裂；`task.get`不再以较旧Runtime快照覆盖已接受的较新Store序号。
+- Application 74项测试通过；SQLite/Runtime集成测试新增“片段耗尽→not-achieved→异步投影→同任务新版本片段连续执行”，验证新片段可重新绑定且没有重放旧动作。
+
 仓库全局 `scripts/check_architecture.py` 仍被既有 `TM-S9` Story README 缺少 `Story:` 字段阻断；CU-S5 自身所需章节、双向 OpenSpec 关联与严格 OpenSpec 校验均已通过。该既有规划缺口未在本 Story 越界修改。

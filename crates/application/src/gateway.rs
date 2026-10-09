@@ -448,6 +448,16 @@ mod tests {
         overlay_runtime_snapshot(&mut response,&active,Some(&pending));
         let Response::Success{result:QueryResult::Snapshot{task},..}=response else{panic!("响应类型错误")};assert_eq!(task.sequence,"7");assert_eq!(task.status,yonder_protocol::TaskStatus::Running);assert_eq!(task.next_intent.as_deref(),Some("需要慢脑重新规划"));
         let tail=runtime_tail_events(yonder_protocol::TaskStatus::Running,&pending,6,10);assert_eq!(tail.len(),1);assert_eq!(tail[0].sequence,"7");assert_eq!(tail[0].wait_reason.as_deref(),Some("需要慢脑重新规划"));
+
+        let newer=crate::Task{id:"runtime-task".into(),owner_agent_id:"a1".into(),name:Some("运行时任务".into()),source:crate::TaskSource::LocalAgent,status:crate::Status::Running,sequence:8};
+        let mut response=Response::Success{jsonrpc:Version::V2,id:"get-newer".into(),result:QueryResult::Snapshot{task:snapshot(newer)}};
+        overlay_runtime_snapshot(&mut response,&active,Some(&pending));
+        let Response::Success{result:QueryResult::Snapshot{task},..}=response else{panic!("响应类型错误")};
+        assert_eq!(task.sequence,"8");
+        assert!(runtime_allows_plan_submit(&active,7));
+        let mut running=active.clone();running.phase=crate::execution_runtime::RuntimePhase::Running;
+        assert!(!runtime_allows_plan_submit(&running,7));
+        assert!(!runtime_allows_plan_submit(&active,8));
     }
 
     #[test]
@@ -906,6 +916,21 @@ impl<'a> GatewaySession<'a> {
             Request::PlanSubmit { params, .. } => {
                 if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
                 if !self.can_plan_submit { return Err(RpcError::new(-32010, "计划片段提交需要协议1.31及本机片段存储")); }
+                if let Some(runtime)=execution_runtime {
+                    match runtime.snapshot(&params.task_id) {
+                        Ok(active) => {
+                            let expected=yonder_protocol::sequence(&params.expected_sequence)?;
+                            // 活动片段只能在显式交回边界接受replan。先于SQLite
+                            // 写入拒绝错误时序，避免Store已接受新版本而Runtime仍
+                            // 绑定旧版本，导致task.get与后续execute永久CAS分裂。
+                            if !runtime_allows_plan_submit(&active,expected) {
+                                return Err(RpcError::new(-32011,"任务状态已更新，请刷新"));
+                            }
+                        }
+                        Err(crate::execution_runtime::RuntimeError::NotFound)=>{}
+                        Err(error)=>return Err(query::error(runtime_error(error))),
+                    }
+                }
                 let task = crate::plan_fragment::submit(store, self.auth, &params).map_err(query::error)?;
                 Ok(QueryResult::Plan { task_id: task.id, plan_id: params.plan_id, plan_version: params.plan_version, sequence: task.sequence.to_string(), disposition: "accepted".into(), handoff_reason: None, observation: None })
             }
@@ -1916,9 +1941,18 @@ fn runtime_error(error: crate::execution_runtime::RuntimeError) -> crate::Error 
     }
 }
 
+fn runtime_allows_plan_submit(active:&crate::execution_runtime::RuntimeSnapshot,expected:u64)->bool{
+    active.sequence==expected
+        && active.phase==crate::execution_runtime::RuntimePhase::HandBack
+        && !active.current_step.as_ref().is_some_and(|step|step.phase==crate::execution_runtime::RuntimeStepPhase::Executing)
+}
+
 fn overlay_runtime_snapshot(response:&mut Response,active:&crate::execution_runtime::RuntimeSnapshot,pending:Option<&[crate::execution_runtime::RuntimeEvent]>) {
     let Response::Success{result:QueryResult::Snapshot{task},..}=response else{return};
     if task.task_id!=active.task_id{return;}
+    // 计划提交仍以不可变Store事务接受；它可能刚好比尚未绑定新片段的活动
+    // Runtime领先一个序号。读取投影绝不能用旧运行时快照把已接受序号倒退。
+    if task.sequence.parse::<u64>().is_ok_and(|sequence|sequence>active.sequence){return;}
     task.sequence=active.sequence.to_string();task.status=match active.phase{crate::execution_runtime::RuntimePhase::Completed=>yonder_protocol::TaskStatus::Completed,crate::execution_runtime::RuntimePhase::Failed=>yonder_protocol::TaskStatus::Failed,crate::execution_runtime::RuntimePhase::Cancelled=>yonder_protocol::TaskStatus::Cancelled,crate::execution_runtime::RuntimePhase::Interrupted=>yonder_protocol::TaskStatus::Interrupted,crate::execution_runtime::RuntimePhase::Paused=>yonder_protocol::TaskStatus::Paused,_=>yonder_protocol::TaskStatus::Running};
     task.current_step=active.current_step.as_ref().map(|step|yonder_protocol::StepDeclaration{step_id:step.step_id.clone(),label:step.label.clone(),accepted_sequence:active.sequence.to_string()});
     if active.phase==crate::execution_runtime::RuntimePhase::HandBack{if let Some(reason)=pending.and_then(|events|events.iter().rev().find_map(|event|match &event.kind{crate::execution_runtime::RuntimeEventKind::HandedBack{reason}=>Some(reason.clone()),_=>None})){task.next_intent=Some(reason);}}
