@@ -36,3 +36,23 @@
 
 正式 macOS GUI 面板保存与本地 `multilingual` Gateway 样本仍须在合并、重建并重启
 `Yonda.app` 后执行；本节不提前宣称原生 Goal PASS。
+
+## 2026-10-09 正式 Gateway 终局复验
+
+从提交 `6e4dbe7` 的 `dev` 重建并重启正式 debug `Yonda.app` 后，用户在独立 Jev
+设置窗口保存本地模型、置信度字段名和阈值。归属 `codex-cli` 的正式任务
+`task_7ab0958017947f67f79283cfd8ae09c3` 只经安装包 MCP、Agent Gateway、Application、
+Jev Adapter 与 Sky Driver 执行，没有直接读取 SQLite、连接 Socket、调用 Worker 或 Driver。
+
+首版两槽位片段遇到 QQ 音乐版本更新窗口；Yonder 在真实 Observe 后安全交回。慢脑读取
+任务与事件，以同一任务递增计划版本，使用 Observation 绑定的元素句柄关闭提示。该动作在
+序号 14 得到 `action_succeeded=true / observe_valid=true`，随后因步骤完成证据不足再次交回，
+没有自动重放动作。第三版片段从包含 252 个元素的新鲜主窗口 Observation 中执行
+“从歌曲主界面选择并聚焦搜索框”；本地 Jev 正常完成自然候选决策，Driver 在序号 19 返回
+`observed(action_succeeded=true, observe_valid=true)`，片段进入 `awaiting-goal-verification`。
+归属慢脑以该 Observation 提交 `achieved`，任务最终 `completed@23`。
+
+结论：已保存的可填写置信度字段名可被正式 Worker 正常读取并通过同一配置快照应用于
+自然 AX 候选选择和动作后步骤核验；本次没有出现“快脑决策不可用”或字段缺失回退。
+配置界面、Gateway、Jev 与 Driver 正向链路 PASS。过程中未记录 API Key、模型原始响应、
+完整请求、截图或完整 AX transcript。Windows 仍按既有决定暂缓，不影响本 macOS 增量归档。

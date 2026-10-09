@@ -40,3 +40,5 @@ OpenSpec: ex-s2-plan-fragment-macos
 2026-10-09 用户要求本地 Jev 模型名成为面板配置。增量 Change [ex-s2-configurable-jev-model](../../../../openspec/changes/ex-s2-configurable-jev-model/proposal.md) 修复设置面板已允许 `local`、运行时却只接受远端的契约分裂，并使候选选择与步骤核验统一使用配置快照中的受限模型标识；不改变计划片段、任务状态或敏感数据边界。
 
 同日用户进一步要求置信度字段与阈值可配置。AD-EX-03 与本 Change 已扩展为可填写的响应顶层字段名和 `0..1` 阈值；字段名未填写时使用 `confidence`，旧 `confidence_metric` JSON 兼容迁移，已配置字段缺失时安全交回且不得探测其他属性。结构回归已通过，待重建正式 macOS GUI 后补面板保存与真实 Gateway 样本。
+
+同日正式 Gateway 终局复验 PASS：任务 `task_7ab0958017947f67f79283cfd8ae09c3` 在更新弹窗交回后按新鲜事实递增计划版本，本地 Jev 从 QQ 音乐 252 个元素的主窗口 Observation 中完成自然候选决策，搜索框动作在序号 19 得到 `action_succeeded=true / observe_valid=true`，经目标核验后 `completed@23`。该结果关闭可配置置信度字段的 macOS 产品验证；Windows 继续暂缓，EX-S2 整体仍按计划片段 Change 的剩余项保持 implementing。
