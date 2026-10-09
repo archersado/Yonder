@@ -35,6 +35,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-17：原图坐标未命中时必须以后置 Observation 安全交回；不得把失败解释为倍率问题后自动换算或重放，后续慢脑只能基于新鲜截图修正点位或改用元素句柄。
 - OEH-18：Driver unknown 必须区分动作超时、动作拒绝、动作未确认、目标引用失效、Observe 失败与传输失败；错误码必须进入既有 Attempt 事件并同步显示在顶部 Driver 轮次、任务面板及协议 1.49 Gateway 响应。
 - OEH-19：错误透出不得包含 SDK/MCP 原文、动作参数、应用名、AX transcript、截图、PID、窗口 ID 或完整 Payload；协议 1.48 及以下必须降级为既有通用 unknown reason。
+- OEH-20：元素动作只允许派发一次；若首次动作后 Observe 尚未出现预期结构变化，Worker 可在不重放动作的前提下进行不超过 900ms 的有界只读 Observe 收敛。期限内仍无直接结构证据时必须返回 unknown/handback，不得以等待时间或 Driver 回执替代成功事实。
 
 ## 验收映射
 
@@ -45,9 +46,10 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 | 2026-10-08 QQ 音乐坐标偏移回归 | OEH-11、OEH-12 |
 | 2026-10-08 企业微信企业切换负样本与 Retina 逻辑点诊断 | OEH-13～OEH-17 |
 | 2026-10-08 Driver 错误透出用户变更 | OEH-18、OEH-19 |
+| 2026-10-09 Sky 播放控件延迟状态样本 | OEH-20 |
 | AD-CU-09、AD-CU-10、AD-CU-11、AD-CU-12 | OEH-01～OEH-08、OEH-10～OEH-19 |
 | AD-TM-23 | OEH-07 |
 
 ## 范围与非目标
 
-本 Story 只覆盖 CUA 临时 Observation transcript、句柄、引用绑定、协议/Gateway/Worker 合约和 macOS 正式验证。不建立持久 AX 索引或 transcript，不把截图 OCR 伪装为 AX，不新增第二 Driver，不自动重试 unknown 动作，也不完成暂缓的 Windows 验证。
+本 Story 只覆盖 CUA 临时 Observation transcript、句柄、引用绑定、协议/Gateway/Worker 合约和 macOS 正式验证。不建立持久 AX 索引或 transcript，不把截图 OCR 伪装为 AX，不新增第二 Driver，不自动重试 unknown 动作，也不完成暂缓的 Windows 验证。有界动作后 Observe 收敛只重复读取，不重复派发动作。

@@ -50,6 +50,12 @@
 - **WHEN** Sky动作调用返回但transcript与视觉事实不能确认变化
 - **THEN** 结果保持unknown/handback，且不得自动重试
 
+#### Scenario: 元素动作后的 AX 状态延迟
+
+- **WHEN** Sky 元素动作已单次派发，但首次动作后 Observe 尚未出现预期结构变化
+- **THEN** Worker 可在不重放动作的前提下进行不超过 900ms 的有界只读 Observe 收敛
+- **AND** 期限内仍无直接结构证据时保持 unknown/handback
+
 #### Scenario: 坐标调用返回错误
 
 - **WHEN** 坐标点击已提交给 Sky 后返回超时、窗口失效或其他动作错误

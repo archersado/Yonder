@@ -27,6 +27,8 @@ delay_marker = state_path + '.startup-delayed'
 text = '1 文本框 搜索\\n2 按钮 播放\\n3 row (selectable)\\n\\t4 单元格\\n\\t\\t5 文本 狼顾科技\\n6 图像\\n7 按钮 账户\\n\\t8 图像\\n9 按钮 disabled 未读' + open(state_path, encoding='utf-8').read()
 calculator_text = '1 按钮 1\\n2 文本 0'
 approved = False
+delayed_change_at = None
+element_three_clicks = 0
 log = os.environ['YONDER_SKY_TEST_LOG']
 for line in sys.stdin:
     request = json.loads(line)
@@ -57,6 +59,11 @@ for line in sys.stdin:
             ]
             result = {'content':[{'type':'text','text':json.dumps(value, ensure_ascii=False)}]}
         elif name == 'get_app_state':
+            if delayed_change_at is not None and time.monotonic() >= delayed_change_at:
+                text += '\\n7 文本 已打开搜索结果'
+                delayed_change_at = None
+                with open(log, 'a', encoding='utf-8') as output:
+                    output.write(json.dumps({'delayed_state_visible':True}, ensure_ascii=False)+'\\n')
             with open(log, 'a', encoding='utf-8') as output:
                 output.write(json.dumps({'observe':{'app':args['app'],'disableDiff':args.get('disableDiff'),'disable_diff':args.get('disable_diff')}}, ensure_ascii=False)+'\\n')
             if not approved:
@@ -80,7 +87,11 @@ for line in sys.stdin:
             elif name == 'type_text' and args['app'].endswith('QQMusic.app'):
                 text = f\"1 文本框 搜索 {args['text']}\\n2 按钮 播放\\n3 选项 one\\n4 选项 last\\n5 选项 kiss 宇多田光\"
             elif name == 'click' and args.get('element_index') == '3':
-                text += '\\n7 文本 已打开搜索结果'
+                element_three_clicks += 1
+                if element_three_clicks == 1:
+                    delayed_change_at = time.monotonic() + 0.15
+                else:
+                    text += '\\n7 文本 已打开搜索结果'
             elif name == 'click' and args.get('element_index') == '6':
                 text += '\\n20 文本 已激活图像入口'
             elif name == 'click' and args.get('element_index') == '2':
@@ -194,6 +205,9 @@ for line in sys.stdin:
     assert any(item == {"approval": True} for item in records)
     assert all(not item.get("rogue_approval", False) for item in records if "rogue_approval" in item)
     assert all(item["approval"] for item in records if "approval" in item)
+    # 第一项元素动作的AX变化延迟出现；动作日志仍只有调用方提交的两项独立
+    # 索引3步骤，证明Observe轮询没有重放其中任何一次点击。
+    assert sum(item.get("delayed_state_visible") is True for item in records) == 1, records
     # 两次显式启动Worker，加上末尾“无窗口”Observe的一次受限刷新。
     # 三个坐标动作均不得额外重建Client。
     assert sum("rogue_approval" in item for item in records) == 3
@@ -231,6 +245,7 @@ for line in sys.stdin:
     assert actions[4]["args"]["x"] == 33 and actions[4]["args"]["y"] == 43
     assert actions[4]["args"]["mouse_button"] == "left" and actions[4]["args"]["click_count"] == 1
     assert actions[5]["args"]["element_index"] == "3" and "observed_element_index" not in actions[5]["args"] and "observation_ref" not in actions[5]["args"]
+    assert sum(item["name"] == "click" and item["args"].get("element_index") == "3" for item in actions) == 2
     assert actions[6]["args"]["element_index"] == "6" and "observed_element_index" not in actions[6]["args"] and "observation_ref" not in actions[6]["args"]
     assert actions[7]["args"]["element_index"] == "1" and actions[7]["args"]["value"] == "one last kiss"
     assert actions[8]["args"]["key"] == "Return"

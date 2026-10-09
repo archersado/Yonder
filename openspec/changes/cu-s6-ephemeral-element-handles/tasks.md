@@ -18,4 +18,5 @@
 - [x] 撤销错误的 backing-scale 换算，恢复原图像素不变传递并覆盖回归
 - [ ] 重跑企业微信 Retina 坐标正式回归并更新 macOS Verification Goal
 - [x] 从 Worker 到协议、Gateway、顶部浮窗与任务面板透出有界 Driver 错误分类
+- [x] 对元素动作增加 900ms 有界动作后 Observe 收敛，覆盖延迟状态且证明动作零重放
 - [ ] Windows 对等验证（依用户决定暂缓）

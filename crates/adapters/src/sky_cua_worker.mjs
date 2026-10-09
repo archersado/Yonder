@@ -17,6 +17,8 @@ const supported = new Set([
 // 5 秒会在正常握手刚返回前销毁 Client；该预算仍受 Rust Worker 的 60 秒总上限约束。
 const bridgeStartupTimeoutMs = 15_000;
 const coordinateActionTimeoutMs = 25_000;
+const elementObserveConvergenceMs = 900;
+const elementObserveIntervalMs = 100;
 let pendingInput;
 let latestObservation;
 let trustedSearchFocus;
@@ -998,6 +1000,21 @@ function actionConfirmed(expectation, before, after) {
   return fingerprint(before) !== fingerprint(after);
 }
 
+async function observeAfterAction(request, target, before, expectation) {
+  let after = await observe(target);
+  const convergesElementAction = request.arguments._yonder_action_kind === 'activate-control'
+    && Number.isInteger(request.arguments.observed_element_index)
+    && expectation?.kind === 'transcript-changed';
+  if (!convergesElementAction || actionConfirmed(expectation, before, after)) return after;
+  const deadline = Date.now() + elementObserveConvergenceMs;
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, Math.min(elementObserveIntervalMs, deadline - Date.now())));
+    after = await observe(target);
+    if (actionConfirmed(expectation, before, after)) break;
+  }
+  return after;
+}
+
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   let request;
   try { request = JSON.parse(line); } catch { process.exitCode = 2; break; }
@@ -1017,7 +1034,9 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.action_known = true;
     if (request.tool_name === 'launch_app') target = await bindRunningTarget(target);
     response.failure_stage = 'observe-after';
-    const after = await observe(target);
+    // 元素动作只派发一次；部分应用的 AX 状态晚于动作回执更新，因此仅在
+    // 同一可信应用上做短时只读收敛。坐标/结果待核实动作不进入该循环。
+    const after = await observeAfterAction(request, target, before, expectation);
     response.observe_valid = true;
     response.target_visible = request.tool_name === 'launch_app' ? false : externalMacFocus ? true : null;
     response.element_count = Math.min(65_535, transcriptElements(after).length);

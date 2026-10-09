@@ -13,6 +13,20 @@
 - `cargo test -p yonder-protocol -p yonder-application -p yonder-adapters --locked -- --test-threads=1`：155 项通过（Protocol 18、Application 59、Adapters 78）。
 - `openspec validate cu-s6-ephemeral-element-handles --strict` 与 `git diff --check`：通过。
 
+## 2026-10-09 元素动作后 Observe 收敛
+
+- Sky 元素点击仍只派发一次；首次动作后结构状态未变化时，Worker 在 900ms 内按
+  100ms 间隔只读 Observe，取得既有结构后置事实即停止。坐标动作与结果待核实动作
+  不进入该循环，期限耗尽仍按 unknown/handback 处理。
+- `python3 apps/desktop/check-sky-cua-worker.py`：通过。延迟状态夹具在后续 Observe
+  才出现变化，动作日志与调用方提交步骤一一对应，没有新增点击。
+- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息草稿、确认与发送 no-op
+  边界未受影响。
+- `cargo test --offline --locked -p yonder-adapters`：85 项通过；`cargo test
+  --offline --locked -p yonder-desktop --lib`：29 项通过。
+- `openspec validate cu-s6-ephemeral-element-handles --strict`、架构检查、Node/Python
+  语法检查与 `git diff --check` 均通过。正式 QQ 音乐播放正向样本仍需重建产品后复验。
+
 ## 2026-10-08 企业微信负样本后的收紧
 
 - `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明同尺寸 transcript 变化会使旧坐标失效且不派发动作；可操作按钮下的装饰性 image 与 disabled 按钮不会形成候选，独立 image 仍可通过新鲜引用执行。
