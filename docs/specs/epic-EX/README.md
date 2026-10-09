@@ -28,6 +28,7 @@ Epic 分支：`epic/ex`
 | [EX-S2](story-EX-S2/README.md) | 快慢脑计划片段、决策循环、交回契约及最小 Jev 配置界面 | macOS-only 决策 Port 已通过并归档；完整计划片段、Windows 与费用证据后补。 |
 | [EX-S3](story-EX-S3/README.md) | CUA 与 BUA 的动态候选动作接线 | EX-S2；CU/BU 既有 Observe、目标新鲜度、租约与 Task Space 门禁。 |
 | [EX-S4](story-EX-S4/README.md) | Document 与 Command 的有界执行接线和端到端对照 | EX-S2；DO/FI/CM 各自产品门禁；结构化写入参数由慢脑提供。 |
+| [EX-S5](story-EX-S5/README.md) | 已验证执行经验召回与慢脑 replan 上下文 | EX-S2；只召回脱敏策略元数据，不重放旧动作或替代新鲜 Observe。 |
 
 每个 Story 独立短分支、一个实施 OpenSpec Change、独立 Verification Goal；Spike Change 与产品实施 Change 分开。当前均为设计初稿，不生成实施 Proposal 或修改运行时代码。
 
