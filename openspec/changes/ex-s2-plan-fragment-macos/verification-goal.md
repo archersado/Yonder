@@ -125,3 +125,16 @@ Jev 选择目标按钮后，Application 仅在当次内存请求注入 `observat
 修复后 Application 将 `TextField/ComboBox` 纳入 Driver 可点击候选，并在截断前按“完整标签词命中→连续字符相关度”稳定排序。新增单测构造十二个前置按钮与索引 228 的“文本框 搜索”，证明中文步骤会把该文本框排到九项候选首位并注入同次 `observation_ref`；Application 77/77、Desktop 29/29、OpenSpec strict 与架构检查通过。
 
 从 `dev` 重建并启动正式 `Yonda.app` 后，任务 `task_a45d678e3555ba84bc3c340ab1e6b251` 经安装包 MCP/Gateway 重跑“打开QQ音乐→从当前界面选择并聚焦歌曲搜索框”。启动与 Observe 成功，第二槽位未再派发错误点击，系统以明确的“快脑置信度不足”在序号 8 安全交回。结论：候选缺失/错误 Driver 点击缺陷已关闭；当前剩余阻断是用户配置的 multilingual 置信结果未越过门槛，不应通过代码静默降阈值。
+
+## 2026-10-09 multilingual 语义别名回归
+
+同一中文搜索目标的本地模型只读对照显示：以 `ax-element-228` 等 Driver 句柄作为选项时，`multilingual` 原始响应错误选择“上一首”，`answer_confidence=0.6804`；把模型侧选项改为由脱敏标签派生的“搜索/播放”语义标识后，模型选择“搜索”，`answer_confidence=0.6140`。因此不能通过降低阈值放行原句柄响应，必须先隔离模型选项与 Driver 句柄。
+
+Application 已改为在本轮调用栈生成唯一语义别名，Jev 只返回别名，Application 再映射回同次 `observation_ref + observed_element_index`。Application 78/78、Adapter 85/85、OpenSpec strict、架构检查和 `git diff --check` 均通过；测试覆盖中文 `TextField`、重复标签唯一化、未知返回交回，以及选中别名只映射到对应真实句柄。
+
+合入 `dev` 并重建正式 `Yonda.app` 后运行两条 Gateway 样本：
+
+- `task_d3754621a8a2e2357d5ef31b5bf7708d`：首次计划因真实 Observe 的 `target_visible=false` 与计划前置条件冲突而在动作前交回；v2 修正为只使用已成立结构事实后，Jev 允许派发第二轮，但 Driver 返回 `worker-failed / observe_valid=false`，未形成可核验点击结果。
+- `task_5d708ed52d3f23609bbffff99cdb497a`：首槽位打开 QQ 音乐成功并取得 249 个 AX 元素，第二槽位在动作前以“快脑置信度不足”交回，未创建错误 Driver attempt。
+
+结论：模型侧 Driver 句柄泄漏和安全映射缺口已关闭；当前 `multilingual + 0.75` 配置仍不能稳定跨过候选选择门禁，完整正向 CUA PASS 继续阻塞。不得为了通过样本静默降低阈值；需由用户在 Jev 面板显式选择较低阈值或改用经验证模型后重跑，同时保留 Driver `worker-failed` 的独立阻断事实。
