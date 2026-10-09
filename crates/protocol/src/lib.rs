@@ -2030,7 +2030,7 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
                         && match candidate.action_kind {
                             CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && valid_plan_action_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
-                            CuaActionKind::FocusControl | CuaActionKind::InputText | CuaActionKind::ActivateControl | CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::FocusMessageComposer | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.is_none() && valid_plan_action_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
+                            CuaActionKind::LaunchApplication | CuaActionKind::FocusControl | CuaActionKind::InputText | CuaActionKind::ActivateControl | CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::FocusMessageComposer | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.is_none() && valid_plan_action_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
                             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
                         }
                 })

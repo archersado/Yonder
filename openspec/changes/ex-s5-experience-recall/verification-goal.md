@@ -23,6 +23,6 @@ Result: PASS
 - `cargo test -p yonder-desktop --lib`：30/30 通过，证明经验段先于 `task.get` 新鲜事实要求进入归属慢脑输入，且浮窗维持 replan 状态。
 - `python3 scripts/check_architecture.py`：通过。
 - Adapter 全量 86 项中与 schema 25 相关的原有迁移失败已修复；其余 85 项通过。既有 `command::timeout_and_cancellation_stop_parent_and_descendant` 在全量运行中仍有 PID fixture 空输出的环境性波动，单测独立重跑通过，与本 Change 无代码交集。
-- 首次真实产品计划提交发现协议拒绝 `launch-application + bundle_id`，已把校验收敛为单一、最长 255 字节、含反向域分隔且仅含字母数字/点/连字符的 bundle ID；路径、无域名和多余字段均拒绝。
+- 首次真实产品计划提交暴露出初始槽位也必须声明封闭前置事实；同时补齐此前缺失的 `launch-application` 参数 allowlist：只接受单一、最长 255 字节、含反向域分隔且仅含字母数字/点/连字符的 bundle ID，路径、无域名和多余字段均拒绝。
 
 结构化测试同时断言经验提示不含原坐标、旧 `observation_ref`、任务正文或消息内容。召回通过独立有界 worker，调用方最多等待 20ms；超时按空结果继续 replan。Windows 原生证据本轮暂缓；真实安装包任务样本留作 Archive 前最终证据。
