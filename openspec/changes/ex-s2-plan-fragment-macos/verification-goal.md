@@ -117,3 +117,11 @@ Jev 选择目标按钮后，Application 仅在当次内存请求注入 `observat
 本机 Keychain 凭据存在，使用同一凭据访问 TypeSafe `GET /v1/models` 返回 200 且包含 `jev-latest`；正式 `systemOne` 决策请求返回 HTTP 451“当前区域不可用”。诊断过程没有输出或保存凭据、候选正文、截图或完整模型 Payload。该事实说明当前阻塞属于远端区域可用性，而非 Gateway 断线、凭据缺失或计划 CAS；Application 的交回边界按设计生效。
 
 随后唯一慢脑候选仍可继续派发并返回新鲜 Observation，但动作后 Jev 三值步骤核验同样受 451 阻塞，因此不会把结构回执提升为完成。任务在重建正式包时按重启语义转为 `interrupted`。本样本通过“远端不可用时不误选、不重试 unknown、不假报完成”的负向验收；“Jev 动作后步骤完成三值核验”的代码与隔离测试已完成，真实远端 QQ 音乐正向结果仍保持未完成，待服务在当前区域恢复后重跑。Windows 继续暂缓。
+
+## 2026-10-09 multilingual 中文候选截断回归
+
+真实任务 `task_1fd24b3245f00a90bfe31cb7fc3bf03c` 暴露候选空间缺陷：QQ音乐搜索框位于 AX 索引 228，角色为 `TextField`，旧实现既未把文本框/组合框列为自然候选，又只按空格判断标签相关性，因此中文搜索框不可能进入最多九项的 Jev 请求；模型只能在树前部无关按钮与列表项中选择，Driver 最终返回 `action_succeeded=false`。
+
+修复后 Application 将 `TextField/ComboBox` 纳入 Driver 可点击候选，并在截断前按“完整标签词命中→连续字符相关度”稳定排序。新增单测构造十二个前置按钮与索引 228 的“文本框 搜索”，证明中文步骤会把该文本框排到九项候选首位并注入同次 `observation_ref`；Application 77/77、Desktop 29/29、OpenSpec strict 与架构检查通过。
+
+从 `dev` 重建并启动正式 `Yonda.app` 后，任务 `task_a45d678e3555ba84bc3c340ab1e6b251` 经安装包 MCP/Gateway 重跑“打开QQ音乐→从当前界面选择并聚焦歌曲搜索框”。启动与 Observe 成功，第二槽位未再派发错误点击，系统以明确的“快脑置信度不足”在序号 8 安全交回。结论：候选缺失/错误 Driver 点击缺陷已关闭；当前剩余阻断是用户配置的 multilingual 置信结果未越过门槛，不应通过代码静默降阈值。
