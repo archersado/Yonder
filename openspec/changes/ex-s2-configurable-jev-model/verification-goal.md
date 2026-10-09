@@ -16,3 +16,5 @@
 正式任务 `task_e8b300f7aa99327809f9bc2508f71c4b` 经新版 `Yonda.app → MCP → Gateway → Application → Jev Adapter` 执行。系统设置启动与动作后 Observe 成功；自然 AX 多候选进入快脑后约 30 秒安全交回，任务事实为“快脑决策不可用”，未派发候选点击，测试随后取消。
 
 同一安装包固定的 TypeSafe SDK 0.6.0 对 `http://127.0.0.1:8002`、模型 `english` 运行等价的十候选有界请求，精确在 30027ms 返回 `APITimeoutError`；同期 `/health` 为 HTTP 200 且 `english` 已加载。两候选最小请求可在 1 秒内返回兼容答案。因此配置模型传递与本地契约已越过原远端门禁，本轮阻塞收敛为十候选推理超过 Adapter 30 秒硬上限；不能记为完整正向 PASS。
+
+用户随后澄清面板实际保存的是 `typed-decisions`。服务首次收到该模型时执行按需 checkpoint 加载，撞上 30 秒 Adapter 上限；加载完成后 `/health` 明确投影 `loaded=["typed-decisions"]`。新的正式任务 `task_107841c7bdc8978f1b8a42fab0020de9` 在暖模型下 4.6 秒完成 Jev 调用，不再返回依赖不可用，而是按既有门禁以“快脑置信度不足”交回，未派发候选点击并已取消清理。这证明本地 endpoint、配置模型名与 Adapter 调用链 PASS；完整动作正向结果仍受本地模型置信度语义与产品固定 0.75 门槛不匹配阻断。
