@@ -2053,7 +2053,9 @@ pub fn valid_plan_action_arguments(kind:CuaActionKind, tool_name:&str, value:&se
         && arguments.get("observed_element_index").and_then(serde_json::Value::as_u64).is_some_and(|index|(1..=65_535).contains(&index))
         && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id);
     let search_hotkey=||arguments.len()==1&&arguments.get("keys").and_then(serde_json::Value::as_array).is_some_and(|keys|keys.len()==2&&keys[0]=="cmd"&&keys[1]=="f");
+    let launch_bundle=||arguments.len()==1&&arguments.get("bundle_id").and_then(serde_json::Value::as_str).is_some_and(|bundle_id|!bundle_id.is_empty()&&bundle_id.len()<=255&&bundle_id.contains('.')&&bundle_id.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-')));
     match kind {
+        CuaActionKind::LaunchApplication => tool_name=="launch_app"&&launch_bundle(),
         CuaActionKind::FocusControl => (tool_name=="click"&&(arguments.is_empty()||coordinates()))||(tool_name=="hotkey"&&search_hotkey()),
         CuaActionKind::InputText => tool_name=="type_text"
             && arguments.get("text").and_then(serde_json::Value::as_str).is_some_and(|text|!text.is_empty()&&text.len()<=4096)
@@ -2793,6 +2795,9 @@ mod tests {
         assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"ARROWDOWN"})));
         assert!(!valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":""})));
         assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"DELETE"})));
+        assert!(valid_plan_action_arguments(CuaActionKind::LaunchApplication,"launch_app",&serde_json::json!({"bundle_id":"com.apple.calculator"})));
+        assert!(!valid_plan_action_arguments(CuaActionKind::LaunchApplication,"launch_app",&serde_json::json!({"bundle_id":"/Applications/Calculator.app"})));
+        assert!(!valid_plan_action_arguments(CuaActionKind::LaunchApplication,"launch_app",&serde_json::json!({"bundle_id":"calculator"})));
     }
 
     #[test]
