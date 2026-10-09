@@ -694,6 +694,9 @@ mod tests {
         let accepted=r#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"plan","task_id":"task_1","plan_id":"plan_2","plan_version":2,"sequence":"9","disposition":"accepted"}}"#;
         assert_eq!(accepted_plan_presentation_hint(request.as_bytes(),accepted.as_bytes(),"agent",1000),Some(ExecutionPresentationHint::PlanSlot{task_id:"task_1".into(),plan_id:"plan_2".into(),plan_version:2}));
         assert_eq!(accepted_plan_presentation_hint(request.as_bytes(),accepted.as_bytes(),"other",1000),None);
+        let achieved=r#"{"jsonrpc":"2.0","id":"v1","result":{"kind":"goal-verification","task":{"task_id":"task_1","owner_agent_id":"agent","status":"running","sequence":"9"},"verification":{"verification_id":"verify_1","observation_sequence":"7","verified_sequence":"9","outcome":"achieved"}}}"#;
+        assert_eq!(achieved_goal_task_id(achieved.as_bytes()).as_deref(),Some("task_1"));
+        assert_eq!(achieved_goal_task_id(achieved.replace("achieved","not-achieved").as_bytes()),None);
     }
 
     #[test]

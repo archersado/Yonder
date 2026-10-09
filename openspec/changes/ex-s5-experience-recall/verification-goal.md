@@ -1,6 +1,8 @@
 # EX-S5 独立 Verification Goal
 
-状态：待运行
+Story: EX-S5
+Result: PASS
+状态：macOS 自动化通过；真实产品样本与 Windows 原生证据待补
 
 ## 目标
 
@@ -14,4 +16,12 @@
 
 ## macOS 产品证据
 
-使用隔离 fixture 形成一条已核验 CUA 激活经验，再创建同类失败任务触发 handback；记录结构化日志证明提示在慢脑规划前到达且不含正文/坐标/临时句柄。Windows 原生证据本轮暂缓。
+2026-10-09 在 macOS 运行：
+
+- `cargo test -p yonder-application --lib`：82/82 通过，证明坐标被剥离、敏感动作不晋升、当前槽位形成精确查询。
+- `cargo test -p yonder-adapters execution_experience --lib`：通过，证明 schema 25、相同键聚合、最多三条与独立投影线程的写后召回。
+- `cargo test -p yonder-desktop --lib`：30/30 通过，证明经验段先于 `task.get` 新鲜事实要求进入归属慢脑输入，且浮窗维持 replan 状态。
+- `python3 scripts/check_architecture.py`：通过。
+- Adapter 全量 86 项中与 schema 25 相关的原有迁移失败已修复；其余 85 项通过。既有 `command::timeout_and_cancellation_stop_parent_and_descendant` 在全量运行中仍有 PID fixture 空输出的环境性波动，单测独立重跑通过，与本 Change 无代码交集。
+
+结构化测试同时断言经验提示不含原坐标、旧 `observation_ref`、任务正文或消息内容。召回通过独立有界 worker，调用方最多等待 20ms；超时按空结果继续 replan。Windows 原生证据本轮暂缓；真实安装包任务样本留作 Archive 前最终证据。

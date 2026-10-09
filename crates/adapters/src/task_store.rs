@@ -72,6 +72,13 @@ mod execution_experience_tests{
         assert_eq!(values[0].interaction,"visual-double-click");
         assert_eq!(values[0].success_count,2);
         assert_eq!(values[0].last_verified_at_ms,20);
+
+        let worker_store=SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(),true).unwrap();
+        let worker=ExecutionExperienceProjectionWorker::start(worker_store,4).unwrap();
+        worker.record(vec![value("visual-double-click",40)]).unwrap();
+        let recalled=worker.recall(query,99,Duration::from_millis(100)).unwrap();
+        assert_eq!(recalled.len(),1);
+        assert_eq!(recalled[0].interaction,"visual-double-click");
     }
 }
 
@@ -5045,7 +5052,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            24
+            25
         );
         drop(store);
         for rejected in [
@@ -5091,7 +5098,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 24);
+        assert_eq!(version, 25);
     }
 
     #[test]
@@ -5119,7 +5126,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            24
+            25
         );
         assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
     }
@@ -5156,7 +5163,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            24
+            25
         );
     }
 
@@ -6517,7 +6524,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            24
+            25
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -8402,7 +8409,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            24
+            25
         );
     }
 
@@ -8595,7 +8602,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            24
+            25
         );
     }
 

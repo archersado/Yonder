@@ -1,8 +1,11 @@
 # EX-S5 已验证执行经验召回
 
-状态：implementing  
-关联 Epic：[EX](../README.md)  
-OpenSpec：`openspec/changes/ex-s5-experience-recall`
+Story: EX-S5
+Epic: EX
+Status: verifying
+OpenSpec: ex-s5-experience-recall
+
+[OpenSpec Change](../../../../openspec/changes/ex-s5-experience-recall/)
 
 ## 目标
 
@@ -19,3 +22,7 @@ OpenSpec：`openspec/changes/ex-s5-experience-recall`
 ## 非目标
 
 不做向量库、Embedding、知识图谱、自动技能生成、跨设备同步或旧动作重放；不从 `unknown`、未核验动作回执或敏感副作用中学习成功经验。
+
+## 当前结论
+
+Application、SQLite 独立投影线程、20ms 有界召回、AG-S5 慢脑输入与顶部浮窗状态已经接通，并在 macOS 完成独立自动化验证。Windows 原生证据按现有决定暂缓；Change 在补齐真实产品样本后再 Archive。
