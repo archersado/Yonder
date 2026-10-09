@@ -604,6 +604,10 @@ function publishObservation(state, request, response, target, screenshot) {
     applicationId: target.applicationId,
     reference,
     indexes: new Set(elements.map(element => element.index)),
+    handles: new Map(elements.map(element => [element.index, {
+      role: element.role,
+      label: element.label,
+    }])),
     screenshotWidth: screenshot?.width,
     screenshotHeight: screenshot?.height,
     transcriptFingerprint: createHash('sha256').update(ephemeralTranscript(state) ?? '').digest('hex'),
@@ -611,6 +615,13 @@ function publishObservation(state, request, response, target, screenshot) {
   response.observation_ref = reference;
   response.transcript = ephemeralTranscript(state);
   response.elements = elements;
+}
+
+function uniqueMatchingHandle(state, expected) {
+  if (!expected) return null;
+  const matches = actionableElements(state).filter(element =>
+    element.role === expected.role && element.label === expected.label);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function uniqueElement(state, predicate) {
@@ -825,15 +836,17 @@ async function perform(request, target, before) {
       && Number.isInteger(request.arguments.observed_element_index)) {
     const index = request.arguments.observed_element_index;
     const reference = request.arguments.observation_ref;
+    const observedHandle = latestObservation?.handles?.get(index);
+    const currentHandle = uniqueMatchingHandle(before, observedHandle);
     if (index < 1 || index > 65_535 || typeof reference !== 'string'
         || latestObservation?.taskId !== request.task_id
         || latestObservation.reference !== reference
         || !latestObservation.indexes.has(index)
-        || !actionableElements(before).some(element => element.index === index)) {
+        || !observedHandle || !currentHandle) {
       throw new WorkerFailure('target-semantic-element');
     }
-    await callAction('click', { app: target.app, element_index: String(index) }, target.applicationId);
-    return { kind: 'transcript-changed' };
+    await callAction('click', { app: target.app, element_index: String(currentHandle.index) }, target.applicationId);
+    return { kind: 'transcript-changed', recoverableElement: observedHandle };
   }
   if (semantic === 'activate-control' && request.tool_name === 'click'
       && Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
@@ -1011,6 +1024,29 @@ async function observeAfterAction(request, target, before, expectation) {
     await new Promise(resolve => setTimeout(resolve, Math.min(elementObserveIntervalMs, deadline - Date.now())));
     after = await observe(target);
     if (actionConfirmed(expectation, before, after)) break;
+  }
+  // Sky 的成功返回只是请求回执。若有界收敛后完整 transcript 仍未变化，且
+  // 同一角色/标签目标在最新树中仍唯一存在，可证实这次非敏感元素激活没有
+  // 形成可见效果。此时只按新鲜索引追加一次恢复动作；绝不复用旧索引，也
+  // 不把该机制扩展到坐标、文本、发送、确认或一次性引用动作。
+  if (!actionConfirmed(expectation, before, after)
+      && stateText(before) === stateText(after)
+      && expectation?.recoverableElement) {
+    const retryHandle = uniqueMatchingHandle(after, expectation.recoverableElement);
+    if (retryHandle) {
+      await callAction('click', {
+        app: target.app,
+        element_index: String(retryHandle.index),
+      }, target.applicationId);
+      const retryBefore = after;
+      after = await observe(target);
+      const retryDeadline = Date.now() + elementObserveConvergenceMs;
+      while (Date.now() < retryDeadline && !actionConfirmed(expectation, retryBefore, after)) {
+        await new Promise(resolve => setTimeout(resolve,
+          Math.min(elementObserveIntervalMs, retryDeadline - Date.now())));
+        after = await observe(target);
+      }
+    }
   }
   return after;
 }
