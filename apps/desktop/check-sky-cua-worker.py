@@ -176,6 +176,8 @@ for line in sys.stdin:
     activated = request("activate", "press_key", {"key": "ENTER", "_yonder_action_kind": "activate-control"})
     navigated = request("navigate-down", "press_key", {"key": "ARROWDOWN", "_yonder_action_kind": "activate-control"})
     activated_by_element = request("activate-element", "click", {"_yonder_action_kind": "activate-control"})
+    refocused = request("refocus", "hotkey", {"keys": ["cmd", "f"], "_yonder_action_kind": "focus-control"})
+    focused_entered = request("focused-input", "type_text", {"text": "focused query", "_yonder_action_kind": "input-text"})
     unconfirmed_input = request("unconfirmed-input", "type_text", {"text": "ignored value", "_yonder_action_kind": "input-text"})
     double_activated = request("activate-double", "click", {"x": 10, "y": 20, "click_count": 2, "observation_ref": unconfirmed_input["observation_ref"], "_yonder_action_kind": "activate-control"})
     visual_entered = request("visual-input", "type_text", {"text": "visual query", "x": 10, "y": 20, "observation_ref": double_activated["observation_ref"], "_yonder_action_kind": "input-text"})
@@ -199,7 +201,7 @@ for line in sys.stdin:
     observes = [item["observe"] for item in records if "observe" in item]
     assert observes and all(item["disableDiff"] is None and item["disable_diff"] is True for item in observes)
     actions = [item for item in records if "name" in item]
-    successful_results = (launched, observed_element, image_element, focused, entered, activated, navigated, activated_by_element, double_activated, visual_entered, calculator_launched, calculator_input, installed_fallback)
+    successful_results = (launched, observed_element, image_element, focused, entered, activated, navigated, activated_by_element, refocused, focused_entered, double_activated, visual_entered, calculator_launched, calculator_input, installed_fallback)
     assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"], result["failure_stage"], result["element_count"]) for result in successful_results]
     assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, stale_coordinate, generic_coordinate_error, unconfirmed_input))
     assert timed_coordinate["failure_stage"] == "driver-action-timed-out"
@@ -217,7 +219,7 @@ for line in sys.stdin:
     assert next(item for item in launched["elements"] if item["index"] == 7)["role"] == "button"
     assert all(item["index"] not in (8, 9) for item in launched["elements"])
     assert launched["element_count"] == 9
-    expected_action_names = ["press_key", "click", "click", "click", "click", "click", "click", "set_value", "press_key", "press_key", "click", "set_value", "click", "click", "type_text", "type_text"]
+    expected_action_names = ["press_key", "click", "click", "click", "click", "click", "click", "set_value", "press_key", "press_key", "click", "press_key", "type_text", "set_value", "click", "click", "type_text", "type_text"]
     assert [item["name"] for item in actions] == expected_action_names, [item["name"] for item in actions]
     assert actions[0]["args"]["key"] == "super+f"
     assert actions[1]["args"]["x"] == 30 and actions[1]["args"]["y"] == 40
@@ -234,14 +236,16 @@ for line in sys.stdin:
     assert actions[8]["args"]["key"] == "Return"
     assert actions[9]["args"]["key"] == "Down"
     assert actions[10]["args"]["element_index"] == "3"
-    assert actions[11]["args"]["element_index"] == "1" and actions[11]["args"]["value"] == "ignored value"
-    assert actions[12]["args"]["x"] == 10 and actions[12]["args"]["y"] == 20 and actions[12]["args"]["click_count"] == 2
-    assert actions[12]["args"]["mouse_button"] == "left"
-    assert actions[13]["args"]["x"] == 10 and actions[13]["args"]["y"] == 20
-    assert actions[14]["args"]["text"] == "visual query"
-    assert actions[15]["args"]["text"] == "1+1"
-    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:15])
-    assert actions[15]["args"]["app"] == "/System/Applications/Calculator.app"
+    assert actions[11]["args"]["key"] == "super+f"
+    assert actions[12]["args"]["text"] == "focused query"
+    assert actions[13]["args"]["element_index"] == "1" and actions[13]["args"]["value"] == "ignored value"
+    assert actions[14]["args"]["x"] == 10 and actions[14]["args"]["y"] == 20 and actions[14]["args"]["click_count"] == 2
+    assert actions[14]["args"]["mouse_button"] == "left"
+    assert actions[15]["args"]["x"] == 10 and actions[15]["args"]["y"] == 20
+    assert actions[16]["args"]["text"] == "visual query"
+    assert actions[17]["args"]["text"] == "1+1"
+    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:17])
+    assert actions[17]["args"]["app"] == "/System/Applications/Calculator.app"
     assert installed_fallback["launched_app_id"] == "com.apple.TextEdit"
     assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)

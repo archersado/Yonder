@@ -72,7 +72,7 @@ Worker在MCP握手后读取固定工具Schema；只有Schema公开`disableDiff`�
 
 Sky的应用使用elicitation只能在`launch_app`已把计划目标收敛为唯一bundle id和路径后，在该目标的单个串行MCP调用范围内按固定空对象Schema接受；调用范围外或Schema不匹配的请求拒绝，不使用本地化显示名作身份。该会话级应用授权不等于发送等副作用确认，后者仍由Yonder Gateway确认引用约束。
 
-通用`input-text`优先对唯一搜索文本框执行`set_value`；没有唯一搜索框时可退回同一已绑定应用的MCP `type_text`，并必须由动作后应用级Observe证明状态变化。消息正文仍只走受保护引用语义，不使用该通用退路。
+通用`input-text`优先对唯一搜索文本框执行`set_value`；若紧邻的`⌘F`动作已经由同一应用的新鲜Observe确认建立搜索焦点，则可单次消费该临时焦点凭据执行MCP `type_text`，用于拒绝元素`set_value`的自绘窗口。没有唯一搜索框时也可退回同一已绑定应用的MCP `type_text`。三条路径均只派发一次，并必须由动作后应用级Observe从搜索控件读回目标值；失败或未读回时交回，不能在同次动作内切换路径重试。消息正文仍只走受保护引用语义，不使用该通用退路。
 
 签名Client的错误正文不得进入日志或Gateway；Worker只把已知`cgWindowNotFound`收敛为`target-window-unavailable`等有界阶段。锁屏、登录窗口或目标没有可观察窗口时必须安全交回，不得把transport存活误报成动作成功。
 

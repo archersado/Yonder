@@ -13,5 +13,6 @@
 - Application单元测试证明`UnknownObserved`视觉Observation不会被TM-S9运行时丢弃。
 - 2026-10-08修复通用搜索输入的动作确认：唯一搜索文本框只派发一次Sky `set_value`，并且只有同一应用的新鲜Observe从该控件读回目标AX值才标记`confirmed`；回执成功但值未变化仍为`unknown`，不重放输入。`check-sky-cua-worker.py`同时覆盖成功与未确认两侧，`check-sky-message-worker.py`证明消息引用路径未回归，Adapter CUA 12项测试通过。
 - 由`dev`构建的macOS预览包通过`check-cua-package.py`：唯一Driver仍为外部固定Sky 0.7.1，Worker资源与源码一致，Jev SDK为0.6.0；通用计划动作和动作失败视觉交回隔离回归通过。重启GUI后旧MCP transport关闭，待客户端重新连接后继续正式QQ音乐样本，不以隔离证据替代产品验证。
+- 2026-10-09正式任务`task_c35e925a59fe3866ee41b7e2fb6374e0`稳定复现：QQ音乐启动与`⌘F`聚焦均已Observe，随后元素`set_value`返回`driver-target-stale`。Worker现允许同任务、同应用、紧邻且已确认的`⌘F`焦点凭据单次改用`type_text`；凭据在派发前消费，仍以新鲜AX值确认，失败不回退、不重试。隔离夹具覆盖该路径及凭据消费后的`set_value`失败边界。
 
 正式macOS Yonder QQ音乐样本、完整Rust回归和OpenSpec严格校验完成前，本Goal不记PASS、不Archive。Windows按用户决定暂缓。

@@ -12,4 +12,6 @@ Application把`UnknownObserved.observation`与Known Observation使用同一提�
 
 封闭`cmd+f`搜索快捷键由Worker与坐标动作一样注入`foreground`及精确窗口target，不新增`bring_to_front`槽位。Driver缺少该投递能力或动作未确认时，沿同窗口视觉降级交回。
 
+Sky路径把已由新鲜Observe确认的`cmd+f`搜索焦点保存为同任务、同应用、单次消费的临时凭据。紧邻`input-text`可据此只派发一次`type_text`，避免自绘窗口对元素`set_value`返回窗口代次失效；未取得凭据时仍优先`set_value`。两条路径都必须从动作后同一搜索控件读回目标AX值，任一请求失败或值不符均交回，不能在同一动作内互相回退重试。
+
 正式产品固定`@trycua/cua-driver@0.30.4`，Adapter构造时校验精确包名与版本，package-lock固定平台构件完整性。删除0.25.0生产兼容假设；协议和Application仍不引用SDK类型，Worker继续以`listToolsJson/callTool`动态映射字段。

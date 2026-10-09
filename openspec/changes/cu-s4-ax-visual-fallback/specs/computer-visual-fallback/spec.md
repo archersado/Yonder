@@ -60,3 +60,8 @@
 
 - **WHEN** 归属慢脑提交`focus-control + hotkey(cmd+f)`
 - **THEN** Worker对当前任务绑定窗口执行一次foreground快捷键并以后置Observe确认，动作后由Driver恢复原工作窗口
+
+#### Scenario: 自绘搜索框拒绝元素值写入
+
+- **WHEN** 同任务同应用紧邻的`cmd+f`已由新鲜Observe确认，且自绘窗口的元素`set_value`路径会失效
+- **THEN** Worker单次消费该搜索焦点执行一次`type_text`，只在动作后从同一搜索控件读回目标值时确认；失败不得再改走`set_value`或重放文本

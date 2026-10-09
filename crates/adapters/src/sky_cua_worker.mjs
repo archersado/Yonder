@@ -19,6 +19,7 @@ const bridgeStartupTimeoutMs = 15_000;
 const coordinateActionTimeoutMs = 25_000;
 let pendingInput;
 let latestObservation;
+let trustedSearchFocus;
 
 class SkyMcpBridge {
   constructor(path) {
@@ -802,6 +803,7 @@ async function perform(request, target, before) {
     // 复用一次有界Client刷新，不重放任何键鼠或其他副作用动作。
     await observe(target);
     pendingInput = undefined;
+    trustedSearchFocus = undefined;
     return;
   }
   if (request.tool_name === 'bring_to_front') {
@@ -810,9 +812,13 @@ async function perform(request, target, before) {
     // 的截图坐标映射。此处只重建 Client 并由后续 Observe 重新绑定窗口，绝不
     // 重试已经完成的置前或任何副作用动作。
     await refreshBridge();
+    trustedSearchFocus = undefined;
     return;
   }
   const semantic = request.arguments._yonder_action_kind;
+  if (!['focus-control', 'input-text', 'enter-target-query'].includes(semantic)) {
+    trustedSearchFocus = undefined;
+  }
   if (semantic === 'activate-control' && request.tool_name === 'click'
       && Number.isInteger(request.arguments.observed_element_index)) {
     const index = request.arguments.observed_element_index;
@@ -890,6 +896,10 @@ async function perform(request, target, before) {
   if (['enter-target-query', 'input-text'].includes(semantic)) {
     const element = searchField(before);
     const value = privateText(request);
+    const hasTrustedSearchFocus = trustedSearchFocus?.taskId === request.task_id
+      && trustedSearchFocus.applicationId === target.applicationId;
+    // 焦点凭据单次消费；即使后续派发失败也不能复用后重放文本。
+    trustedSearchFocus = undefined;
     if (value == null) throw new WorkerFailure('target-semantic-element');
     if (Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
       // 慢脑只有在 AX 元素缺失或属性写入不可信时才提交截图坐标。坐标已由
@@ -902,6 +912,14 @@ async function perform(request, target, before) {
       return { kind: 'text-present', value };
     }
     if (element) {
+      if (hasTrustedSearchFocus) {
+        // 部分自绘应用能由已确认的⌘F建立原生输入焦点，但对AX set_value
+        // 返回窗口代次失效。此时只派发一次无坐标type_text，并仍以同一
+        // 搜索控件的新鲜AXValue确认；失败或未读回目标值均交回，不重试。
+        await callAction('type_text', { app: target.app, text: value }, target.applicationId);
+        pendingInput = { taskId: request.task_id, app: target.app, value };
+        return { kind: semantic === 'enter-target-query' ? 'target-query' : 'text-present', value };
+      }
       // 唯一搜索文本框直接使用Sky的结构化AX写入。请求回执不代表成功；
       // 后置Observe必须从同一控件读回目标值，否则保持unknown并交回慢脑。
       // 单次set_value也避免把聚焦、全选、删除和键入组合成不可归因的副作用。
@@ -917,7 +935,7 @@ async function perform(request, target, before) {
     const keys = request.arguments.keys;
     if (!Array.isArray(keys) || keys.join('+').toLowerCase() !== 'cmd+f') throw new WorkerFailure('target-semantic-key');
     await callAction('press_key', { app: target.app, key: 'super+f' }, target.applicationId);
-    return { kind: 'changed' };
+    return { kind: 'changed', establishesSearchFocus: true };
   }
   if (semantic === 'activate-control' && request.tool_name === 'click'
       && request.arguments.element_index == null
@@ -1004,6 +1022,9 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     response.target_visible = request.tool_name === 'launch_app' ? false : externalMacFocus ? true : null;
     response.element_count = Math.min(65_535, transcriptElements(after).length);
     const confirmed = request.tool_name === 'launch_app' || externalMacFocus || actionConfirmed(expectation, before, after);
+    if (confirmed && expectation?.establishesSearchFocus) {
+      trustedSearchFocus = { taskId: request.task_id, applicationId: target.applicationId };
+    }
     const coordinateAction = Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y);
     // 正常 AX/transcript 路径只发布结构化临时 Observation。截图仅服务三种
     // 边界：慢脑已提交坐标动作、Driver 无法确认动作结果、或 catch 中元素
