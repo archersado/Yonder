@@ -22,7 +22,7 @@ async function load() {
     byId('jev-service-mode').value = config.service_mode;
     byId('jev-endpoint').value = config.endpoint;
     byId('jev-model').value = config.model;
-    byId('jev-confidence-metric').value = config.confidence_metric;
+    byId('jev-confidence-field').value = config.confidence_field ?? '';
     byId('jev-confidence-threshold').value = config.confidence_threshold;
     byId('jev-step-limit').value = config.step_limit;
     byId('jev-time-limit').value = config.time_limit_ms;
@@ -40,7 +40,7 @@ async function save(event) {
     service_mode: byId('jev-service-mode').value,
     endpoint: byId('jev-endpoint').value.trim(),
     model: byId('jev-model').value.trim(),
-    confidence_metric: byId('jev-confidence-metric').value,
+    confidence_field: byId('jev-confidence-field').value.trim(),
     confidence_threshold: Number(byId('jev-confidence-threshold').value),
     step_limit: Number(byId('jev-step-limit').value),
     time_limit_ms: Number(byId('jev-time-limit').value),
@@ -84,7 +84,7 @@ function validateConfig(config) {
     if (config.service_mode === 'remote' && !['https://api.typesafe.ai', 'https://api.typesafe.ai/'].includes(config.endpoint)) return '远端仅支持 https://api.typesafe.ai';
     if (url.search || url.hash || url.username || url.password) return '端点不能包含查询串、fragment 或用户名/密码';
     if (!/^[A-Za-z0-9._:/-]{1,128}$/.test(config.model)) return '模型标识只能包含字母、数字、点、下划线、斜线、冒号和连字符，且不超过 128 字节';
-    if (!['answer_confidence', 'confidence'].includes(config.confidence_metric)) return '置信度字段不受支持';
+    if (config.confidence_field && !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(config.confidence_field)) return '置信度字段只能包含字母、数字和下划线，且必须以字母或下划线开头，最长 64 字节';
     if (!Number.isFinite(config.confidence_threshold) || config.confidence_threshold < 0 || config.confidence_threshold > 1) return '置信阈值必须是 0 到 1 之间的数字';
     return null;
   } catch {

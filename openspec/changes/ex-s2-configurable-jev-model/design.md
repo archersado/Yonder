@@ -6,4 +6,4 @@ Application 只调用 `JevConfig::validate` 统一检查模式、端点、模型
 
 独立设置窗口增加模型输入框并进行与 Application 一致的最小前端校验。保存只表示结构配置有效，不探测或加载模型。正式验证使用本地 `/v1/models` 已发布模型，经 Yonder MCP/Gateway 的真实多 AX 候选任务证明 Jev 选择；失败仍按既有 handback 处理。
 
-`JevConfig` 同时增加 `confidence_metric` 与 `confidence_threshold`。字段枚举仅允许 `answer_confidence` 和 `confidence`，阈值必须为有限的 `0..1`。Serde 兼容函数使历史 JSON 缺字段时恢复旧策略 `confidence + 0.75`；`Default` 代表新配置，采用 `answer_confidence + 0.75`。Adapter 把字段选择传给一次性 Worker，Worker 严格读取选定字段并输出统一 `confidence`；字段缺失、非数值、非有限或越界均作为无效响应安全交回。Application 不再使用编译期固定阈值，而从同一配置快照读取阈值。
+`JevConfig` 同时增加 `confidence_field` 与 `confidence_threshold`。字段名为空或满足 `[A-Za-z_][A-Za-z0-9_]{0,63}`，阈值必须为有限的 `0..1`。Serde 兼容旧 `confidence_metric`；历史 JSON 缺字段、新配置留空和 `Default` 都使用 `confidence + 0.75`。Adapter 把 Application 归一化后的字段名传给一次性 Worker，Worker 严格读取选定字段并输出统一 `confidence`；字段缺失、非数值、非有限或越界均作为无效响应安全交回。Application 不再使用编译期固定阈值，而从同一配置快照读取阈值。

@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 use yonder_application::{
-    jev_config::{JevConfig, JevConfidenceMetric},
+    jev_config::JevConfig,
     jev_runtime::{
         JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice,
         JevModelStepVerification, JevStepOutcome, JevStepVerificationRequest,
@@ -34,7 +34,7 @@ struct WorkerRequest<'a> {
     mode: &'static str,
     endpoint: &'a str,
     model: &'a str,
-    confidence_metric: JevConfidenceMetric,
+    confidence_field: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
     task_goal: &'a str,
@@ -50,7 +50,7 @@ struct StepVerificationWorkerRequest<'a> {
     mode: &'static str,
     endpoint: &'a str,
     model: &'a str,
-    confidence_metric: JevConfidenceMetric,
+    confidence_field: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
     step_label: &'a str,
@@ -250,7 +250,7 @@ impl JevDecisionPort for MacosJevPort {
             mode: "choose",
             endpoint: &config.endpoint,
             model: &config.model,
-            confidence_metric: config.confidence_metric,
+            confidence_field: config.selected_confidence_field(),
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
             task_goal: &request.task_goal,
@@ -278,7 +278,7 @@ impl JevDecisionPort for MacosJevPort {
             mode: "verify-step",
             endpoint: &config.endpoint,
             model: &config.model,
-            confidence_metric: config.confidence_metric,
+            confidence_field: config.selected_confidence_field(),
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
             step_label: &request.step_label,
@@ -391,7 +391,7 @@ export class TypeSafeClient {
             mode: "choose",
             endpoint: "https://api.typesafe.ai",
             model: "fixture-model",
-            confidence_metric: JevConfidenceMetric::Confidence,
+            confidence_field: "confidence",
             api_key: "test-only",
             timeout_ms: 3000,
             task_goal: "完成控件选择验证",
@@ -450,7 +450,7 @@ export class TypeSafeClient {
             mode: "choose",
             endpoint: "https://api.typesafe.ai",
             model: "fixture-model",
-            confidence_metric: JevConfidenceMetric::AnswerConfidence,
+            confidence_field: "answer_confidence",
             api_key: "test-only",
             timeout_ms: 3000,
             task_goal: "在 QQ 音乐播放宇多田光版本",
@@ -463,7 +463,7 @@ export class TypeSafeClient {
         .unwrap();
         assert_eq!(payload["task_goal"], "在 QQ 音乐播放宇多田光版本");
         assert_eq!(payload["model"], "fixture-model");
-        assert_eq!(payload["confidence_metric"], "answer_confidence");
+        assert_eq!(payload["confidence_field"], "answer_confidence");
         assert_eq!(payload["plan_steps"], serde_json::json!(plan_steps));
         assert_eq!(payload["current_step_index"], 1);
         assert_eq!(payload["step_label"], "播放 One Last Kiss");
@@ -488,7 +488,7 @@ export class TypeSafeClient {
             mode: "verify-step",
             endpoint: "https://api.typesafe.ai",
             model: "fixture-model",
-            confidence_metric: JevConfidenceMetric::AnswerConfidence,
+            confidence_field: "answer_confidence",
             api_key: "test-only",
             timeout_ms: 3000,
             step_label: "播放 One Last Kiss",
@@ -523,7 +523,7 @@ export class TypeSafeClient {
             mode: "verify-step",
             endpoint: "https://api.typesafe.ai",
             model: "confidence-only",
-            confidence_metric: JevConfidenceMetric::AnswerConfidence,
+            confidence_field: "answer_confidence",
             api_key: "test-only",
             timeout_ms: 3000,
             step_label: "播放 One Last Kiss",

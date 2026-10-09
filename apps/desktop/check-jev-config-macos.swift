@@ -102,7 +102,7 @@ guard let afterCounts = sql(countsStatement), beforeCounts == afterCounts,
       let configRows = sql("SELECT count(*) FROM jev_config"), configRows.trimmingCharacters(in: .whitespacesAndNewlines) == "1",
       let config = sql("SELECT config_json FROM jev_config WHERE id=1"),
       config.contains("\"enabled\":true"), config.contains("\"endpoint\":\"http://127.0.0.1:1234/jev\""),
-      config.contains("\"confidence_metric\":"), config.contains("\"confidence_threshold\":") else { exit(18) }
+      config.contains("\"confidence_field\":"), config.contains("\"confidence_threshold\":") else { exit(18) }
 
 let report: [String: Any] = [
     "pid": Int(app.processIdentifier),

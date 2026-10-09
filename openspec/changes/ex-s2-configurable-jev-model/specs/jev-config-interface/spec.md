@@ -6,7 +6,7 @@
 
 系统 MUST 将受限模型标识作为非敏感 Jev 配置字段，并 MUST 允许经校验的本地 HTTP/HTTPS base URL进入既有 Jev Adapter。远端模式仍 MUST 只允许既有 TypeSafe HTTPS 端点。
 
-系统 MUST 将置信度字段与阈值作为同一非敏感配置快照的一部分。字段只能选择 `answer_confidence` 或 `confidence`；Worker MUST 严格读取选定字段，缺失或非法时 MUST 安全交回，且 MUST NOT 自动回退到另一字段。
+系统 MUST 将置信度字段名与阈值作为同一非敏感配置快照的一部分。字段名 MUST 允许用户填写受限的响应顶层属性名；未配置时 MUST 使用 `confidence`。Worker MUST 严格读取选定字段，缺失或非法时 MUST 安全交回，且 MUST NOT 自动探测其他字段。
 
 #### Scenario: 保存有效配置
 
@@ -52,13 +52,13 @@
 
 #### Scenario: 保存置信策略
 
-- WHEN 用户选择合法置信度字段并提交 `0..1` 的有限阈值
+- WHEN 用户填写合法置信度字段名或将其留空，并提交 `0..1` 的有限阈值
 - THEN 系统原子保存配置
 - AND 候选选择与步骤核验使用同一策略快照
 
 #### Scenario: 拒绝非法置信策略
 
-- WHEN 字段不受支持或阈值非有限、低于 0 或高于 1
+- WHEN 字段名不满足 `[A-Za-z_][A-Za-z0-9_]{0,63}`（空值除外），或阈值非有限、低于 0 或高于 1
 - THEN Application 拒绝保存
 - AND 设置窗口显示字段级错误
 
@@ -70,6 +70,6 @@
 
 #### Scenario: 升级历史置信策略
 
-- WHEN 已持久化 JSON 不包含置信度字段和阈值
-- THEN 系统以历史 `confidence + 0.75` 兼容读取
-- AND 新建默认配置使用 `answer_confidence + 0.75`
+- WHEN 已持久化 JSON 不包含置信度字段和阈值，或包含旧 `confidence_metric`
+- THEN 系统以 `confidence + 0.75` 兼容读取，或把旧字段值迁移为新的字段名
+- AND 新建默认配置使用 `confidence + 0.75`

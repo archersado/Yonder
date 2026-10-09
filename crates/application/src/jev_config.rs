@@ -2,11 +2,12 @@ use serde::{Deserialize, Serialize};
 
 pub const JEV_REMOTE_ENDPOINT: &str = "https://api.typesafe.ai";
 pub const DEFAULT_JEV_MODEL: &str = "jev-latest";
+pub const DEFAULT_JEV_CONFIDENCE_FIELD: &str = "confidence";
 pub const DEFAULT_JEV_CONFIDENCE_THRESHOLD: f32 = 0.75;
 
 fn default_jev_model() -> String { DEFAULT_JEV_MODEL.into() }
+fn default_jev_confidence_field() -> String { DEFAULT_JEV_CONFIDENCE_FIELD.into() }
 fn default_jev_confidence_threshold() -> f32 { DEFAULT_JEV_CONFIDENCE_THRESHOLD }
-fn legacy_jev_confidence_metric() -> JevConfidenceMetric { JevConfidenceMetric::Confidence }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -16,10 +17,6 @@ pub enum JevServiceMode { Local, Remote }
 #[serde(rename_all = "UPPERCASE")]
 pub enum JevCapability { Cua, Bua, Document, Command }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum JevConfidenceMetric { AnswerConfidence, Confidence }
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JevConfig {
     pub enabled: bool,
@@ -27,8 +24,8 @@ pub struct JevConfig {
     pub endpoint: String,
     #[serde(default = "default_jev_model")]
     pub model: String,
-    #[serde(default = "legacy_jev_confidence_metric")]
-    pub confidence_metric: JevConfidenceMetric,
+    #[serde(default = "default_jev_confidence_field", alias = "confidence_metric")]
+    pub confidence_field: String,
     #[serde(default = "default_jev_confidence_threshold")]
     pub confidence_threshold: f32,
     pub step_limit: u32,
@@ -41,6 +38,7 @@ pub struct JevConfig {
 pub enum JevConfigError {
     InvalidEndpoint,
     InvalidModel,
+    InvalidConfidenceField,
     InvalidConfidenceThreshold,
     InvalidStepLimit,
     InvalidTimeLimit,
@@ -55,7 +53,7 @@ impl Default for JevConfig {
             service_mode: JevServiceMode::Local,
             endpoint: "http://localhost".into(),
             model: DEFAULT_JEV_MODEL.into(),
-            confidence_metric: JevConfidenceMetric::AnswerConfidence,
+            confidence_field: DEFAULT_JEV_CONFIDENCE_FIELD.into(),
             confidence_threshold: DEFAULT_JEV_CONFIDENCE_THRESHOLD,
             step_limit: 10,
             time_limit_ms: 60_000,
@@ -66,6 +64,10 @@ impl Default for JevConfig {
 }
 
 impl JevConfig {
+    pub fn selected_confidence_field(&self) -> &str {
+        if self.confidence_field.is_empty() { DEFAULT_JEV_CONFIDENCE_FIELD } else { &self.confidence_field }
+    }
+
     pub fn validate(&self) -> Result<(), JevConfigError> {
         let (scheme, rest) = self.endpoint.split_once("://").ok_or(JevConfigError::InvalidEndpoint)?;
         let authority = rest.split('/').next().unwrap_or_default();
@@ -93,6 +95,13 @@ impl JevConfig {
             })
         {
             return Err(JevConfigError::InvalidModel);
+        }
+        let mut confidence_field = self.confidence_field.bytes();
+        if self.confidence_field.len() > 64
+            || confidence_field.next().is_some_and(|value| !(value.is_ascii_alphabetic() || value == b'_'))
+            || !confidence_field.all(|value| value.is_ascii_alphanumeric() || value == b'_')
+        {
+            return Err(JevConfigError::InvalidConfidenceField);
         }
         if !self.confidence_threshold.is_finite()
             || !(0.0..=1.0).contains(&self.confidence_threshold)
@@ -122,6 +131,17 @@ mod tests {
     }
 
     #[test]
+    fn accepts_custom_or_blank_confidence_field_and_defaults_blank_at_runtime() {
+        let mut config = JevConfig::default();
+        config.confidence_field = "answer_confidence".into();
+        assert_eq!(config.validate(), Ok(()));
+        assert_eq!(config.selected_confidence_field(), "answer_confidence");
+        config.confidence_field.clear();
+        assert_eq!(config.validate(), Ok(()));
+        assert_eq!(config.selected_confidence_field(), DEFAULT_JEV_CONFIDENCE_FIELD);
+    }
+
+    #[test]
     fn validates_model_identifier_and_legacy_json() {
         let mut config = JevConfig::default();
         config.model = "english".into();
@@ -136,9 +156,13 @@ mod tests {
         let legacy = r#"{"enabled":true,"service_mode":"local","endpoint":"http://127.0.0.1:8002","step_limit":10,"time_limit_ms":60000,"token_limit":10000,"capabilities":["CUA"]}"#;
         let decoded: JevConfig = serde_json::from_str(legacy).unwrap();
         assert_eq!(decoded.model, DEFAULT_JEV_MODEL);
-        assert_eq!(decoded.confidence_metric, JevConfidenceMetric::Confidence);
+        assert_eq!(decoded.confidence_field, DEFAULT_JEV_CONFIDENCE_FIELD);
         assert_eq!(decoded.confidence_threshold, DEFAULT_JEV_CONFIDENCE_THRESHOLD);
-        assert_eq!(JevConfig::default().confidence_metric, JevConfidenceMetric::AnswerConfidence);
+        assert_eq!(JevConfig::default().confidence_field, DEFAULT_JEV_CONFIDENCE_FIELD);
+
+        let previous = r#"{"enabled":true,"service_mode":"local","endpoint":"http://127.0.0.1:8002","model":"multilingual","confidence_metric":"answer_confidence","confidence_threshold":0.6,"step_limit":10,"time_limit_ms":60000,"token_limit":10000,"capabilities":["CUA"]}"#;
+        let decoded: JevConfig = serde_json::from_str(previous).unwrap();
+        assert_eq!(decoded.confidence_field, "answer_confidence");
     }
 
     #[test]
@@ -156,6 +180,11 @@ mod tests {
         config.token_limit = 0;
         assert_eq!(config.validate(), Err(JevConfigError::InvalidTokenLimit));
         config.token_limit = 10_000;
+        config.confidence_field = "answer-confidence".into();
+        assert_eq!(config.validate(), Err(JevConfigError::InvalidConfidenceField));
+        config.confidence_field = "1confidence".into();
+        assert_eq!(config.validate(), Err(JevConfigError::InvalidConfidenceField));
+        config.confidence_field = "answer_confidence".into();
         config.confidence_threshold = f32::NAN;
         assert_eq!(config.validate(), Err(JevConfigError::InvalidConfidenceThreshold));
         config.confidence_threshold = 1.01;

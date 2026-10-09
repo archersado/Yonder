@@ -32,7 +32,7 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 | `service_mode` | enum：`local` / `remote` | 服务形态，首版只开放 AD-EX-02 定稿的取值。 |
 | `endpoint` | URL | SDK base URL；macOS-only 远端固定为 `https://api.typesafe.ai`，SDK 再调用 `/v1/systemone`；不保存查询串、fragment、用户名或密码。 |
 | `model` | string，1..128 字节，字符集 `[A-Za-z0-9._:/-]` | `/v1/models` 发布的模型标识；候选选择与步骤核验使用同一配置快照值，Worker 不设第二默认值。 |
-| `confidence_metric` | enum：`answer_confidence` / `confidence` | 决策门禁读取的响应字段；选定字段缺失或非法时交回，不跨尺度回退。 |
+| `confidence_field` | string，空或 `[A-Za-z_][A-Za-z0-9_]{0,63}` | 决策门禁读取的响应顶层字段名；空值运行时解释为 `confidence`，已配置字段缺失或非法时交回，不读取其他字段。 |
 | `confidence_threshold` | number，`0..1` | 候选选择与步骤核验共用的最低置信度。 |
 | `step_limit` | integer，`1..100` | 每片段最大步数。 |
 | `time_limit_ms` | integer，`1000..600000` | 每片段最大执行时长。 |
@@ -41,7 +41,7 @@ macOS-only 接线不新增任务状态。Application 校验配置、能力范围
 
 非敏感配置持久化为 SQLite `jev_config` 单行 JSON，由 Application 在同一事务内校验并原子写入；不写任务、事件或 Outbox。保存成功仅表示配置已通过结构校验，不代表模型可用，运行时仍须在派发前检查当前配置和外部服务可用性。
 
-既有 JSON 缺少 `model` 时以 `jev-latest` 反序列化；缺少置信策略时按历史行为读取为 `confidence + 0.75`，避免升级静默改变已保存配置。新配置默认使用 `answer_confidence + 0.75`。Application 的运行时校验接受合法 `local` 配置，不再重复施加远端固定端点门禁；`remote` 白名单仍由 `JevConfig::validate` 统一执行。Adapter 将 `endpoint + model + confidence_metric` 原样放入一次性 Worker 请求，选择与核验不得分叉；Application 使用同一快照中的阈值做门禁。
+既有 JSON 缺少 `model` 时以 `jev-latest` 反序列化；旧 `confidence_metric` 字段兼容迁移到 `confidence_field`，两者都缺失或界面留空时按用户约定使用 `confidence + 0.75`。Application 的运行时校验接受合法 `local` 配置，不再重复施加远端固定端点门禁；`remote` 白名单仍由 `JevConfig::validate` 统一执行。Adapter 将 `endpoint + model + confidence_field` 原样放入一次性 Worker 请求，选择与核验不得分叉；Application 使用同一快照中的阈值做门禁。
 
 ## 状态与契约
 

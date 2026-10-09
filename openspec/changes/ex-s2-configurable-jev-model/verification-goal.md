@@ -21,16 +21,16 @@
 
 ## 2026-10-09 置信策略配置增量
 
-按 AD-EX-03 与 EX2-24，`JevConfig` 已增加 `confidence_metric` 和
-`confidence_threshold`。新配置默认 `answer_confidence + 0.75`；历史 JSON 缺字段时
-恢复为原有 `confidence + 0.75`。候选选择与步骤核验共用同一配置快照，Worker 严格读取
-选定字段，字段缺失、非有限或越界时失败并交回，不跨尺度静默回退。
+按 AD-EX-03 与 EX2-24，`JevConfig` 保存可填写的 `confidence_field` 和
+`confidence_threshold`。字段名为空、历史 JSON 缺字段或使用默认值时均读取
+`confidence + 0.75`；旧 `confidence_metric` 兼容迁移。候选选择与步骤核验共用同一配置
+快照，Worker 严格读取选定字段，字段缺失、非有限或越界时失败并交回，不探测其他属性。
 
 结构化验证结果：
 
-- `cargo test --offline --locked -p yonder-application --lib`：76 项通过；覆盖配置阈值同时作用于候选选择与步骤核验、历史 JSON 兼容和非法阈值拒绝。
+- `cargo test --offline --locked -p yonder-application --lib`：79 项通过；覆盖可填写/空字段、默认 `confidence`、旧字段迁移，以及配置阈值同时作用于候选选择与步骤核验。
 - `cargo test --offline --locked -p yonder-adapters --lib`：85 项通过；其中 Jev 模块 7 项通过，证明 `answer_confidence` 缺失时不会读取仍存在的 `confidence`。
-- `cargo test --offline --locked -p yonder-desktop --lib`：28 项通过。
+- `cargo test --offline --locked -p yonder-desktop --lib`：29 项通过。
 - `node --check crates/adapters/src/jev_worker.mjs`、`node --check apps/desktop/ui/jev-settings.js` 与 `openspec validate ex-s2-configurable-jev-model --strict` 通过。
 - `cargo fmt --all -- --check` 仍被仓库既有大量未格式化 Rust 文件阻断；本 Change 的 `git diff --check` 通过，未对无关文件执行全仓机械重排。
 
