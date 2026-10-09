@@ -22,7 +22,7 @@ AG-S1 的慢脑接入边界已由 Accepted [AD-AG-07](../../../../_bmad-output/p
 
 Jev 配置由 Application 拥有并通过既有桌面命令提交；独立 Jev 设置窗口只渲染和收集，不直接读写 Adapter、配置文件或模型端点。非敏感配置包含启用状态、AD-EX-02 定稿的服务形态与端点、受限模型标识、全局步数/时间/token 上限、CUA/BUA/Document/Command 能力上限；实际片段取计划授权值与全局上限的较小值。配置在片段开始时形成快照；片段运行中修改不改变已冻结片段，但关闭 Jev 等同用户控制，必须立即冻结下一次决策并交回慢脑。无效配置拒绝保存/启用并给出字段级错误。API Key、证书与刷新令牌不属于本配置模型；API Key 仅允许设置面板以非空密码框提交给 macOS Keychain Adapter，读取接口只回传布尔状态。UI 与日志不得展示或持久化完整端点查询串、密钥和模型请求正文。Task Space 不承载配置交互。
 
-macOS-only 接线不新增任务状态。Application 校验配置、能力范围和 2..10 个有界合法动作候选；Jev 只能在这些已由本轮 Observe 校验合格的候选 ID 中选择并返回置信度。AX/UIA 自然候选选择请求由 Application 补齐任务名称形成的整体目标、片段内全部步骤标签、当前步骤序号与标签；缺少合法任务名称时不得调用 Jev，必须交回慢脑补全上下文。协议声明且 Driver 可点击的文本框、组合框与既有按钮、链接、列表项均可进入自然候选；超过上限时，Application 优先按完整标签词命中、再按连续字符相关度稳定排序，因此同时支持拉丁分词与无空格 CJK 文本，相同分数保留 Driver 原始顺序。该过程不硬编码应用、控件索引、坐标或业务词。Adapter 不自行查询任务或拼接历史。该上下文只用于本轮选择，最多十个步骤，不进入 SQLite、事件、Outbox 或日志，也不得携带任务说明、正文、坐标和完整 transcript。`handback` 是 Application 拥有的唯一安全边界，不作为可与合法动作竞争的模型候选；低置信、未知候选、不可派发候选或缺少发送确认一律交回，不自动重试。交回与任务序列、事件、Outbox 及受限 `next_intent` 同一事务提交；归属慢脑消费 Outbox 后经既有 Gateway 重新 Observe、规划或执行，Yonder 不作本地兜底。模型失败、凭据缺失、依赖缺失或超时仅返回可区分错误，仍由未来片段执行用例统一映射到既有状态与事件。API Key 从设置页密码框一次性进入 macOS Keychain Adapter；状态查询与写入不依赖 `TaskHost` 或 SQLite，UI 只能查询是否存在，禁止经 `security` CLI 参数、环境变量或临时文件传输。
+macOS-only 接线不新增任务状态。Application 校验配置、能力范围和 2..10 个有界合法动作候选；Jev 只能在这些已由本轮 Observe 校验合格的候选 ID 中选择并返回置信度。AX/UIA 自然候选选择请求由 Application 补齐任务名称形成的整体目标、片段内全部步骤标签、当前步骤序号与标签；缺少合法任务名称时不得调用 Jev，必须交回慢脑补全上下文。协议声明且 Driver 可点击的文本框、组合框与既有按钮、链接、列表项均可进入自然候选；超过上限时，Application 优先按完整标签词命中、再按连续字符相关度稳定排序，因此同时支持拉丁分词与无空格 CJK 文本，相同分数保留 Driver 原始顺序。Application 不把 `ax-element-<index>` 等 Driver 句柄直接作为模型选项，而是从已脱敏短标签中提取与任务/步骤相关的词形成唯一语义别名；只在当前调用栈维护别名到动作候选的映射。Jev 返回别名后必须先通过同一映射复核，再向 Driver 注入原 `observation_ref + element index`；未知、重复或失效别名一律交回。该过程不硬编码应用、控件索引、坐标或业务词。Adapter 不自行查询任务或拼接历史。该上下文、别名和映射只用于本轮选择，最多十个步骤，不进入 SQLite、事件、Outbox 或日志，也不得携带任务说明、正文、坐标和完整 transcript。`handback` 是 Application 拥有的唯一安全边界，不作为可与合法动作竞争的模型候选；低置信、未知候选、不可派发候选或缺少发送确认一律交回，不自动重试。交回与任务序列、事件、Outbox 及受限 `next_intent` 同一事务提交；归属慢脑消费 Outbox 后经既有 Gateway 重新 Observe、规划或执行，Yonder 不作本地兜底。模型失败、凭据缺失、依赖缺失或超时仅返回可区分错误，仍由未来片段执行用例统一映射到既有状态与事件。API Key 从设置页密码框一次性进入 macOS Keychain Adapter；状态查询与写入不依赖 `TaskHost` 或 SQLite，UI 只能查询是否存在，禁止经 `security` CLI 参数、环境变量或临时文件传输。
 
 配置字段定稿为：
 
@@ -63,7 +63,7 @@ Application在每个槽位派发前按任务归属和期限解析引用，把目
 
 当前 Observe 只在一次 `task.plan.execute` 调用栈内以封闭布尔事实传递。Application 先以这些事实过滤候选：无候选满足时直接交回，唯一候选满足时确定性派发，至少两个候选满足时才把合格候选与事实摘要交给 Jev；不得把候选自行声明的前置条件当作已经成立。每次动作成功仍须由 Driver 完成后置 Observe，Application 再复核候选的 `expected_observe`，不满足即停止片段并交回慢脑。跨调用不复用瞬态事实，恢复执行时须由单候选慢脑授权或重新 Observe。
 
-2026-10-08 修订后，上述调用栈还保留最近一次 `ComputerObservation` 的 `observation_ref + elements`。对慢脑声明的通用控件语义模板，Application 按封闭角色筛选最多十个当轮句柄，不把这些瞬态候选写回不可变片段。唯一句柄由 Application 直接注入并执行；多句柄时 Jev 获得步骤标签、角色、脱敏短标签和已有条件摘要。选中后 Application 只在本次内存 Driver 参数中注入索引与引用；Worker 动作前重新 Observe 复核。完整 transcript、截图、坐标、窗口身份和敏感文本不进入 Jev、事件、Outbox 或日志。
+2026-10-08 修订后，上述调用栈还保留最近一次 `ComputerObservation` 的 `observation_ref + elements`。对慢脑声明的通用控件语义模板，Application 按封闭角色筛选最多十个当轮句柄，不把这些瞬态候选写回不可变片段。唯一句柄由 Application 直接注入并执行；多句柄时 Jev 获得步骤标签、角色、脱敏短标签、由标签派生的临时语义别名和已有条件摘要，但不获得真实 Driver 句柄。选中后 Application 通过本轮唯一映射找到原动作，只在本次内存 Driver 参数中注入索引与引用；Worker 动作前重新 Observe 复核。完整 transcript、截图、坐标、窗口身份和敏感文本不进入 Jev、事件、Outbox 或日志。
 
 连续推进由 Application 在一次 `task.plan.execute` 调用栈内完成，最多消费当前不可变片段的剩余槽位。每轮只派发一个动作，成功 Observe 与 attempt 停止边界提交后才推进 `current_slot`；下一轮重新读取片段、任务 sequence 与控制事实。返回响应后不保留执行线程或定时任务。片段完成返回 `fragment-complete`，但不替代归属慢脑提交 `task.complete`/`task.fail`。
 
