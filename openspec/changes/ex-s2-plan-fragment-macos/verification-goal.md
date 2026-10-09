@@ -109,3 +109,11 @@ Jev 选择目标按钮后，Application 仅在当次内存请求注入 `observat
 ```
 
 随后归属慢脑以最新 observation sequence 提交 `task.goal.verify(achieved)`，再携同一 verification ID 完成任务。该样本证明“唯一慢脑语义模板 → 新鲜 AX 多候选 → Jev 自然选择 → 临时句柄注入 → Driver 复核并执行 → 动作后 Observe → Goal Verification → completed”正式产品链路 PASS；它不声称单次样本已经证明快慢脑相对纯慢脑的统计性能优势。Windows 仍按用户决定暂缓。
+
+## 2026-10-09 Jev 区域可用性阻塞与安全降级证据
+
+正式产品任务 `task_825cacb004fc8fd5083ad0c24ab761e7` 经安装包内 MCP/Gateway 执行 QQ 音乐搜索播放片段。启动、搜索聚焦和搜索提交均形成真实 attempt/Observe；文本动作的 AX 值未读回时，Yonder 以 `unknown(driver-action-unconfirmed)` 交回，慢脑从同次临时截图确认动作已经发生后没有重放输入，而是提交新的受限片段。后续重新 Observe 成功，但新鲜 AX 多候选进入 Jev 选择时在序号 25 以“快脑决策不可用”安全交回，没有派发猜测控件。
+
+本机 Keychain 凭据存在，使用同一凭据访问 TypeSafe `GET /v1/models` 返回 200 且包含 `jev-latest`；正式 `systemOne` 决策请求返回 HTTP 451“当前区域不可用”。诊断过程没有输出或保存凭据、候选正文、截图或完整模型 Payload。该事实说明当前阻塞属于远端区域可用性，而非 Gateway 断线、凭据缺失或计划 CAS；Application 的交回边界按设计生效。
+
+随后唯一慢脑候选仍可继续派发并返回新鲜 Observation，但动作后 Jev 三值步骤核验同样受 451 阻塞，因此不会把结构回执提升为完成。任务在重建正式包时按重启语义转为 `interrupted`。本样本通过“远端不可用时不误选、不重试 unknown、不假报完成”的负向验收；“Jev 动作后步骤完成三值核验”的代码与隔离测试已完成，真实远端 QQ 音乐正向结果仍保持未完成，待服务在当前区域恢复后重跑。Windows 继续暂缓。
