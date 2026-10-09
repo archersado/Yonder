@@ -22,7 +22,7 @@ Worker 在任务运行态只持有最近一次对外 Observation 的引用与可
 
 协议 1.48 为含截图的 Observation 增加原始像素宽高；同次 `observation_ref` 同时保护 AX 句柄和视觉坐标。坐标候选继续使用 `x/y`，但必须额外携带该引用，且 `x/y` 只表示持久化截图字节的原始像素，不表示对话渲染坐标或桌面坐标。
 
-Sky Worker 从 PNG/JPEG/WebP 字节头读取尺寸，将 `task_id + application_id + observation_ref + width + height` 作为最新临时视觉引用。坐标动作前重新 Observe 并读取当前截图尺寸；引用不匹配、坐标越界或尺寸变化时不调用 Sky。通过门禁后，Worker 保持 `x` 与像素单位不变，仅以已验证图片高度把左上原点截图坐标转换为 Sky 的底部原点坐标：`sky_y = height - 1 - y`。macOS Adapter 不读取显示器 backing scale、显示器几何或窗口原点，也不进行像素到逻辑点换算。
+Sky Worker 从 PNG/JPEG/WebP 字节头读取尺寸，将 `task_id + application_id + observation_ref + width + height` 作为最新临时视觉引用。坐标动作前重新 Observe 并读取当前截图尺寸；引用不匹配、坐标越界或尺寸变化时不调用 Sky。通过门禁后，Worker 把 `x/y` 原始截图像素原样传给 Sky；macOS Adapter 不读取显示器 backing scale，也不进行像素到逻辑点换算。
 
 macOS Sky 0.7.1 不公开截图 ID，Worker 不添加未受支持字段，而是在同一临时引用中保存 transcript 指纹。动作前 Observe 的 transcript 与引用代次不一致时，即便宽高相同也拒绝旧坐标；单纯视觉像素差异不参与此门禁。元素导出同时折叠装饰性 image：若 image 位于可操作祖先内，只保留祖先句柄；disabled 节点不进入集合；没有可操作祖先的 image 不做相邻代理推断，仍以自身索引执行并等待后置事实。
 

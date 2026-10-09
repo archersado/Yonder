@@ -776,17 +776,6 @@ async function validateCoordinateObservation(request, target, state) {
   }
 }
 
-function skyScreenshotPoint(request) {
-  const height = latestObservation?.screenshotHeight;
-  if (!Number.isInteger(height) || height < 1) {
-    throw new WorkerFailure('target-stale-visual-observation');
-  }
-  // Gateway/慢脑使用图片常规的左上原点原始像素；Sky macOS 动作使用
-  // 同一像素单位但以截图底部为Y原点。这里只翻转轴向，不读取显示器倍率、
-  // 窗口原点或桌面几何，也不改变X。
-  return { x: request.arguments.x, y: height - 1 - request.arguments.y };
-}
-
 function actionArguments(request, target) {
   const args = { ...request.arguments, ...target };
   delete args.pid;
@@ -848,7 +837,6 @@ async function perform(request, target, before) {
       && Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
     await validateCoordinateObservation(request, target, before);
     const clickArguments = actionArguments(request, target);
-    Object.assign(clickArguments, skyScreenshotPoint(request));
     // Sky 的 MCP Schema虽把这两个字段标为缺省值，但正式Client对自绘控件
     // 可能只完成指针移动并悬挂，未形成应用可接收的按下/抬起。Yonder的
     // 通用控件激活固定为左键，且协议只允许1/2次点击；Adapter在调用边界
@@ -918,7 +906,7 @@ async function perform(request, target, before) {
       // 协议限制为 input-text 语义；先聚焦该点，再发送字面文本，并由动作后
       // Observe 交给慢脑核验。这里不隐式清空、不重试，也不猜测其他控件。
       await validateCoordinateObservation(request, target, before);
-      await callAction('click', { app: target.app, ...skyScreenshotPoint(request) }, target.applicationId);
+      await callAction('click', { app: target.app, x: request.arguments.x, y: request.arguments.y }, target.applicationId);
       await callAction('type_text', { app: target.app, text: value }, target.applicationId);
       pendingInput = { taskId: request.task_id, app: target.app, value };
       return { kind: 'text-present', value };

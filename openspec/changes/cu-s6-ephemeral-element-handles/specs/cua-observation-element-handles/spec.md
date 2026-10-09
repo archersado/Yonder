@@ -67,7 +67,7 @@
 #### Scenario: 最新引用与坐标有效
 
 - **WHEN** 坐标候选携带同任务最新 `observation_ref`，且原始像素坐标位于截图边界内、动作前截图尺寸未变化
-- **THEN** Worker 保持原图像素单位与 X 不变，以当前图片高度将左上原点 Y 转换为 Sky 底部原点 Y，只向同一绑定应用派发一次坐标动作，并在动作后重新 Observe
+- **THEN** Worker 只向同一绑定应用派发一次 Sky 坐标动作，并在动作后重新 Observe
 
 #### Scenario: 引用、边界或截图几何失效
 
@@ -87,12 +87,7 @@
 #### Scenario: 原图坐标动作后未命中
 
 - **WHEN** Sky 已接收一次原图坐标动作但后置 Observation 未证明目标变化
-- **THEN** Worker 返回新鲜 Observation 交回慢脑，且不得自动换算倍率、追加窗口偏移或重放旧坐标
-
-#### Scenario: 截图坐标轴向转换
-
-- **WHEN** 最新 Observation 的截图尺寸为 `width × height`，慢脑提交左上原点原图坐标 `(x,y)`
-- **THEN** Worker 只在 Sky 调用边界派发 `(x,height-1-y)`，不得改变 X、像素单位或动作次数
+- **THEN** Worker 返回新鲜 Observation 交回慢脑，且不得自动换算倍率或重放旧坐标
 
 ### Requirement: Driver 错误以有界分类透出
 
