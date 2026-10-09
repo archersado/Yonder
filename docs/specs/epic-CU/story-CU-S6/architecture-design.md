@@ -16,7 +16,9 @@ Worker 在任务运行态只持有最近一次对外 Observation 的引用与可
 
 若 Worker 重建导致引用丢失，返回受限 Observation 并交回慢脑；不得为恢复引用自动点击。动作后仍执行新鲜 Observe，只有预期后置事实成立才确认成功。
 
-部分原生应用在动作回执后异步更新 AX 状态。Worker 对已经单次派发的元素动作允许在 900ms 内每 100ms 重新执行只读 Observe，首次满足既有结构后置条件即停止；该循环不得再次调用动作工具、不得延长坐标结果待核实动作，也不得把任意截图变化提升为业务完成。期限耗尽仍沿用 unknown/handback，最终目标继续由归属慢脑核验。
+部分原生应用在动作回执后异步更新 AX 状态。Worker 对已经单次派发的元素动作先在 900ms 内每 100ms 重新执行只读 Observe，首次满足既有结构后置条件即停止；该循环不得调用动作工具、不得延长坐标结果待核实动作，也不得把任意截图变化提升为业务完成。
+
+若期限耗尽，但动作调用正常返回、Observe 有效，且原 Observation 中目标的封闭角色与有界标签能在最新树中唯一匹配并明确保持原状态，则把该结果分类为 `verified-noop` 恢复边界。Worker 使用匹配得到的新索引追加一次、且仅一次元素激活，再次进入动作后 Observe 收敛。恢复不得复用旧索引；目标消失、重复、角色/标签变化或第二次仍无效果均返回 `driver-action-unconfirmed`/handback。该恢复仅适用于 `activate-control + click + observed_element_index`，不适用于坐标、文本输入、发送、确认或一次性引用动作。
 
 坐标点击调用一旦进入 Sky 动作边界，SDK 的成功、超时、窗口失效或其他错误都不能单独决定动作结果。Worker 将调用错误收敛为“结果待核实”，继续执行唯一一次动作后 Observe，并携带新鲜 Observation 以 unknown/handback 交回；界面变化只用于慢脑核实，不能把错误回执提升为 confirmed。认证、Schema 或策略错误同样不重试动作。
 
@@ -36,7 +38,7 @@ transcript 与短标签用于慢脑理解界面和控件消歧；Worker 对疑�
 
 ## 失败与验证
 
-测试覆盖 transcript 裁剪、敏感字段排除、上限、可选择行及后代标签边界、无祖先 image 句柄、装饰性 image/disabled 过滤、引用替换/跨任务/进程重建拒绝、同尺寸 transcript 变化、动作前新鲜索引校验、单次动作后的延迟 Observe 收敛且零重放、原始像素不变传递、坐标调用错误后的 Observe、协议严格解码和 Gateway 兼容。macOS 正式企业微信样本必须证明目标企业名称已切换或安全交回；Windows 暂缓。
+测试覆盖 transcript 裁剪、敏感字段排除、上限、可选择行及后代标签边界、无祖先 image 句柄、装饰性 image/disabled 过滤、引用替换/跨任务/进程重建拒绝、同尺寸 transcript 变化、动作前新鲜索引校验、单次动作后的延迟 Observe 收敛、唯一角色/标签重解析后一次恢复、第二次无效果交回、原始像素不变传递、坐标调用错误后的 Observe、协议严格解码和 Gateway 兼容。macOS 正式 QQ 音乐样本必须证明播放按钮切换为暂停或安全交回；Windows 暂缓。
 
 协议 1.49 依 AD-CU-12 扩展 Attempt Unknown Reason，而不是新增自由文本错误字段。Worker 只产生封闭 `failure_stage`，Adapter 将其穷举映射为动作超时、动作拒绝、动作未确认、目标失效、Observe 失败或传输失败；未识别值只能降级为 `worker-failed`，不得穿透。Application、SQLite 与 Outbox 继续复用既有 unknown reason 字段和事件事务。
 

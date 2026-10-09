@@ -33,28 +33,38 @@
 
 ### Requirement: 元素动作绑定同次 Observation
 
-系统 MUST 要求元素索引动作携带产生该索引的最新 `observation_ref`，并在动作前重新Observe确认索引仍可操作。
+系统 MUST 要求元素索引动作携带产生该索引的最新 `observation_ref`，并在动作前重新Observe按角色与标签确认同一元素仍可操作。
 
 #### Scenario: 最新引用与索引有效
 
 - **WHEN** 同任务下一片段提交最新引用和仍存在的可操作索引
-- **THEN** Worker只派发一次Sky元素动作，并在动作后重新Observe验证效果
+- **THEN** Worker按角色与标签唯一解析新鲜索引并派发Sky元素动作，在动作后重新Observe验证效果
 
 #### Scenario: 引用或索引失效
 
 - **WHEN** 引用来自旧Observation、其他任务、Worker重建，或索引已消失
 - **THEN** Worker不得派发动作，返回新鲜Observation并交回慢脑
 
-#### Scenario: 动作回执但后置事实不足
+#### Scenario: 动作回执且新鲜事实明确证明未生效
 
-- **WHEN** Sky动作调用返回但transcript与视觉事实不能确认变化
-- **THEN** 结果保持unknown/handback，且不得自动重试
+- **WHEN** Sky元素激活调用正常返回，900ms收敛后Observe有效，且同一角色与标签的唯一目标仍明确保持原状态
+- **THEN** Worker使用重新解析的新索引追加至多一次恢复动作，并再次强制Observe
+
+#### Scenario: 恢复后仍未生效或结果不可核实
+
+- **WHEN** 第二次元素激活仍无直接结构证据，或目标无法唯一重解析、调用超时/拒绝/断连、Observe失败
+- **THEN** 结果保持unknown/handback，且不得继续重试
+
+#### Scenario: 不安全动作不进入恢复
+
+- **WHEN** 动作为坐标、文本输入、发送、删除、支付、安装、提权或需要确认/一次性引用
+- **THEN** `driver-action-unconfirmed`不得触发自动重试
 
 #### Scenario: 元素动作后的 AX 状态延迟
 
 - **WHEN** Sky 元素动作已单次派发，但首次动作后 Observe 尚未出现预期结构变化
 - **THEN** Worker 可在不重放动作的前提下进行不超过 900ms 的有界只读 Observe 收敛
-- **AND** 期限内仍无直接结构证据时保持 unknown/handback
+- **AND** 期限内仍无直接结构证据时仅可进入上述一次受限元素恢复；不满足恢复门禁则保持 unknown/handback
 
 #### Scenario: 坐标调用返回错误
 

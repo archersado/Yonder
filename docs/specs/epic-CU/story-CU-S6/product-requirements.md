@@ -12,6 +12,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - 后续真实样本（2026-10-07）：企业微信左下角企业切换入口只暴露为无文本 AX image；坐标兜底因截图缩放难以稳定命中，要求继续保持元素优先并暴露受新鲜引用保护的 image 句柄。
 - 后续正式对照（2026-10-08）：短暂引入的 Retina backing-scale 换算使企业微信精确原图坐标稳定失效；此前两个不同点位的结果不足以证明坐标单位差异，必须恢复 Sky 原始截图像素契约。
 - 后续用户变更（2026-10-08）：Driver 错误必须透出；只能返回不含 SDK 原文、正文、截图或完整 Payload 的有界错误码，并在顶部浮窗、任务面板和 Gateway 使用同一事实。
+- 后续用户变更（2026-10-09）：`driver-action-unconfirmed` 不应直接结束；在新鲜 Observe 能明确证明非敏感元素激活未产生效果时，必须有界重试，而不是交回后停住。
 - 待审建议：未来是否为复杂表格、树增加更多结构字段，不在本 Story 自行扩展。
 
 ## 验收条件
@@ -36,6 +37,9 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-18：Driver unknown 必须区分动作超时、动作拒绝、动作未确认、目标引用失效、Observe 失败与传输失败；错误码必须进入既有 Attempt 事件并同步显示在顶部 Driver 轮次、任务面板及协议 1.49 Gateway 响应。
 - OEH-19：错误透出不得包含 SDK/MCP 原文、动作参数、应用名、AX transcript、截图、PID、窗口 ID 或完整 Payload；协议 1.48 及以下必须降级为既有通用 unknown reason。
 - OEH-20：元素动作只允许派发一次；若首次动作后 Observe 尚未出现预期结构变化，Worker 可在不重放动作的前提下进行不超过 900ms 的有界只读 Observe 收敛。期限内仍无直接结构证据时必须返回 unknown/handback，不得以等待时间或 Driver 回执替代成功事实。
+- OEH-21：若元素激活调用正常返回、900ms 收敛后 Observe 有效，且目标可按原 Observation 的角色与标签在最新树中唯一解析并明确保持原状态，Worker 必须使用新索引追加至多一次恢复动作；第二次仍无效果则交回慢脑。
+- OEH-22：受限恢复不得复用旧索引，也不得用于坐标、发送、文本输入、删除、支付、安装、提权或需要确认/一次性引用的动作；超时、拒绝、断连、Observe 失败及结果无法核实仍不得自动重试。
+- OEH-23：顶部 Driver 轮次在恢复期间显示“首次未生效，正在重试（1/1）”，最终成功或待核实继续使用同一 attempt 事实，不新增持久化状态源。
 
 ## 验收映射
 
@@ -47,9 +51,10 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 | 2026-10-08 企业微信企业切换负样本与 Retina 逻辑点诊断 | OEH-13～OEH-17 |
 | 2026-10-08 Driver 错误透出用户变更 | OEH-18、OEH-19 |
 | 2026-10-09 Sky 播放控件延迟状态样本 | OEH-20 |
+| 2026-10-09 `driver-action-unconfirmed` 恢复变更 | OEH-21～OEH-23 |
 | AD-CU-09、AD-CU-10、AD-CU-11、AD-CU-12 | OEH-01～OEH-08、OEH-10～OEH-19 |
 | AD-TM-23 | OEH-07 |
 
 ## 范围与非目标
 
-本 Story 只覆盖 CUA 临时 Observation transcript、句柄、引用绑定、协议/Gateway/Worker 合约和 macOS 正式验证。不建立持久 AX 索引或 transcript，不把截图 OCR 伪装为 AX，不新增第二 Driver，不自动重试 unknown 动作，也不完成暂缓的 Windows 验证。有界动作后 Observe 收敛只重复读取，不重复派发动作。
+本 Story 只覆盖 CUA 临时 Observation transcript、句柄、引用绑定、协议/Gateway/Worker 合约和 macOS 正式验证。不建立持久 AX 索引或 transcript，不把截图 OCR 伪装为 AX，不新增第二 Driver，也不完成暂缓的 Windows 验证。不可核实 unknown 仍不重试；仅对可由新鲜 Observe 证实无效果的非敏感元素激活执行一次受限恢复。
