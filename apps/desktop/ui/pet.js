@@ -48,6 +48,7 @@
   let taskState = 'unknown';
   let stepLabel = null;
   let agentConnected = false;
+  let gatewayConnected = false;
   let voiceActive = false;
   const displayedState = () => voiceActive ? 'voice_listening' : taskState;
   let motionTimer;
@@ -109,7 +110,7 @@
     setPackStatus('自定义桌宠资源包已加载');
   }
   function updateAccessibility() {
-    const connection = agentConnected ? 'Agent已连接' : 'Agent未连接';
+    const connection = `${gatewayConnected ? '任务通道已连接' : '任务通道未连接'} · ${agentConnected ? '输入通道已连接' : '输入通道未连接'}`;
     const step = taskState === 'executing' && stepLabel ? ` · 正在：${stepLabel}` : '';
     document.title = voiceActive ? `Yonda · 正在聆听 · ${connection}` : `Yonda${step} · ${connection}`;
     const action = voiceActive ? 'Yonda正在聆听' : mode === 'docked' ? '点击趴在边缘的Yonda唤醒它' : '轻点Yonda小龙，按住移动可拖动';
@@ -465,13 +466,17 @@
     }
   }
   async function loadAgentConnection() {
-    try { applyAgentConnection(await native('pet_agent_connected') === true); }
-    catch { applyAgentConnection(false); }
+    try { applyAgentConnection(await native('pet_agent_connected')); }
+    catch { applyAgentConnection({ gateway_connected: false, input_connected: false }); }
   }
-  function applyAgentConnection(connected) {
-    if (agentConnected === connected && pet.dataset.agentConnected) return;
-    agentConnected = connected;
-    pet.dataset.agentConnected = String(connected);
+  function applyAgentConnection(presence) {
+    const nextGateway = presence?.gateway_connected === true;
+    const nextInput = presence?.input_connected === true;
+    if (agentConnected === nextInput && gatewayConnected === nextGateway && pet.dataset.agentConnected) return;
+    agentConnected = nextInput;
+    gatewayConnected = nextGateway;
+    pet.dataset.agentConnected = String(nextInput);
+    pet.dataset.gatewayConnected = String(nextGateway);
     updateAccessibility();
     if (mode === 'docked') wake();
   }
@@ -490,7 +495,7 @@
     applyPresentation(detail.hasTasks, detail.state, detail.stepLabel);
   });
   window.addEventListener('yonda-agent-connection', event => {
-    if (typeof event.detail?.connected === 'boolean') applyAgentConnection(event.detail.connected);
+    if (typeof event.detail?.gateway_connected === 'boolean' && typeof event.detail?.input_connected === 'boolean') applyAgentConnection(event.detail);
   });
   voiceTrigger.addEventListener('pointerdown', event => event.stopPropagation());
   voiceTrigger.addEventListener('pointerup', event => event.stopPropagation());

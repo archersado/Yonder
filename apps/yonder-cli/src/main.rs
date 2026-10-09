@@ -43,18 +43,15 @@ async fn send(stream: &Stream, request: &Request) -> io::Result<Response> {
     serde_json::from_slice(&line).map_err(io::Error::other)
 }
 
-async fn gateway(agent_id: &str, request: Request) -> io::Result<Response> {
-    let stream = Stream::connect(socket_path()?.to_fs_name::<GenericFilePath>()?).await
-        .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "Yonder未运行"))?;
-    let hello = Request::Hello { jsonrpc: Version::V2, request_id: "hello".into(), params: HelloParams {
-        agent_id: agent_id.into(), capability: Capability::TaskRead, deadline: now_ms()? + 60_000,
-        protocol_version: PROTOCOL_VERSION,
-        session_id: None, offered_capabilities: None,
-    }};
-    match send(&stream, &hello).await? {
-        Response::Success { .. } => send(&stream, &request).await,
-        Response::Failure { error, .. } => Err(io::Error::other(error.message)),
+struct GatewayClient{agent_id:String,stream:Option<Stream>}
+impl GatewayClient{
+    fn new(agent_id:String)->Self{Self{agent_id,stream:None}}
+    async fn connect(&mut self)->io::Result<()>{
+        let stream=Stream::connect(socket_path()?.to_fs_name::<GenericFilePath>()?).await.map_err(|_|io::Error::new(io::ErrorKind::NotFound,"Yonder未运行"))?;
+        let hello=Request::Hello{jsonrpc:Version::V2,request_id:"hello".into(),params:HelloParams{agent_id:self.agent_id.clone(),capability:Capability::TaskRead,deadline:now_ms()?+60_000,protocol_version:PROTOCOL_VERSION,session_id:None,offered_capabilities:None}};
+        match send(&stream,&hello).await?{Response::Success{..}=>{self.stream=Some(stream);Ok(())},Response::Failure{error,..}=>Err(io::Error::other(error.message))}
     }
+    async fn request(&mut self,request:Request)->io::Result<Response>{if self.stream.is_none(){self.connect().await?;}let result=send(self.stream.as_ref().expect("connected gateway stream"),&request).await;if result.is_err(){self.stream=None;}result}
 }
 
 fn text_result(value: Value, is_error: bool) -> Value {
@@ -160,7 +157,7 @@ fn tools() -> Value {
     ])
 }
 
-async fn handle(message: Value, counter: &mut u64, agent_id: &str) -> Option<Value> {
+async fn handle(message: Value, counter: &mut u64, gateway:&mut GatewayClient) -> Option<Value> {
     let id = message.get("id")?.clone();
     let method = message.get("method").and_then(Value::as_str).unwrap_or("");
     let result = match method {
@@ -172,8 +169,8 @@ async fn handle(message: Value, counter: &mut u64, agent_id: &str) -> Option<Val
             let params = message.get("params").unwrap_or(&Value::Null);
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").unwrap_or(&Value::Null);
-            match now_ms().map_err(|e| e.to_string()).and_then(|now| request(name, args, format!("mcp-{counter}"), now + 60_000, agent_id)) {
-                Ok(request) => match gateway(agent_id, request).await {
+            match now_ms().map_err(|e| e.to_string()).and_then(|now| request(name, args, format!("mcp-{counter}"), now + 60_000, &gateway.agent_id)) {
+                Ok(request) => match gateway.request(request).await {
                     Ok(Response::Success { result, .. }) => text_result(serde_json::to_value(result).unwrap_or(Value::Null), false),
                     Ok(Response::Failure { error, .. }) => text_result(json!({"code":error.code,"message":error.message}), true),
                     Err(error) => text_result(json!({"message":error.to_string()}), true),
@@ -201,6 +198,7 @@ async fn mcp(agent_id: String) {
         let _ = line_sender.send(Ok(None));
     });
     let mut counter = 0;
+    let mut gateway=GatewayClient::new(agent_id);
     loop {
         let line = match receive_line(&line_receiver, MCP_IDLE_TIMEOUT) {
             Ok(Some(line)) => line,
@@ -209,7 +207,7 @@ async fn mcp(agent_id: String) {
         };
         if line.len() > MAX_REQUEST_BYTES { break; }
         let Ok(message) = serde_json::from_str::<Value>(&line) else { continue };
-        if let Some(response) = handle(message, &mut counter, &agent_id).await {
+        if let Some(response) = handle(message, &mut counter, &mut gateway).await {
             if serde_json::to_writer(&mut stdout, &response).is_err() || writeln!(stdout).is_err() || stdout.flush().is_err() { break; }
         }
     }

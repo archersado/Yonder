@@ -3,6 +3,9 @@ use tokio::sync::mpsc as tokio_mpsc;
 use base64::Engine;
 use yonder_application::agent_input::{AgentInputAttachment, AgentInputParams, AgentInputSink, AgentInputSource, DeliveryOutcome, submit, submit_selection};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct AgentConnectionPresence { pub gateway_connected: bool, pub input_connected: bool }
+
 pub(crate) struct Delivery { pub input: AgentInputParams, pub attachment: Option<AgentInputAttachment>, pub reply: mpsc::Sender<DeliveryOutcome> }
 
 #[derive(Clone)]
@@ -19,12 +22,14 @@ impl AgentInputSink for SessionSink {
 }
 
 #[derive(Clone, Default)]
-pub struct AgentInputHub { inner: Arc<Mutex<HubState>>, next_input: Arc<AtomicU64>, next_session: Arc<AtomicU64> }
+pub struct AgentInputHub { inner: Arc<Mutex<HubState>>, next_input: Arc<AtomicU64>, next_session: Arc<AtomicU64>, next_gateway: Arc<AtomicU64> }
 
 #[derive(Default)]
-struct HubState { sessions: HashMap<String, (u64, SessionSink)>, active: Option<String> }
+struct HubState { sessions: HashMap<String, (u64, SessionSink)>, gateways: HashMap<u64, String>, active: Option<String> }
 
 impl AgentInputHub {
+    pub(crate) fn register_gateway(&self, agent_id:String)->(u64,AgentConnectionPresence){let token=self.next_gateway.fetch_add(1,Ordering::Relaxed)+1;if let Ok(mut state)=self.inner.lock(){state.gateways.insert(token,agent_id);}(token,self.presence())}
+    pub(crate) fn unregister_gateway(&self, token:u64)->AgentConnectionPresence{if let Ok(mut state)=self.inner.lock(){state.gateways.remove(&token);}self.presence()}
     pub(crate) fn register(&self, agent_id: String, session_id: String, supports_attachment: bool, supports_replan:bool, tx: tokio_mpsc::UnboundedSender<Delivery>, close: tokio_mpsc::UnboundedSender<()>) -> (u64, bool) {
         let token = self.next_session.fetch_add(1, Ordering::Relaxed) + 1;
         let connected = if let Ok(mut state) = self.inner.lock() {
@@ -70,7 +75,8 @@ impl AgentInputHub {
         !state.sessions.is_empty()
     }
 
-    pub fn connected(&self) -> bool { self.inner.lock().is_ok_and(|state| !state.sessions.is_empty()) }
+    pub fn connected(&self) -> bool { self.presence().input_connected }
+    pub fn presence(&self)->AgentConnectionPresence{self.inner.lock().map(|state|AgentConnectionPresence{gateway_connected:!state.gateways.is_empty(),input_connected:!state.sessions.is_empty()}).unwrap_or_default()}
 
     pub fn deliver_voice(&self, content: &str) -> Result<DeliveryOutcome, &'static str> {
         let sink = self.active_sink()?;
@@ -141,6 +147,9 @@ impl AgentInputHub {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn distinguishes_gateway_presence_from_input_capability(){let hub=AgentInputHub::default();assert_eq!(hub.presence(),AgentConnectionPresence::default());let(gateway_token,presence)=hub.register_gateway("agent-a".into());assert_eq!(presence,AgentConnectionPresence{gateway_connected:true,input_connected:false});let(tx,_rx)=tokio_mpsc::unbounded_channel();let(close_tx,_close_rx)=tokio_mpsc::unbounded_channel();let(session_token,_)=hub.register("agent-a".into(),"session-a".into(),false,false,tx,close_tx);assert_eq!(hub.presence(),AgentConnectionPresence{gateway_connected:true,input_connected:true});hub.unregister("session-a",session_token);assert_eq!(hub.presence(),AgentConnectionPresence{gateway_connected:true,input_connected:false});assert_eq!(hub.unregister_gateway(gateway_token),AgentConnectionPresence::default());}
 
     #[test]
     fn routes_to_the_registered_agent_connection() {

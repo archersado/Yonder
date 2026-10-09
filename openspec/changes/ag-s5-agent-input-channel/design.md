@@ -21,4 +21,4 @@ Gateway用连接注册表保存`agent_id + session_id → connection sink`，会
 
 云端产品传输不由本Change新建连接。AG-S1先负责端点、认证、TLS与重连并向统一注册表提供已认证`AgentSession`；本Change只在该会话声明`user_input`后挂载同一sink。连接断开时未确认输入归unknown，不写Outbox、不自动重试。
 
-同一连接注册表派生布尔连接快照。Desktop Adapter在会话注册/移除后直接向桌宠发布事件；页面初始化只读取一次快照。桌宠用独立徽标显示连接态，连接变化唤醒隐藏形态，不改变任务生命周期状态，也不轮询任务数据库。
+同一内存注册表派生`gateway_connected/input_connected`连接快照。Desktop Adapter在已认证Gateway连接或输入会话注册/移除后直接向桌宠发布事件；页面初始化只读取一次快照。桌宠以绿色、蓝色、灰色区分完整输入连接、仅任务通道和完全断开，连接变化唤醒隐藏形态，不改变任务生命周期状态，也不轮询任务数据库。普通MCP连接只设置`gateway_connected`，不能注册`user_input`。

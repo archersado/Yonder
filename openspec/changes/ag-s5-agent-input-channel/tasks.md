@@ -17,5 +17,6 @@
 - [x] 接入VI-S1最终转写自动投递
 - [x] 设计桌宠Agent连接态的事件、视觉与可访问反馈
 - [x] 实现连接注册事件、启动快照与桌宠连接徽标
+- [ ] 区分任务Gateway与输入会话连接态，并让长驻MCP连接驱动连接/断开事件
 - [ ] 完成Windows/macOS独立Verification Goal
 - [ ] Archive

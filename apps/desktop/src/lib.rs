@@ -518,8 +518,9 @@ pub fn emit_pet_terminal_presentation(
     ));
 }
 
-pub fn emit_pet_agent_connection(window: &WebviewWindow, connected: bool) {
-    let _ = window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-agent-connection',{{detail:{{connected:{connected}}}}}))"));
+pub fn emit_pet_agent_connection(window:&WebviewWindow,presence:agent_input::AgentConnectionPresence){
+    let Ok(detail)=serde_json::to_string(&presence) else{return;};
+    let _=window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-agent-connection',{{detail:{detail}}}))"));
 }
 
 pub struct TaskHost {

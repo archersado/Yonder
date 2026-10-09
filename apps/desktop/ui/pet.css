@@ -11,6 +11,7 @@ body:has(#pet[data-mode="docked"]) #voice-trigger,body:has(#pet[data-mode="docke
 #pet.held { cursor: grabbing; }
 .agent-connection { position:absolute; z-index:15; right:14px; bottom:17px; width:11px; height:11px; box-sizing:border-box; border:2px solid #fffdfb; border-radius:50%; background:#9298a1; box-shadow:0 1px 4px #2337; pointer-events:none; }
 #pet[data-agent-connected="true"] .agent-connection { background:#49b96e; box-shadow:0 0 0 2px #49b96e33,0 1px 4px #2337; }
+#pet[data-gateway-connected="true"][data-agent-connected="false"] .agent-connection { background:#458ee6; box-shadow:0 0 0 2px #458ee633,0 1px 4px #2337; }
 #pet[data-mode="docked"] .agent-connection { right:5px; bottom:5px; }
 #pet[data-mode="docked"][data-edge="left"] .agent-connection,#pet[data-mode="docked"][data-edge="right"] .agent-connection { right:5px; bottom:5px; }
 .peek { display: none; }

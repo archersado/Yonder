@@ -11,6 +11,10 @@ use tauri::{Manager, WebviewWindow};
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const ATTACHMENT_CHUNK_BYTES: usize = 47 * 1024;
 
+struct GatewayConnectionLease{hub:AgentInputHub,pet:WebviewWindow,token:u64}
+impl GatewayConnectionLease{fn register(hub:AgentInputHub,pet:WebviewWindow,agent_id:String)->Self{let(token,presence)=hub.register_gateway(agent_id);emit_pet_agent_connection(&pet,presence);Self{hub,pet,token}}}
+impl Drop for GatewayConnectionLease{fn drop(&mut self){let presence=self.hub.unregister_gateway(self.token);emit_pet_agent_connection(&self.pet,presence);}}
+
 async fn send_agent_request(stream: &Stream, request: &AgentRequest) -> io::Result<()> {
     let mut bytes = encode_request(request).map_err(|error| io::Error::other(error.message))?;
     if bytes.len() > MAX_FRAME_BYTES { return Err(io::Error::new(io::ErrorKind::InvalidData, "Agent请求帧过大")); }
@@ -137,6 +141,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
     first.pop();
     let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_millis()).map_err(io::Error::other)?;
     let agent_id = local_hello_agent_id(&first, now).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "本地Gateway必须先握手"))?;
+    let _gateway_lease=GatewayConnectionLease::register(hub.clone(),pet.clone(),agent_id.clone());
     let mut session = GatewaySession::new(AuthContext::Agent(&agent_id), Platform::Macos);
     let mut initial = Some(first);
     loop {
@@ -257,7 +262,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
             let (close_tx, mut close_rx) = tokio::sync::mpsc::unbounded_channel();
             let (token, connected) = hub.register(agent_id, session_id.clone(), supports_attachment, supports_replan, tx, close_tx);
-            emit_pet_agent_connection(&pet, connected);
+            let _=connected;emit_pet_agent_connection(&pet,hub.presence());
             let result = async {
                 loop {
                     let delivery = tokio::select! {
@@ -296,7 +301,7 @@ async fn exchange(stream: Stream, host: Arc<Mutex<Option<TaskHost>>>, pet: Webvi
                 }
                 Ok(())
             }.await;
-            emit_pet_agent_connection(&pet, hub.unregister(&session_id, token));
+            let _=hub.unregister(&session_id,token);emit_pet_agent_connection(&pet,hub.presence());
             return result;
         }
     }

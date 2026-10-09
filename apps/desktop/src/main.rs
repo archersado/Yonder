@@ -413,9 +413,9 @@ async fn pet_task_state(window: WebviewWindow, state: State<'_, TaskState>) -> R
 }
 
 #[tauri::command]
-fn pet_agent_connected(window: WebviewWindow, hub: State<'_, yonder_desktop::agent_input::AgentInputHub>) -> Result<bool, String> {
+fn pet_agent_connected(window: WebviewWindow, hub: State<'_, yonder_desktop::agent_input::AgentInputHub>) -> Result<yonder_desktop::agent_input::AgentConnectionPresence, String> {
     if window.label() != "pet" { return Err("不允许的窗口".into()); }
-    Ok(hub.connected())
+    Ok(hub.presence())
 }
 
 fn show_menu(app: &tauri::AppHandle) -> Result<(), String> {
