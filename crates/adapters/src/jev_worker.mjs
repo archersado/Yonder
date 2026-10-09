@@ -23,7 +23,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     });
     if (request.mode === 'verify-step') {
       const result = await client.systemOne({
-        model: 'jev-latest',
+        model: request.model,
         state: {
           step_intent: request.step_label,
           action_kind: request.action_kind,
@@ -65,7 +65,7 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       },
     ]));
     const result = await client.systemOne({
-      model: 'jev-latest',
+      model: request.model,
       state: {
         task_goal: request.task_goal,
         plan_steps: request.plan_steps,

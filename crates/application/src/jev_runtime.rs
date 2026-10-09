@@ -1,7 +1,4 @@
-use crate::{
-    jev_config::{JevCapability, JevConfig, JevServiceMode, JEV_REMOTE_ENDPOINT},
-    valid_id,
-};
+use crate::{jev_config::{JevCapability, JevConfig}, valid_id};
 use serde::{Deserialize, Serialize};
 
 const CONFIDENCE_THRESHOLD: f32 = 0.75;
@@ -153,14 +150,6 @@ fn validate_config_and_capability(
     config
         .validate()
         .map_err(|_| JevDecisionError::InvalidConfig)?;
-    if config.service_mode != JevServiceMode::Remote
-        || !matches!(
-            config.endpoint.as_str(),
-            JEV_REMOTE_ENDPOINT | "https://api.typesafe.ai/"
-        )
-    {
-        return Err(JevDecisionError::InvalidConfig);
-    }
     if !config.capabilities.contains(&capability) {
         return Err(JevDecisionError::Disabled);
     }
@@ -296,6 +285,7 @@ fn interpret(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::jev_config::{JevServiceMode, JEV_REMOTE_ENDPOINT};
 
     struct FakePort(Result<JevModelChoice, JevDecisionError>);
 
@@ -493,18 +483,9 @@ mod tests {
 
         let mut local_config = config();
         local_config.service_mode = JevServiceMode::Local;
-        local_config.endpoint = "http://localhost".into();
-        assert_eq!(
-            decide(
-                &local_config,
-                &FakePort(Ok(JevModelChoice {
-                    candidate_id: "cua.click".into(),
-                    confidence: 1.0
-                })),
-                &request()
-            ),
-            Err(JevDecisionError::InvalidConfig)
-        );
+        local_config.endpoint = "http://127.0.0.1:8002".into();
+        local_config.model = "english".into();
+        assert!(matches!(decide(&local_config,&FakePort(Ok(JevModelChoice{candidate_id:"cua.click".into(),confidence:1.0})),&request()),Ok(JevDecision::Dispatch { .. })));
     }
 
     #[test]

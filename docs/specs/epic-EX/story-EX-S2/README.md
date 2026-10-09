@@ -36,3 +36,5 @@ OpenSpec: ex-s2-plan-fragment-macos
 2026-10-08 用户修订：Jev 快脑改为从同次新鲜 AX Observe 自然形成的多控件动作空间中选择，不再为触发快脑构造应用恢复分支。正式安装包 MCP/Gateway macOS 样本已完成“语义模板→AX 多候选→Jev 选择→临时句柄复核→点击→动作后 Observe→Goal Verification→completed”，证据见[计划片段 Verification Goal](../../../../openspec/changes/ex-s2-plan-fragment-macos/verification-goal.md)。Windows 证据仍按决定暂缓，Story 保持 implementing。
 
 2026-10-08 收尾复核确认事件驱动交回已由TM-S9运行时完整承接并通过当前回归；正式QQ音乐AD-EX-05样本仍被CU-S4动作确认阻断。产品任务成功完成启动和搜索入口聚焦，但文本输入、临时元素句柄点击与封闭`SPACE`激活均在进入Jev步骤核验前返回`unknown(driver-action-unconfirmed)`；系统逐次安全交回且未自动重试，测试任务最终取消。修复CU-S4并重建产品前，EX-S2不得Archive。
+
+2026-10-09 用户要求本地 Jev 模型名成为面板配置。增量 Change [ex-s2-configurable-jev-model](../../../../openspec/changes/ex-s2-configurable-jev-model/proposal.md) 修复设置面板已允许 `local`、运行时却只接受远端的契约分裂，并使候选选择与步骤核验统一使用配置快照中的受限模型标识；不改变计划片段、任务状态或敏感数据边界。

@@ -21,6 +21,18 @@
 - THEN 系统拒绝保存
 - AND 给出字段级错误
 
+#### Scenario: 配置本地模型
+
+- WHEN 用户选择本地服务并提交合法 base URL 与模型标识
+- THEN 系统保存二者并在候选选择和步骤核验中使用同一配置快照
+- AND Adapter 或 Worker 不得把模型覆盖为固定值
+
+#### Scenario: 兼容既有配置
+
+- WHEN SQLite 中的既有 Jev 配置尚未包含模型字段
+- THEN 系统以 `jev-latest` 安全读取该配置
+- AND 用户可在设置面板改为服务目录实际发布的模型
+
 ### Requirement: 本机配置界面
 
 系统 MUST 提供独立的 Jev 配置窗口，仅通过本机命令读写 Jev 配置，不得直接访问 Adapter、配置文件或任务状态，且不得嵌入 Task Space。

@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 pub const JEV_REMOTE_ENDPOINT: &str = "https://api.typesafe.ai";
+pub const DEFAULT_JEV_MODEL: &str = "jev-latest";
+
+fn default_jev_model() -> String { DEFAULT_JEV_MODEL.into() }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -15,6 +18,8 @@ pub struct JevConfig {
     pub enabled: bool,
     pub service_mode: JevServiceMode,
     pub endpoint: String,
+    #[serde(default = "default_jev_model")]
+    pub model: String,
     pub step_limit: u32,
     pub time_limit_ms: u64,
     pub token_limit: u64,
@@ -24,6 +29,7 @@ pub struct JevConfig {
 #[derive(Debug, Eq, PartialEq)]
 pub enum JevConfigError {
     InvalidEndpoint,
+    InvalidModel,
     InvalidStepLimit,
     InvalidTimeLimit,
     InvalidTokenLimit,
@@ -36,6 +42,7 @@ impl Default for JevConfig {
             enabled: false,
             service_mode: JevServiceMode::Local,
             endpoint: "http://localhost".into(),
+            model: DEFAULT_JEV_MODEL.into(),
             step_limit: 10,
             time_limit_ms: 60_000,
             token_limit: 10_000,
@@ -65,6 +72,14 @@ impl JevConfig {
         {
             return Err(JevConfigError::InvalidEndpoint);
         }
+        if self.model.is_empty()
+            || self.model.len() > 128
+            || !self.model.bytes().all(|value| {
+                value.is_ascii_alphanumeric() || matches!(value, b'.' | b'_' | b'-' | b'/' | b':')
+            })
+        {
+            return Err(JevConfigError::InvalidModel);
+        }
         if !(1..=100).contains(&self.step_limit) { return Err(JevConfigError::InvalidStepLimit); }
         if !(1_000..=600_000).contains(&self.time_limit_ms) { return Err(JevConfigError::InvalidTimeLimit); }
         if !(1..=100_000).contains(&self.token_limit) { return Err(JevConfigError::InvalidTokenLimit); }
@@ -85,6 +100,23 @@ mod tests {
     #[test]
     fn accepts_default_config() {
         assert_eq!(JevConfig::default().validate(), Ok(()));
+    }
+
+    #[test]
+    fn validates_model_identifier_and_legacy_json() {
+        let mut config = JevConfig::default();
+        config.model = "english".into();
+        assert_eq!(config.validate(), Ok(()));
+        for invalid in ["", "model name", "模型", "model?token=secret"] {
+            config.model = invalid.into();
+            assert_eq!(config.validate(), Err(JevConfigError::InvalidModel));
+        }
+        config.model = "a".repeat(129);
+        assert_eq!(config.validate(), Err(JevConfigError::InvalidModel));
+
+        let legacy = r#"{"enabled":true,"service_mode":"local","endpoint":"http://127.0.0.1:8002","step_limit":10,"time_limit_ms":60000,"token_limit":10000,"capabilities":["CUA"]}"#;
+        let decoded: JevConfig = serde_json::from_str(legacy).unwrap();
+        assert_eq!(decoded.model, DEFAULT_JEV_MODEL);
     }
 
     #[test]

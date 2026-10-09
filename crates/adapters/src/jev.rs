@@ -33,6 +33,7 @@ pub struct MacosJevPort {
 struct WorkerRequest<'a> {
     mode: &'static str,
     endpoint: &'a str,
+    model: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
     task_goal: &'a str,
@@ -47,6 +48,7 @@ struct WorkerRequest<'a> {
 struct StepVerificationWorkerRequest<'a> {
     mode: &'static str,
     endpoint: &'a str,
+    model: &'a str,
     api_key: &'a str,
     timeout_ms: u64,
     step_label: &'a str,
@@ -245,6 +247,7 @@ impl JevDecisionPort for MacosJevPort {
         let worker_request = WorkerRequest {
             mode: "choose",
             endpoint: &config.endpoint,
+            model: &config.model,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
             task_goal: &request.task_goal,
@@ -271,6 +274,7 @@ impl JevDecisionPort for MacosJevPort {
         let worker_request = StepVerificationWorkerRequest {
             mode: "verify-step",
             endpoint: &config.endpoint,
+            model: &config.model,
             api_key: &api_key,
             timeout_ms: timeout.as_millis() as u64,
             step_label: &request.step_label,
@@ -380,6 +384,7 @@ export class TypeSafeClient {
         let request = WorkerRequest {
             mode: "choose",
             endpoint: "https://api.typesafe.ai",
+            model: "fixture-model",
             api_key: "test-only",
             timeout_ms: 3000,
             task_goal: "完成控件选择验证",
@@ -437,6 +442,7 @@ export class TypeSafeClient {
         let payload = serde_json::to_value(WorkerRequest {
             mode: "choose",
             endpoint: "https://api.typesafe.ai",
+            model: "fixture-model",
             api_key: "test-only",
             timeout_ms: 3000,
             task_goal: "在 QQ 音乐播放宇多田光版本",
@@ -448,6 +454,7 @@ export class TypeSafeClient {
         })
         .unwrap();
         assert_eq!(payload["task_goal"], "在 QQ 音乐播放宇多田光版本");
+        assert_eq!(payload["model"], "fixture-model");
         assert_eq!(payload["plan_steps"], serde_json::json!(plan_steps));
         assert_eq!(payload["current_step_index"], 1);
         assert_eq!(payload["step_label"], "播放 One Last Kiss");
@@ -471,6 +478,7 @@ export class TypeSafeClient {
         let request = StepVerificationWorkerRequest {
             mode: "verify-step",
             endpoint: "https://api.typesafe.ai",
+            model: "fixture-model",
             api_key: "test-only",
             timeout_ms: 3000,
             step_label: "播放 One Last Kiss",

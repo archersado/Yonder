@@ -4199,6 +4199,7 @@ mod tests {
             enabled: true,
             service_mode: JevServiceMode::Remote,
             endpoint: JEV_REMOTE_ENDPOINT.into(),
+            model: "jev-latest".into(),
             step_limit: 10,
             time_limit_ms: 60_000,
             token_limit: 10_000,
