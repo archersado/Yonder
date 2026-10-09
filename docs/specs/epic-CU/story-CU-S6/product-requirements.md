@@ -39,7 +39,6 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-20：元素动作只允许派发一次；若首次动作后 Observe 尚未出现预期结构变化，Worker 可在不重放动作的前提下进行不超过 900ms 的有界只读 Observe 收敛。期限内仍无直接结构证据时必须返回 unknown/handback，不得以等待时间或 Driver 回执替代成功事实。
 - OEH-21：若元素激活调用正常返回、900ms 收敛后 Observe 有效，且目标可按原 Observation 的角色与标签在最新树中唯一解析并明确保持原状态，Worker 必须使用新索引追加至多一次恢复动作；第二次仍无效果则交回慢脑。
 - OEH-22：受限恢复不得复用旧索引，也不得用于坐标、发送、文本输入、删除、支付、安装、提权或需要确认/一次性引用的动作；超时、拒绝、断连、Observe 失败及结果无法核实仍不得自动重试。
-- OEH-23：顶部 Driver 轮次在恢复期间显示“首次未生效，正在重试（1/1）”，最终成功或待核实继续使用同一 attempt 事实，不新增持久化状态源。
 
 ## 验收映射
 
@@ -51,7 +50,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 | 2026-10-08 企业微信企业切换负样本与 Retina 逻辑点诊断 | OEH-13～OEH-17 |
 | 2026-10-08 Driver 错误透出用户变更 | OEH-18、OEH-19 |
 | 2026-10-09 Sky 播放控件延迟状态样本 | OEH-20 |
-| 2026-10-09 `driver-action-unconfirmed` 恢复变更 | OEH-21～OEH-23 |
+| 2026-10-09 `driver-action-unconfirmed` 恢复变更 | OEH-21、OEH-22 |
 | AD-CU-09、AD-CU-10、AD-CU-11、AD-CU-12 | OEH-01～OEH-08、OEH-10～OEH-19 |
 | AD-TM-23 | OEH-07 |
 

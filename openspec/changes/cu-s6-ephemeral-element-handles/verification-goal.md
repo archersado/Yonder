@@ -27,6 +27,27 @@
 - `openspec validate cu-s6-ephemeral-element-handles --strict`、架构检查、Node/Python
   语法检查与 `git diff --check` 均通过。正式 QQ 音乐播放正向样本仍需重建产品后复验。
 
+## 2026-10-09 可证实 no-op 的受限恢复
+
+- Accepted AD-CU-12 修订把动作调用正常返回、动作后 Observe 有效、完整 transcript
+  未变化且同一角色/标签目标仍唯一存在的非敏感元素激活定义为受限恢复边界。
+  Worker 不复用旧数字索引，而是按新鲜角色/标签重新解析，并最多追加一次动作；
+  坐标、输入、发送、确认与一次性引用动作仍不得自动重试。
+- `python3 apps/desktop/check-sky-cua-worker.py`：通过。夹具把“可恢复控件”从索引
+  40 漂移到 42；Worker 两次都使用新索引 42，第二次出现结构变化并确认成功。
+  “无响应控件”恰好派发两次后返回 `action-unconfirmed-*`，证明不会无限循环。
+  坐标超时/拒绝和未确认文本输入的既有零重试断言继续通过。
+- `python3 apps/desktop/check-sky-message-worker.py`、Adapters 85 项、Desktop 29 项、
+  OpenSpec strict、架构检查与 Node 语法检查全部通过。实现提交 `41e3f46` 已
+  ff-only 合并 `dev`，重新构建正式 `Yonda.app`，宿主 PID 为 93986。
+- 正式 Gateway 任务 `task_eced437b5a1b88c84db64e592f05a94d` 取得 QQ 音乐
+  新鲜播放按钮后执行受限恢复；两次 AX 元素激活后按钮仍为“播放”，最终按
+  `driver-action-unconfirmed` 交回。慢脑没有结束任务，而是继续提交“置前后 SPACE”
+  替代片段；置前动作一度 `observe-failed`，只读重新 Observe 恢复后，SPACE 仍以
+  `driver-action-unconfirmed` 交回。任务于序号 27 取消。
+- 因此 OEH-21、OEH-22 的恢复与耗尽边界通过，但 QQ 音乐正向播放仍被 Sky 输入
+  未生效阻断；本 Goal 不把“发生过重试”提升为业务目标成功，正式播放任务保持未通过。
+
 ## 2026-10-08 企业微信负样本后的收紧
 
 - `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明同尺寸 transcript 变化会使旧坐标失效且不派发动作；可操作按钮下的装饰性 image 与 disabled 按钮不会形成候选，独立 image 仍可通过新鲜引用执行。
