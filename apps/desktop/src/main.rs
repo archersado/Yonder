@@ -1,8 +1,18 @@
-use std::{collections::BTreeMap, ffi::{c_char, CStr}, path::PathBuf, sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
-use yonder_desktop::TaskHost;
+use std::{
+    collections::BTreeMap,
+    ffi::{CStr, c_char},
+    path::PathBuf,
+    sync::{Arc, Mutex, OnceLock},
+    time::{SystemTime, UNIX_EPOCH},
+};
+use tauri::{
+    Manager, State, WebviewWindow,
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+};
 use yonder_adapters::pet_pack;
+use yonder_desktop::TaskHost;
 mod pet_window;
 mod release_contract;
 mod voice_input;
@@ -21,30 +31,77 @@ struct FileGrantView {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct CommandApprovalSummaryView { command_id: String, state: &'static str, expires_at_ms: u64 }
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CommandApprovalPreviewView { command_id: String, program: String, args: Vec<String>, cwd: String, env: BTreeMap<String,String>, timeout_ms: u64, expires_at_ms: u64 }
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CuaIntentPreviewView { intent_ref:String, confirmation_ref:String, target:String, message:String, expires_at_ms:u64 }
-
-fn cua_intent_preview_view(value:yonder_application::cua_intent::CuaIntentPreview)->CuaIntentPreviewView{
-    CuaIntentPreviewView{intent_ref:value.intent_ref,confirmation_ref:value.confirmation_ref,target:value.target,message:value.message,expires_at_ms:value.expires_at_ms}
+struct CommandApprovalSummaryView {
+    command_id: String,
+    state: &'static str,
+    expires_at_ms: u64,
 }
 
-fn command_approval_summary_view(value: yonder_application::command_approval::CommandApprovalSummary) -> CommandApprovalSummaryView {
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CommandApprovalPreviewView {
+    command_id: String,
+    program: String,
+    args: Vec<String>,
+    cwd: String,
+    env: BTreeMap<String, String>,
+    timeout_ms: u64,
+    expires_at_ms: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CuaIntentPreviewView {
+    intent_ref: String,
+    confirmation_ref: String,
+    target: String,
+    message: String,
+    expires_at_ms: u64,
+}
+
+fn cua_intent_preview_view(
+    value: yonder_application::cua_intent::CuaIntentPreview,
+) -> CuaIntentPreviewView {
+    CuaIntentPreviewView {
+        intent_ref: value.intent_ref,
+        confirmation_ref: value.confirmation_ref,
+        target: value.target,
+        message: value.message,
+        expires_at_ms: value.expires_at_ms,
+    }
+}
+
+fn command_approval_summary_view(
+    value: yonder_application::command_approval::CommandApprovalSummary,
+) -> CommandApprovalSummaryView {
     use yonder_application::command_approval::CommandApprovalState;
-    CommandApprovalSummaryView{command_id:value.command_id,state:match value.state{CommandApprovalState::AwaitingUser=>"awaiting-user",CommandApprovalState::Approved=>"approved"},expires_at_ms:value.expires_at_ms}
+    CommandApprovalSummaryView {
+        command_id: value.command_id,
+        state: match value.state {
+            CommandApprovalState::AwaitingUser => "awaiting-user",
+            CommandApprovalState::Approved => "approved",
+        },
+        expires_at_ms: value.expires_at_ms,
+    }
 }
 
-fn command_approval_preview_view(value: yonder_application::command_approval::CommandApprovalPreview) -> CommandApprovalPreviewView {
-    CommandApprovalPreviewView{command_id:value.command_id,program:value.request.program,args:value.request.args,cwd:value.request.cwd,env:value.request.env,timeout_ms:value.request.timeout_ms,expires_at_ms:value.expires_at_ms}
+fn command_approval_preview_view(
+    value: yonder_application::command_approval::CommandApprovalPreview,
+) -> CommandApprovalPreviewView {
+    CommandApprovalPreviewView {
+        command_id: value.command_id,
+        program: value.request.program,
+        args: value.request.args,
+        cwd: value.request.cwd,
+        env: value.request.env,
+        timeout_ms: value.request.timeout_ms,
+        expires_at_ms: value.expires_at_ms,
+    }
 }
 
-fn file_grant_purpose(value: &str) -> Result<yonder_application::file_authorization::FileGrantPurpose, String> {
+fn file_grant_purpose(
+    value: &str,
+) -> Result<yonder_application::file_authorization::FileGrantPurpose, String> {
     use yonder_application::file_authorization::FileGrantPurpose;
     match value {
         "read" => Ok(FileGrantPurpose::Read),
@@ -55,7 +112,9 @@ fn file_grant_purpose(value: &str) -> Result<yonder_application::file_authorizat
     }
 }
 
-fn file_grant_view(value: yonder_application::file_authorization::FileGrantSummary) -> FileGrantView {
+fn file_grant_view(
+    value: yonder_application::file_authorization::FileGrantSummary,
+) -> FileGrantView {
     use yonder_application::file_authorization::FileGrantPurpose;
     FileGrantView {
         grant_id: value.grant_id,
@@ -69,17 +128,29 @@ fn file_grant_view(value: yonder_application::file_authorization::FileGrantSumma
     }
 }
 
-fn choose_file_for_grant(purpose: yonder_application::file_authorization::FileGrantPurpose) -> Result<Option<PathBuf>, String> {
+fn choose_file_for_grant(
+    purpose: yonder_application::file_authorization::FileGrantPurpose,
+) -> Result<Option<PathBuf>, String> {
     #[cfg(target_os = "macos")]
     {
         use yonder_application::file_authorization::FileGrantPurpose;
         let selected = match purpose {
-            FileGrantPurpose::CreateNew => rfd::FileDialog::new().set_title("选择新建文件的位置").save_file(),
-            FileGrantPurpose::Read => rfd::FileDialog::new().set_title("选择要授权读取的文件").pick_file(),
-            FileGrantPurpose::Replace => rfd::FileDialog::new().set_title("选择要授权替换的文件").pick_file(),
-            FileGrantPurpose::Trash => rfd::FileDialog::new().set_title("选择要移入回收站的文件").pick_file(),
+            FileGrantPurpose::CreateNew => rfd::FileDialog::new()
+                .set_title("选择新建文件的位置")
+                .save_file(),
+            FileGrantPurpose::Read => rfd::FileDialog::new()
+                .set_title("选择要授权读取的文件")
+                .pick_file(),
+            FileGrantPurpose::Replace => rfd::FileDialog::new()
+                .set_title("选择要授权替换的文件")
+                .pick_file(),
+            FileGrantPurpose::Trash => rfd::FileDialog::new()
+                .set_title("选择要移入回收站的文件")
+                .pick_file(),
         };
-        let Some(selected) = selected else { return Ok(None); };
+        let Some(selected) = selected else {
+            return Ok(None);
+        };
         if matches!(purpose, FileGrantPurpose::Replace | FileGrantPurpose::Trash) {
             let description = if purpose == FileGrantPurpose::Replace {
                 "允许 Agent 后续替换该文件吗？"
@@ -95,7 +166,9 @@ fn choose_file_for_grant(purpose: yonder_application::file_authorization::FileGr
                     .show(),
                 rfd::MessageDialogResult::Ok | rfd::MessageDialogResult::Yes
             );
-            if !confirmed { return Ok(None); }
+            if !confirmed {
+                return Ok(None);
+            }
         }
         Ok(Some(selected))
     }
@@ -108,12 +181,24 @@ fn choose_file_for_grant(purpose: yonder_application::file_authorization::FileGr
 
 fn region_preview_clean_title(reason: Option<&str>, event_at_ms: Option<u64>) -> String {
     let reason = match reason {
-        Some("escape") => "escape", Some("toolbar-cancel") => "toolbar-cancel", Some("review-cancel") => "review-cancel",
-        Some("timeout") => "timeout", Some("close-button") => "close-button", Some("app-switch") => "app-switch", Some("reselect-error") => "reselect-error",
-        Some("review-error") => "review-error", Some("submitted") => "submitted", _ => "close",
+        Some("escape") => "escape",
+        Some("toolbar-cancel") => "toolbar-cancel",
+        Some("review-cancel") => "review-cancel",
+        Some("timeout") => "timeout",
+        Some("close-button") => "close-button",
+        Some("app-switch") => "app-switch",
+        Some("reselect-error") => "reselect-error",
+        Some("review-error") => "review-error",
+        Some("submitted") => "submitted",
+        _ => "close",
     };
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |value| value.as_millis() as u64);
-    format!("Yonda · 圈选提问 [idle image=0 selection=0 stroke=0 reason={reason} latency_ms={}]", event_at_ms.map_or(0, |at| now.saturating_sub(at)))
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |value| value.as_millis() as u64);
+    format!(
+        "Yonda · 圈选提问 [idle image=0 selection=0 stroke=0 reason={reason} latency_ms={}]",
+        event_at_ms.map_or(0, |at| now.saturating_sub(at))
+    )
 }
 
 #[cfg(test)]
@@ -129,8 +214,15 @@ mod preview_title_tests {
 
 #[tauri::command]
 fn pet_pack_assets(window: WebviewWindow) -> Result<pet_pack::ActivePetPack, String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
-    let packs = window.app_handle().path().app_data_dir().map_err(|_| "应用数据目录不可用")?.join("pet-packs");
+    if window.label() != "pet" {
+        return Err("不允许的窗口".into());
+    }
+    let packs = window
+        .app_handle()
+        .path()
+        .app_data_dir()
+        .map_err(|_| "应用数据目录不可用")?
+        .join("pet-packs");
     pet_pack::active_pack(&packs).map_err(|error| match error {
         pet_pack::PetPackError::LimitExceeded => "资源包无法安全导入".into(),
         pet_pack::PetPackError::Io => "当前资源包不可用".into(),
@@ -140,7 +232,14 @@ fn pet_pack_assets(window: WebviewWindow) -> Result<pet_pack::ActivePetPack, Str
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RegionRect { x: f64, y: f64, width: f64, height: f64, viewport_width: f64, viewport_height: f64 }
+struct RegionRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    viewport_width: f64,
+    viewport_height: f64,
+}
 
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
@@ -159,29 +258,49 @@ static REGION_PREVIEW_APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 extern "C" fn clear_region_preview_after_application_switch() {
     if let Some(app) = REGION_PREVIEW_APP.get() {
         let app = app.clone();
-        std::thread::spawn(move || { let _ = clear_region_preview(&app, Some("app-switch"), None); });
+        std::thread::spawn(move || {
+            let _ = clear_region_preview(&app, Some("app-switch"), None);
+        });
     }
 }
 
 #[cfg(target_os = "macos")]
-fn watch_region_application_switch() { unsafe { yonda_region_watch_application_switch(clear_region_preview_after_application_switch); } }
+fn watch_region_application_switch() {
+    unsafe {
+        yonda_region_watch_application_switch(clear_region_preview_after_application_switch);
+    }
+}
 
 #[cfg(target_os = "macos")]
-fn stop_region_application_switch_watch() { unsafe { yonda_region_stop_application_switch_watch(); } }
+fn stop_region_application_switch_watch() {
+    unsafe {
+        yonda_region_stop_application_switch_watch();
+    }
+}
 
 #[cfg(target_os = "macos")]
 extern "C" fn clear_region_preview_after_display_change() {
     if let Some(app) = REGION_PREVIEW_APP.get() {
         let app = app.clone();
-        std::thread::spawn(move || { let _ = clear_region_preview(&app, Some("display-change"), None); });
+        std::thread::spawn(move || {
+            let _ = clear_region_preview(&app, Some("display-change"), None);
+        });
     }
 }
 
 #[cfg(target_os = "macos")]
-fn watch_region_display_change() { unsafe { yonda_region_watch_display_change(clear_region_preview_after_display_change); } }
+fn watch_region_display_change() {
+    unsafe {
+        yonda_region_watch_display_change(clear_region_preview_after_display_change);
+    }
+}
 
 #[cfg(target_os = "macos")]
-fn stop_region_display_change_watch() { unsafe { yonda_region_stop_display_change_watch(); } }
+fn stop_region_display_change_watch() {
+    unsafe {
+        yonda_region_stop_display_change_watch();
+    }
+}
 
 #[cfg(not(target_os = "macos"))]
 fn watch_region_application_switch() {}
@@ -195,13 +314,17 @@ fn watch_region_display_change() {}
 #[cfg(not(target_os = "macos"))]
 fn stop_region_display_change_watch() {}
 
-fn preview_error(error: &str) -> String { error.into() }
+fn preview_error(error: &str) -> String {
+    error.into()
+}
 
 #[cfg(target_os = "macos")]
 fn current_source_application() -> Option<String> {
     unsafe {
         let raw = yonda_region_source_application();
-        if raw.is_null() { return None; }
+        if raw.is_null() {
+            return None;
+        }
         let value = CStr::from_ptr(raw).to_string_lossy().into_owned();
         yonda_region_free(raw.cast());
         Some(value)
@@ -209,84 +332,162 @@ fn current_source_application() -> Option<String> {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn current_source_application() -> Option<String> { None }
+fn current_source_application() -> Option<String> {
+    None
+}
 
-fn display_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
+fn display_region_preview(
+    app: &tauri::AppHandle,
+    preview_state: &PreviewState,
+) -> Result<(), String> {
     let pet = app.get_webview_window("pet").ok_or("小龙不可用")?;
-    let preview = app.get_webview_window("region-preview").ok_or("圈选窗口不可用")?;
-    let source = preview_state.0.lock().map_err(|_| preview_error("preview-unavailable"))?
-        .source_application().unwrap_or("当前桌面").to_owned();
-    let source = serde_json::to_string(&source).map_err(|_| preview_error("preview-unavailable"))?;
-    let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
-        .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
+    let preview = app
+        .get_webview_window("region-preview")
+        .ok_or("圈选窗口不可用")?;
+    let source = preview_state
+        .0
+        .lock()
+        .map_err(|_| preview_error("preview-unavailable"))?
+        .source_application()
+        .unwrap_or("当前桌面")
+        .to_owned();
+    let source =
+        serde_json::to_string(&source).map_err(|_| preview_error("preview-unavailable"))?;
+    let monitor = pet
+        .current_monitor()
+        .map_err(|_| "屏幕不可用")?
+        .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?)
+        .ok_or("屏幕不可用")?;
     let area = monitor.work_area();
     let result = preview.set_title(REGION_PREVIEW_TITLE).and_then(|_| preview.set_position(area.position)).and_then(|_| preview.set_size(area.size))
         .and_then(|_| preview.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-open',{{detail:{{sourceApplication:{source}}}}}))"))).and_then(|_| preview.show())
         .map_err(|_| { preview_state.0.lock().ok().map(|mut session| session.clear()); preview_error("preview-unavailable") });
-    if result.is_ok() { let _ = preview.set_focus(); watch_region_application_switch(); watch_region_display_change(); }
+    if result.is_ok() {
+        let _ = preview.set_focus();
+        watch_region_application_switch();
+        watch_region_display_change();
+    }
     result
 }
 
 fn show_region_preview(app: &tauri::AppHandle, preview_state: &PreviewState) -> Result<(), String> {
-    preview_state.0.lock().map_err(|_| preview_error("preview-unavailable"))?.begin(current_source_application())
+    preview_state
+        .0
+        .lock()
+        .map_err(|_| preview_error("preview-unavailable"))?
+        .begin(current_source_application())
         .map_err(|_| preview_error("preview-busy"))?;
     display_region_preview(app, preview_state)
 }
 
 async fn pause_for_region(state: Arc<Mutex<Option<TaskHost>>>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || state.lock().map_err(|_| "desktop-stop-unconfirmed".to_owned())?.as_mut().ok_or("desktop-stop-unconfirmed".to_owned())?.pause_desktop_for_user().map(|_|()).map_err(|_|"desktop-stop-unconfirmed".to_owned()))
-        .await.map_err(|_| "desktop-stop-unconfirmed".to_owned())?
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "desktop-stop-unconfirmed".to_owned())?
+            .as_mut()
+            .ok_or("desktop-stop-unconfirmed".to_owned())?
+            .pause_desktop_for_user()
+            .map(|_| ())
+            .map_err(|_| "desktop-stop-unconfirmed".to_owned())
+    })
+    .await
+    .map_err(|_| "desktop-stop-unconfirmed".to_owned())?
 }
 
 #[tauri::command]
-async fn region_preview_open(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>) -> Result<(), String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
+async fn region_preview_open(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    preview: State<'_, PreviewState>,
+) -> Result<(), String> {
+    if window.label() != "pet" {
+        return Err("不允许的窗口".into());
+    }
     pause_for_region(Arc::clone(&state.0)).await?;
     show_region_preview(window.app_handle(), &preview)
 }
 
 #[tauri::command]
-fn region_preview_hide_for_capture(window: WebviewWindow, preview: State<'_, PreviewState>) -> Result<(), String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+fn region_preview_hide_for_capture(
+    window: WebviewWindow,
+    preview: State<'_, PreviewState>,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
     let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
     session.capture().map_err(|_| "preview-invalid-state")?;
-    if window.hide().is_err() { session.clear(); return Err("圈选窗口关闭失败".into()); }
+    if window.hide().is_err() {
+        session.clear();
+        return Err("圈选窗口关闭失败".into());
+    }
     Ok(())
 }
 
 #[tauri::command]
-fn clear_region_preview(app: &tauri::AppHandle, reason: Option<&str>, event_at_ms: Option<u64>) -> Result<(), String> {
+fn clear_region_preview(
+    app: &tauri::AppHandle,
+    reason: Option<&str>,
+    event_at_ms: Option<u64>,
+) -> Result<(), String> {
     stop_region_application_switch_watch();
     stop_region_display_change_watch();
-    app.state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Region);
-    let window = app.get_webview_window("region-preview").ok_or("圈选窗口不可用")?;
+    app.state::<voice_input::VoiceRuntime>()
+        .cancel(voice_input::VoiceTarget::Region);
+    let window = app
+        .get_webview_window("region-preview")
+        .ok_or("圈选窗口不可用")?;
     let preview = app.state::<PreviewState>();
     let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
-    if session.snapshot().0 == yonder_application::region_preview::Phase::Idle && !window.is_visible().unwrap_or(false) { return Ok(()); }
+    if session.snapshot().0 == yonder_application::region_preview::Phase::Idle
+        && !window.is_visible().unwrap_or(false)
+    {
+        return Ok(());
+    }
     session.clear();
-    let result = window.eval("window.dispatchEvent(new Event('yonda-region-clear'))").and_then(|_| window.hide()).and_then(|_| {
-        let title = region_preview_clean_title(reason, event_at_ms);
-        window.set_title(&title)
-    }).map_err(|_| "preview-unavailable".into());
+    let result = window
+        .eval("window.dispatchEvent(new Event('yonda-region-clear'))")
+        .and_then(|_| window.hide())
+        .and_then(|_| {
+            let title = region_preview_clean_title(reason, event_at_ms);
+            window.set_title(&title)
+        })
+        .map_err(|_| "preview-unavailable".into());
     drop(session);
     result
 }
 
 #[tauri::command]
-fn region_preview_close(window: WebviewWindow, reason: Option<String>, event_at_ms: Option<u64>) -> Result<(), String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+fn region_preview_close(
+    window: WebviewWindow,
+    reason: Option<String>,
+    event_at_ms: Option<u64>,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
     clear_region_preview(window.app_handle(), reason.as_deref(), event_at_ms)
 }
 
 #[tauri::command]
-async fn region_preview_reselect(window: WebviewWindow, state: State<'_, TaskState>, preview: State<'_, PreviewState>, voice: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+async fn region_preview_reselect(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    preview: State<'_, PreviewState>,
+    voice: State<'_, voice_input::VoiceRuntime>,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
     voice.cancel(voice_input::VoiceTarget::Region);
     pause_for_region(Arc::clone(&state.0)).await?;
     {
         let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
         if session.snapshot().0 == yonder_application::region_preview::Phase::Idle {
-            session.begin(current_source_application()).map_err(|_| "preview-busy")?;
+            session
+                .begin(current_source_application())
+                .map_err(|_| "preview-busy")?;
         } else {
             session.reselect().map_err(|_| "preview-invalid-state")?;
         }
@@ -298,89 +499,247 @@ async fn region_preview_reselect(window: WebviewWindow, state: State<'_, TaskSta
 fn capture_region_image(x: i32, y: i32, width: i32, height: i32) -> Result<String, String> {
     unsafe {
         let raw = yonda_region_capture(x, y, width, height);
-        if raw.is_null() { return Err("需要允许 Yonda 录制屏幕后才能预览截图".into()); }
+        if raw.is_null() {
+            return Err("需要允许 Yonda 录制屏幕后才能预览截图".into());
+        }
         let image = CStr::from_ptr(raw).to_string_lossy().into_owned();
         yonda_region_free(raw.cast());
-        if image.is_empty() { return Err("截图不可用".into()); }
+        if image.is_empty() {
+            return Err("截图不可用".into());
+        }
         Ok(image)
     }
 }
 
 #[tauri::command]
-async fn region_preview_capture(window: WebviewWindow, rect: RegionRect, preview: State<'_, PreviewState>) -> Result<String, String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
-    if !(rect.viewport_width.is_finite() && rect.viewport_height.is_finite() && rect.x.is_finite() && rect.y.is_finite() && rect.width.is_finite() && rect.height.is_finite())
-        || rect.viewport_width <= 0.0 || rect.viewport_height <= 0.0 || rect.width < 12.0 || rect.height < 12.0 { preview.0.lock().ok().map(|mut session| session.clear()); return Err("capture-failed".into()); }
-    let monitor = window.current_monitor().map_err(|_| "屏幕不可用")?
-        .or(window.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
+async fn region_preview_capture(
+    window: WebviewWindow,
+    rect: RegionRect,
+    preview: State<'_, PreviewState>,
+) -> Result<String, String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
+    if !(rect.viewport_width.is_finite()
+        && rect.viewport_height.is_finite()
+        && rect.x.is_finite()
+        && rect.y.is_finite()
+        && rect.width.is_finite()
+        && rect.height.is_finite())
+        || rect.viewport_width <= 0.0
+        || rect.viewport_height <= 0.0
+        || rect.width < 12.0
+        || rect.height < 12.0
+    {
+        preview.0.lock().ok().map(|mut session| session.clear());
+        return Err("capture-failed".into());
+    }
+    let monitor = window
+        .current_monitor()
+        .map_err(|_| "屏幕不可用")?
+        .or(window.primary_monitor().map_err(|_| "屏幕不可用")?)
+        .ok_or("屏幕不可用")?;
     let area = monitor.work_area();
-    let x = f64::from(area.position.x) + rect.x.max(0.0) * f64::from(area.size.width) / rect.viewport_width;
-    let y = f64::from(area.position.y) + rect.y.max(0.0) * f64::from(area.size.height) / rect.viewport_height;
+    let x = f64::from(area.position.x)
+        + rect.x.max(0.0) * f64::from(area.size.width) / rect.viewport_width;
+    let y = f64::from(area.position.y)
+        + rect.y.max(0.0) * f64::from(area.size.height) / rect.viewport_height;
     let width = (rect.width * f64::from(area.size.width) / rect.viewport_width).ceil();
     let height = (rect.height * f64::from(area.size.height) / rect.viewport_height).ceil();
-    if x + width > f64::from(area.position.x + area.size.width as i32) || y + height > f64::from(area.position.y + area.size.height as i32)
-        || width * height > 16_777_216.0 { preview.0.lock().ok().map(|mut session| session.clear()); return Err("capture-failed".into()); }
-    if preview.0.lock().map_err(|_| "preview-unavailable")?.snapshot().0 != yonder_application::region_preview::Phase::Capturing { return Err("preview-invalid-state".into()); }
+    if x + width > f64::from(area.position.x + area.size.width as i32)
+        || y + height > f64::from(area.position.y + area.size.height as i32)
+        || width * height > 16_777_216.0
+    {
+        preview.0.lock().ok().map(|mut session| session.clear());
+        return Err("capture-failed".into());
+    }
+    if preview
+        .0
+        .lock()
+        .map_err(|_| "preview-unavailable")?
+        .snapshot()
+        .0
+        != yonder_application::region_preview::Phase::Capturing
+    {
+        return Err("preview-invalid-state".into());
+    }
     #[cfg(target_os = "macos")]
-    { let scale = monitor.scale_factor();
-      let captured = match tokio::task::spawn_blocking(move || capture_region_image((x / scale).round() as i32, (y / scale).round() as i32, (width / scale).round() as i32, (height / scale).round() as i32)).await {
-        Ok(captured) => captured,
-        Err(_) => { preview.0.lock().ok().map(|mut session| session.clear()); return Err("capture-failed".into()); }
-      };
-      match captured {
-        Ok(image) => match preview.0.lock().map_err(|_| "preview-unavailable")?.review(image) {
-          Ok(image) => Ok(image),
-          Err(yonder_application::region_preview::Error::ImageTooLarge) => Err("capture-too-large".into()),
-          Err(_) => Err("capture-failed".into()),
-        },
-        Err(_) => { preview.0.lock().ok().and_then(|mut session| session.review_without_image().ok()); Err("permission-required".into()) }
-      }
+    {
+        let scale = monitor.scale_factor();
+        let captured = match tokio::task::spawn_blocking(move || {
+            capture_region_image(
+                (x / scale).round() as i32,
+                (y / scale).round() as i32,
+                (width / scale).round() as i32,
+                (height / scale).round() as i32,
+            )
+        })
+        .await
+        {
+            Ok(captured) => captured,
+            Err(_) => {
+                preview.0.lock().ok().map(|mut session| session.clear());
+                return Err("capture-failed".into());
+            }
+        };
+        match captured {
+            Ok(image) => match preview
+                .0
+                .lock()
+                .map_err(|_| "preview-unavailable")?
+                .review(image)
+            {
+                Ok(image) => Ok(image),
+                Err(yonder_application::region_preview::Error::ImageTooLarge) => {
+                    Err("capture-too-large".into())
+                }
+                Err(_) => Err("capture-failed".into()),
+            },
+            Err(_) => {
+                preview
+                    .0
+                    .lock()
+                    .ok()
+                    .and_then(|mut session| session.review_without_image().ok());
+                Err("permission-required".into())
+            }
+        }
     }
     #[cfg(not(target_os = "macos"))]
-    { let _ = (x, y, width, height); Err("Windows 圈选预览仍在验证中".into()) }
+    {
+        let _ = (x, y, width, height);
+        Err("Windows 圈选预览仍在验证中".into())
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RegionSubmitResult {
+    status: &'static str,
+    input_id: Option<String>,
+    reply_expected: bool,
 }
 
 #[tauri::command]
-async fn region_preview_submit(window: WebviewWindow, question: String, preview: State<'_, PreviewState>, hub: State<'_, yonder_desktop::agent_input::AgentInputHub>) -> Result<&'static str, String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
-    let image = preview.0.lock().map_err(|_| "preview-unavailable")?.begin_submission().map_err(|_| "preview-invalid-state")?;
+fn region_reply_dismiss(
+    window: WebviewWindow,
+    input_id: String,
+    hub: State<'_, yonder_desktop::agent_input::AgentInputHub>,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
+    hub.dismiss_reply(&input_id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn region_preview_submit(
+    window: WebviewWindow,
+    question: String,
+    preview: State<'_, PreviewState>,
+    hub: State<'_, yonder_desktop::agent_input::AgentInputHub>,
+) -> Result<RegionSubmitResult, String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
+    let image = preview
+        .0
+        .lock()
+        .map_err(|_| "preview-unavailable")?
+        .begin_submission()
+        .map_err(|_| "preview-invalid-state")?;
     let hub = hub.inner().clone();
-    let outcome = tauri::async_runtime::spawn_blocking(move || match image { Some(image) => hub.deliver_selection(&question, &image), None => hub.deliver_selection_text(&question) }).await;
+    let outcome = tauri::async_runtime::spawn_blocking(move || match image {
+        Some(image) => hub.deliver_selection(&question, &image),
+        None => hub.deliver_selection_text(&question),
+    })
+    .await;
     preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
     stop_region_application_switch_watch();
     stop_region_display_change_watch();
     match outcome.map_err(|_| "delivery-unavailable")? {
-        Ok(yonder_application::agent_input::DeliveryOutcome::Accepted) => Ok("accepted"),
-        Ok(yonder_application::agent_input::DeliveryOutcome::Rejected) => Ok("rejected"),
-        Ok(yonder_application::agent_input::DeliveryOutcome::Unknown) => Ok("unknown"),
+        Ok(delivery) => Ok(RegionSubmitResult {
+            status: match delivery.outcome {
+                yonder_application::agent_input::DeliveryOutcome::Accepted => "accepted",
+                yonder_application::agent_input::DeliveryOutcome::Rejected => "rejected",
+                yonder_application::agent_input::DeliveryOutcome::Unknown => "unknown",
+            },
+            input_id: Some(delivery.input_id),
+            reply_expected: delivery.reply_expected,
+        }),
         Err("当前Agent不支持截图提问") => Err("attachment-unsupported".into()),
         Err("当前没有可接收输入的Agent") => Err("agent-unavailable".into()),
         Err("请选择接收输入的Agent") => Err("agent-target-required".into()),
         Err("截图数据无效") => Err("attachment-invalid".into()),
+        Err("当前仍有Agent回复进行中") => Err("reply-busy".into()),
         Err(_) => Err("delivery-unavailable".into()),
     }
 }
 
 #[tauri::command]
-fn region_preview_text_only(window: WebviewWindow, preview: State<'_, PreviewState>) -> Result<(), String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
-    preview.0.lock().map_err(|_| "preview-unavailable")?.review_without_image().map_err(|_| "preview-invalid-state".into())
+fn region_preview_text_only(
+    window: WebviewWindow,
+    preview: State<'_, PreviewState>,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
+    preview
+        .0
+        .lock()
+        .map_err(|_| "preview-unavailable")?
+        .review_without_image()
+        .map_err(|_| "preview-invalid-state".into())
 }
 
 #[tauri::command]
-fn region_preview_show_review(window: WebviewWindow, rect: RegionRect, has_image: bool) -> Result<(), String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
-    let monitor = window.current_monitor().map_err(|_| "屏幕不可用")?
-        .or(window.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
+fn region_preview_show_review(
+    window: WebviewWindow,
+    rect: RegionRect,
+    has_image: bool,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
+    let monitor = window
+        .current_monitor()
+        .map_err(|_| "屏幕不可用")?
+        .or(window.primary_monitor().map_err(|_| "屏幕不可用")?)
+        .ok_or("屏幕不可用")?;
     let area = monitor.work_area();
     let scale = monitor.scale_factor();
-    let physical_size = tauri::PhysicalSize::new((440.0 * scale).round() as u32, ((if has_image { 560.0 } else { 350.0 }) * scale).round() as u32);
-    let x = (f64::from(area.position.x) + rect.x * f64::from(area.size.width) / rect.viewport_width + 12.0).round() as i32;
-    let y = (f64::from(area.position.y) + rect.y * f64::from(area.size.height) / rect.viewport_height + 12.0).round() as i32;
-    let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(physical_size.width) as i32);
-    let max_y = area.position.y.saturating_add(area.size.height.saturating_sub(physical_size.height) as i32);
-    window.set_size(physical_size).and_then(|_| window.set_position(tauri::PhysicalPosition::new(x.clamp(area.position.x, max_x), y.clamp(area.position.y, max_y))))
-        .and_then(|_| window.show()).and_then(|_| window.set_focus()).map_err(|_| "确认卡打开失败".into())
+    let physical_size = tauri::PhysicalSize::new(
+        (440.0 * scale).round() as u32,
+        ((if has_image { 560.0 } else { 350.0 }) * scale).round() as u32,
+    );
+    let x = (f64::from(area.position.x)
+        + rect.x * f64::from(area.size.width) / rect.viewport_width
+        + 12.0)
+        .round() as i32;
+    let y = (f64::from(area.position.y)
+        + rect.y * f64::from(area.size.height) / rect.viewport_height
+        + 12.0)
+        .round() as i32;
+    let max_x = area
+        .position
+        .x
+        .saturating_add(area.size.width.saturating_sub(physical_size.width) as i32);
+    let max_y = area
+        .position
+        .y
+        .saturating_add(area.size.height.saturating_sub(physical_size.height) as i32);
+    window
+        .set_size(physical_size)
+        .and_then(|_| {
+            window.set_position(tauri::PhysicalPosition::new(
+                x.clamp(area.position.x, max_x),
+                y.clamp(area.position.y, max_y),
+            ))
+        })
+        .and_then(|_| window.show())
+        .and_then(|_| window.set_focus())
+        .map_err(|_| "确认卡打开失败".into())
 }
 
 fn show_region_feedback(app: &tauri::AppHandle, preview: &PreviewState, error: &str) {
@@ -388,33 +747,55 @@ fn show_region_feedback(app: &tauri::AppHandle, preview: &PreviewState, error: &
     stop_region_display_change_watch();
     preview.0.lock().ok().map(|mut session| session.clear());
     if let Some(window) = app.get_webview_window("region-preview") {
-        let message = serde_json::to_string(error).unwrap_or_else(|_| "\"preview-unavailable\"".into());
+        let message =
+            serde_json::to_string(error).unwrap_or_else(|_| "\"preview-unavailable\"".into());
         let _ = window.set_title(REGION_PREVIEW_TITLE).and_then(|_| window.set_size(tauri::LogicalSize::new(440.0, 240.0))).and_then(|_| window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-region-error',{{detail:{message}}}))"))).and_then(|_| window.show());
     }
 }
 
 #[cfg(target_os = "macos")]
-unsafe extern "C" { fn yonda_region_free(pointer: *mut std::ffi::c_void); }
+unsafe extern "C" {
+    fn yonda_region_free(pointer: *mut std::ffi::c_void);
+}
 
 #[tauri::command]
 fn pet_is_visible(window: WebviewWindow) -> Result<bool, String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
-    Ok(window.is_visible().map_err(|_| "可见性不可用")? && !window.is_minimized().map_err(|_| "可见性不可用")?)
+    if window.label() != "pet" {
+        return Err("不允许的窗口".into());
+    }
+    Ok(window.is_visible().map_err(|_| "可见性不可用")?
+        && !window.is_minimized().map_err(|_| "可见性不可用")?)
 }
 
 #[tauri::command]
-async fn pet_task_state(window: WebviewWindow, state: State<'_, TaskState>) -> Result<(bool, &'static str, Option<String>), String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
+async fn pet_task_state(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+) -> Result<(bool, &'static str, Option<String>), String> {
+    if window.label() != "pet" {
+        return Err("不允许的窗口".into());
+    }
     let host = Arc::clone(&state.0);
     tauri::async_runtime::spawn_blocking(move || {
-        host.lock().map_err(|_| "任务状态不可用")?.as_mut()
-            .ok_or("任务状态不可用")?.presentation().map_err(|_| "任务状态不可用".to_owned())
-    }).await.map_err(|_| "任务状态查询中断".to_owned())?
+        host.lock()
+            .map_err(|_| "任务状态不可用")?
+            .as_mut()
+            .ok_or("任务状态不可用")?
+            .presentation()
+            .map_err(|_| "任务状态不可用".to_owned())
+    })
+    .await
+    .map_err(|_| "任务状态查询中断".to_owned())?
 }
 
 #[tauri::command]
-fn pet_agent_connected(window: WebviewWindow, hub: State<'_, yonder_desktop::agent_input::AgentInputHub>) -> Result<yonder_desktop::agent_input::AgentConnectionPresence, String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
+fn pet_agent_connected(
+    window: WebviewWindow,
+    hub: State<'_, yonder_desktop::agent_input::AgentInputHub>,
+) -> Result<yonder_desktop::agent_input::AgentConnectionPresence, String> {
+    if window.label() != "pet" {
+        return Err("不允许的窗口".into());
+    }
     Ok(hub.presence())
 }
 
@@ -425,24 +806,42 @@ fn show_menu(app: &tauri::AppHandle) -> Result<(), String> {
 
 fn show_voice_input(app: &tauri::AppHandle) -> Result<(), String> {
     let pet = app.get_webview_window("pet").ok_or("小龙不可用")?;
-    let card = app.get_webview_window("voice-input").ok_or("语音卡不可用")?;
-    let _ = app.get_webview_window("task-space").map(|window| window.hide());
-    let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
-        .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
+    let card = app
+        .get_webview_window("voice-input")
+        .ok_or("语音卡不可用")?;
+    let _ = app
+        .get_webview_window("task-space")
+        .map(|window| window.hide());
+    let monitor = pet
+        .current_monitor()
+        .map_err(|_| "屏幕不可用")?
+        .or(pet.primary_monitor().map_err(|_| "屏幕不可用")?)
+        .ok_or("屏幕不可用")?;
     let area = monitor.work_area();
     let position = pet.outer_position().map_err(|_| "位置不可用")?;
     let pet_size = pet.outer_size().map_err(|_| "尺寸不可用")?;
     let size = card.outer_size().map_err(|_| "语音卡尺寸不可用")?;
     let gap = (8.0 * monitor.scale_factor()) as i32;
     let right = position.x + pet_size.width as i32 + gap;
-    let x = if i64::from(right) + i64::from(size.width) <= i64::from(area.position.x) + i64::from(area.size.width) {
+    let x = if i64::from(right) + i64::from(size.width)
+        <= i64::from(area.position.x) + i64::from(area.size.width)
+    {
         right
-    } else { position.x - size.width as i32 - gap };
-    let max_y = area.position.y.saturating_add(area.size.height.saturating_sub(size.height) as i32);
-    card.set_position(tauri::PhysicalPosition::new(x, position.y.clamp(area.position.y, max_y)))
-        .and_then(|_| card.show()).and_then(|_| card.set_focus())
-        .and_then(|_| card.eval("window.dispatchEvent(new Event('yonda-voice-open'))"))
-        .map_err(|_| "语音卡打开失败".into())
+    } else {
+        position.x - size.width as i32 - gap
+    };
+    let max_y = area
+        .position
+        .y
+        .saturating_add(area.size.height.saturating_sub(size.height) as i32);
+    card.set_position(tauri::PhysicalPosition::new(
+        x,
+        position.y.clamp(area.position.y, max_y),
+    ))
+    .and_then(|_| card.show())
+    .and_then(|_| card.set_focus())
+    .and_then(|_| card.eval("window.dispatchEvent(new Event('yonda-voice-open'))"))
+    .map_err(|_| "语音卡打开失败".into())
 }
 
 fn show_jev_settings(app: &tauri::AppHandle) -> Result<(), String> {
@@ -478,134 +877,259 @@ fn unix_now_ms() -> Result<u64, String> {
 }
 
 #[tauri::command]
-fn voice_input_open(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
+fn voice_input_open(
+    window: WebviewWindow,
+    state: State<'_, voice_input::VoiceRuntime>,
+) -> Result<(), String> {
+    if window.label() != "pet" {
+        return Err("不允许的窗口".into());
+    }
     show_voice_input(window.app_handle())?;
     state.start(voice_input::VoiceTarget::Direct)
 }
 
 #[tauri::command]
-fn voice_input_start(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
-    if window.label() != "voice-input" { return Err("不允许的窗口".into()); }
+fn voice_input_start(
+    window: WebviewWindow,
+    state: State<'_, voice_input::VoiceRuntime>,
+) -> Result<(), String> {
+    if window.label() != "voice-input" {
+        return Err("不允许的窗口".into());
+    }
     state.start(voice_input::VoiceTarget::Direct)
 }
 
 #[tauri::command]
-fn voice_input_stop(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
-    if window.label() != "voice-input" { return Err("不允许的窗口".into()); }
+fn voice_input_stop(
+    window: WebviewWindow,
+    state: State<'_, voice_input::VoiceRuntime>,
+) -> Result<(), String> {
+    if window.label() != "voice-input" {
+        return Err("不允许的窗口".into());
+    }
     state.stop(voice_input::VoiceTarget::Direct)
 }
 
 #[tauri::command]
-fn voice_input_close(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
-    if window.label() != "voice-input" { return Err("不允许的窗口".into()); }
+fn voice_input_close(
+    window: WebviewWindow,
+    state: State<'_, voice_input::VoiceRuntime>,
+) -> Result<(), String> {
+    if window.label() != "voice-input" {
+        return Err("不允许的窗口".into());
+    }
     state.cancel(voice_input::VoiceTarget::Direct);
     window.hide().map_err(|_| "语音卡关闭失败".into())
 }
 
 #[tauri::command]
-fn region_voice_start(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+fn region_voice_start(
+    window: WebviewWindow,
+    state: State<'_, voice_input::VoiceRuntime>,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
     state.start(voice_input::VoiceTarget::Region)
 }
 
 #[tauri::command]
-fn region_voice_stop(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<(), String> {
-    if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
+fn region_voice_stop(
+    window: WebviewWindow,
+    state: State<'_, voice_input::VoiceRuntime>,
+) -> Result<(), String> {
+    if window.label() != "region-preview" {
+        return Err("不允许的窗口".into());
+    }
     state.stop(voice_input::VoiceTarget::Region)
 }
 
 #[tauri::command]
-fn voice_input_phase(window: WebviewWindow, state: State<'_, voice_input::VoiceRuntime>) -> Result<&'static str, String> {
-    if window.label() != "voice-input" { return Err("不允许的窗口".into()); }
+fn voice_input_phase(
+    window: WebviewWindow,
+    state: State<'_, voice_input::VoiceRuntime>,
+) -> Result<&'static str, String> {
+    if window.label() != "voice-input" {
+        return Err("不允许的窗口".into());
+    }
     Ok(state.phase())
 }
 
 #[tauri::command]
-async fn task_menu_show(window: WebviewWindow, state: State<'_, TaskState>) -> Result<bool, String> {
+async fn task_menu_show(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+) -> Result<bool, String> {
     let (has_tasks, _, _) = pet_task_state(window.clone(), state).await?;
-    if !has_tasks { return Ok(false); }
+    if !has_tasks {
+        return Ok(false);
+    }
     show_menu(window.app_handle())?;
     Ok(true)
 }
 
 #[tauri::command]
 fn task_menu_hide(window: WebviewWindow) -> Result<(), String> {
-    if window.label() != "pet" { return Err("不允许的窗口".into()); }
-    window.app_handle().get_webview_window("task-space").ok_or("任务菜单不可用")?
-        .hide().map_err(|_| "菜单收起失败".into())
+    if window.label() != "pet" {
+        return Err("不允许的窗口".into());
+    }
+    window
+        .app_handle()
+        .get_webview_window("task-space")
+        .ok_or("任务菜单不可用")?
+        .hide()
+        .map_err(|_| "菜单收起失败".into())
 }
 
 #[tauri::command]
 fn task_menu_close(window: WebviewWindow) -> Result<(), String> {
-    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
     window.hide().map_err(|_| "菜单收起失败".into())
 }
 
 #[tauri::command]
-async fn task_query(window: WebviewWindow, state: State<'_, TaskState>, request: String) -> Result<String, String> {
-    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
-    if yonder_application::gateway::is_takeover_request(request.as_bytes()) { return Err("接管必须使用本地用户入口".into()); }
-    let host = Arc::clone(&state.0); let pet = window.app_handle().get_webview_window("pet");
+async fn task_query(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    request: String,
+) -> Result<String, String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    if yonder_application::gateway::is_takeover_request(request.as_bytes()) {
+        return Err("接管必须使用本地用户入口".into());
+    }
+    let host = Arc::clone(&state.0);
+    let pet = window.app_handle().get_webview_window("pet");
     let (response, presentation) = tauri::async_runtime::spawn_blocking(move || {
         let mut host = host.lock().map_err(|_| "任务存储不可用")?;
         let host = host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| "系统时间不可用")?.as_millis();
-        let response = host.query(request.as_bytes(), u64::try_from(now).map_err(|_| "系统时间不可用")?)
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| "系统时间不可用")?
+            .as_millis();
+        let response = host
+            .query(
+                request.as_bytes(),
+                u64::try_from(now).map_err(|_| "系统时间不可用")?,
+            )
             .map_err(|_| "任务读取失败")?;
         let response = String::from_utf8(response).map_err(|_| "任务响应不可用".to_owned())?;
         Ok::<_, String>((response, host.presentation().ok()))
-    }).await.map_err(|_| "任务查询中断".to_owned())??;
+    })
+    .await
+    .map_err(|_| "任务查询中断".to_owned())??;
     if let (Some(pet), Some((has_tasks, task_state, step_label))) = (pet, presentation) {
         yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state, step_label.as_deref());
     }
-    if let Some(task_id)=yonder_application::gateway::terminal_task_id(response.as_bytes()) {
-        let hub=window.app_handle().state::<yonder_desktop::CuaControlHub>();
+    if let Some(task_id) = yonder_application::gateway::terminal_task_id(response.as_bytes()) {
+        let hub = window.app_handle().state::<yonder_desktop::CuaControlHub>();
         if hub.finish(&task_id) || hub.presentation().is_none() {
-            if let Some(control)=window.app_handle().get_webview_window("cua-control"){let _=control.hide();}
+            if let Some(control) = window.app_handle().get_webview_window("cua-control") {
+                let _ = control.hide();
+            }
         }
     }
     Ok(response)
 }
 
 #[tauri::command]
-async fn user_takeover(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,expected_sequence:String)->Result<String,String>{
-    if window.label()!="task-space"{return Err("不允许的窗口".into())}
-    let expected=expected_sequence.parse::<u64>().map_err(|_|"任务序号不可用")?;
-    let host=Arc::clone(&state.0);let pet=window.app_handle().get_webview_window("pet");
-    let (response,presentation)=tauri::async_runtime::spawn_blocking(move||{
-        let now=u64::try_from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_|"系统时间不可用")?.as_millis()).map_err(|_|"系统时间不可用")?;
-        let mut host=host.lock().map_err(|_|"任务存储不可用")?;let host=host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
-        let response=String::from_utf8(host.user_takeover(&task_id,expected,now).map_err(|_|"接管失败")?).map_err(|_|"任务响应不可用")?;
-        Ok::<_,String>((response,host.presentation().ok()))
-    }).await.map_err(|_|"接管中断".to_owned())??;
-    if let(Some(pet),Some((has_tasks,task_state,step_label)))=(pet,presentation){yonder_desktop::emit_pet_presentation(&pet,has_tasks,task_state,step_label.as_deref());}
+async fn user_takeover(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    expected_sequence: String,
+) -> Result<String, String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let expected = expected_sequence
+        .parse::<u64>()
+        .map_err(|_| "任务序号不可用")?;
+    let host = Arc::clone(&state.0);
+    let pet = window.app_handle().get_webview_window("pet");
+    let (response, presentation) = tauri::async_runtime::spawn_blocking(move || {
+        let now = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| "系统时间不可用")?
+                .as_millis(),
+        )
+        .map_err(|_| "系统时间不可用")?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        let host = host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
+        let response = String::from_utf8(
+            host.user_takeover(&task_id, expected, now)
+                .map_err(|_| "接管失败")?,
+        )
+        .map_err(|_| "任务响应不可用")?;
+        Ok::<_, String>((response, host.presentation().ok()))
+    })
+    .await
+    .map_err(|_| "接管中断".to_owned())??;
+    if let (Some(pet), Some((has_tasks, task_state, step_label))) = (pet, presentation) {
+        yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state, step_label.as_deref());
+    }
     Ok(response)
 }
 
 #[tauri::command]
-async fn cua_control_takeover(window:WebviewWindow,state:State<'_,TaskState>,hub:State<'_,yonder_desktop::CuaControlHub>,task_id:String)->Result<&'static str,String>{
-    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
-    if !hub.request_takeover(&task_id){return Err("当前没有可接管的 CUA 操作".into())}
-    let host=Arc::clone(&state.0);let hub=hub.inner().clone();let claimed_hub=hub.clone();let claimed_task_id=task_id.clone();
-    let result=tauri::async_runtime::spawn_blocking(move||{
-        let mut host=host.lock().map_err(|_|"任务存储不可用")?;
-        let host=host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
-        if !claimed_hub.take_takeover_requested(&claimed_task_id){return Err("接管请求已失效")}
-        let now=u64::try_from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_|"系统时间不可用")?.as_millis()).map_err(|_|"系统时间不可用")?;
-        host.user_takeover_current(&claimed_task_id,now).map_err(|_|"未能安全停止")?;
-        Ok::<_,&'static str>(host.presentation().ok())
-    }).await.map_err(|_|"接管中断".to_owned()).and_then(|value|value.map_err(str::to_owned));
+async fn cua_control_takeover(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    hub: State<'_, yonder_desktop::CuaControlHub>,
+    task_id: String,
+) -> Result<&'static str, String> {
+    if window.label() != "cua-control" {
+        return Err("不允许的窗口".into());
+    }
+    if !hub.request_takeover(&task_id) {
+        return Err("当前没有可接管的 CUA 操作".into());
+    }
+    let host = Arc::clone(&state.0);
+    let hub = hub.inner().clone();
+    let claimed_hub = hub.clone();
+    let claimed_task_id = task_id.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        let host = host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
+        if !claimed_hub.take_takeover_requested(&claimed_task_id) {
+            return Err("接管请求已失效");
+        }
+        let now = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| "系统时间不可用")?
+                .as_millis(),
+        )
+        .map_err(|_| "系统时间不可用")?;
+        host.user_takeover_current(&claimed_task_id, now)
+            .map_err(|_| "未能安全停止")?;
+        Ok::<_, &'static str>(host.presentation().ok())
+    })
+    .await
+    .map_err(|_| "接管中断".to_owned())
+    .and_then(|value| value.map_err(str::to_owned));
     match result {
-        Ok(presentation)=>{
+        Ok(presentation) => {
             hub.finish(&task_id);
             let _=window.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'taken-over'}))");
-            let _=window.hide();
-            if let(Some(pet),Some((has_tasks,task_state,step_label)))=(window.app_handle().get_webview_window("pet"),presentation){yonder_desktop::emit_pet_presentation(&pet,has_tasks,task_state,step_label.as_deref());}
+            let _ = window.hide();
+            if let (Some(pet), Some((has_tasks, task_state, step_label))) =
+                (window.app_handle().get_webview_window("pet"), presentation)
+            {
+                yonder_desktop::emit_pet_presentation(
+                    &pet,
+                    has_tasks,
+                    task_state,
+                    step_label.as_deref(),
+                );
+            }
             Ok("accepted")
         }
-        Err(error)=>{
+        Err(error) => {
             let _=window.eval("window.dispatchEvent(new CustomEvent('yonda-cua-control-result',{detail:'failed'}))");
             Err(error)
         }
@@ -613,28 +1137,95 @@ async fn cua_control_takeover(window:WebviewWindow,state:State<'_,TaskState>,hub
 }
 
 #[tauri::command]
-fn cua_control_presentation(window:WebviewWindow,hub:State<'_,yonder_desktop::CuaControlHub>)->Result<yonder_desktop::CuaControlPresentation,String>{
-    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
-    hub.presentation().ok_or_else(||"当前没有可展示的 CUA 步骤".into())
+fn cua_control_presentation(
+    window: WebviewWindow,
+    hub: State<'_, yonder_desktop::CuaControlHub>,
+) -> Result<yonder_desktop::CuaControlPresentation, String> {
+    if window.label() != "cua-control" {
+        return Err("不允许的窗口".into());
+    }
+    hub.presentation()
+        .ok_or_else(|| "当前没有可展示的 CUA 步骤".into())
 }
 
 #[tauri::command]
-async fn cua_intent_confirmation(window:WebviewWindow,state:State<'_,TaskState>,task_id:String)->Result<Option<CuaIntentPreviewView>,String>{
-    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
-    let host=Arc::clone(&state.0);
-    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;let host=host.as_mut().ok_or("任务存储未就绪")?;let Some(summary)=host.list_cua_intents(&task_id,now).map_err(|_|"发送确认不可用".to_owned())?.into_iter().find(|value|value.state==yonder_application::cua_intent::CuaIntentState::AwaitingUser)else{return Ok(None)};host.preview_cua_intent(&task_id,&summary.intent_ref,now).map(cua_intent_preview_view).map(Some).map_err(|_|"发送确认预览不可用".to_owned())}).await.map_err(|_|"发送确认读取中断".to_owned())?
+async fn cua_intent_confirmation(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+) -> Result<Option<CuaIntentPreviewView>, String> {
+    if window.label() != "cua-control" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        let host = host.as_mut().ok_or("任务存储未就绪")?;
+        let Some(summary) = host
+            .list_cua_intents(&task_id, now)
+            .map_err(|_| "发送确认不可用".to_owned())?
+            .into_iter()
+            .find(|value| {
+                value.state == yonder_application::cua_intent::CuaIntentState::AwaitingUser
+            })
+        else {
+            return Ok(None);
+        };
+        host.preview_cua_intent(&task_id, &summary.intent_ref, now)
+            .map(cua_intent_preview_view)
+            .map(Some)
+            .map_err(|_| "发送确认预览不可用".to_owned())
+    })
+    .await
+    .map_err(|_| "发送确认读取中断".to_owned())?
 }
 
 #[tauri::command]
-async fn cua_intent_approve(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,intent_ref:String)->Result<(),String>{
-    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
-    let host=Arc::clone(&state.0);tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.approve_cua_intent(&task_id,&intent_ref,now).map(|_|()).map_err(|_|"发送批准失败".to_owned())}).await.map_err(|_|"发送批准中断".to_owned())?
+async fn cua_intent_approve(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    intent_ref: String,
+) -> Result<(), String> {
+    if window.label() != "cua-control" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        host.as_mut()
+            .ok_or("任务存储未就绪")?
+            .approve_cua_intent(&task_id, &intent_ref, now)
+            .map(|_| ())
+            .map_err(|_| "发送批准失败".to_owned())
+    })
+    .await
+    .map_err(|_| "发送批准中断".to_owned())?
 }
 
 #[tauri::command]
-async fn cua_intent_reject(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,intent_ref:String)->Result<(),String>{
-    if window.label()!="cua-control"{return Err("不允许的窗口".into())}
-    let host=Arc::clone(&state.0);tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.reject_cua_intent(&task_id,&intent_ref,now).map_err(|_|"发送拒绝失败".to_owned())}).await.map_err(|_|"发送拒绝中断".to_owned())?
+async fn cua_intent_reject(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    intent_ref: String,
+) -> Result<(), String> {
+    if window.label() != "cua-control" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        host.as_mut()
+            .ok_or("任务存储未就绪")?
+            .reject_cua_intent(&task_id, &intent_ref, now)
+            .map_err(|_| "发送拒绝失败".to_owned())
+    })
+    .await
+    .map_err(|_| "发送拒绝中断".to_owned())?
 }
 
 #[tauri::command]
@@ -646,8 +1237,12 @@ async fn task_confirm(
     confirmation_id: String,
     comment: Option<String>,
 ) -> Result<(), String> {
-    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
-    let expected = expected_sequence.parse::<u64>().map_err(|_| "任务序号不可用")?;
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let expected = expected_sequence
+        .parse::<u64>()
+        .map_err(|_| "任务序号不可用")?;
     let host = Arc::clone(&state.0);
     let pet = window.app_handle().get_webview_window("pet");
     let (presentation, terminal) = tauri::async_runtime::spawn_blocking(move || {
@@ -664,7 +1259,8 @@ async fn task_confirm(
             ),
         ))
     })
-    .await.map_err(|_| "结果确认中断".to_owned())??;
+    .await
+    .map_err(|_| "结果确认中断".to_owned())??;
     if !terminal {
         return Err("确认未保持任务终态".into());
     }
@@ -675,31 +1271,102 @@ async fn task_confirm(
 }
 
 #[tauri::command]
-async fn command_approval_list(window: WebviewWindow, state: State<'_, TaskState>, task_id: String) -> Result<Vec<CommandApprovalSummaryView>, String> {
-    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
-    let host=Arc::clone(&state.0);
-    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.list_command_approvals(&task_id,now).map(|items|items.into_iter().map(command_approval_summary_view).collect()).map_err(|_|"命令批准列表不可用".to_owned())}).await.map_err(|_|"命令批准列表读取中断".to_owned())?
+async fn command_approval_list(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+) -> Result<Vec<CommandApprovalSummaryView>, String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        host.as_mut()
+            .ok_or("任务存储未就绪")?
+            .list_command_approvals(&task_id, now)
+            .map(|items| {
+                items
+                    .into_iter()
+                    .map(command_approval_summary_view)
+                    .collect()
+            })
+            .map_err(|_| "命令批准列表不可用".to_owned())
+    })
+    .await
+    .map_err(|_| "命令批准列表读取中断".to_owned())?
 }
 
 #[tauri::command]
-async fn command_approval_preview(window: WebviewWindow, state: State<'_, TaskState>, task_id: String, command_id: String) -> Result<CommandApprovalPreviewView, String> {
-    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
-    let host=Arc::clone(&state.0);
-    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.preview_command_approval(&task_id,&command_id,now).map(command_approval_preview_view).map_err(|_|"命令批准预览不可用".to_owned())}).await.map_err(|_|"命令预览中断".to_owned())?
+async fn command_approval_preview(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    command_id: String,
+) -> Result<CommandApprovalPreviewView, String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        host.as_mut()
+            .ok_or("任务存储未就绪")?
+            .preview_command_approval(&task_id, &command_id, now)
+            .map(command_approval_preview_view)
+            .map_err(|_| "命令批准预览不可用".to_owned())
+    })
+    .await
+    .map_err(|_| "命令预览中断".to_owned())?
 }
 
 #[tauri::command]
-async fn command_approval_approve(window: WebviewWindow, state: State<'_, TaskState>, task_id: String, command_id: String) -> Result<CommandApprovalSummaryView, String> {
-    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
-    let host=Arc::clone(&state.0);
-    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.approve_command(&task_id,&command_id,now).map(command_approval_summary_view).map_err(|_|"命令批准失败".to_owned())}).await.map_err(|_|"命令批准中断".to_owned())?
+async fn command_approval_approve(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    command_id: String,
+) -> Result<CommandApprovalSummaryView, String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        host.as_mut()
+            .ok_or("任务存储未就绪")?
+            .approve_command(&task_id, &command_id, now)
+            .map(command_approval_summary_view)
+            .map_err(|_| "命令批准失败".to_owned())
+    })
+    .await
+    .map_err(|_| "命令批准中断".to_owned())?
 }
 
 #[tauri::command]
-async fn command_approval_reject(window: WebviewWindow, state: State<'_, TaskState>, task_id: String, command_id: String) -> Result<(), String> {
-    if window.label() != "task-space" { return Err("不允许的窗口".into()); }
-    let host=Arc::clone(&state.0);
-    tauri::async_runtime::spawn_blocking(move||{let now=unix_now_ms()?;let mut host=host.lock().map_err(|_|"任务存储不可用")?;host.as_mut().ok_or("任务存储未就绪")?.reject_command(&task_id,&command_id,now).map_err(|_|"命令拒绝失败".to_owned())}).await.map_err(|_|"命令拒绝中断".to_owned())?
+async fn command_approval_reject(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    command_id: String,
+) -> Result<(), String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let now = unix_now_ms()?;
+        let mut host = host.lock().map_err(|_| "任务存储不可用")?;
+        host.as_mut()
+            .ok_or("任务存储未就绪")?
+            .reject_command(&task_id, &command_id, now)
+            .map_err(|_| "命令拒绝失败".to_owned())
+    })
+    .await
+    .map_err(|_| "命令拒绝中断".to_owned())?
 }
 
 #[tauri::command]
@@ -716,7 +1383,9 @@ async fn file_grant_choose(
     let selected = tauri::async_runtime::spawn_blocking(move || choose_file_for_grant(purpose))
         .await
         .map_err(|_| "文件选择中断".to_owned())??;
-    let Some(selected) = selected else { return Ok(None); };
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
     let host = Arc::clone(&state.0);
     let grant = tauri::async_runtime::spawn_blocking(move || {
         let now = unix_now_ms()?;
@@ -781,15 +1450,30 @@ async fn file_grant_revoke(
 }
 
 #[tauri::command]
-async fn browser_task_space_open(window:WebviewWindow,state:State<'_,TaskState>,task_id:String,expected_sequence:String)->Result<(),String>{
-    if window.label()!="task-space"{return Err("不允许的窗口".into())}
-    let expected=expected_sequence.parse::<u64>().map_err(|_|"任务序号不可用")?;
-    let host=Arc::clone(&state.0);
-    tauri::async_runtime::spawn_blocking(move||{
-        host.lock().map_err(|_|"任务存储不可用")?.as_mut().ok_or("任务存储未就绪，请退出后重试")?
-            .user_browser_handoff(&task_id,expected).map_err(|_|"无法打开对应的 ego-lite Task Space".to_owned())
-    }).await.map_err(|_|"ego-lite 交接中断".to_owned())??;
-    window.hide().map_err(|_|"任务菜单收起失败".to_owned())
+async fn browser_task_space_open(
+    window: WebviewWindow,
+    state: State<'_, TaskState>,
+    task_id: String,
+    expected_sequence: String,
+) -> Result<(), String> {
+    if window.label() != "task-space" {
+        return Err("不允许的窗口".into());
+    }
+    let expected = expected_sequence
+        .parse::<u64>()
+        .map_err(|_| "任务序号不可用")?;
+    let host = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        host.lock()
+            .map_err(|_| "任务存储不可用")?
+            .as_mut()
+            .ok_or("任务存储未就绪，请退出后重试")?
+            .user_browser_handoff(&task_id, expected)
+            .map_err(|_| "无法打开对应的 ego-lite Task Space".to_owned())
+    })
+    .await
+    .map_err(|_| "ego-lite 交接中断".to_owned())??;
+    window.hide().map_err(|_| "任务菜单收起失败".to_owned())
 }
 
 #[tauri::command]
@@ -836,20 +1520,17 @@ async fn jev_config_save(
 }
 
 #[tauri::command]
-async fn jev_credential_status(
-    window: WebviewWindow,
-) -> Result<bool, String> {
+async fn jev_credential_status(window: WebviewWindow) -> Result<bool, String> {
     if window.label() != "jev-settings" {
         return Err("不允许的窗口".into());
     }
-    Ok(yonder_adapters::jev::jev_credential_configured("Yonder", "jev"))
+    Ok(yonder_adapters::jev::jev_credential_configured(
+        "Yonder", "jev",
+    ))
 }
 
 #[tauri::command]
-async fn jev_credential_save(
-    window: WebviewWindow,
-    api_key: String,
-) -> Result<(), String> {
+async fn jev_credential_save(window: WebviewWindow, api_key: String) -> Result<(), String> {
     if window.label() != "jev-settings" {
         return Err("不允许的窗口".into());
     }
@@ -862,9 +1543,7 @@ fn jev_settings_close(window: WebviewWindow) -> Result<(), String> {
     if window.label() != "jev-settings" {
         return Err("不允许的窗口".into());
     }
-    window
-        .hide()
-        .map_err(|_| "Jev 设置窗口关闭失败".to_owned())
+    window.hide().map_err(|_| "Jev 设置窗口关闭失败".to_owned())
 }
 
 #[tauri::command]
@@ -952,18 +1631,21 @@ fn agent_settings_close(window: WebviewWindow) -> Result<(), String> {
 
 fn main() {
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--release-build-info")) {
-        println!("{}", serde_json::json!({
-            "schema": 1,
-            "package": env!("CARGO_PKG_NAME"),
-            "version": env!("CARGO_PKG_VERSION"),
-            "profile": env!("YONDER_BUILD_PROFILE"),
-            "commit": env!("YONDER_BUILD_COMMIT"),
-        }));
+        println!(
+            "{}",
+            serde_json::json!({
+                "schema": 1,
+                "package": env!("CARGO_PKG_NAME"),
+                "version": env!("CARGO_PKG_VERSION"),
+                "profile": env!("YONDER_BUILD_PROFILE"),
+                "commit": env!("YONDER_BUILD_COMMIT"),
+            })
+        );
         return;
     }
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, cua_control_takeover, cua_control_presentation, cua_intent_confirmation, cua_intent_approve, cua_intent_reject, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, cua_control_takeover, cua_control_presentation, cua_intent_confirmation, cua_intent_approve, cua_intent_reject, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_reply_dismiss, region_preview_close, region_preview_reselect])
         .setup(|app| {
             release_contract::validate()?;
             #[cfg(target_os = "macos")]
