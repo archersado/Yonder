@@ -19,6 +19,8 @@ Codex CLI SessionStart Hook
 
 Hook 配置只匹配 `startup|resume` 并以后台方式执行。`compact` 不创建重复桥；会话结束后由 Codex Hook 生命周期终止连接器。连接器不保存 thread ID、输入正文或 endpoint。
 
+Hook 未显式提供 `YONDER_AGENT_ID` 时使用与正式 MCP 配置一致的 `codex-cli`；显式环境变量仍可覆盖。这样任务通道与输入通道进入同一已登记 Agent 身份，不要求用户为 Hook 重复配置环境变量。
+
 ## 状态与契约
 
 ### 所有权

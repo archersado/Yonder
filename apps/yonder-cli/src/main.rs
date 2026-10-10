@@ -7,6 +7,7 @@ use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Ca
 mod codex_agent_bridge;
 
 const MCP_IDLE_TIMEOUT: Duration = Duration::from_secs(600);
+const DEFAULT_CODEX_AGENT_ID: &str = "codex-cli";
 
 fn receive_line(receiver: &mpsc::Receiver<io::Result<Option<String>>>, timeout: Duration) -> io::Result<Option<String>> {
     match receiver.recv_timeout(timeout) {
@@ -219,7 +220,7 @@ async fn codex_hook() -> io::Result<()> {
     let agent_id = match env::var("YONDER_AGENT_ID") {
         Ok(value) if yonder_protocol::valid_id(&value) => value,
         Ok(_) => return Err(io::Error::other("YONDER_AGENT_ID无效")),
-        Err(env::VarError::NotPresent) => "codex".into(),
+        Err(env::VarError::NotPresent) => DEFAULT_CODEX_AGENT_ID.into(),
         Err(env::VarError::NotUnicode(_)) => {
             return Err(io::Error::other("YONDER_AGENT_ID无效"));
         }

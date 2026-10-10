@@ -2,7 +2,7 @@
 
 - [x] 实现 `yonder codex-hook` 输入校验与当前 session 显式绑定
 - [x] 以公开共享 daemon 与 WebSocket-over-proxy 替代手填 App Server Socket，并恢复同一 thread
-- [ ] 修正 proxy 原始字节流接线，覆盖 WebSocket 握手与真实 active-writer 会话回归
+- [x] 修正 proxy 原始字节流接线，覆盖 WebSocket 握手与真实 active-writer 会话回归
 - [x] 实现 Yonder 断线有界退避重连与跨重连输入去重
 - [x] 提供可审阅安装的 Codex Hook 配置和使用/诊断文档
 - [x] 覆盖单元、合约与 macOS 集成测试
