@@ -1,0 +1,20 @@
+{
+  "name": "yonder-local",
+  "interface": {
+    "displayName": "Yonder 本地集成"
+  },
+  "plugins": [
+    {
+      "name": "yonder-codex-connector",
+      "source": {
+        "source": "local",
+        "path": "./plugins/yonder-codex-connector"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

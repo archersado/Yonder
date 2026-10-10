@@ -2,7 +2,7 @@
 
 Story: AG-S8  
 Epic: AG  
-Status: ready  
+Status: implementing
 OpenSpec: ag-s8-codex-cli-managed-connector
 
 ## 目标

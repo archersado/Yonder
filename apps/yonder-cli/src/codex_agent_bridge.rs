@@ -11,11 +11,13 @@ use std::{
     collections::{HashMap, VecDeque},
     env, io,
     path::{Path, PathBuf},
+    process::Stdio,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
+    process::{Child, ChildStdin, Command},
     sync::mpsc,
     task::JoinHandle,
 };
@@ -29,11 +31,36 @@ const CODEX_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_CODEX_FRAME_BYTES: usize = 1024 * 1024;
 const MAX_DEDUP_RESULTS: usize = 1024;
 const MAX_PENDING_RESPONSES: usize = 8;
+const YONDER_RECONNECT_WINDOW: Duration = Duration::from_secs(300);
+const YONDER_RECONNECT_INITIAL: Duration = Duration::from_millis(100);
+const YONDER_RECONNECT_MAX: Duration = Duration::from_secs(2);
+
+enum CodexInput {
+    WebSocket(SplitSink<WebSocketStream<UnixStream>, Message>),
+    Proxy(ChildStdin),
+}
+
+impl CodexInput {
+    async fn send(&mut self, text: String) -> io::Result<()> {
+        match self {
+            Self::WebSocket(input) => input
+                .send(Message::Text(text.into()))
+                .await
+                .map_err(io::Error::other),
+            Self::Proxy(input) => {
+                input.write_all(text.as_bytes()).await?;
+                input.write_all(b"\n").await?;
+                input.flush().await
+            }
+        }
+    }
+}
 
 struct CodexAppServer {
-    input: SplitSink<WebSocketStream<UnixStream>, Message>,
+    input: CodexInput,
     responses: mpsc::Receiver<io::Result<Value>>,
     reader: JoinHandle<()>,
+    proxy: Option<Child>,
     next_id: u64,
 }
 
@@ -50,14 +77,68 @@ impl CodexAppServer {
         let (input, output) = socket.split();
         let (responses, reader) = read_responses(output);
         let mut server = Self {
-            input,
+            input: CodexInput::WebSocket(input),
             responses,
             reader,
+            proxy: None,
             next_id: 0,
         };
-        server.call("initialize", json!({"clientInfo":{"name":"yonder","title":"Yonder","version":env!("CARGO_PKG_VERSION")}}), CODEX_RPC_TIMEOUT).await?;
-        server.notify("initialized", json!({})).await?;
+        server.initialize().await?;
         Ok(server)
+    }
+
+    async fn connect_managed() -> io::Result<Self> {
+        Self::connect_managed_with(&codex_program()).await
+    }
+
+    async fn connect_managed_with(codex: &Path) -> io::Result<Self> {
+        let status = tokio::time::timeout(
+            CODEX_RPC_TIMEOUT,
+            Command::new(codex)
+                .args(["app-server", "daemon", "start"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status(),
+        )
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Codex daemon启动超时"))?
+        .map_err(|error| io::Error::new(io::ErrorKind::NotFound, format!("Codex CLI不可用：{error}")))?;
+        if !status.success() {
+            return Err(io::Error::other("Codex daemon启动失败"));
+        }
+
+        let mut proxy = Command::new(codex)
+            .args(["app-server", "proxy"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|error| io::Error::other(format!("Codex proxy启动失败：{error}")))?;
+        let input = proxy
+            .stdin
+            .take()
+            .ok_or_else(|| io::Error::other("Codex proxy输入不可用"))?;
+        let output = proxy
+            .stdout
+            .take()
+            .ok_or_else(|| io::Error::other("Codex proxy输出不可用"))?;
+        let (responses, reader) = read_line_responses(BufReader::new(output));
+        let mut server = Self {
+            input: CodexInput::Proxy(input),
+            responses,
+            reader,
+            proxy: Some(proxy),
+            next_id: 0,
+        };
+        server.initialize().await?;
+        Ok(server)
+    }
+
+    async fn initialize(&mut self) -> io::Result<()> {
+        self.call("initialize", json!({"clientInfo":{"name":"yonder","title":"Yonder","version":env!("CARGO_PKG_VERSION")}}), CODEX_RPC_TIMEOUT).await?;
+        self.notify("initialized", json!({})).await
     }
 
     async fn notify(&mut self, method: &str, params: Value) -> io::Result<()> {
@@ -105,10 +186,7 @@ impl CodexAppServer {
         }
         let text = String::from_utf8(bytes)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Codex App Server请求无效"))?;
-        self.input
-            .send(Message::Text(text.into()))
-            .await
-            .map_err(io::Error::other)
+        self.input.send(text).await
     }
 
     async fn ensure_loaded(&mut self, thread_id: &str) -> io::Result<()> {
@@ -127,6 +205,26 @@ impl CodexAppServer {
             Ok(())
         } else {
             Err(io::Error::other("Codex thread未在指定App Server中加载"))
+        }
+    }
+
+    async fn resume(&mut self, thread_id: &str) -> io::Result<()> {
+        let result = self
+            .call(
+                "thread/resume",
+                json!({"threadId":thread_id,"excludeTurns":true}),
+                CODEX_RPC_TIMEOUT,
+            )
+            .await?;
+        if result
+            .get("thread")
+            .and_then(|thread| thread.get("id"))
+            .and_then(Value::as_str)
+            == Some(thread_id)
+        {
+            Ok(())
+        } else {
+            Err(io::Error::other("Codex thread恢复确认无效"))
         }
     }
 
@@ -207,6 +305,9 @@ impl CodexAppServer {
 impl Drop for CodexAppServer {
     fn drop(&mut self) {
         self.reader.abort();
+        if let Some(proxy) = self.proxy.as_mut() {
+            let _ = proxy.start_kill();
+        }
     }
 }
 
@@ -232,6 +333,45 @@ fn read_responses(
                     "Codex App Server响应无效",
                 )),
                 Some(Err(error)) => Err(io::Error::other(error)),
+            };
+            if result
+                .as_ref()
+                .is_ok_and(|message| message.get("method").is_some())
+            {
+                continue;
+            }
+            let terminal = result.is_err();
+            if sender.send(result).await.is_err() || terminal {
+                break;
+            }
+        }
+    });
+    (receiver, reader)
+}
+
+fn read_line_responses<R>(mut output: R) -> (mpsc::Receiver<io::Result<Value>>, JoinHandle<()>)
+where
+    R: AsyncBufRead + Unpin + Send + 'static,
+{
+    let (sender, receiver) = mpsc::channel(MAX_PENDING_RESPONSES);
+    let reader = tokio::spawn(async move {
+        loop {
+            let mut bytes = Vec::new();
+            let result: io::Result<Value> = match output.read_until(b'\n', &mut bytes).await {
+                Ok(0) => Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "Codex proxy已断开",
+                )),
+                Ok(read) if read > MAX_CODEX_FRAME_BYTES || bytes.last() != Some(&b'\n') => Err(
+                    io::Error::new(io::ErrorKind::InvalidData, "Codex proxy响应无效"),
+                ),
+                Ok(_) => {
+                    bytes.pop();
+                    serde_json::from_slice(&bytes).map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidData, "Codex proxy响应无效")
+                    })
+                }
+                Err(error) => Err(error),
             };
             if result
                 .as_ref()
@@ -308,6 +448,13 @@ fn app_server_socket() -> io::Result<PathBuf> {
     Ok(path)
 }
 
+fn codex_program() -> PathBuf {
+    env::var_os("YONDER_CODEX_BIN")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("codex"))
+}
+
 fn thread_id() -> io::Result<String> {
     let value = env::var("YONDER_CODEX_THREAD_ID")
         .map_err(|_| io::Error::other("请设置YONDER_CODEX_THREAD_ID"))?;
@@ -350,7 +497,27 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
     let thread_id = thread_id()?;
     let mut codex = CodexAppServer::connect(&app_server_socket()?).await?;
     codex.ensure_loaded(&thread_id).await?;
+    run_bound(agent_id, yonder_socket, thread_id, codex, false).await
+}
 
+pub async fn run_managed(
+    agent_id: String,
+    yonder_socket: PathBuf,
+    thread_id: String,
+) -> io::Result<()> {
+    if !yonder_protocol::valid_id(&thread_id) {
+        return Err(io::Error::other("Codex Hook session_id无效"));
+    }
+    let mut codex = CodexAppServer::connect_managed().await?;
+    codex.resume(&thread_id).await?;
+    run_bound(agent_id, yonder_socket, thread_id, codex, true).await
+}
+
+async fn connect_yonder(
+    agent_id: &str,
+    yonder_socket: &Path,
+    thread_id: &str,
+) -> io::Result<Stream> {
     let stream = Stream::connect(yonder_socket.to_fs_name::<GenericFilePath>()?)
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "Yonder未运行"))?;
@@ -358,7 +525,7 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
         jsonrpc: Version::V2,
         request_id: "hello".into(),
         params: HelloParams {
-            agent_id,
+            agent_id: agent_id.into(),
             capability: Capability::TaskRead,
             deadline: now_ms()?.saturating_add(10_000),
             protocol_version: ProtocolVersion {
@@ -367,24 +534,35 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
                 // 不得随产品协议升版而声明尚未实现的新能力面。
                 minor: 33,
             },
-            session_id: Some(thread_id.clone()),
-            offered_capabilities: Some(vec![OfferedCapability::UserInput,OfferedCapability::ReplanInput]),
+            session_id: Some(thread_id.into()),
+            offered_capabilities: Some(vec![
+                OfferedCapability::UserInput,
+                OfferedCapability::ReplanInput,
+            ]),
         },
     };
     send_yonder(&stream, &hello).await?;
     let mut reader = BufReader::new(&stream);
     match serde_json::from_slice::<Response>(&read_yonder(&mut reader).await?) {
-        Ok(Response::Success { .. }) => {}
-        Ok(Response::Failure { error, .. }) => return Err(io::Error::other(error.message)),
-        Err(_) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Yonder握手响应无效",
-            ));
-        }
+        Ok(Response::Success { .. }) => Ok(stream),
+        Ok(Response::Failure { error, .. }) => Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            error.message,
+        )),
+        Err(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Yonder握手响应无效",
+        )),
     }
+}
 
-    let mut dedup = DedupResults::new();
+async fn serve_yonder(
+    stream: &Stream,
+    codex: &mut CodexAppServer,
+    thread_id: &str,
+    dedup: &mut DedupResults,
+) -> io::Result<()> {
+    let mut reader = BufReader::new(stream);
     loop {
         let bytes = read_yonder(&mut reader).await?;
         let request = serde_json::from_slice::<AgentRequest>(&bytes)
@@ -398,9 +576,11 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
                 "Codex桥接不支持Agent附件",
             ));
         };
-        let accepted = handle_input(&mut codex, &thread_id, &params, &mut dedup).await?;
+        let accepted = handle_input(codex, thread_id, &params, dedup)
+            .await
+            .map_err(|_| io::Error::other("Codex输入投递未确认"))?;
         send_yonder(
-            &stream,
+            stream,
             &AgentResponse::Success {
                 jsonrpc: Version::V2,
                 id: request_id,
@@ -408,6 +588,54 @@ pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
             },
         )
         .await?;
+    }
+}
+
+fn reconnectable(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::NotFound
+            | io::ErrorKind::ConnectionRefused
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::BrokenPipe
+            | io::ErrorKind::UnexpectedEof
+            | io::ErrorKind::TimedOut
+    )
+}
+
+fn next_backoff(current: Duration) -> Duration {
+    current.saturating_mul(2).min(YONDER_RECONNECT_MAX)
+}
+
+async fn run_bound(
+    agent_id: String,
+    yonder_socket: PathBuf,
+    thread_id: String,
+    mut codex: CodexAppServer,
+    reconnect: bool,
+) -> io::Result<()> {
+    let mut dedup = DedupResults::new();
+    loop {
+        let recovery_deadline = Instant::now() + YONDER_RECONNECT_WINDOW;
+        let mut backoff = YONDER_RECONNECT_INITIAL;
+        let stream = loop {
+            match connect_yonder(&agent_id, &yonder_socket, &thread_id).await {
+                Ok(stream) => break stream,
+                Err(error)
+                    if reconnect
+                        && reconnectable(&error)
+                        && Instant::now() + backoff <= recovery_deadline =>
+                {
+                    tokio::time::sleep(backoff).await;
+                    backoff = next_backoff(backoff);
+                }
+                Err(error) => return Err(error),
+            }
+        };
+        match serve_yonder(&stream, &mut codex, &thread_id, &mut dedup).await {
+            Err(error) if reconnect && reconnectable(&error) => continue,
+            result => return result,
+        }
     }
 }
 
@@ -446,6 +674,40 @@ async fn handle_input(
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
+    fn fake_codex() -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = env::temp_dir().join(format!(
+            "yonder-codex-proxy-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let script = directory.join("codex-fixture");
+        std::fs::write(
+            &script,
+            br##"#!/bin/sh
+if [ "$1" = "app-server" ] && [ "$2" = "daemon" ] && [ "$3" = "start" ]; then exit 0; fi
+if [ "$1" != "app-server" ] || [ "$2" != "proxy" ]; then exit 2; fi
+while IFS= read -r line; do
+  case "$line" in
+    *'"method":"initialize"'*) printf '%s\n' '{"id":1,"result":{}}' ;;
+    *'"method":"thread/resume"'*) printf '%s\n' '{"id":2,"result":{"thread":{"id":"thread-1"}}}' ;;
+    *'"method":"thread/read"'*) printf '%s\n' '{"id":3,"result":{"thread":{"status":{"type":"idle"}}}}' ;;
+    *'"method":"turn/start"'*) printf '%s\n' '{"id":4,"result":{"turn":{"id":"turn-1"}}}' ;;
+  esac
+done
+"##,
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        script
+    }
+
     #[test]
     fn selects_only_the_in_progress_turn() {
         assert_eq!(
@@ -469,5 +731,101 @@ mod tests {
         }
         assert!(results.values.len() <= MAX_DEDUP_RESULTS);
         assert_eq!(results.get("same"), None);
+    }
+
+    #[test]
+    fn reconnect_backoff_is_bounded_and_protocol_errors_are_terminal() {
+        assert_eq!(next_backoff(Duration::from_millis(100)), Duration::from_millis(200));
+        assert_eq!(next_backoff(Duration::from_secs(2)), YONDER_RECONNECT_MAX);
+        assert!(reconnectable(&io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "closed"
+        )));
+        assert!(!reconnectable(&io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "revoked"
+        )));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn managed_proxy_resumes_the_explicit_thread_and_starts_an_idle_turn() {
+        let script = fake_codex();
+        let directory = script.parent().unwrap().to_path_buf();
+        let mut server = CodexAppServer::connect_managed_with(&script).await.unwrap();
+        server.resume("thread-1").await.unwrap();
+        server
+            .deliver("thread-1", "bounded test input", Duration::from_secs(1))
+            .await
+            .unwrap();
+        drop(server);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn managed_bridge_registers_again_after_yonder_restarts() {
+        use interprocess::local_socket::ListenerOptions;
+
+        let script = fake_codex();
+        let directory = script.parent().unwrap().to_path_buf();
+        let socket = PathBuf::from(format!(
+            "/tmp/ya8-{}-{}.sock",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let listener = ListenerOptions::new()
+            .name(socket.clone().to_fs_name::<GenericFilePath>().unwrap())
+            .try_overwrite(true)
+            .create_tokio()
+            .unwrap();
+        let (registered, mut registrations) = mpsc::channel(2);
+        let gateway = tokio::spawn(async move {
+            for _ in 0..2 {
+                let stream = listener.accept().await.unwrap();
+                let mut reader = BufReader::new(&stream);
+                let hello = read_yonder(&mut reader).await.unwrap();
+                let request: Request = serde_json::from_slice(&hello).unwrap();
+                assert!(matches!(
+                    request,
+                    Request::Hello {
+                        params: HelloParams { session_id: Some(ref session), .. },
+                        ..
+                    } if session == "thread-1"
+                ));
+                (&stream)
+                    .write_all(
+                        b"{\"jsonrpc\":\"2.0\",\"id\":\"hello\",\"result\":{\"kind\":\"hello\",\"protocol_version\":{\"major\":1,\"minor\":33},\"platform\":\"macos\",\"capabilities\":[]}}\n",
+                    )
+                    .await
+                    .unwrap();
+                registered.send(()).await.unwrap();
+            }
+        });
+        let mut server = CodexAppServer::connect_managed_with(&script).await.unwrap();
+        server.resume("thread-1").await.unwrap();
+        let bridge = tokio::spawn(run_bound(
+            "codex".into(),
+            socket.clone(),
+            "thread-1".into(),
+            server,
+            true,
+        ));
+        tokio::time::timeout(Duration::from_secs(3), registrations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(3), registrations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        gateway.await.unwrap();
+        bridge.abort();
+        let _ = bridge.await;
+        let _ = std::fs::remove_file(socket);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

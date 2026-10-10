@@ -1,0 +1,19 @@
+{
+  "description": "在 Codex CLI 会话启动或恢复时运行 Yonder 托管连接器。",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "yonder codex-hook",
+            "async": true,
+            "timeout": 86400,
+            "statusMessage": "正在连接 Yonder"
+          }
+        ]
+      }
+    ]
+  }
+}

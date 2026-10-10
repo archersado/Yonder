@@ -1,6 +1,6 @@
 use interprocess::local_socket::{GenericFilePath, ToFsName, tokio::{Stream, prelude::*}};
 use serde_json::{Value, json};
-use std::{env, io::{self, BufRead, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{env, io::{self, BufRead, Read, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, CuaIntentProposeParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, GoalVerificationOutcome, GoalVerifyParams, HelloParams, ListParams, PlanExecuteParams, PlanSlotParams, PlanSubmitParams, PROTOCOL_VERSION, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
 
@@ -187,6 +187,46 @@ async fn agent_bridge() -> io::Result<()> {
     codex_agent_bridge::run(agent_id()?, socket_path()?).await
 }
 
+fn codex_hook_session_id(bytes: &[u8]) -> io::Result<String> {
+    if bytes.is_empty() || bytes.len() > MAX_REQUEST_BYTES {
+        return Err(io::Error::other("Codex Hook输入无效"));
+    }
+    let value: Value = serde_json::from_slice(bytes)
+        .map_err(|_| io::Error::other("Codex Hook输入不是有效JSON"))?;
+    if value.get("hook_event_name").and_then(Value::as_str) != Some("SessionStart") {
+        return Err(io::Error::other("Codex Hook事件不是SessionStart"));
+    }
+    if !matches!(
+        value.get("source").and_then(Value::as_str),
+        Some("startup" | "resume")
+    ) {
+        return Err(io::Error::other("Codex Hook来源不是startup或resume"));
+    }
+    let session_id = value
+        .get("session_id")
+        .and_then(Value::as_str)
+        .filter(|value| yonder_protocol::valid_id(value))
+        .ok_or_else(|| io::Error::other("Codex Hook session_id无效"))?;
+    Ok(session_id.into())
+}
+
+async fn codex_hook() -> io::Result<()> {
+    let mut bytes = Vec::new();
+    io::stdin()
+        .take((MAX_REQUEST_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)?;
+    let session_id = codex_hook_session_id(&bytes)?;
+    let agent_id = match env::var("YONDER_AGENT_ID") {
+        Ok(value) if yonder_protocol::valid_id(&value) => value,
+        Ok(_) => return Err(io::Error::other("YONDER_AGENT_ID无效")),
+        Err(env::VarError::NotPresent) => "codex".into(),
+        Err(env::VarError::NotUnicode(_)) => {
+            return Err(io::Error::other("YONDER_AGENT_ID无效"));
+        }
+    };
+    codex_agent_bridge::run_managed(agent_id, socket_path()?, session_id).await
+}
+
 async fn mcp(agent_id: String) {
     let mut stdout = io::stdout().lock();
     let (line_sender, line_receiver) = mpsc::channel::<io::Result<Option<String>>>();
@@ -225,7 +265,8 @@ async fn main() {
         })),
         Some("mcp")=>match agent_id() { Ok(id)=>mcp(id).await, Err(error)=>{eprintln!("{error}");std::process::exit(2)} },
         Some("agent-bridge")=>if let Err(error)=agent_bridge().await{eprintln!("Agent输入桥接关闭：{error}");std::process::exit(1)},
-        _=>{eprintln!("用法：YONDER_AGENT_ID=<agent-id> yonder <mcp|agent-bridge|build-info>");std::process::exit(2)}
+        Some("codex-hook")=>if let Err(error)=codex_hook().await{eprintln!("Codex连接器关闭：{error}");std::process::exit(1)},
+        _=>{eprintln!("用法：YONDER_AGENT_ID=<agent-id> yonder <mcp|agent-bridge|codex-hook|build-info>");std::process::exit(2)}
     }
 }
 
@@ -243,6 +284,29 @@ mod tests {
         assert_eq!(receive_line(&receiver, Duration::ZERO).unwrap_err().to_string(), "MCP idle timeout");
         drop(sender);
         assert_eq!(receive_line(&receiver, Duration::ZERO).unwrap(), None);
+    }
+
+    #[test]
+    fn codex_hook_accepts_only_explicit_session_start() {
+        assert_eq!(
+            codex_hook_session_id(
+                br#"{"session_id":"thread-1","hook_event_name":"SessionStart","source":"startup"}"#
+            )
+            .unwrap(),
+            "thread-1"
+        );
+        assert!(codex_hook_session_id(
+            br#"{"session_id":"thread-1","hook_event_name":"SessionStart","source":"compact"}"#
+        )
+        .is_err());
+        assert!(codex_hook_session_id(
+            br#"{"session_id":"thread-1","hook_event_name":"Stop","source":"startup"}"#
+        )
+        .is_err());
+        assert!(codex_hook_session_id(
+            br#"{"session_id":"bad/session","hook_event_name":"SessionStart","source":"resume"}"#
+        )
+        .is_err());
     }
 
     #[test]
