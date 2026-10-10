@@ -24,4 +24,4 @@ OpenSpec: ag-s8-codex-cli-managed-connector
 
 关联变更：[ag-s8-codex-cli-managed-connector](../../../../openspec/changes/ag-s8-codex-cli-managed-connector/proposal.md)。
 
-2026-10-10 实现与自动化合约已通过并合并 `dev`：正式插件已被本机 Codex CLI 安装、启用并解析。独立 Verification Goal 等待用户在 Codex `/hooks` 审阅信任后，以新会话完成真实生命周期样本；不绕过 Hook 信任。
+2026-10-10 实现与自动化合约已通过并合并 `dev`：正式插件已被本机 Codex CLI 安装、启用并解析。真实探针发现 `app-server proxy` 不提供 JSONL RPC，已依据官方 stdio 接线修正为 `app-server --listen stdio://`；独立 Verification Goal 继续验证真实生命周期，不绕过 Hook 信任。
