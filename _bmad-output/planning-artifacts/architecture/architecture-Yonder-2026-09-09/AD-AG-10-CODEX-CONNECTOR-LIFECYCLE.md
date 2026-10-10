@@ -31,6 +31,8 @@ AG-S5 已验证 Codex CLI 0.156.1 的共享 App Server + 显式 thread 绑定可
 4. 不读取私有状态、不猜测会话、不启动第二 Agent、不持久化输入正文；
 5. 自动恢复不会误报连接或重放 unknown 输入。
 
+2026-10-10 macOS 初步证据：当前 Codex CLI 0.162.1 公开 Unix App Server 与 remote resume，薄桥在缺少显式 thread 或 endpoint 时失败关闭；当前 ChatGPT Desktop 样本未公开 Unix/WebSocket endpoint。该结果只支持 CLI 路线继续验证，并将 Desktop 路线保持 Unsupported/Deferred；尚未覆盖真实连续重启与 Windows，故本决定继续保持 Proposed。
+
 ## 拒绝路线
 
 - Yonder 按最近会话、工作目录、进程或单一候选猜测 thread；

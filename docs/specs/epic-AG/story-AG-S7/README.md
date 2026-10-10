@@ -2,7 +2,7 @@
 
 Story: AG-S7  
 Epic: AG  
-Status: design-review  
+Status: implementing
 OpenSpec: ag-s7-codex-connector-lifecycle-spike  
 Timebox: 2026-10-10 ～ 2026-10-16
 
@@ -25,5 +25,7 @@ Timebox: 2026-10-10 ～ 2026-10-16
 - 已知缺口：Yonder 重启后薄桥退出且无人重新拉起；普通 MCP 只能恢复任务方向，不能恢复慢脑回注。
 - 未验证：ChatGPT Desktop 私有 `stdio://` App Server 是否存在受支持的当前会话连接器或生命周期 hook；不得从进程、最近会话或本地数据库猜测。
 - Windows 对照样本按既有决定保持待办；缺少 Windows 证据时 Spike 不得宣称跨平台完成，AD-AG-10 不得转 Accepted。
+
+2026-10-10 首个 macOS 能力探针通过：当前 Codex CLI 支持共享 Unix App Server 与 remote resume；缺少 thread/endpoint 时薄桥失败关闭。当前 ChatGPT Desktop 仅观察到宿主私有 App Server，未发现公开 Unix/WebSocket endpoint，结论保持 Unsupported/Deferred。真实 remote TUI 重启矩阵与 Windows 对照仍未完成，未授权产品守护进程。
 
 关联变更：[ag-s7-codex-connector-lifecycle-spike](../../../../openspec/changes/ag-s7-codex-connector-lifecycle-spike/proposal.md)。
