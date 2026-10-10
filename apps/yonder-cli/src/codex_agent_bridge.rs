@@ -37,7 +37,7 @@ const YONDER_RECONNECT_MAX: Duration = Duration::from_secs(2);
 
 enum CodexInput {
     WebSocket(SplitSink<WebSocketStream<UnixStream>, Message>),
-    Proxy(ChildStdin),
+    Stdio(ChildStdin),
 }
 
 impl CodexInput {
@@ -47,7 +47,7 @@ impl CodexInput {
                 .send(Message::Text(text.into()))
                 .await
                 .map_err(io::Error::other),
-            Self::Proxy(input) => {
+            Self::Stdio(input) => {
                 input.write_all(text.as_bytes()).await?;
                 input.write_all(b"\n").await?;
                 input.flush().await
@@ -60,7 +60,7 @@ struct CodexAppServer {
     input: CodexInput,
     responses: mpsc::Receiver<io::Result<Value>>,
     reader: JoinHandle<()>,
-    proxy: Option<Child>,
+    app_server: Option<Child>,
     next_id: u64,
 }
 
@@ -80,7 +80,7 @@ impl CodexAppServer {
             input: CodexInput::WebSocket(input),
             responses,
             reader,
-            proxy: None,
+            app_server: None,
             next_id: 0,
         };
         server.initialize().await?;
@@ -92,44 +92,28 @@ impl CodexAppServer {
     }
 
     async fn connect_managed_with(codex: &Path) -> io::Result<Self> {
-        let status = tokio::time::timeout(
-            CODEX_RPC_TIMEOUT,
-            Command::new(codex)
-                .args(["app-server", "daemon", "start"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status(),
-        )
-        .await
-        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Codex daemon启动超时"))?
-        .map_err(|error| io::Error::new(io::ErrorKind::NotFound, format!("Codex CLI不可用：{error}")))?;
-        if !status.success() {
-            return Err(io::Error::other("Codex daemon启动失败"));
-        }
-
-        let mut proxy = Command::new(codex)
-            .args(["app-server", "proxy"])
+        let mut app_server = Command::new(codex)
+            .args(["app-server", "--listen", "stdio://"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|error| io::Error::other(format!("Codex proxy启动失败：{error}")))?;
-        let input = proxy
+            .map_err(|error| io::Error::other(format!("Codex App Server启动失败：{error}")))?;
+        let input = app_server
             .stdin
             .take()
-            .ok_or_else(|| io::Error::other("Codex proxy输入不可用"))?;
-        let output = proxy
+            .ok_or_else(|| io::Error::other("Codex App Server输入不可用"))?;
+        let output = app_server
             .stdout
             .take()
-            .ok_or_else(|| io::Error::other("Codex proxy输出不可用"))?;
+            .ok_or_else(|| io::Error::other("Codex App Server输出不可用"))?;
         let (responses, reader) = read_line_responses(BufReader::new(output));
         let mut server = Self {
-            input: CodexInput::Proxy(input),
+            input: CodexInput::Stdio(input),
             responses,
             reader,
-            proxy: Some(proxy),
+            app_server: Some(app_server),
             next_id: 0,
         };
         server.initialize().await?;
@@ -305,8 +289,8 @@ impl CodexAppServer {
 impl Drop for CodexAppServer {
     fn drop(&mut self) {
         self.reader.abort();
-        if let Some(proxy) = self.proxy.as_mut() {
-            let _ = proxy.start_kill();
+        if let Some(app_server) = self.app_server.as_mut() {
+            let _ = app_server.start_kill();
         }
     }
 }
@@ -360,15 +344,15 @@ where
             let result: io::Result<Value> = match output.read_until(b'\n', &mut bytes).await {
                 Ok(0) => Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
-                    "Codex proxy已断开",
+                    "Codex App Server已断开",
                 )),
                 Ok(read) if read > MAX_CODEX_FRAME_BYTES || bytes.last() != Some(&b'\n') => Err(
-                    io::Error::new(io::ErrorKind::InvalidData, "Codex proxy响应无效"),
+                    io::Error::new(io::ErrorKind::InvalidData, "Codex App Server响应无效"),
                 ),
                 Ok(_) => {
                     bytes.pop();
                     serde_json::from_slice(&bytes).map_err(|_| {
-                        io::Error::new(io::ErrorKind::InvalidData, "Codex proxy响应无效")
+                        io::Error::new(io::ErrorKind::InvalidData, "Codex App Server响应无效")
                     })
                 }
                 Err(error) => Err(error),
@@ -679,7 +663,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let directory = env::temp_dir().join(format!(
-            "yonder-codex-proxy-test-{}-{}",
+            "yonder-codex-stdio-test-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -691,8 +675,7 @@ mod tests {
         std::fs::write(
             &script,
             br##"#!/bin/sh
-if [ "$1" = "app-server" ] && [ "$2" = "daemon" ] && [ "$3" = "start" ]; then exit 0; fi
-if [ "$1" != "app-server" ] || [ "$2" != "proxy" ]; then exit 2; fi
+if [ "$1" != "app-server" ] || [ "$2" != "--listen" ] || [ "$3" != "stdio://" ] || [ -n "$4" ]; then exit 2; fi
 while IFS= read -r line; do
   case "$line" in
     *'"method":"initialize"'*) printf '%s\n' '{"id":1,"result":{}}' ;;
@@ -749,7 +732,7 @@ done
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn managed_proxy_resumes_the_explicit_thread_and_starts_an_idle_turn() {
+    async fn managed_stdio_server_resumes_the_explicit_thread_and_starts_an_idle_turn() {
         let script = fake_codex();
         let directory = script.parent().unwrap().to_path_buf();
         let mut server = CodexAppServer::connect_managed_with(&script).await.unwrap();
