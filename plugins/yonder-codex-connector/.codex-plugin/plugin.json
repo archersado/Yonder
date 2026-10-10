@@ -1,6 +1,6 @@
 {
   "name": "yonder-codex-connector",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "把当前 macOS Codex CLI 会话显式连接到本机 Yonder Agent Gateway。",
   "hooks": "./hooks/hooks.json"
 }
