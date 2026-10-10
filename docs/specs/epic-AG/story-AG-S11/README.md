@@ -2,8 +2,9 @@
 
 Story: AG-S11
 Epic: AG
-Status: implementing
+Status: done
 OpenSpec: ag-s11-markdown-agent-reply
+Verification: openspec/changes/archive/2026-10-10-ag-s11-markdown-agent-reply/verification-goal.md
 
 关联变更：[ag-s11-markdown-agent-reply](../../../../openspec/changes/ag-s11-markdown-agent-reply/proposal.md)。
 
@@ -22,3 +23,8 @@ Yonder 圈选回复卡把 Agent 返回的 Markdown 渲染为可读的标题、�
 - 首批只覆盖 macOS 圈选回复卡。
 - 不改变 AgentSession、Gateway、SQLite、事件、Outbox 或日志。
 - Windows 与其他回复载体继续 Deferred。
+
+## 完成证据
+
+- 安全 Markdown 渲染、流式累计重渲染与回复卡样式已合入 `dev`。
+- [独立 macOS Verification Goal](../../../../openspec/changes/archive/2026-10-10-ag-s11-markdown-agent-reply/verification-goal.md)通过；Windows 继续 Deferred。

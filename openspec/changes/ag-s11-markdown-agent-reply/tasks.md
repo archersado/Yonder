@@ -5,5 +5,5 @@
 - [x] 将严格序号流式回复接入累计 Markdown 重渲染
 - [x] 补充回复区域 Markdown 与代码可读样式
 - [x] 覆盖安全、语法、跨 delta 与既有终态回归
-- [ ] 建立并运行独立 macOS Verification Goal
-- [ ] 审阅并 Archive；Windows 保留 Deferred
+- [x] 建立并运行独立 macOS Verification Goal
+- [x] 审阅并 Archive；Windows 保留 Deferred
