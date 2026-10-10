@@ -34,6 +34,12 @@ Connector MUST 通过同一 AgentSession 把匹配输入的最终 Agent 消息�
 - **THEN** Yonder 显示失败或中断
 - **AND** 不把 input accepted 或已有部分正文显示为完成
 
+#### Scenario: 回复超时
+
+- **WHEN** 关联回复在 5 分钟内未到达终态
+- **THEN** Connector 回传唯一 `interrupted`
+- **AND** Yonder 释放本次临时关联而不补抓历史正文
+
 ### Requirement: 回复不持久化
 
 回复正文 MUST 只在当前运行时与圈选卡内有界存在。

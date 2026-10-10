@@ -22,6 +22,8 @@
 
 协议1.49为 Attempt Unknown Reason 增加有界 Driver 错误分类，区分动作超时、拒绝、未确认、目标失效、Observe失败和传输失败。错误码不携带SDK原文或业务内容；Gateway向1.48及以下客户端降级为既有`timed-out`、`observe-failed`或`worker-failed`。
 
+协议1.50增加显式协商的 `user_input_reply`、圈选输入的 `reply_mode` 与 Agent→Yonder `agent.reply` 通知。单段正文上限16 KiB、累计可见正文上限64 KiB；回复仅驻运行时内存，不进入任务持久化或日志。
+
 ## 生成与检查
 
 在仓库根目录运行：

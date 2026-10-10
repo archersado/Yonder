@@ -1542,7 +1542,8 @@
       "enum": [
         "user_input",
         "user_input_attachment",
-        "replan_input"
+        "replan_input",
+        "user_input_reply"
       ]
     },
     "PlanCandidateParams": {

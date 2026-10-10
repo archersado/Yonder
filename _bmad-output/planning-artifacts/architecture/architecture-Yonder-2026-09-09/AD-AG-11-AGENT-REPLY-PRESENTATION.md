@@ -25,6 +25,7 @@ Architecture Impact：architecture-change（AgentSession 双向协议、回复�
 
 - 同一 AgentSession 同时只允许一个请求回复的用户输入；后续普通输入、replan 与任务协议不受影响。
 - 单个 delta 上限 16 KiB，累计可见回复上限 64 KiB；到达上限后停止追加正文并以 `truncated=true` 完成。
+- 单次回复最长等待 5 分钟；超时回传 `interrupted` 并释放临时关联。
 - 通知携带 `input_id`、`session_id`、`reply_id`、严格递增 `sequence`、phase、可选正文与截断标记。Yonder 拒绝跨会话、未知输入、重复/跳号和终态后的通知。
 - 回复通知是短生命 UI 数据，不参与任务恢复；Yonder 或 Connector 重启后显示“回复已中断”，不从 Codex 私有历史猜测或补抓正文。
 

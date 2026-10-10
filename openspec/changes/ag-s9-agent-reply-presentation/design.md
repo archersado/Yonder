@@ -14,4 +14,4 @@
 
 ## 限制
 
-单 session 单 pending reply；delta 16 KiB、累计正文 64 KiB。正文、截图、问题与厂商 turn/item 数据不持久化、不记录日志。
+单 session 单 pending reply；delta 16 KiB、累计正文 64 KiB、单次回复最长 5 分钟。超时发送中断终态并释放关联。正文、截图、问题与厂商 turn/item 数据不持久化、不记录日志。

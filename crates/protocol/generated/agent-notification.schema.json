@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentNotification",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
+          "const": "agent.reply"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentReplyParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "params"
+      ]
+    }
+  ],
+  "$defs": {
+    "AgentReplyParams": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input_id": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/AgentReplyPhase"
+        },
+        "reply_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_id",
+        "session_id",
+        "reply_id",
+        "sequence",
+        "phase"
+      ]
+    },
+    "AgentReplyPhase": {
+      "type": "string",
+      "enum": [
+        "started",
+        "delta",
+        "completed",
+        "failed",
+        "interrupted"
+      ]
+    },
+    "Version": {
+      "type": "string",
+      "enum": [
+        "2.0"
+      ]
+    }
+  }
+}

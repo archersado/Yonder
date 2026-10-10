@@ -211,6 +211,16 @@
         "input_id": {
           "type": "string"
         },
+        "reply_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentReplyMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "session_id": {
           "type": "string"
         },
@@ -234,6 +244,12 @@
         "voice",
         "selection",
         "replan"
+      ]
+    },
+    "AgentReplyMode": {
+      "type": "string",
+      "enum": [
+        "stream"
       ]
     },
     "Version": {

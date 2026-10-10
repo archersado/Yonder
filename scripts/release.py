@@ -304,6 +304,7 @@ def collect_manifest(root, include_artifacts=False, expected_channel=None):
         root / "crates/protocol/generated/protocol.ts",
         root / "crates/protocol/generated/request.schema.json",
         root / "crates/protocol/generated/response.schema.json",
+        root / "crates/protocol/generated/agent-notification.schema.json",
     ]
     migrations = sorted((root / "crates/adapters/src").glob("task*.sql"))
     missing = [str(path) for path in [*generated, contract_path, driver_path, *migrations] if not path.is_file()]

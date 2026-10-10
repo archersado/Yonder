@@ -24,6 +24,7 @@ Yonder 圈选卡
 - Connector 的 App Server reader 把 RPC response 与 notification 分流，不能再让一个 RPC call 丢弃别的 response 或全部通知。
 - Connector 在 start/steer 得到可信 turn ID 后先返回输入 accepted，再发 started；仅消费该 turn 后续最终消息。明确 commentary/partial_answer 不进入回答正文；phase 缺失按兼容消息处理。
 - Connector 对正文实施 64 KiB 累计上限；每段协议上限 16 KiB。超限停止正文并以 truncated 完成，不记录被截内容。
+- Connector 对单次回复设置 5 分钟运行时上限；超时发送 `interrupted` 并释放关联，不补抓历史正文。
 
 ## 失败与验证
 

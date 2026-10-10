@@ -9,7 +9,12 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 
 /// 当前发布包公开的最高协议版本；握手仍按调用方能力向下协商。
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 49 };
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
+    major: 1,
+    minor: 50,
+};
+pub const MAX_AGENT_REPLY_DELTA_BYTES: usize = 16 * 1024;
+pub const MAX_AGENT_REPLY_BYTES: usize = 64 * 1024;
 
 pub fn encoded_task_event_len(event: &TaskEvent) -> Result<usize, serde_json::Error> {
     serde_json::to_vec(event).map(|bytes| bytes.len())
@@ -98,6 +103,8 @@ pub enum OfferedCapability {
     UserInputAttachment,
     #[serde(rename = "replan_input")]
     ReplanInput,
+    #[serde(rename = "user_input_reply")]
+    UserInputReply,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -132,6 +139,12 @@ pub enum AgentInputSource {
     Voice,
     Selection,
     Replan,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentReplyMode {
+    Stream,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -233,6 +246,9 @@ pub struct AgentInputParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub attachment_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub reply_mode: Option<AgentReplyMode>,
     #[ts(type = "number")]
     #[schemars(range(min = 0, max = 9007199254740991_u64))]
     pub created_at: u64,
@@ -251,6 +267,7 @@ impl AgentInputParams {
                 .attachment_id
                 .as_deref()
                 .is_some_and(|value| !valid_id(value))
+            || self.reply_mode.is_some() && self.source != AgentInputSource::Selection
             || self.created_at > self.deadline
             || self.deadline > 9_007_199_254_740_991
             || self.deadline <= now_ms
@@ -260,6 +277,66 @@ impl AgentInputParams {
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentReplyPhase {
+    Started,
+    Delta,
+    Completed,
+    Failed,
+    Interrupted,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct AgentReplyParams {
+    pub input_id: String,
+    pub session_id: String,
+    pub reply_id: String,
+    pub sequence: u32,
+    pub phase: AgentReplyPhase,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub truncated: bool,
+}
+
+impl AgentReplyParams {
+    pub fn validate(&self) -> Result<(), RpcError> {
+        let delta = self.phase == AgentReplyPhase::Delta;
+        let valid_content = match self.content.as_deref() {
+            Some(content) => {
+                delta
+                    && !content.is_empty()
+                    && content.len() <= MAX_AGENT_REPLY_DELTA_BYTES
+                    && !content.contains('\0')
+            }
+            None => !delta,
+        };
+        if !valid_id(&self.input_id)
+            || !valid_id(&self.session_id)
+            || !valid_id(&self.reply_id)
+            || self.sequence == 0
+            || !valid_content
+            || self.truncated && self.phase != AgentReplyPhase::Completed
+        {
+            return Err(RpcError::new(-32602, "非法Agent回复通知"));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(tag = "method", deny_unknown_fields)]
+pub enum AgentNotification {
+    #[serde(rename = "agent.reply")]
+    Reply {
+        jsonrpc: Version,
+        params: AgentReplyParams,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -629,7 +706,12 @@ pub enum FileGrantPurpose {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "kebab-case")]
-pub enum FileOperation { Read, CreateNew, Replace, Trash }
+pub enum FileOperation {
+    Read,
+    CreateNew,
+    Replace,
+    Trash,
+}
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -650,7 +732,11 @@ pub struct FileExecuteParams {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "kebab-case")]
-pub enum DocumentFormat { Docx, Xlsx, Pptx }
+pub enum DocumentFormat {
+    Docx,
+    Xlsx,
+    Pptx,
+}
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -671,10 +757,31 @@ pub struct DocumentExecuteParams {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct CommandProposeParams { pub agent_id:String, pub capability:Capability, #[ts(type="number")] #[schemars(range(min=0,max=9007199254740991_u64))] pub deadline:u64, pub task_id:String, pub program:String, pub args:Vec<String>, pub cwd:String, pub env:std::collections::BTreeMap<String,String>, pub timeout_ms:u64 }
+pub struct CommandProposeParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: String,
+    pub env: std::collections::BTreeMap<String, String>,
+    pub timeout_ms: u64,
+}
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct CommandExecuteParams { pub agent_id:String, pub capability:Capability, #[ts(type="number")] #[schemars(range(min=0,max=9007199254740991_u64))] pub deadline:u64, pub task_id:String, pub expected_sequence:String, pub command_id:String }
+pub struct CommandExecuteParams {
+    pub agent_id: String,
+    pub capability: Capability,
+    #[ts(type = "number")]
+    #[schemars(range(min = 0, max = 9007199254740991_u64))]
+    pub deadline: u64,
+    pub task_id: String,
+    pub expected_sequence: String,
+    pub command_id: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -757,11 +864,26 @@ pub enum Request {
         params: ComputerStepParams,
     },
     #[serde(rename = "task.plan.submit")]
-    PlanSubmit { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: PlanSubmitParams },
+    PlanSubmit {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: PlanSubmitParams,
+    },
     #[serde(rename = "task.plan.execute")]
-    PlanExecute { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: PlanExecuteParams },
+    PlanExecute {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: PlanExecuteParams,
+    },
     #[serde(rename = "task.cua.intent.propose")]
-    CuaIntentPropose { jsonrpc: Version, #[serde(rename = "id")] request_id: String, params: CuaIntentProposeParams },
+    CuaIntentPropose {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: CuaIntentProposeParams,
+    },
     #[serde(rename = "task.file.execute")]
     FileExecute {
         jsonrpc: Version,
@@ -777,9 +899,19 @@ pub enum Request {
         params: DocumentExecuteParams,
     },
     #[serde(rename = "task.command.propose")]
-    CommandPropose { jsonrpc:Version, #[serde(rename="id")] request_id:String, params:CommandProposeParams },
+    CommandPropose {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: CommandProposeParams,
+    },
     #[serde(rename = "task.command.execute")]
-    CommandExecute { jsonrpc:Version, #[serde(rename="id")] request_id:String, params:CommandExecuteParams },
+    CommandExecute {
+        jsonrpc: Version,
+        #[serde(rename = "id")]
+        request_id: String,
+        params: CommandExecuteParams,
+    },
     #[serde(rename = "task.cancel")]
     Cancel {
         jsonrpc: Version,
@@ -1368,11 +1500,21 @@ pub enum QueryResult {
         task_id: String,
         grants: Vec<FileGrantSummary>,
     },
-    FileExecution { execution: FileExecutionResult },
-    DocumentExecution { execution: DocumentExecutionResult },
-    CommandApproval { approval: CommandApprovalSummary },
-    CuaIntent { intent: CuaIntentSummary },
-    CommandExecution { execution: CommandExecutionResult },
+    FileExecution {
+        execution: FileExecutionResult,
+    },
+    DocumentExecution {
+        execution: DocumentExecutionResult,
+    },
+    CommandApproval {
+        approval: CommandApprovalSummary,
+    },
+    CuaIntent {
+        intent: CuaIntentSummary,
+    },
+    CommandExecution {
+        execution: CommandExecutionResult,
+    },
     Step {
         task: TaskSnapshot,
         step: Option<StepDeclaration>,
@@ -1665,25 +1807,51 @@ impl Request {
                 )
             }
             Self::PlanSubmit { params, .. } => {
-                if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.plan_id)
-                    || params.plan_version == 0 || params.token_budget == 0 || params.token_budget > 10_000
-                    || params.slots.is_empty() || params.slots.len() > 10 || !valid_plan_slots(&params.slots) {
+                if sequence(&params.expected_sequence)? == 0
+                    || !valid_id(&params.plan_id)
+                    || params.plan_version == 0
+                    || params.token_budget == 0
+                    || params.token_budget > 10_000
+                    || params.slots.is_empty()
+                    || params.slots.len() > 10
+                    || !valid_plan_slots(&params.slots)
+                {
                     return Err(RpcError::new(-32602, "非法计划片段参数"));
                 }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::PlanExecute { params, .. } => {
-                if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.plan_id) || params.plan_version == 0 {
+                if sequence(&params.expected_sequence)? == 0
+                    || !valid_id(&params.plan_id)
+                    || params.plan_version == 0
+                {
                     return Err(RpcError::new(-32602, "非法计划片段执行参数"));
                 }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::CuaIntentPropose { params, .. } => {
-                if params.target.trim().is_empty() || params.target.len() > 256 || params.target.contains('\0')
-                    || params.message.trim().is_empty() || params.message.len() > 4 * 1024 || params.message.contains('\0') {
+                if params.target.trim().is_empty()
+                    || params.target.len() > 256
+                    || params.target.contains('\0')
+                    || params.message.trim().is_empty()
+                    || params.message.len() > 4 * 1024
+                    || params.message.contains('\0')
+                {
                     return Err(RpcError::new(-32602, "非法 CUA 敏感意图参数"));
                 }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::FileExecute { params, .. } => {
                 let valid_data = params.data_base64.as_deref().is_none_or(valid_file_base64);
@@ -1691,26 +1859,64 @@ impl Request {
                 if sequence(&params.expected_sequence)? == 0
                     || !valid_id(&params.grant_id)
                     || !valid_data
-                    || (matches!(params.operation, FileOperation::Read | FileOperation::Trash) && has_data)
-                    || (matches!(params.operation, FileOperation::CreateNew | FileOperation::Replace) && !has_data)
-                { return Err(RpcError::new(-32602, "非法文件执行参数")); }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                    || (matches!(params.operation, FileOperation::Read | FileOperation::Trash)
+                        && has_data)
+                    || (matches!(
+                        params.operation,
+                        FileOperation::CreateNew | FileOperation::Replace
+                    ) && !has_data)
+                {
+                    return Err(RpcError::new(-32602, "非法文件执行参数"));
+                }
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::DocumentExecute { params, .. } => {
-                if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.source_grant_id)
-                    || !valid_id(&params.output_grant_id) || params.source_grant_id == params.output_grant_id
-                    || !valid_hash(&params.expected_hash) || !valid_document_text(&params.before)
+                if sequence(&params.expected_sequence)? == 0
+                    || !valid_id(&params.source_grant_id)
+                    || !valid_id(&params.output_grant_id)
+                    || params.source_grant_id == params.output_grant_id
+                    || !valid_hash(&params.expected_hash)
+                    || !valid_document_text(&params.before)
                     || !valid_document_text(&params.after)
-                { return Err(RpcError::new(-32602, "非法文档执行参数")); }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                {
+                    return Err(RpcError::new(-32602, "非法文档执行参数"));
+                }
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::CommandPropose { params, .. } => {
-                if !valid_id(&params.task_id) || params.program.is_empty() || !params.program.starts_with('/') || !params.cwd.starts_with('/') || params.args.len()>128 || params.env.len()>64 || !(100..=300_000).contains(&params.timeout_ms) { return Err(RpcError::new(-32602,"非法命令提议参数")); }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                if !valid_id(&params.task_id)
+                    || params.program.is_empty()
+                    || !params.program.starts_with('/')
+                    || !params.cwd.starts_with('/')
+                    || params.args.len() > 128
+                    || params.env.len() > 64
+                    || !(100..=300_000).contains(&params.timeout_ms)
+                {
+                    return Err(RpcError::new(-32602, "非法命令提议参数"));
+                }
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::CommandExecute { params, .. } => {
-                if sequence(&params.expected_sequence)?==0 || !valid_id(&params.command_id) { return Err(RpcError::new(-32602,"非法命令执行参数")); }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                if sequence(&params.expected_sequence)? == 0 || !valid_id(&params.command_id) {
+                    return Err(RpcError::new(-32602, "非法命令执行参数"));
+                }
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::Complete { params, .. } => {
                 if sequence(&params.expected_sequence)? == 0
@@ -1734,7 +1940,11 @@ impl Request {
                 {
                     return Err(RpcError::new(-32602, "非法目标核验参数"));
                 }
-                (&params.agent_id, Some(params.task_id.as_str()), params.deadline)
+                (
+                    &params.agent_id,
+                    Some(params.task_id.as_str()),
+                    params.deadline,
+                )
             }
             Self::Fail { params, .. } => {
                 if sequence(&params.expected_sequence)? == 0 {
@@ -1812,11 +2022,16 @@ impl Request {
                     .offered_capabilities
                     .as_deref()
                     .is_some_and(|value| value.contains(&OfferedCapability::ReplanInput));
+                let offers_reply = params
+                    .offered_capabilities
+                    .as_deref()
+                    .is_some_and(|value| value.contains(&OfferedCapability::UserInputReply));
                 if params.session_id.is_some() != offers_input
                     || params.session_id.as_deref().is_some_and(|id| !valid_id(id))
                     || offers_input && params.protocol_version.minor < 14
                     || offers_attachment && (!offers_input || params.protocol_version.minor < 19)
                     || offers_replan && (!offers_input || params.protocol_version.minor < 33)
+                    || offers_reply && (!offers_input || params.protocol_version.minor < 50)
                 {
                     return Err(RpcError::new(-32602, "非法Agent会话声明"));
                 }
@@ -1849,9 +2064,7 @@ impl Request {
                 )
             }
             Self::Artifacts { params, .. } => {
-                if sequence(&params.manifest_version)? == 0
-                    || !(1..=100).contains(&params.limit)
-                {
+                if sequence(&params.manifest_version)? == 0 || !(1..=100).contains(&params.limit) {
                     return Err(RpcError::new(-32602, "非法产物清单分页参数"));
                 }
                 (
@@ -1940,7 +2153,17 @@ pub fn decode_agent_response(bytes: &[u8]) -> Result<AgentResponse, serde_json::
     serde_json::from_slice(bytes)
 }
 
-pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool, bool)> {
+pub fn encode_agent_notification(
+    notification: &AgentNotification,
+) -> Result<Vec<u8>, serde_json::Error> {
+    serde_json::to_vec(notification)
+}
+
+pub fn decode_agent_notification(bytes: &[u8]) -> Result<AgentNotification, serde_json::Error> {
+    serde_json::from_slice(bytes)
+}
+
+pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool, bool, bool)> {
     match decode(bytes).ok()? {
         Request::Hello { params, .. }
             if params.protocol_version.minor >= 14
@@ -1959,7 +2182,18 @@ pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool, bool)> 
                     .offered_capabilities
                     .as_deref()
                     .is_some_and(|value| value.contains(&OfferedCapability::ReplanInput));
-            Some((params.agent_id, params.session_id?, attachments, replans))
+            let replies = params.protocol_version.minor >= 50
+                && params
+                    .offered_capabilities
+                    .as_deref()
+                    .is_some_and(|value| value.contains(&OfferedCapability::UserInputReply));
+            Some((
+                params.agent_id,
+                params.session_id?,
+                attachments,
+                replans,
+                replies,
+            ))
         }
         _ => None,
     }
@@ -2007,7 +2241,8 @@ pub fn safe_sdk_arguments(value: &serde_json::Value) -> bool {
 fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
     let mut steps = std::collections::HashSet::new();
     slots.iter().all(|slot| {
-        valid_id(&slot.step_id) && valid_step_label(&slot.label)
+        valid_id(&slot.step_id)
+            && valid_step_label(&slot.label)
             && steps.insert(slot.step_id.as_str())
             && (1..=9).contains(&slot.candidates.len())
             && {
@@ -2018,7 +2253,8 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && candidates.insert(candidate.candidate_id.as_str())
                         && valid_sdk_tool_name(&candidate.tool_name)
                         && candidate.arguments.is_object()
-                        && serde_json::to_vec(&candidate.arguments).is_ok_and(|bytes| bytes.len() <= 16 * 1024)
+                        && serde_json::to_vec(&candidate.arguments)
+                            .is_ok_and(|bytes| bytes.len() <= 16 * 1024)
                         && safe_sdk_arguments(&candidate.arguments)
                         && valid_id(&candidate.target_ref)
                         && !candidate.preconditions.is_empty()
@@ -2029,8 +2265,30 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
                         && valid_observe_conditions(&candidate.expected_observe)
                         && tool_matches_action_kind(candidate.action_kind, &candidate.tool_name)
                         && match candidate.action_kind {
-                            CuaActionKind::SendMessage => candidate.confirmation_ref.as_deref().is_some_and(valid_id) && valid_plan_action_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
-                            CuaActionKind::LaunchApplication | CuaActionKind::FocusControl | CuaActionKind::InputText | CuaActionKind::ActivateControl | CuaActionKind::FocusTargetSearch | CuaActionKind::EnterTargetQuery | CuaActionKind::ActivateTarget | CuaActionKind::FocusMessageComposer | CuaActionKind::DraftMessageRef => candidate.confirmation_ref.is_none() && valid_plan_action_arguments(candidate.action_kind, &candidate.tool_name, &candidate.arguments),
+                            CuaActionKind::SendMessage => {
+                                candidate.confirmation_ref.as_deref().is_some_and(valid_id)
+                                    && valid_plan_action_arguments(
+                                        candidate.action_kind,
+                                        &candidate.tool_name,
+                                        &candidate.arguments,
+                                    )
+                            }
+                            CuaActionKind::LaunchApplication
+                            | CuaActionKind::FocusControl
+                            | CuaActionKind::InputText
+                            | CuaActionKind::ActivateControl
+                            | CuaActionKind::FocusTargetSearch
+                            | CuaActionKind::EnterTargetQuery
+                            | CuaActionKind::ActivateTarget
+                            | CuaActionKind::FocusMessageComposer
+                            | CuaActionKind::DraftMessageRef => {
+                                candidate.confirmation_ref.is_none()
+                                    && valid_plan_action_arguments(
+                                        candidate.action_kind,
+                                        &candidate.tool_name,
+                                        &candidate.arguments,
+                                    )
+                            }
                             _ => candidate.confirmation_ref.as_deref().is_none_or(valid_id),
                         }
                 })
@@ -2038,46 +2296,159 @@ fn valid_plan_slots(slots: &[PlanSlotParams]) -> bool {
     })
 }
 
-pub fn valid_plan_action_arguments(kind:CuaActionKind, tool_name:&str, value:&serde_json::Value)->bool{
-    let Some(arguments)=value.as_object() else{return false};
-    let coordinates=||arguments.len()==3
-        && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-        && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-        && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id);
-    let activation_coordinates=||matches!(arguments.len(),3|4)
-        && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-        && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-        && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id)
-        && arguments.get("click_count").is_none_or(|value|value.as_u64().is_some_and(|count|matches!(count,1|2)));
-    let observed_element=||arguments.len()==2
-        && arguments.get("observed_element_index").and_then(serde_json::Value::as_u64).is_some_and(|index|(1..=65_535).contains(&index))
-        && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id);
-    let search_hotkey=||arguments.len()==1&&arguments.get("keys").and_then(serde_json::Value::as_array).is_some_and(|keys|keys.len()==2&&keys[0]=="cmd"&&keys[1]=="f");
-    let launch_bundle=||arguments.len()==1&&arguments.get("bundle_id").and_then(serde_json::Value::as_str).is_some_and(|bundle_id|!bundle_id.is_empty()&&bundle_id.len()<=255&&bundle_id.contains('.')&&bundle_id.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'.'|b'-')));
+pub fn valid_plan_action_arguments(
+    kind: CuaActionKind,
+    tool_name: &str,
+    value: &serde_json::Value,
+) -> bool {
+    let Some(arguments) = value.as_object() else {
+        return false;
+    };
+    let coordinates = || {
+        arguments.len() == 3
+            && arguments
+                .get("x")
+                .and_then(serde_json::Value::as_f64)
+                .is_some_and(f64::is_finite)
+            && arguments
+                .get("y")
+                .and_then(serde_json::Value::as_f64)
+                .is_some_and(f64::is_finite)
+            && arguments
+                .get("observation_ref")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(valid_id)
+    };
+    let activation_coordinates = || {
+        matches!(arguments.len(), 3 | 4)
+            && arguments
+                .get("x")
+                .and_then(serde_json::Value::as_f64)
+                .is_some_and(f64::is_finite)
+            && arguments
+                .get("y")
+                .and_then(serde_json::Value::as_f64)
+                .is_some_and(f64::is_finite)
+            && arguments
+                .get("observation_ref")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(valid_id)
+            && arguments
+                .get("click_count")
+                .is_none_or(|value| value.as_u64().is_some_and(|count| matches!(count, 1 | 2)))
+    };
+    let observed_element = || {
+        arguments.len() == 2
+            && arguments
+                .get("observed_element_index")
+                .and_then(serde_json::Value::as_u64)
+                .is_some_and(|index| (1..=65_535).contains(&index))
+            && arguments
+                .get("observation_ref")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(valid_id)
+    };
+    let search_hotkey = || {
+        arguments.len() == 1
+            && arguments
+                .get("keys")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|keys| keys.len() == 2 && keys[0] == "cmd" && keys[1] == "f")
+    };
+    let launch_bundle = || {
+        arguments.len() == 1
+            && arguments
+                .get("bundle_id")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|bundle_id| {
+                    !bundle_id.is_empty()
+                        && bundle_id.len() <= 255
+                        && bundle_id.contains('.')
+                        && bundle_id
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+                })
+    };
     match kind {
-        CuaActionKind::LaunchApplication => tool_name=="launch_app"&&launch_bundle(),
-        CuaActionKind::FocusControl => (tool_name=="click"&&(arguments.is_empty()||coordinates()))||(tool_name=="hotkey"&&search_hotkey()),
-        CuaActionKind::InputText => tool_name=="type_text"
-            && arguments.get("text").and_then(serde_json::Value::as_str).is_some_and(|text|!text.is_empty()&&text.len()<=4096)
-            && (arguments.len()==1||(arguments.len()==4
-                && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-                && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-                && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id))),
-        CuaActionKind::ActivateControl => (tool_name=="click"&&(arguments.is_empty()||activation_coordinates()||observed_element()))||(tool_name=="press_key"&&arguments.len()==1&&arguments.get("key").and_then(serde_json::Value::as_str).is_some_and(|key|matches!(key,"ENTER"|"RETURN"|"SPACE"|"ARROWDOWN"))),
-        _ => arguments.is_empty() || (tool_name == "click"
-            && matches!(kind,CuaActionKind::FocusTargetSearch|CuaActionKind::ActivateTarget|CuaActionKind::FocusMessageComposer|CuaActionKind::SendMessage)
-            && coordinates())
-        || (tool_name=="type_text" && matches!(kind,CuaActionKind::EnterTargetQuery|CuaActionKind::DraftMessageRef) && arguments.len()==3
-            && arguments.get("x").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-            && arguments.get("y").and_then(serde_json::Value::as_f64).is_some_and(f64::is_finite)
-            && arguments.get("observation_ref").and_then(serde_json::Value::as_str).is_some_and(valid_id))
-        || (tool_name=="hotkey" && matches!(kind,CuaActionKind::FocusTargetSearch) && search_hotkey()),
+        CuaActionKind::LaunchApplication => tool_name == "launch_app" && launch_bundle(),
+        CuaActionKind::FocusControl => {
+            (tool_name == "click" && (arguments.is_empty() || coordinates()))
+                || (tool_name == "hotkey" && search_hotkey())
+        }
+        CuaActionKind::InputText => {
+            tool_name == "type_text"
+                && arguments
+                    .get("text")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|text| !text.is_empty() && text.len() <= 4096)
+                && (arguments.len() == 1
+                    || (arguments.len() == 4
+                        && arguments
+                            .get("x")
+                            .and_then(serde_json::Value::as_f64)
+                            .is_some_and(f64::is_finite)
+                        && arguments
+                            .get("y")
+                            .and_then(serde_json::Value::as_f64)
+                            .is_some_and(f64::is_finite)
+                        && arguments
+                            .get("observation_ref")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(valid_id)))
+        }
+        CuaActionKind::ActivateControl => {
+            (tool_name == "click"
+                && (arguments.is_empty() || activation_coordinates() || observed_element()))
+                || (tool_name == "press_key"
+                    && arguments.len() == 1
+                    && arguments
+                        .get("key")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|key| {
+                            matches!(key, "ENTER" | "RETURN" | "SPACE" | "ARROWDOWN")
+                        }))
+        }
+        _ => {
+            arguments.is_empty()
+                || (tool_name == "click"
+                    && matches!(
+                        kind,
+                        CuaActionKind::FocusTargetSearch
+                            | CuaActionKind::ActivateTarget
+                            | CuaActionKind::FocusMessageComposer
+                            | CuaActionKind::SendMessage
+                    )
+                    && coordinates())
+                || (tool_name == "type_text"
+                    && matches!(
+                        kind,
+                        CuaActionKind::EnterTargetQuery | CuaActionKind::DraftMessageRef
+                    )
+                    && arguments.len() == 3
+                    && arguments
+                        .get("x")
+                        .and_then(serde_json::Value::as_f64)
+                        .is_some_and(f64::is_finite)
+                    && arguments
+                        .get("y")
+                        .and_then(serde_json::Value::as_f64)
+                        .is_some_and(f64::is_finite)
+                    && arguments
+                        .get("observation_ref")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(valid_id))
+                || (tool_name == "hotkey"
+                    && matches!(kind, CuaActionKind::FocusTargetSearch)
+                    && search_hotkey())
+        }
     }
 }
 
 fn valid_observe_conditions(conditions: &[CuaObserveConditionParams]) -> bool {
     let mut facts = std::collections::HashSet::new();
-    conditions.iter().all(|condition| facts.insert(condition.fact as u8))
+    conditions
+        .iter()
+        .all(|condition| facts.insert(condition.fact as u8))
 }
 
 /// 语义候选不能借“动作类型”之名派发另一类 Driver 工具。尚未具备稳定语义的
@@ -2108,15 +2479,27 @@ pub fn tool_matches_action_kind(kind: CuaActionKind, tool_name: &str) -> bool {
 pub const MAX_FILE_EXECUTE_BYTES: usize = 48 * 1024;
 
 pub fn valid_file_base64(value: &str) -> bool {
-    if value.is_empty() || value.len() > ((MAX_FILE_EXECUTE_BYTES + 2) / 3) * 4 || value.len() % 4 != 0 { return false; }
+    if value.is_empty()
+        || value.len() > ((MAX_FILE_EXECUTE_BYTES + 2) / 3) * 4
+        || value.len() % 4 != 0
+    {
+        return false;
+    }
     let pad = value.bytes().rev().take_while(|byte| *byte == b'=').count();
-    pad <= 2 && value.bytes().enumerate().all(|(index, byte)| {
-        byte.is_ascii_alphanumeric() || byte == b'+' || byte == b'/' || (byte == b'=' && index >= value.len() - pad)
-    })
+    pad <= 2
+        && value.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_alphanumeric()
+                || byte == b'+'
+                || byte == b'/'
+                || (byte == b'=' && index >= value.len() - pad)
+        })
 }
 
 fn valid_hash(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn valid_document_text(value: &str) -> bool {
@@ -2134,6 +2517,7 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         Capability::decl(&config),
         OfferedCapability::decl(&config),
         AgentInputSource::decl(&config),
+        AgentReplyMode::decl(&config),
         AgentAttachmentMime::decl(&config),
         AgentAttachmentBeginParams::decl(&config),
         AgentAttachmentChunkParams::decl(&config),
@@ -2142,6 +2526,9 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
         AgentRequest::decl(&config),
         AgentInputResult::decl(&config),
         AgentResponse::decl(&config),
+        AgentReplyPhase::decl(&config),
+        AgentReplyParams::decl(&config),
+        AgentNotification::decl(&config),
         ProtocolVersion::decl(&config),
         Platform::decl(&config),
         Availability::decl(&config),
@@ -2247,6 +2634,13 @@ pub fn generated_artifacts() -> Vec<(&'static str, String)> {
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&schemars::schema_for!(AgentResponse)).unwrap()
+            ),
+        ),
+        (
+            "agent-notification.schema.json",
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&schemars::schema_for!(AgentNotification)).unwrap()
             ),
         ),
         (
@@ -2381,7 +2775,10 @@ mod tests {
         let value = serde_json::to_value(&response).unwrap();
         assert_eq!(value["result"]["kind"], "artifact-manifest-page");
         assert_eq!(value["result"]["items"][0]["availability"], "changed");
-        assert_eq!(decode_response(&encode(&response).unwrap()).unwrap(), response);
+        assert_eq!(
+            decode_response(&encode(&response).unwrap()).unwrap(),
+            response
+        );
     }
 
     #[test]
@@ -2580,7 +2977,7 @@ mod tests {
         assert!(decode(&hello).unwrap().validate(1000).is_ok());
         assert_eq!(
             input_registration(&hello),
-            Some(("a1".into(), "s1".into(), true, false))
+            Some(("a1".into(), "s1".into(), true, false, false))
         );
 
         let begin = AgentAttachmentBeginParams {
@@ -2637,7 +3034,7 @@ mod tests {
         assert!(decode(&hello).unwrap().validate(1000).is_ok());
         assert_eq!(
             input_registration(&hello),
-            Some(("a1".into(), "s1".into(), false, true))
+            Some(("a1".into(), "s1".into(), false, true, false))
         );
 
         for value in [
@@ -2646,6 +3043,72 @@ mod tests {
         ] {
             let bytes = serde_json::to_vec(&value).unwrap();
             assert!(decode(&bytes).unwrap().validate(1000).is_err());
+        }
+    }
+
+    #[test]
+    fn agent_reply_requires_protocol_1_50_and_user_input() {
+        let hello = serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":50},"session_id":"s1","offered_capabilities":["user_input","user_input_reply"]}});
+        let hello = serde_json::to_vec(&hello).unwrap();
+        assert!(decode(&hello).unwrap().validate(1000).is_ok());
+        assert_eq!(
+            input_registration(&hello),
+            Some(("a1".into(), "s1".into(), false, false, true))
+        );
+        for value in [
+            serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":49},"session_id":"s1","offered_capabilities":["user_input","user_input_reply"]}}),
+            serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":50},"session_id":"s1","offered_capabilities":["user_input_reply"]}}),
+        ] {
+            let bytes = serde_json::to_vec(&value).unwrap();
+            assert!(decode(&bytes).unwrap().validate(1000).is_err());
+        }
+    }
+
+    #[test]
+    fn agent_reply_notification_is_strict_bounded_and_round_trips() {
+        let valid = AgentNotification::Reply {
+            jsonrpc: Version::V2,
+            params: AgentReplyParams {
+                input_id: "input-1".into(),
+                session_id: "session-1".into(),
+                reply_id: "turn-1".into(),
+                sequence: 2,
+                phase: AgentReplyPhase::Delta,
+                content: Some("回答".into()),
+                truncated: false,
+            },
+        };
+        let bytes = encode_agent_notification(&valid).unwrap();
+        assert_eq!(decode_agent_notification(&bytes).unwrap(), valid);
+        let AgentNotification::Reply { params, .. } = valid;
+        assert!(params.validate().is_ok());
+
+        for invalid in [
+            AgentReplyParams {
+                sequence: 0,
+                ..params.clone()
+            },
+            AgentReplyParams {
+                content: None,
+                ..params.clone()
+            },
+            AgentReplyParams {
+                content: Some("x".repeat(MAX_AGENT_REPLY_DELTA_BYTES + 1)),
+                ..params.clone()
+            },
+            AgentReplyParams {
+                phase: AgentReplyPhase::Completed,
+                content: Some("不能在终态携带正文".into()),
+                ..params.clone()
+            },
+            AgentReplyParams {
+                phase: AgentReplyPhase::Failed,
+                content: None,
+                truncated: true,
+                ..params
+            },
+        ] {
+            assert!(invalid.validate().is_err());
         }
     }
 
@@ -2687,10 +3150,12 @@ mod tests {
         assert!(matches!(request, Request::FileGrants { .. }));
         let mut wrong_capability = value.clone();
         wrong_capability["params"]["capability"] = serde_json::json!("task.read");
-        assert!(decode(&serde_json::to_vec(&wrong_capability).unwrap())
-            .unwrap()
-            .validate(1000)
-            .is_err());
+        assert!(
+            decode(&serde_json::to_vec(&wrong_capability).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
         let mut location = value;
         location["params"]["path"] = serde_json::json!("/private/file.docx");
         assert!(decode(&serde_json::to_vec(&location).unwrap()).is_err());
@@ -2717,11 +3182,20 @@ mod tests {
         let request = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
         assert!(request.validate(1000).is_ok());
         assert!(matches!(request, Request::FileExecute { .. }));
-        let mut location = value.clone(); location["params"]["path"] = serde_json::json!("/private/file.docx");
+        let mut location = value.clone();
+        location["params"]["path"] = serde_json::json!("/private/file.docx");
         assert!(decode(&serde_json::to_vec(&location).unwrap()).is_err());
-        let mut invalid = value; invalid["params"]["data_base64"] = serde_json::json!("not base64!");
-        assert!(decode(&serde_json::to_vec(&invalid).unwrap()).unwrap().validate(1000).is_err());
-        assert!(!valid_file_base64(&"A".repeat(((MAX_FILE_EXECUTE_BYTES + 2) / 3) * 4 + 4)));
+        let mut invalid = value;
+        invalid["params"]["data_base64"] = serde_json::json!("not base64!");
+        assert!(
+            decode(&serde_json::to_vec(&invalid).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
+        assert!(!valid_file_base64(
+            &"A".repeat(((MAX_FILE_EXECUTE_BYTES + 2) / 3) * 4 + 4)
+        ));
     }
 
     #[test]
@@ -2735,24 +3209,44 @@ mod tests {
         assert!(decode(&serde_json::to_vec(&location).unwrap()).is_err());
         let mut same_grant = value.clone();
         same_grant["params"]["output_grant_id"] = serde_json::json!("file_grant_1");
-        assert!(decode(&serde_json::to_vec(&same_grant).unwrap()).unwrap().validate(1000).is_err());
+        assert!(
+            decode(&serde_json::to_vec(&same_grant).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
         let mut uppercase_hash = value;
         uppercase_hash["params"]["expected_hash"] = serde_json::json!("A".repeat(64));
-        assert!(decode(&serde_json::to_vec(&uppercase_hash).unwrap()).unwrap().validate(1000).is_err());
+        assert!(
+            decode(&serde_json::to_vec(&uppercase_hash).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
     }
 
     #[test]
     fn command_execute_contract_only_accepts_the_approved_reference() {
-        let execute=serde_json::json!({"jsonrpc":"2.0","id":"c1","method":"task.command.execute","params":{"agent_id":"agent-a","capability":"command.execute","deadline":2000,"task_id":"task-1","expected_sequence":"4","command_id":"command_1"}});
-        let request=decode(&serde_json::to_vec(&execute).unwrap()).unwrap();
+        let execute = serde_json::json!({"jsonrpc":"2.0","id":"c1","method":"task.command.execute","params":{"agent_id":"agent-a","capability":"command.execute","deadline":2000,"task_id":"task-1","expected_sequence":"4","command_id":"command_1"}});
+        let request = decode(&serde_json::to_vec(&execute).unwrap()).unwrap();
         assert!(request.validate(1000).is_ok());
-        assert!(matches!(request,Request::CommandExecute{..}));
-        for field in ["program","args","cwd","env","timeout_ms","confirmed"] {
-            let mut replaced=execute.clone(); replaced["params"][field]=serde_json::json!("forged");
-            assert!(decode(&serde_json::to_vec(&replaced).unwrap()).is_err(),"执行请求不得接受 {field}");
+        assert!(matches!(request, Request::CommandExecute { .. }));
+        for field in ["program", "args", "cwd", "env", "timeout_ms", "confirmed"] {
+            let mut replaced = execute.clone();
+            replaced["params"][field] = serde_json::json!("forged");
+            assert!(
+                decode(&serde_json::to_vec(&replaced).unwrap()).is_err(),
+                "执行请求不得接受 {field}"
+            );
         }
-        let mut wrong=execute; wrong["params"]["capability"]=serde_json::json!("command.propose");
-        assert!(decode(&serde_json::to_vec(&wrong).unwrap()).unwrap().validate(1000).is_err());
+        let mut wrong = execute;
+        wrong["params"]["capability"] = serde_json::json!("command.propose");
+        assert!(
+            decode(&serde_json::to_vec(&wrong).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
     }
 
     #[test]
@@ -2761,43 +3255,164 @@ mod tests {
         let request = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
         assert!(request.validate(1000).is_ok());
         assert!(matches!(request, Request::CuaIntentPropose { .. }));
-        let response = Response::Success { jsonrpc:Version::V2, id:"i1".into(), result:QueryResult::CuaIntent { intent:CuaIntentSummary { intent_ref:"cua_intent_1".into(), confirmation_ref:"cua_confirmation_1".into(), state:"prepared".into(), expires_at_ms:2000 } } };
+        let response = Response::Success {
+            jsonrpc: Version::V2,
+            id: "i1".into(),
+            result: QueryResult::CuaIntent {
+                intent: CuaIntentSummary {
+                    intent_ref: "cua_intent_1".into(),
+                    confirmation_ref: "cua_confirmation_1".into(),
+                    state: "prepared".into(),
+                    expires_at_ms: 2000,
+                },
+            },
+        };
         let encoded = serde_json::to_string(&response).unwrap();
         assert!(!encoded.contains("宫健") && !encoded.contains("\"hi\""));
         let mut oversized = value;
         oversized["params"]["message"] = serde_json::json!("x".repeat(4097));
-        assert!(decode(&serde_json::to_vec(&oversized).unwrap()).unwrap().validate(1000).is_err());
+        assert!(
+            decode(&serde_json::to_vec(&oversized).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
     }
 
     #[test]
     fn semantic_coordinates_are_only_allowed_for_bounded_actions() {
-        let coordinates=serde_json::json!({"x":10,"y":20,"observation_ref":"observation-attempt-4"});
-        assert!(valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"click",&coordinates));
-        assert!(valid_plan_action_arguments(CuaActionKind::EnterTargetQuery,"type_text",&coordinates));
-        assert!(valid_plan_action_arguments(CuaActionKind::DraftMessageRef,"type_text",&coordinates));
-        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateTarget,"type_text",&coordinates));
-        assert!(!valid_plan_action_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({"x":10,"y":20,"delivery_mode":"foreground"})));
-        assert!(valid_plan_action_arguments(CuaActionKind::EnterTargetQuery,"type_text",&serde_json::json!({})));
-        assert!(valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","f"]})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::FocusTargetSearch,"hotkey",&serde_json::json!({"keys":["cmd","q"]})));
-        assert!(valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&coordinates));
-        assert!(valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":"one last kiss","x":10,"y":20,"observation_ref":"observation-attempt-4"})));
-        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"ENTER"})));
-        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":2,"observation_ref":"observation-attempt-4"})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20})));
-        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":3,"observation_ref":"observation-attempt-4"})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":3})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&serde_json::json!({"observed_element_index":3})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":0})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"observed_element_index":65536})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":3})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::FocusControl,"click",&serde_json::json!({"x":10,"y":20,"click_count":2})));
-        assert!(valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"ARROWDOWN"})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::InputText,"type_text",&serde_json::json!({"text":""})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::ActivateControl,"press_key",&serde_json::json!({"key":"DELETE"})));
-        assert!(valid_plan_action_arguments(CuaActionKind::LaunchApplication,"launch_app",&serde_json::json!({"bundle_id":"com.apple.calculator"})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::LaunchApplication,"launch_app",&serde_json::json!({"bundle_id":"/Applications/Calculator.app"})));
-        assert!(!valid_plan_action_arguments(CuaActionKind::LaunchApplication,"launch_app",&serde_json::json!({"bundle_id":"calculator"})));
+        let coordinates =
+            serde_json::json!({"x":10,"y":20,"observation_ref":"observation-attempt-4"});
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::FocusTargetSearch,
+            "click",
+            &coordinates
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::EnterTargetQuery,
+            "type_text",
+            &coordinates
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::DraftMessageRef,
+            "type_text",
+            &coordinates
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::ActivateTarget,
+            "type_text",
+            &coordinates
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::EnterTargetQuery,
+            "type_text",
+            &serde_json::json!({"x":10,"y":20,"delivery_mode":"foreground"})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::EnterTargetQuery,
+            "type_text",
+            &serde_json::json!({})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::FocusTargetSearch,
+            "hotkey",
+            &serde_json::json!({"keys":["cmd","f"]})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::FocusTargetSearch,
+            "hotkey",
+            &serde_json::json!({"keys":["cmd","q"]})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::FocusControl,
+            "click",
+            &coordinates
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::InputText,
+            "type_text",
+            &serde_json::json!({"text":"one last kiss","x":10,"y":20,"observation_ref":"observation-attempt-4"})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "press_key",
+            &serde_json::json!({"key":"ENTER"})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "click",
+            &serde_json::json!({"x":10,"y":20,"click_count":2,"observation_ref":"observation-attempt-4"})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "click",
+            &serde_json::json!({"x":10,"y":20})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "click",
+            &serde_json::json!({"observed_element_index":3,"observation_ref":"observation-attempt-4"})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "click",
+            &serde_json::json!({"observed_element_index":3})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::FocusControl,
+            "click",
+            &serde_json::json!({"observed_element_index":3})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "click",
+            &serde_json::json!({"observed_element_index":0})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "click",
+            &serde_json::json!({"observed_element_index":65536})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "click",
+            &serde_json::json!({"x":10,"y":20,"click_count":3})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::FocusControl,
+            "click",
+            &serde_json::json!({"x":10,"y":20,"click_count":2})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "press_key",
+            &serde_json::json!({"key":"ARROWDOWN"})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::InputText,
+            "type_text",
+            &serde_json::json!({"text":""})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::ActivateControl,
+            "press_key",
+            &serde_json::json!({"key":"DELETE"})
+        ));
+        assert!(valid_plan_action_arguments(
+            CuaActionKind::LaunchApplication,
+            "launch_app",
+            &serde_json::json!({"bundle_id":"com.apple.calculator"})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::LaunchApplication,
+            "launch_app",
+            &serde_json::json!({"bundle_id":"/Applications/Calculator.app"})
+        ));
+        assert!(!valid_plan_action_arguments(
+            CuaActionKind::LaunchApplication,
+            "launch_app",
+            &serde_json::json!({"bundle_id":"calculator"})
+        ));
     }
 
     #[test]
@@ -2816,14 +3431,39 @@ mod tests {
 
     #[test]
     fn goal_verification_and_completion_are_sequence_bound() {
-        let verify=serde_json::json!({"jsonrpc":"2.0","id":"v1","method":"task.goal.verify","params":{"agent_id":"agent-a","capability":"task.goal.verify","deadline":2000,"task_id":"task-1","expected_sequence":"8","observation_sequence":"7","verification_id":"verify-1","outcome":"achieved"}});
-        assert!(decode(&serde_json::to_vec(&verify).unwrap()).unwrap().validate(1000).is_ok());
-        let complete=serde_json::json!({"jsonrpc":"2.0","id":"c1","method":"task.complete","params":{"agent_id":"agent-a","capability":"task.complete","deadline":2000,"task_id":"task-1","expected_sequence":"9","verification_id":"verify-1"}});
-        assert!(decode(&serde_json::to_vec(&complete).unwrap()).unwrap().validate(1000).is_ok());
-        let mut missing=complete;missing["params"].as_object_mut().unwrap().remove("verification_id");
-        assert!(decode(&serde_json::to_vec(&missing).unwrap()).unwrap().validate(1000).is_err());
-        let mut future=verify;future["params"]["observation_sequence"]=serde_json::json!("9");
-        assert!(decode(&serde_json::to_vec(&future).unwrap()).unwrap().validate(1000).is_err());
+        let verify = serde_json::json!({"jsonrpc":"2.0","id":"v1","method":"task.goal.verify","params":{"agent_id":"agent-a","capability":"task.goal.verify","deadline":2000,"task_id":"task-1","expected_sequence":"8","observation_sequence":"7","verification_id":"verify-1","outcome":"achieved"}});
+        assert!(
+            decode(&serde_json::to_vec(&verify).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_ok()
+        );
+        let complete = serde_json::json!({"jsonrpc":"2.0","id":"c1","method":"task.complete","params":{"agent_id":"agent-a","capability":"task.complete","deadline":2000,"task_id":"task-1","expected_sequence":"9","verification_id":"verify-1"}});
+        assert!(
+            decode(&serde_json::to_vec(&complete).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_ok()
+        );
+        let mut missing = complete;
+        missing["params"]
+            .as_object_mut()
+            .unwrap()
+            .remove("verification_id");
+        assert!(
+            decode(&serde_json::to_vec(&missing).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
+        let mut future = verify;
+        future["params"]["observation_sequence"] = serde_json::json!("9");
+        assert!(
+            decode(&serde_json::to_vec(&future).unwrap())
+                .unwrap()
+                .validate(1000)
+                .is_err()
+        );
     }
 
     #[test]
@@ -2847,7 +3487,11 @@ mod tests {
                     target_visible: None,
                     observation_ref: Some("observation-attempt-4".into()),
                     transcript: Some("[3] 按钮 切换企业".into()),
-                    elements: Some(vec![ObservedElement { index:3, role:ObservedElementRole::Button, label:Some("按钮 切换企业".into()) }]),
+                    elements: Some(vec![ObservedElement {
+                        index: 3,
+                        role: ObservedElementRole::Button,
+                        label: Some("按钮 切换企业".into()),
+                    }]),
                 }),
             },
         };

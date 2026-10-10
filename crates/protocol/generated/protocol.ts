@@ -1,16 +1,20 @@
 // 从 Rust 自动生成，请勿手改。
 export type Version = "2.0";
 export type Capability = "task.read" | "task.create" | "task.cancel" | "task.complete" | "task.goal.verify" | "task.fail" | "task.control" | "task.wait-for-user" | "task.step.declare" | "task.step.advance" | "browser.execute" | "computer.execute" | "task.plan.submit" | "task.plan.execute" | "cua.intent.propose" | "file.grant.read" | "file.execute" | "document.execute" | "command.propose" | "command.execute";
-export type OfferedCapability = "user_input" | "user_input_attachment" | "replan_input";
+export type OfferedCapability = "user_input" | "user_input_attachment" | "replan_input" | "user_input_reply";
 export type AgentInputSource = "voice" | "selection" | "replan";
+export type AgentReplyMode = "stream";
 export type AgentAttachmentMime = "image/png" | "image/jpeg" | "image/webp";
 export type AgentAttachmentBeginParams = { attachment_id: string, session_id: string, mime: AgentAttachmentMime, byte_length: number, sha256: string, deadline: number, };
 export type AgentAttachmentChunkParams = { attachment_id: string, session_id: string, sequence: number, data_base64: string, };
 export type AgentAttachmentFinishParams = { attachment_id: string, session_id: string, };
-export type AgentInputParams = { input_id: string, session_id: string, source: AgentInputSource, content: string, attachment_id?: string, created_at: number, deadline: number, };
+export type AgentInputParams = { input_id: string, session_id: string, source: AgentInputSource, content: string, attachment_id?: string, reply_mode?: AgentReplyMode, created_at: number, deadline: number, };
 export type AgentRequest = { "method": "agent.attachment.begin", jsonrpc: Version, params: AgentAttachmentBeginParams, } | { "method": "agent.attachment.chunk", jsonrpc: Version, params: AgentAttachmentChunkParams, } | { "method": "agent.attachment.finish", jsonrpc: Version, id: string, params: AgentAttachmentFinishParams, } | { "method": "agent.input", jsonrpc: Version, id: string, params: AgentInputParams, };
 export type AgentInputResult = { accepted: boolean, };
 export type AgentResponse = { jsonrpc: Version, id: string, result: AgentInputResult, } | { jsonrpc: Version, id: string | null, error: RpcError, };
+export type AgentReplyPhase = "started" | "delta" | "completed" | "failed" | "interrupted";
+export type AgentReplyParams = { input_id: string, session_id: string, reply_id: string, sequence: number, phase: AgentReplyPhase, content?: string, truncated: boolean, };
+export type AgentNotification = { "method": "agent.reply", jsonrpc: Version, params: AgentReplyParams, };
 export type ProtocolVersion = { major: number, minor: number, };
 export type Platform = "windows" | "macos";
 export type Availability = "available" | "permission_required" | "dependency_missing" | "temporarily_unavailable";
