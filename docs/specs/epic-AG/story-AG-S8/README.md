@@ -29,3 +29,5 @@ OpenSpec: ag-s8-codex-cli-managed-connector
 2026-10-10 实现与自动化合约已通过并合并 `dev`：正式插件已被本机 Codex CLI 安装、启用并解析。真实探针发现 `app-server proxy` 不提供 JSONL RPC，且独立 stdio App Server 会与当前 active writer 冲突；实现改为在 proxy 原始字节流上完成 WebSocket 协议。独立 Verification Goal 继续验证真实生命周期，不绕过 Hook 信任。
 
 2026-10-10 圈选回归发现托管连接器只声明 `UserInput + ReplanInput`，导致已连接状态下的截图提交仍失败。本 Story 将既有 CX-S2 同会话临时附件协议补齐到 Codex Connector；不新增 Gateway、协议或持久化。
+
+2026-10-10 圈选附件已在重新构建的正式 debug `Yonda.app` 与当前受信 Codex session 上完成真实回归：图片与文字同条抵达，accepted 后确认卡关闭并清除截图。AG-S8 仍因独立的无副作用 replan 真实样本待补而保持 `verifying`。

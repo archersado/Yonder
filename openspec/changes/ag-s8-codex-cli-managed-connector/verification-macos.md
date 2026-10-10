@@ -9,7 +9,7 @@
 
 ## 已完成证据
 
-- 环境：macOS；Codex CLI 0.162.1；Yonder `dev` 5a6df2d。
+- 环境：macOS；Codex CLI 0.162.1；Yonder `dev` cb3cc88。
 - 初始 `cargo test -p yonder-cli`：9/9 通过；该夹具把 proxy 错当作 JSONL，真实探针发现缺口后已由下述 10/10 分层合约替代。
 - `codex plugin marketplace add` 与 `codex plugin add yonder-codex-connector@yonder-local` 成功；`codex plugin list --json` 显示插件 installed/enabled，安装缓存包含可执行连接脚本与 Hook 清单。
 - macOS debug 应用包已重新生成；包内 `yonder codex-hook` 对非法 session 输入失败关闭，退出码 1、stdout 为空、诊断不含正文或完整 Payload。
@@ -21,20 +21,20 @@
 - 真实重启恢复样本：保持原 `codex-hook` 与 proxy 进程不动，正常退出并重新启动正式 debug `Yonda.app`。桌面宿主 PID 发生变化；连接器在 300 秒恢复窗口内关闭旧连接，并建立指向新 Gateway 监听进程的全新 Unix Socket 对端。无需重启 Hook、重新填写 session/thread 或设置 `YONDER_AGENT_ID`。
 - 不重放合约补强后 `cargo test -p yonder-cli` 11/11 通过：相同合法 input ID 连续进入处理两次，两次都返回既有确认，Codex App Server 只收到一次 `thread/read` 与一次 `turn/start`；输入正文未进入日志。
 - Hook 生命周期清理样本：终止当前 Hook 宿主后，原连接器与其受监管 proxy 均在有界等待内消失，无残留；再次提交同一当前会话的受信 `SessionStart(resume)` 后，新连接器、单一 proxy 与新 Gateway Socket 均恢复连接。
-- 圈选附件实现预检：Connector hello 已声明 `user_input_attachment`；17 项 CLI 单元/合约测试覆盖同会话 begin/chunk/finish、顺序/哈希/session/超限/过期、一次性消费、缺附件不降级文字、最大 4 MiB 内存图片帧和既有不重放；`node --check apps/desktop/ui/region-preview.js`、严格 OpenSpec 校验与 `git diff --check` 通过。真实确认卡投递仍须使用重新构建后的正式 bundle 与新 Hook 连接器完成，不以自动化合约替代。
+- 圈选附件实现预检：Connector hello 已声明 `user_input_attachment`；17 项 CLI 单元/合约测试覆盖同会话 begin/chunk/finish、顺序/哈希/session/超限/过期、一次性消费、缺附件不降级文字、最大 4 MiB 内存图片帧和既有不重放；`node --check apps/desktop/ui/region-preview.js`、严格 OpenSpec 校验与 `git diff --check` 通过。
+- 真实圈选附件样本：从 `dev` cb3cc88 重新构建并签名 debug `Yonda.app`，正常退出旧桌面宿主和旧 Connector 后，以当前受信 `SessionStart(resume)` 恢复同一 Codex session。Yonder 显示“任务通道已连接 · 输入通道已连接”；用户圈选无敏感内容的屏幕局部并提交“这是什么”，图片与文字作为同一条输入进入当前 Codex thread。accepted 后确认卡关闭、截图清场，Yonder 回到已连接的小龙窗口；未降级为纯文字，也未再出现“提交失败”。
 
 ## 待完成真实样本
 
 Hook 已由用户审阅并信任，当前会话自动连接样本已通过。仍需完成：
 
 1. 一次无副作用 replan 输入进入同一 Codex thread；
-2. 一次无敏感内容的真实圈选确认卡，经托管 Connector 以图片+文字进入同一 Codex thread，并在 accepted 后清场。
 
 2026-10-10 尝试通过正式 Yonder MCP 创建无副作用 TextEdit Observe/replan 样本时，当前 Codex 会话内的 MCP stdio 已关闭，`task_create` 与 `task_list` 均返回 `Transport closed`。输入连接器仍保持连接；按产品边界不使用 shell 或直连 Gateway Socket 替代。须在下一个能重新拉起 Yonder MCP 的 Codex 会话中完成此样本。
 
 ## 当前结论
 
-实现、隔离 macOS 合约、真实当前会话连接、Yonder 重启恢复、不重放和 Hook/proxy 清理均通过；仅缺一次正式 MCP 触发的无副作用 replan 投递，生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。
+实现、隔离 macOS 合约、真实当前会话连接、Yonder 重启恢复、不重放、Hook/proxy 清理和真实圈选附件投递均通过；仅缺一次正式 MCP 触发的无副作用 replan 投递，生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。
 
 ## Hook 发现兼容性复核（2026-10-10）
 
