@@ -685,12 +685,16 @@ printf '%s\n' 'server-pong'
         script
     }
 
-    async fn fake_app_server() -> CodexAppServer {
+    async fn fake_app_server_with_calls() -> (CodexAppServer, mpsc::UnboundedReceiver<String>) {
         let (client, server) = tokio::io::duplex(64 * 1024);
+        let (calls, called) = mpsc::unbounded_channel();
         tokio::spawn(async move {
             let mut socket = tokio_tungstenite::accept_async(server).await.unwrap();
             while let Some(Ok(Message::Text(text))) = socket.next().await {
                 let request: Value = serde_json::from_str(text.as_str()).unwrap();
+                if let Some(method) = request.get("method").and_then(Value::as_str) {
+                    let _ = calls.send(method.to_owned());
+                }
                 let Some(id) = request.get("id").and_then(Value::as_u64) else {
                     continue;
                 };
@@ -707,9 +711,16 @@ printf '%s\n' 'server-pong'
                     .unwrap();
             }
         });
-        CodexAppServer::connect_transport(Box::new(client), None)
-            .await
-            .unwrap()
+        (
+            CodexAppServer::connect_transport(Box::new(client), None)
+                .await
+                .unwrap(),
+            called,
+        )
+    }
+
+    async fn fake_app_server() -> CodexAppServer {
+        fake_app_server_with_calls().await.0
     }
 
     #[test]
@@ -843,5 +854,36 @@ printf '%s\n' 'server-pong'
         bridge.abort();
         let _ = bridge.await;
         let _ = std::fs::remove_file(socket);
+    }
+
+    #[tokio::test]
+    async fn duplicate_input_is_acknowledged_without_a_second_codex_delivery() {
+        use yonder_protocol::AgentInputSource;
+
+        let now = now_ms().unwrap();
+        let params = AgentInputParams {
+            input_id: "input-same".into(),
+            session_id: "thread-1".into(),
+            source: AgentInputSource::Replan,
+            content: "bounded replay test".into(),
+            attachment_id: None,
+            created_at: now,
+            deadline: now + 10_000,
+        };
+        let (mut server, mut calls) = fake_app_server_with_calls().await;
+        server.resume("thread-1").await.unwrap();
+        let mut dedup = DedupResults::new();
+        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup)
+            .await
+            .unwrap());
+        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup)
+            .await
+            .unwrap());
+        let mut methods = Vec::new();
+        while let Ok(method) = calls.try_recv() {
+            methods.push(method);
+        }
+        assert_eq!(methods.iter().filter(|method| *method == "thread/read").count(), 1);
+        assert_eq!(methods.iter().filter(|method| *method == "turn/start").count(), 1);
     }
 }
