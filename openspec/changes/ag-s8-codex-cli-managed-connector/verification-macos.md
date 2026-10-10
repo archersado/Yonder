@@ -19,18 +19,20 @@
 - 修正后连接器在 `codex app-server proxy` 原始字节流上完成 WebSocket Upgrade，initialize 与当前 thread/resume 均通过；不设置 `YONDER_AGENT_ID` 时自动使用与正式 MCP 配置一致的 `codex-cli`，Gateway hello 通过并持续运行超过 12 秒确认窗口。进程树只保留一个连接器和一个受监管 proxy 子进程。
 - `cargo test -p yonder-cli`：10/10 通过，新增原始 proxy 双向流、WebSocket App Server RPC 与 Gateway 重连分层合约。
 - 真实重启恢复样本：保持原 `codex-hook` 与 proxy 进程不动，正常退出并重新启动正式 debug `Yonda.app`。桌面宿主 PID 发生变化；连接器在 300 秒恢复窗口内关闭旧连接，并建立指向新 Gateway 监听进程的全新 Unix Socket 对端。无需重启 Hook、重新填写 session/thread 或设置 `YONDER_AGENT_ID`。
+- 不重放合约补强后 `cargo test -p yonder-cli` 11/11 通过：相同合法 input ID 连续进入处理两次，两次都返回既有确认，Codex App Server 只收到一次 `thread/read` 与一次 `turn/start`；输入正文未进入日志。
+- Hook 生命周期清理样本：终止当前 Hook 宿主后，原连接器与其受监管 proxy 均在有界等待内消失，无残留；再次提交同一当前会话的受信 `SessionStart(resume)` 后，新连接器、单一 proxy 与新 Gateway Socket 均恢复连接。
 
 ## 待完成真实样本
 
 Hook 已由用户审阅并信任，当前会话自动连接样本已通过。仍需完成：
 
 1. 一次无副作用 replan 输入进入同一 Codex thread；
-2. 相同 input ID 与断开时未确认输入不向 Codex 重放；
-3. 会话结束后连接器退出，无 proxy/bridge 残留。
+
+2026-10-10 尝试通过正式 Yonder MCP 创建无副作用 TextEdit Observe/replan 样本时，当前 Codex 会话内的 MCP stdio 已关闭，`task_create` 与 `task_list` 均返回 `Transport closed`。输入连接器仍保持连接；按产品边界不使用 shell 或直连 Gateway Socket 替代。须在下一个能重新拉起 Yonder MCP 的 Codex 会话中完成此样本。
 
 ## 当前结论
 
-实现、隔离 macOS 合约、真实当前会话连接和 Yonder 重启恢复通过；不重放及会话结束清理样本尚未齐全，生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。
+实现、隔离 macOS 合约、真实当前会话连接、Yonder 重启恢复、不重放和 Hook/proxy 清理均通过；仅缺一次正式 MCP 触发的无副作用 replan 投递，生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。
 
 ## Hook 发现兼容性复核（2026-10-10）
 
