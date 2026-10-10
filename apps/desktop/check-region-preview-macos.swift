@@ -21,22 +21,34 @@ func attr(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
 func find(_ element: AXUIElement, _ text: String, _ depth: Int = 0) -> AXUIElement? {
     if attr(element, "AXTitle") as? String == text || attr(element, "AXDescription") as? String == text || attr(element, "AXValue") as? String == text { return element }
     guard depth < 16 else { return nil }
-    return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { find($0, text, depth + 1) }.first
+    for child in attr(element, "AXChildren") as? [AXUIElement] ?? [] {
+        if let match = find(child, text, depth + 1) { return match }
+    }
+    return nil
 }
 func findPrefix(_ element: AXUIElement, _ prefix: String, _ depth: Int = 0) -> AXUIElement? {
     if ["AXTitle", "AXDescription", "AXValue"].compactMap({ attr(element, $0) as? String }).contains(where: { $0.hasPrefix(prefix) }) { return element }
     guard depth < 16 else { return nil }
-    return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { findPrefix($0, prefix, depth + 1) }.first
+    for child in attr(element, "AXChildren") as? [AXUIElement] ?? [] {
+        if let match = findPrefix(child, prefix, depth + 1) { return match }
+    }
+    return nil
 }
 func findButton(_ element: AXUIElement, _ text: String, _ depth: Int = 0) -> AXUIElement? {
     if attr(element, "AXRole") as? String == "AXButton", (attr(element, "AXTitle") as? String == text || attr(element, "AXDescription") as? String == text) { return element }
     guard depth < 16 else { return nil }
-    return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { findButton($0, text, depth + 1) }.first
+    for child in attr(element, "AXChildren") as? [AXUIElement] ?? [] {
+        if let match = findButton(child, text, depth + 1) { return match }
+    }
+    return nil
 }
 func findRole(_ element: AXUIElement, _ role: String, _ depth: Int = 0) -> AXUIElement? {
     if attr(element, "AXRole") as? String == role { return element }
     guard depth < 16 else { return nil }
-    return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { findRole($0, role, depth + 1) }.first
+    for child in attr(element, "AXChildren") as? [AXUIElement] ?? [] {
+        if let match = findRole(child, role, depth + 1) { return match }
+    }
+    return nil
 }
 func size(_ element: AXUIElement) -> CGSize? {
     guard let raw = attr(element, "AXSize"), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
@@ -59,7 +71,10 @@ func click(_ element: AXUIElement) -> Bool {
 func statusItem(_ element: AXUIElement, _ depth: Int = 0) -> AXUIElement? {
     if attr(element, "AXRole") as? String == "AXMenuBarItem", size(element).map({ $0.width > 0 && $0.height > 0 }) == true { return element }
     guard depth < 4 else { return nil }
-    return (attr(element, "AXChildren") as? [AXUIElement] ?? []).lazy.compactMap { statusItem($0, depth + 1) }.first
+    for child in attr(element, "AXChildren") as? [AXUIElement] ?? [] {
+        if let match = statusItem(child, depth + 1) { return match }
+    }
+    return nil
 }
 func wait(_ seconds: TimeInterval, _ condition: () -> Bool) -> Bool {
     let end = ProcessInfo.processInfo.systemUptime + seconds
@@ -207,14 +222,16 @@ if let outcome = ProcessInfo.processInfo.environment["YONDA_TEXT_SUBMIT_OUTCOME"
         guard find(ax, "需要允许屏幕录制；本次不包含截图，可继续发送文字。") != nil else { fail(73, "text-submit-permission-feedback-missing") }
     }
     guard AXUIElementSetAttributeValue(input, "AXValue" as CFString, "explain without image" as CFTypeRef) == .success else { fail(74, "text-submit-question-unavailable") }
-    guard wait(3, { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == true }), pressButton("发送") else { fail(75, "text-submit-button-unavailable") }
+    guard wait(3, { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == true }), let sendButton = findButton(ax, "发送"), AXUIElementPerformAction(sendButton, "AXPress" as CFString) == .success else { fail(75, "text-submit-button-unavailable") }
     if outcome == "accepted" {
         guard wait(5, { find(ax, "已发送给 Agent") != nil }), wait(5, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "submitted" else { fail(76, "text-submit-accepted-not-closed") }
     } else {
         let expected = outcome == "rejected" ? "Agent 拒绝了本次输入；内容已保留，可重试。" : "是否送达未知；为避免重复，不可重试，请关闭或重新圈选。"
-        let questionPreserved = { (findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField")).flatMap { attr($0, "AXValue") as? String } == "explain without image" }
-        let sendEnabled = { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == (outcome == "rejected") }
-        guard wait(5, { find(ax, expected) != nil }), questionPreserved(), sendEnabled(), previewImageInfo() == nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(77, "text-submit-failure-not-preserved") }
+        guard wait(5, { find(ax, expected) != nil }) else { fail(77, "text-submit-feedback-missing") }
+        guard attr(input, "AXValue") as? String == "explain without image" else { fail(77, "text-submit-question-not-preserved") }
+        guard findButton(ax, "发送").flatMap({ attr($0, "AXEnabled") as? Bool }) == (outcome == "rejected") else { fail(77, "text-submit-retry-gate-invalid") }
+        guard previewImageInfo() == nil else { fail(77, "text-submit-unexpected-preview") }
+        guard pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(77, "text-submit-reselect-failed") }
         escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(78, "text-submit-failure-close-failed") }
     }
     let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "attachment_present": false, "window_closed": true], options: [.prettyPrinted, .sortedKeys])
@@ -222,19 +239,21 @@ if let outcome = ProcessInfo.processInfo.environment["YONDA_TEXT_SUBMIT_OUTCOME"
 }
 if let outcome = ProcessInfo.processInfo.environment["YONDA_SUBMIT_OUTCOME"] {
     guard ["accepted", "rejected", "unknown", "unsupported"].contains(outcome) else { fail(60, "submit-outcome-invalid") }
-    guard wait(3, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(3, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(61, "submit-open-failed") }
+    guard wait(8, { find(ax, "圈选提问") != nil }), press("圈选提问"), wait(5, { window("Yonda · 圈选提问") != nil }), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(61, "submit-open-failed") }
     Thread.sleep(forTimeInterval: 0.45)
     drag([CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180), CGPoint(x: overlayRect.minX + 360, y: overlayRect.minY + 280)])
     guard wait(5, { find(ax, "想问什么？") != nil }), let input = findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField") else { fail(62, "submit-question-missing") }
     guard AXUIElementSetAttributeValue(input, "AXValue" as CFString, "explain selection" as CFTypeRef) == .success else { fail(63, "submit-question-unavailable") }
-    guard wait(3, { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == true }), pressButton("发送") else { fail(64, "submit-button-unavailable") }
+    guard wait(3, { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == true }), let sendButton = findButton(ax, "发送"), AXUIElementPerformAction(sendButton, "AXPress" as CFString) == .success else { fail(64, "submit-button-unavailable") }
     if outcome == "accepted" {
         guard wait(5, { find(ax, "已发送给 Agent") != nil }), wait(5, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "submitted" else { fail(65, "submit-accepted-not-closed") }
     } else {
         let expected = outcome == "rejected" ? "Agent 拒绝了本次输入；内容已保留，可重试。" : outcome == "unknown" ? "是否送达未知；为避免重复，不可重试，请关闭或重新圈选。" : "当前 Agent 不支持截图提问；请重新圈选并仅发送文字。"
-        let questionPreserved = { (findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField")).flatMap { attr($0, "AXValue") as? String } == "explain selection" }
-        let sendEnabled = { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == (outcome == "rejected") }
-        guard wait(5, { find(ax, expected) != nil }), questionPreserved(), sendEnabled(), previewImageInfo() != nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(66, "submit-failure-not-preserved") }
+        guard wait(5, { find(ax, expected) != nil }) else { fail(66, "submit-feedback-missing") }
+        guard attr(input, "AXValue") as? String == "explain selection" else { fail(66, "submit-question-not-preserved") }
+        guard findButton(ax, "发送").flatMap({ attr($0, "AXEnabled") as? Bool }) == (outcome == "rejected") else { fail(66, "submit-retry-gate-invalid") }
+        guard find(ax, "所选屏幕区域预览") != nil else { fail(66, "submit-preview-not-preserved") }
+        guard pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(66, "submit-reselect-failed") }
         escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(67, "submit-failure-close-failed") }
     }
     let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "preview_preserved_on_failure": outcome != "accepted", "window_closed": true], options: [.prettyPrinted, .sortedKeys])

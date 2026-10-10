@@ -82,7 +82,7 @@ def serve():
             return
 
 
-worker = None if outcome == "unsupported" else threading.Thread(target=serve)
+worker = None if outcome == "unsupported" else threading.Thread(target=serve, daemon=True)
 if worker: worker.start()
 environment = os.environ | {"YONDA_SUBMIT_OUTCOME": outcome}
 native = subprocess.run(["swift", str(root / "apps/desktop/check-region-preview-macos.swift")], env=environment, capture_output=True, text=True, timeout=45)
@@ -102,8 +102,14 @@ for candidate in path.parent.iterdir():
         except OSError:
             pass
 result["native_passed"] = native.returncode == 0
+if native.returncode != 0:
+    result["native_reason"] = native.stdout.strip() or native.stderr.strip() or f"exit-{native.returncode}"
 result["passed"] = not result["attachment_content_recorded"] and result["native_passed"] and (result.get("no_attachment_frames", False) if outcome == "unsupported" else result["worker_finished"] and result["hash_matches"] and result["input_references_attachment"] and result["input_content_nonempty"] and result["largest_frame_bytes"] <= 65536 and 0 < result["attachment_bytes"] <= 4 * 1024 * 1024)
 (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
 print(json.dumps(result, ensure_ascii=False))
+try:
+    stream.shutdown(socket.SHUT_RDWR)
+except OSError:
+    pass
 reader.close(); stream.close()
 raise SystemExit(0 if result["passed"] else 1)
