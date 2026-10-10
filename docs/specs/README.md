@@ -25,6 +25,8 @@
 
 ## 当前研发顺序
 
+2026-10-10 新增 [AG-S11 Agent 回复 Markdown 渲染](epic-AG/story-AG-S11/README.md)：Yonder 圈选回复卡对 Agent 的流式 Markdown 做受限、安全的本地渲染；正文仍只驻内存，不执行原始 HTML、脚本或外部资源，不改变 Gateway 协议。
+
 2026-10-10 新增 [AG-S10 圈选提交失败恢复与错误反馈](epic-AG/story-AG-S10/README.md)：圈选输入只有在 Agent 明确接受后才清除；拒绝、发送前校验失败或送达未知时保留当前图片与问题，区分安全重试与禁止自动重试，并提前暴露附件超限错误。
 
 2026-10-10 新增 [AG-S9 Agent 回复回传与圈选会话卡](epic-AG/story-AG-S9/README.md)：圈选图片与问题进入当前 Agent 后，回复通过同一 AgentSession 有界回传并在原卡片展示；正文只驻内存，不进入任务事件、Outbox、SQLite、日志或索引。macOS Codex CLI 首批实施，Windows 与 ChatGPT Desktop 保持 Deferred/Unsupported。

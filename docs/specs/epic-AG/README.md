@@ -18,6 +18,7 @@ Epic: AG
 - [AG-S8 macOS Codex CLI 托管连接器](story-AG-S8/README.md)
 - [AG-S9 Agent 回复回传与圈选会话卡](story-AG-S9/README.md)
 - [AG-S10 圈选提交失败恢复与错误反馈](story-AG-S10/README.md)
+- [AG-S11 Agent 回复 Markdown 渲染](story-AG-S11/README.md)
 
 ## 验收与依赖
 
