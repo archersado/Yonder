@@ -655,11 +655,33 @@ async fn region_preview_submit(
         None => hub.deliver_selection_text(&question),
     })
     .await;
-    preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
-    stop_region_application_switch_watch();
-    stop_region_display_change_watch();
-    match outcome.map_err(|_| "delivery-unavailable")? {
-        Ok(delivery) => Ok(RegionSubmitResult {
+    let delivery = match outcome {
+        Ok(Ok(delivery)) => delivery,
+        Ok(Err(error)) => {
+            preview.0.lock().map_err(|_| "preview-unavailable")?.submission_failed().map_err(|_| "preview-invalid-state")?;
+            return Err(match error {
+                "当前Agent不支持截图提问" => "attachment-unsupported",
+                "当前没有可接收输入的Agent" => "agent-unavailable",
+                "请选择接收输入的Agent" => "agent-target-required",
+                "截图数据无效" => "attachment-invalid",
+                "截图超过Agent附件上限" => "attachment-too-large",
+                "当前仍有Agent回复进行中" => "reply-busy",
+                _ => "delivery-unavailable",
+            }.into());
+        }
+        Err(_) => {
+            preview.0.lock().map_err(|_| "preview-unavailable")?.submission_failed().map_err(|_| "preview-invalid-state")?;
+            return Err("delivery-unavailable".into());
+        }
+    };
+    if delivery.outcome == yonder_application::agent_input::DeliveryOutcome::Accepted {
+        preview.0.lock().map_err(|_| "preview-unavailable")?.clear();
+        stop_region_application_switch_watch();
+        stop_region_display_change_watch();
+    } else {
+        preview.0.lock().map_err(|_| "preview-unavailable")?.submission_failed().map_err(|_| "preview-invalid-state")?;
+    }
+    Ok(RegionSubmitResult {
             status: match delivery.outcome {
                 yonder_application::agent_input::DeliveryOutcome::Accepted => "accepted",
                 yonder_application::agent_input::DeliveryOutcome::Rejected => "rejected",
@@ -667,14 +689,7 @@ async fn region_preview_submit(
             },
             input_id: Some(delivery.input_id),
             reply_expected: delivery.reply_expected,
-        }),
-        Err("当前Agent不支持截图提问") => Err("attachment-unsupported".into()),
-        Err("当前没有可接收输入的Agent") => Err("agent-unavailable".into()),
-        Err("请选择接收输入的Agent") => Err("agent-target-required".into()),
-        Err("截图数据无效") => Err("attachment-invalid".into()),
-        Err("当前仍有Agent回复进行中") => Err("reply-busy".into()),
-        Err(_) => Err("delivery-unavailable".into()),
-    }
+    })
 }
 
 #[tauri::command]

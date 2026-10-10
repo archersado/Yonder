@@ -42,6 +42,11 @@ impl Session {
         self.phase = Phase::Submitting;
         Ok(self.image.clone())
     }
+    pub fn submission_failed(&mut self) -> Result<(), Error> {
+        if self.phase != Phase::Submitting { return Err(Error::InvalidPhase); }
+        self.phase = Phase::Reviewing;
+        Ok(())
+    }
     pub fn clear(&mut self) { self.image = None; self.source_application = None; self.phase = Phase::Idle; }
     pub fn snapshot(&self) -> (Phase, usize) { (self.phase, self.image.as_ref().map_or(0, String::len)) }
     pub fn source_application(&self) -> Option<&str> { self.source_application.as_deref() }
@@ -66,6 +71,19 @@ mod tests {
         let mut session = Session::default();
         session.begin(None).unwrap(); session.capture().unwrap();
         assert_eq!(session.review("x".repeat(22_400_001)), Err(Error::ImageTooLarge));
+        assert_eq!(session.snapshot(), (Phase::Idle, 0));
+    }
+
+    #[test]
+    fn failed_submission_preserves_the_review() {
+        let mut session = Session::default();
+        session.begin(Some("Safari".into())).unwrap(); session.capture().unwrap(); session.review("image".into()).unwrap();
+        assert_eq!(session.begin_submission(), Ok(Some("image".into())));
+        assert_eq!(session.submission_failed(), Ok(()));
+        assert_eq!(session.snapshot(), (Phase::Reviewing, 5));
+        assert_eq!(session.source_application(), Some("Safari"));
+        assert_eq!(session.begin_submission(), Ok(Some("image".into())));
+        session.clear();
         assert_eq!(session.snapshot(), (Phase::Idle, 0));
     }
 

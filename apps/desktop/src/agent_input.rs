@@ -11,7 +11,8 @@ use std::{
 use tokio::sync::mpsc as tokio_mpsc;
 use yonder_application::agent_input::{
     AgentInputAttachment, AgentInputParams, AgentInputSink, AgentInputSource, AgentReplyMode,
-    AgentReplyParams, AgentReplyPhase, DeliveryOutcome, submit, submit_selection,
+    AgentReplyParams, AgentReplyPhase, DeliveryOutcome, MAX_AGENT_ATTACHMENT_BYTES, submit,
+    submit_selection,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
@@ -268,6 +269,9 @@ impl AgentInputHub {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(image_base64)
             .map_err(|_| "截图数据无效")?;
+        if bytes.len() > MAX_AGENT_ATTACHMENT_BYTES {
+            return Err("截图超过Agent附件上限");
+        }
         let now = u64::try_from(
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -691,6 +695,32 @@ mod tests {
             Ok(DeliveryOutcome::Accepted)
         );
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn oversized_selection_is_rejected_before_delivery() {
+        let hub = AgentInputHub::default();
+        let (tx, mut rx) = tokio_mpsc::unbounded_channel();
+        let (close_tx, _) = tokio_mpsc::unbounded_channel();
+        hub.register(
+            "agent-a".into(),
+            "session-a".into(),
+            true,
+            false,
+            true,
+            tx,
+            close_tx,
+        );
+        let image = base64::engine::general_purpose::STANDARD.encode(vec![
+            0;
+            MAX_AGENT_ATTACHMENT_BYTES + 1
+        ]);
+        assert_eq!(
+            hub.deliver_selection("看这里", &image),
+            Err("截图超过Agent附件上限")
+        );
+        assert!(rx.try_recv().is_err());
+        assert!(hub.inner.lock().unwrap().reply.is_none());
     }
 
     #[test]

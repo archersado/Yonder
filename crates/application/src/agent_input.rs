@@ -4,6 +4,8 @@ pub use yonder_protocol::{
     AgentReplyParams, AgentReplyPhase, AgentRequest, AgentResponse, Version,
 };
 
+pub const MAX_AGENT_ATTACHMENT_BYTES: usize = yonder_protocol::MAX_AGENT_ATTACHMENT_BYTES as usize;
+
 pub fn registration(bytes: &[u8]) -> Option<(String, String, bool, bool, bool)> {
     yonder_protocol::input_registration(bytes)
 }
@@ -98,7 +100,7 @@ pub fn submit_selection(
     };
     if input.validate(now_ms).is_err()
         || bytes.is_empty()
-        || bytes.len() > yonder_protocol::MAX_AGENT_ATTACHMENT_BYTES as usize
+        || bytes.len() > MAX_AGENT_ATTACHMENT_BYTES
     {
         return DeliveryOutcome::Rejected;
     }
