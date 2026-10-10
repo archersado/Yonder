@@ -12,8 +12,8 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{HashMap, VecDeque},
     env, io,
-    pin::Pin,
     path::{Path, PathBuf},
+    pin::Pin,
     process::Stdio,
     task::{Context, Poll},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -28,9 +28,11 @@ use tokio::{
 use tokio_tungstenite::{WebSocketStream, client_async, tungstenite::Message};
 use yonder_protocol::{
     AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams,
-    AgentAttachmentMime, AgentInputParams, AgentInputResult, AgentRequest, AgentResponse, Capability,
-    HelloParams, MAX_AGENT_ATTACHMENT_BYTES, MAX_REQUEST_BYTES, OfferedCapability, ProtocolVersion,
-    PROTOCOL_VERSION, Request, Response, Version,
+    AgentAttachmentMime, AgentInputParams, AgentInputResult, AgentNotification, AgentReplyMode,
+    AgentReplyParams, AgentReplyPhase, AgentRequest, AgentResponse, Capability, HelloParams,
+    MAX_AGENT_ATTACHMENT_BYTES, MAX_AGENT_REPLY_BYTES, MAX_AGENT_REPLY_DELTA_BYTES,
+    MAX_REQUEST_BYTES, OfferedCapability, PROTOCOL_VERSION, ProtocolVersion, Request, Response,
+    Version,
 };
 
 const CODEX_RPC_TIMEOUT: Duration = Duration::from_secs(10);
@@ -38,6 +40,7 @@ const MAX_CODEX_RESPONSE_FRAME_BYTES: usize = 1024 * 1024;
 const MAX_CODEX_REQUEST_FRAME_BYTES: usize = 6 * 1024 * 1024;
 const MAX_DEDUP_RESULTS: usize = 1024;
 const MAX_PENDING_RESPONSES: usize = 8;
+const AGENT_REPLY_TIMEOUT: Duration = Duration::from_secs(300);
 const YONDER_RECONNECT_WINDOW: Duration = Duration::from_secs(300);
 const YONDER_RECONNECT_INITIAL: Duration = Duration::from_millis(100);
 const YONDER_RECONNECT_MAX: Duration = Duration::from_secs(2);
@@ -84,7 +87,10 @@ struct AttachmentInbox {
 
 impl AttachmentInbox {
     fn new(thread_id: &str) -> Self {
-        Self { thread_id: thread_id.into(), state: AttachmentState::Empty }
+        Self {
+            thread_id: thread_id.into(),
+            state: AttachmentState::Empty,
+        }
     }
 
     fn begin(&mut self, params: AgentAttachmentBeginParams, now: u64) {
@@ -112,17 +118,25 @@ impl AttachmentInbox {
     }
 
     fn chunk(&mut self, params: AgentAttachmentChunkParams) {
-        let AttachmentState::Receiving(pending) = &mut self.state else { return };
-        let decoded = params.validate().ok().and_then(|_| BASE64.decode(&params.data_base64).ok());
+        let AttachmentState::Receiving(pending) = &mut self.state else {
+            return;
+        };
+        let decoded = params
+            .validate()
+            .ok()
+            .and_then(|_| BASE64.decode(&params.data_base64).ok());
         let valid = params.attachment_id == pending.id
             && params.session_id == pending.session_id
             && params.sequence == pending.next_sequence
             && decoded.as_ref().is_some_and(|bytes| {
                 pending.bytes.len().saturating_add(bytes.len()) <= pending.byte_length
-                    && pending.bytes.len().saturating_add(bytes.len()) <= MAX_AGENT_ATTACHMENT_BYTES as usize
+                    && pending.bytes.len().saturating_add(bytes.len())
+                        <= MAX_AGENT_ATTACHMENT_BYTES as usize
             });
         if valid {
-            pending.bytes.extend_from_slice(decoded.as_deref().unwrap_or_default());
+            pending
+                .bytes
+                .extend_from_slice(decoded.as_deref().unwrap_or_default());
             pending.next_sequence = pending.next_sequence.saturating_add(1);
         } else {
             let id = pending.id.clone();
@@ -137,14 +151,18 @@ impl AttachmentInbox {
             return false;
         }
         let state = std::mem::replace(&mut self.state, AttachmentState::Empty);
-        let AttachmentState::Receiving(pending) = state else { return false };
+        let AttachmentState::Receiving(pending) = state else {
+            return false;
+        };
         let valid = params.attachment_id == pending.id
             && params.session_id == pending.session_id
             && pending.session_id == self.thread_id
             && pending.deadline > now
             && pending.bytes.len() == pending.byte_length
             && format!("{:x}", Sha256::digest(&pending.bytes)) == pending.sha256;
-        if !valid { return false; }
+        if !valid {
+            return false;
+        }
         self.state = AttachmentState::Ready(ReadyAttachment {
             id: pending.id,
             mime: pending.mime,
@@ -158,7 +176,10 @@ impl AttachmentInbox {
         let state = std::mem::replace(&mut self.state, AttachmentState::Empty);
         match state {
             AttachmentState::Ready(attachment)
-                if attachment.id == attachment_id && attachment.deadline > now => Some(attachment),
+                if attachment.id == attachment_id && attachment.deadline > now =>
+            {
+                Some(attachment)
+            }
             _ => None,
         }
     }
@@ -171,7 +192,9 @@ impl AttachmentInbox {
             (AttachmentState::Rejected { id: value, .. }, Some(id)) => value == id,
             (AttachmentState::Empty, Some(_)) => false,
         };
-        if matches { self.state = AttachmentState::Empty; }
+        if matches {
+            self.state = AttachmentState::Empty;
+        }
     }
 
     fn expiry_delay(&self, now: u64) -> Option<Duration> {
@@ -230,6 +253,7 @@ impl AsyncWrite for ChildDuplex {
 struct CodexAppServer {
     input: SplitSink<CodexSocket, Message>,
     responses: mpsc::Receiver<io::Result<Value>>,
+    notifications: mpsc::UnboundedReceiver<Value>,
     reader: JoinHandle<()>,
     proxy: Option<Child>,
     next_id: u64,
@@ -253,10 +277,11 @@ impl CodexAppServer {
                 io::Error::other(format!("Codex App Server WebSocket握手失败：{error}"))
             })?;
         let (input, output) = socket.split();
-        let (responses, reader) = read_responses(output);
+        let (responses, notifications, reader) = read_responses(output);
         let mut server = Self {
             input,
             responses,
+            notifications,
             reader,
             proxy,
             next_id: 0,
@@ -370,7 +395,7 @@ impl CodexAppServer {
         content: &str,
         attachment: Option<&ReadyAttachment>,
         timeout: Duration,
-    ) -> io::Result<()> {
+    ) -> io::Result<String> {
         let deadline = Instant::now() + timeout;
         let result = self
             .call(
@@ -412,7 +437,7 @@ impl CodexAppServer {
                     )
                     .await?;
                 if result.get("turnId").and_then(Value::as_str) == Some(turn_id) {
-                    Ok(())
+                    Ok(turn_id.to_owned())
                 } else {
                     Err(io::Error::other("Codex steer确认无效"))
                 }
@@ -425,13 +450,12 @@ impl CodexAppServer {
                         deadline.saturating_duration_since(Instant::now()),
                     )
                     .await?;
-                if result
+                if let Some(turn_id) = result
                     .get("turn")
                     .and_then(|turn| turn.get("id"))
                     .and_then(Value::as_str)
-                    .is_some()
                 {
-                    Ok(())
+                    Ok(turn_id.to_owned())
                 } else {
                     Err(io::Error::other("Codex start确认无效"))
                 }
@@ -440,42 +464,50 @@ impl CodexAppServer {
             _ => Err(io::Error::other("Codex thread当前不可接收输入")),
         }
     }
+
+    async fn next_notification(&mut self) -> io::Result<Value> {
+        self.notifications.recv().await.ok_or_else(|| {
+            io::Error::new(io::ErrorKind::UnexpectedEof, "Codex App Server通知流已断开")
+        })
+    }
 }
 
 async fn spawn_managed_proxy(codex: &Path) -> io::Result<(BoxedCodexTransport, Child)> {
-        let status = tokio::time::timeout(
-            CODEX_RPC_TIMEOUT,
-            Command::new(codex)
-                .args(["app-server", "daemon", "start"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status(),
-        )
-        .await
-        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Codex daemon启动超时"))?
-        .map_err(|error| io::Error::new(io::ErrorKind::NotFound, format!("Codex CLI不可用：{error}")))?;
-        if !status.success() {
-            return Err(io::Error::other("Codex daemon启动失败"));
-        }
-
-        let mut proxy = Command::new(codex)
-            .args(["app-server", "proxy"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
+    let status = tokio::time::timeout(
+        CODEX_RPC_TIMEOUT,
+        Command::new(codex)
+            .args(["app-server", "daemon", "start"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|error| io::Error::other(format!("Codex proxy启动失败：{error}")))?;
-        let input = proxy
-            .stdin
-            .take()
-            .ok_or_else(|| io::Error::other("Codex proxy输入不可用"))?;
-        let output = proxy
-            .stdout
-            .take()
-            .ok_or_else(|| io::Error::other("Codex proxy输出不可用"))?;
-        Ok((Box::new(ChildDuplex { input, output }), proxy))
+            .status(),
+    )
+    .await
+    .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Codex daemon启动超时"))?
+    .map_err(|error| {
+        io::Error::new(io::ErrorKind::NotFound, format!("Codex CLI不可用：{error}"))
+    })?;
+    if !status.success() {
+        return Err(io::Error::other("Codex daemon启动失败"));
+    }
+
+    let mut proxy = Command::new(codex)
+        .args(["app-server", "proxy"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| io::Error::other(format!("Codex proxy启动失败：{error}")))?;
+    let input = proxy
+        .stdin
+        .take()
+        .ok_or_else(|| io::Error::other("Codex proxy输入不可用"))?;
+    let output = proxy
+        .stdout
+        .take()
+        .ok_or_else(|| io::Error::other("Codex proxy输出不可用"))?;
+    Ok((Box::new(ChildDuplex { input, output }), proxy))
 }
 
 impl Drop for CodexAppServer {
@@ -487,8 +519,15 @@ impl Drop for CodexAppServer {
     }
 }
 
-fn read_responses(mut output: SplitStream<CodexSocket>) -> (mpsc::Receiver<io::Result<Value>>, JoinHandle<()>) {
+fn read_responses(
+    mut output: SplitStream<CodexSocket>,
+) -> (
+    mpsc::Receiver<io::Result<Value>>,
+    mpsc::UnboundedReceiver<Value>,
+    JoinHandle<()>,
+) {
     let (sender, receiver) = mpsc::channel(MAX_PENDING_RESPONSES);
+    let (notification_sender, notification_receiver) = mpsc::unbounded_channel();
     let reader = tokio::spawn(async move {
         loop {
             let result: io::Result<Value> = match output.next().await {
@@ -508,11 +547,19 @@ fn read_responses(mut output: SplitStream<CodexSocket>) -> (mpsc::Receiver<io::R
                 )),
                 Some(Err(error)) => Err(io::Error::other(error)),
             };
-            if result
-                .as_ref()
-                .is_ok_and(|message| message.get("method").is_some())
-            {
-                continue;
+            if let Ok(message) = result.as_ref() {
+                if matches!(
+                    message.get("method").and_then(Value::as_str),
+                    Some(
+                        "item/started"
+                            | "item/agentMessage/delta"
+                            | "item/completed"
+                            | "turn/completed"
+                    )
+                ) {
+                    let _ = notification_sender.send(message.clone());
+                    continue;
+                }
             }
             let terminal = result.is_err();
             if sender.send(result).await.is_err() || terminal {
@@ -520,7 +567,7 @@ fn read_responses(mut output: SplitStream<CodexSocket>) -> (mpsc::Receiver<io::R
             }
         }
     });
-    (receiver, reader)
+    (receiver, notification_receiver, reader)
 }
 
 fn active_turn_id_from_page(page: &Value) -> Option<&str> {
@@ -665,15 +712,15 @@ async fn connect_yonder(
             deadline: now_ms()?.saturating_add(10_000),
             protocol_version: ProtocolVersion {
                 major: PROTOCOL_VERSION.major,
-                // 有意钉定 1.33：桥只使用 agent.input 与该版本新增的 replan-input，
-                // 不得随产品协议升版而声明尚未实现的新能力面。
-                minor: 33,
+                // 有意钉定 1.50：只声明已实现的输入、附件、replan 与回复面。
+                minor: 50,
             },
             session_id: Some(thread_id.into()),
             offered_capabilities: Some(vec![
                 OfferedCapability::UserInput,
                 OfferedCapability::UserInputAttachment,
                 OfferedCapability::ReplanInput,
+                OfferedCapability::UserInputReply,
             ]),
         },
     };
@@ -692,6 +739,181 @@ async fn connect_yonder(
     }
 }
 
+struct PendingReply {
+    input_id: String,
+    session_id: String,
+    turn_id: String,
+    next_sequence: u32,
+    visible_bytes: usize,
+    truncated: bool,
+    items: HashMap<String, bool>,
+    deadline: Instant,
+}
+
+impl PendingReply {
+    fn params(&mut self, phase: AgentReplyPhase, content: Option<String>) -> AgentReplyParams {
+        let params = AgentReplyParams {
+            input_id: self.input_id.clone(),
+            session_id: self.session_id.clone(),
+            reply_id: self.turn_id.clone(),
+            sequence: self.next_sequence,
+            phase,
+            content,
+            truncated: phase == AgentReplyPhase::Completed && self.truncated,
+        };
+        self.next_sequence = self.next_sequence.saturating_add(1);
+        params
+    }
+}
+
+async fn send_reply(
+    stream: &Stream,
+    pending: &mut PendingReply,
+    phase: AgentReplyPhase,
+    content: Option<String>,
+) -> io::Result<()> {
+    let notification = AgentNotification::Reply {
+        jsonrpc: Version::V2,
+        params: pending.params(phase, content),
+    };
+    send_yonder(stream, &notification).await
+}
+
+fn utf8_prefix(value: &str, limit: usize) -> usize {
+    let mut end = value.len().min(limit);
+    while end > 0 && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
+}
+
+async fn forward_reply_text(
+    stream: &Stream,
+    pending: &mut PendingReply,
+    mut text: &str,
+) -> io::Result<()> {
+    while !text.is_empty() {
+        let remaining = MAX_AGENT_REPLY_BYTES.saturating_sub(pending.visible_bytes);
+        if remaining == 0 {
+            pending.truncated = true;
+            break;
+        }
+        let end = utf8_prefix(text, MAX_AGENT_REPLY_DELTA_BYTES.min(remaining));
+        if end == 0 {
+            pending.truncated = true;
+            break;
+        }
+        let chunk = &text[..end];
+        send_reply(
+            stream,
+            pending,
+            AgentReplyPhase::Delta,
+            Some(chunk.to_owned()),
+        )
+        .await?;
+        pending.visible_bytes += chunk.len();
+        text = &text[end..];
+    }
+    Ok(())
+}
+
+fn final_agent_message(item: &Value) -> bool {
+    item.get("type").and_then(Value::as_str) == Some("agentMessage")
+        && matches!(
+            item.get("phase").and_then(Value::as_str),
+            None | Some("final_answer")
+        )
+}
+
+async fn handle_codex_notification(
+    stream: &Stream,
+    pending: &mut PendingReply,
+    message: &Value,
+) -> io::Result<bool> {
+    let method = message
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let params = message.get("params").unwrap_or(&Value::Null);
+    if params.get("threadId").and_then(Value::as_str) != Some(pending.session_id.as_str()) {
+        return Ok(false);
+    }
+    match method {
+        "item/started" => {
+            if params.get("turnId").and_then(Value::as_str) == Some(pending.turn_id.as_str()) {
+                if let Some(item) = params.get("item").filter(|item| final_agent_message(item)) {
+                    if let Some(item_id) = item
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .filter(|id| yonder_protocol::valid_id(id))
+                    {
+                        pending.items.entry(item_id.to_owned()).or_insert(false);
+                    }
+                }
+            }
+        }
+        "item/agentMessage/delta" => {
+            if params.get("turnId").and_then(Value::as_str) == Some(pending.turn_id.as_str()) {
+                if let Some(item_id) = params.get("itemId").and_then(Value::as_str) {
+                    if pending.items.contains_key(item_id) {
+                        if let Some(delta) = params.get("delta").and_then(Value::as_str) {
+                            forward_reply_text(stream, pending, delta).await?;
+                        }
+                        if let Some(seen) = pending.items.get_mut(item_id) {
+                            *seen = true;
+                        }
+                    }
+                }
+            }
+        }
+        "item/completed" => {
+            if params.get("turnId").and_then(Value::as_str) == Some(pending.turn_id.as_str()) {
+                if let Some(item) = params.get("item").filter(|item| final_agent_message(item)) {
+                    if let Some(item_id) = item
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .filter(|id| yonder_protocol::valid_id(id))
+                    {
+                        let had_delta = *pending.items.entry(item_id.to_owned()).or_insert(false);
+                        if !had_delta {
+                            if let Some(text) = item.get("text").and_then(Value::as_str) {
+                                forward_reply_text(stream, pending, text).await?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "turn/completed" => {
+            let turn = params.get("turn").unwrap_or(&Value::Null);
+            if turn.get("id").and_then(Value::as_str) == Some(pending.turn_id.as_str()) {
+                let phase = match turn.get("status").and_then(Value::as_str) {
+                    Some("completed") => AgentReplyPhase::Completed,
+                    Some("failed") => AgentReplyPhase::Failed,
+                    _ => AgentReplyPhase::Interrupted,
+                };
+                send_reply(stream, pending, phase, None).await?;
+                return Ok(true);
+            }
+        }
+        _ => {}
+    }
+    Ok(false)
+}
+
+async fn read_yonder_with_timeout(
+    reader: &mut BufReader<&Stream>,
+    delay: Option<Duration>,
+) -> io::Result<Option<Vec<u8>>> {
+    match delay {
+        Some(delay) => match tokio::time::timeout(delay, read_yonder(reader)).await {
+            Ok(result) => result.map(Some),
+            Err(_) => Ok(None),
+        },
+        None => read_yonder(reader).await.map(Some),
+    }
+}
+
 async fn serve_yonder(
     stream: &Stream,
     codex: &mut CodexAppServer,
@@ -700,24 +922,55 @@ async fn serve_yonder(
 ) -> io::Result<()> {
     let mut reader = BufReader::new(stream);
     let mut attachments = AttachmentInbox::new(thread_id);
+    let mut pending_reply: Option<PendingReply> = None;
     loop {
-        let bytes = if let Some(delay) = attachments.expiry_delay(now_ms()?) {
-            match tokio::time::timeout(delay, read_yonder(&mut reader)).await {
-                Ok(result) => result?,
-                Err(_) => {
-                    attachments.discard(None);
+        enum Incoming {
+            Yonder(Option<Vec<u8>>),
+            Codex(Value),
+        }
+        let delay = attachments.expiry_delay(now_ms()?);
+        let reply_delay = pending_reply
+            .as_ref()
+            .map(|reply| reply.deadline.saturating_duration_since(Instant::now()));
+        let incoming = if pending_reply.is_some() {
+            tokio::select! {
+                value=read_yonder_with_timeout(&mut reader,delay)=>Incoming::Yonder(value?),
+                value=codex.next_notification()=>Incoming::Codex(value?),
+                _=tokio::time::sleep(reply_delay.unwrap_or_default())=>{
+                    if let Some(pending)=pending_reply.as_mut(){send_reply(stream,pending,AgentReplyPhase::Interrupted,None).await?;}
+                    pending_reply=None;
                     continue;
                 }
             }
         } else {
-            read_yonder(&mut reader).await?
+            tokio::select! {
+                value=read_yonder_with_timeout(&mut reader,delay)=>Incoming::Yonder(value?),
+                value=codex.next_notification()=>Incoming::Codex(value?),
+            }
+        };
+        let bytes = match incoming {
+            Incoming::Codex(message) => {
+                if let Some(pending) = pending_reply.as_mut() {
+                    if handle_codex_notification(stream, pending, &message).await? {
+                        pending_reply = None;
+                    }
+                }
+                continue;
+            }
+            Incoming::Yonder(None) => {
+                attachments.discard(None);
+                continue;
+            }
+            Incoming::Yonder(Some(bytes)) => bytes,
         };
         let request = serde_json::from_slice::<AgentRequest>(&bytes)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Yonder Agent请求无效"))?;
         match request {
             AgentRequest::AttachmentBegin { params, .. } => attachments.begin(params, now_ms()?),
             AgentRequest::AttachmentChunk { params, .. } => attachments.chunk(params),
-            AgentRequest::AttachmentFinish { request_id, params, .. } => {
+            AgentRequest::AttachmentFinish {
+                request_id, params, ..
+            } => {
                 let accepted = attachments.finish(&params, now_ms()?);
                 send_yonder(
                     stream,
@@ -726,12 +979,21 @@ async fn serve_yonder(
                         id: request_id,
                         result: AgentInputResult { accepted },
                     },
-                ).await?;
+                )
+                .await?;
             }
-            AgentRequest::Input { request_id, params, .. } => {
-                let accepted = handle_input(codex, thread_id, &params, dedup, &mut attachments)
-                    .await
-                    .map_err(|_| io::Error::other("Codex输入投递未确认"))?;
+            AgentRequest::Input {
+                request_id, params, ..
+            } => {
+                let reply_requested = params.reply_mode == Some(AgentReplyMode::Stream);
+                let (accepted, turn_id) = if reply_requested && pending_reply.is_some() {
+                    attachments.discard(params.attachment_id.as_deref());
+                    (false, None)
+                } else {
+                    handle_input(codex, thread_id, &params, dedup, &mut attachments)
+                        .await
+                        .map_err(|_| io::Error::other("Codex输入投递未确认"))?
+                };
                 send_yonder(
                     stream,
                     &AgentResponse::Success {
@@ -739,7 +1001,24 @@ async fn serve_yonder(
                         id: request_id,
                         result: AgentInputResult { accepted },
                     },
-                ).await?;
+                )
+                .await?;
+                if accepted && reply_requested {
+                    if let Some(turn_id) = turn_id {
+                        let mut pending = PendingReply {
+                            input_id: params.input_id,
+                            session_id: params.session_id,
+                            turn_id,
+                            next_sequence: 1,
+                            visible_bytes: 0,
+                            truncated: false,
+                            items: HashMap::new(),
+                            deadline: Instant::now() + AGENT_REPLY_TIMEOUT,
+                        };
+                        send_reply(stream, &mut pending, AgentReplyPhase::Started, None).await?;
+                        pending_reply = Some(pending);
+                    }
+                }
             }
         }
     }
@@ -799,37 +1078,38 @@ async fn handle_input(
     params: &AgentInputParams,
     dedup: &mut DedupResults,
     attachments: &mut AttachmentInbox,
-) -> io::Result<bool> {
+) -> io::Result<(bool, Option<String>)> {
     if let Some(accepted) = dedup.get(&params.input_id) {
-        return Ok(accepted);
+        return Ok((accepted, None));
     }
     let now = now_ms()?;
-    if params.session_id != thread_id
-        || params.validate(now).is_err()
-    {
+    if params.session_id != thread_id || params.validate(now).is_err() {
         attachments.discard(params.attachment_id.as_deref());
         dedup.insert(params.input_id.clone(), false);
-        return Ok(false);
+        return Ok((false, None));
     }
     let attachment = match params.attachment_id.as_deref() {
         Some(attachment_id) => match attachments.take(attachment_id, now) {
             Some(attachment) => Some(attachment),
             None => {
                 dedup.insert(params.input_id.clone(), false);
-                return Ok(false);
+                return Ok((false, None));
             }
         },
         None => None,
     };
     let timeout = Duration::from_millis(params.deadline.saturating_sub(now)).min(CODEX_RPC_TIMEOUT);
-    match codex.deliver(thread_id, &params.content, attachment.as_ref(), timeout).await {
-        Ok(()) => {
+    match codex
+        .deliver(thread_id, &params.content, attachment.as_ref(), timeout)
+        .await
+    {
+        Ok(turn_id) => {
             dedup.insert(params.input_id.clone(), true);
-            Ok(true)
+            Ok((true, Some(turn_id)))
         }
         Err(error) if error.kind() == io::ErrorKind::InvalidInput => {
             dedup.insert(params.input_id.clone(), false);
-            Ok(false)
+            Ok((false, None))
         }
         Err(error) => Err(error),
     }
@@ -887,7 +1167,9 @@ printf '%s\n' 'server-pong'
                     method => panic!("unexpected method: {method:?}"),
                 };
                 socket
-                    .send(Message::Text(json!({"id":id,"result":result}).to_string().into()))
+                    .send(Message::Text(
+                        json!({"id":id,"result":result}).to_string().into(),
+                    ))
                     .await
                     .unwrap();
             }
@@ -911,7 +1193,9 @@ printf '%s\n' 'server-pong'
             None
         );
         assert_eq!(
-            active_turn_id_from_page(&json!({"data":[{"id":"active","status":"inProgress","items":[]}]})),
+            active_turn_id_from_page(
+                &json!({"data":[{"id":"active","status":"inProgress","items":[]}]})
+            ),
             Some("active")
         );
     }
@@ -931,7 +1215,10 @@ printf '%s\n' 'server-pong'
 
     #[test]
     fn reconnect_backoff_is_bounded_and_protocol_errors_are_terminal() {
-        assert_eq!(next_backoff(Duration::from_millis(100)), Duration::from_millis(200));
+        assert_eq!(
+            next_backoff(Duration::from_millis(100)),
+            Duration::from_millis(200)
+        );
         assert_eq!(next_backoff(Duration::from_secs(2)), YONDER_RECONNECT_MAX);
         assert!(reconnectable(&io::Error::new(
             io::ErrorKind::UnexpectedEof,
@@ -941,6 +1228,71 @@ printf '%s\n' 'server-pong'
             io::ErrorKind::PermissionDenied,
             "revoked"
         )));
+    }
+
+    #[test]
+    fn reply_chunk_boundary_preserves_utf8() {
+        assert_eq!(utf8_prefix("你a", 1), 0);
+        assert_eq!(utf8_prefix("你a", 3), 3);
+        assert_eq!(utf8_prefix("你a", 4), 4);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn codex_notifications_become_ordered_agent_reply_frames() {
+        use interprocess::local_socket::ListenerOptions;
+
+        let socket = PathBuf::from(format!(
+            "/tmp/yar-{}-{}.sock",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let listener = ListenerOptions::new()
+            .name(socket.clone().to_fs_name::<GenericFilePath>().unwrap())
+            .try_overwrite(true)
+            .create_tokio()
+            .unwrap();
+        let (client, server) = tokio::join!(
+            Stream::connect(socket.clone().to_fs_name::<GenericFilePath>().unwrap()),
+            listener.accept()
+        );
+        let client = client.unwrap();
+        let server = server.unwrap();
+        let mut pending = PendingReply {
+            input_id: "input-1".into(),
+            session_id: "thread-1".into(),
+            turn_id: "turn-1".into(),
+            next_sequence: 1,
+            visible_bytes: 0,
+            truncated: false,
+            items: HashMap::new(),
+            deadline: Instant::now() + AGENT_REPLY_TIMEOUT,
+        };
+        assert!(!handle_codex_notification(&client,&mut pending,&json!({"method":"item/started","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"item-1","type":"agentMessage","phase":"final_answer"}}})).await.unwrap());
+        assert!(!handle_codex_notification(&client,&mut pending,&json!({"method":"item/agentMessage/delta","params":{"threadId":"thread-1","turnId":"turn-1","itemId":"item-1","delta":"统一回复"}})).await.unwrap());
+        assert!(handle_codex_notification(&client,&mut pending,&json!({"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed"}}})).await.unwrap());
+        let mut reader = BufReader::new(&server);
+        let first =
+            yonder_protocol::decode_agent_notification(&read_yonder(&mut reader).await.unwrap())
+                .unwrap();
+        let second =
+            yonder_protocol::decode_agent_notification(&read_yonder(&mut reader).await.unwrap())
+                .unwrap();
+        let AgentNotification::Reply { params: first, .. } = first;
+        let AgentNotification::Reply { params: second, .. } = second;
+        assert_eq!(
+            (first.sequence, first.phase, first.content),
+            (1, AgentReplyPhase::Delta, Some("统一回复".into()))
+        );
+        assert_eq!(
+            (second.sequence, second.phase, second.content),
+            (2, AgentReplyPhase::Completed, None)
+        );
+        drop((client, server, listener));
+        let _ = std::fs::remove_file(socket);
     }
 
     #[cfg(unix)]
@@ -968,7 +1320,12 @@ printf '%s\n' 'server-pong'
         let mut server = fake_app_server().await;
         server.resume("thread-1").await.unwrap();
         server
-            .deliver("thread-1", "bounded test input", None, Duration::from_secs(1))
+            .deliver(
+                "thread-1",
+                "bounded test input",
+                None,
+                Duration::from_secs(1),
+            )
             .await
             .unwrap();
     }
@@ -1053,6 +1410,7 @@ printf '%s\n' 'server-pong'
             source: AgentInputSource::Replan,
             content: "bounded replay test".into(),
             attachment_id: None,
+            reply_mode: None,
             created_at: now,
             deadline: now + 10_000,
         };
@@ -1060,20 +1418,50 @@ printf '%s\n' 'server-pong'
         server.resume("thread-1").await.unwrap();
         let mut dedup = DedupResults::new();
         let mut attachments = AttachmentInbox::new("thread-1");
-        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup, &mut attachments)
+        assert!(
+            handle_input(
+                &mut server,
+                "thread-1",
+                &params,
+                &mut dedup,
+                &mut attachments
+            )
             .await
-            .unwrap());
-        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup, &mut attachments)
+            .unwrap()
+            .0
+        );
+        assert!(
+            handle_input(
+                &mut server,
+                "thread-1",
+                &params,
+                &mut dedup,
+                &mut attachments
+            )
             .await
-            .unwrap());
+            .unwrap()
+            .0
+        );
         let mut methods = Vec::new();
         while let Ok(request) = calls.try_recv() {
             if let Some(method) = request.get("method").and_then(Value::as_str) {
                 methods.push(method.to_owned());
             }
         }
-        assert_eq!(methods.iter().filter(|method| *method == "thread/read").count(), 1);
-        assert_eq!(methods.iter().filter(|method| *method == "turn/start").count(), 1);
+        assert_eq!(
+            methods
+                .iter()
+                .filter(|method| *method == "thread/read")
+                .count(),
+            1
+        );
+        assert_eq!(
+            methods
+                .iter()
+                .filter(|method| *method == "turn/start")
+                .count(),
+            1
+        );
     }
 
     fn attachment_begin(bytes: &[u8], now: u64) -> AgentAttachmentBeginParams {
@@ -1099,10 +1487,13 @@ printf '%s\n' 'server-pong'
             sequence: 0,
             data_base64: BASE64.encode(bytes),
         });
-        assert!(inbox.finish(&AgentAttachmentFinishParams {
-            attachment_id: "image-1".into(),
-            session_id: "thread-1".into(),
-        }, now));
+        assert!(inbox.finish(
+            &AgentAttachmentFinishParams {
+                attachment_id: "image-1".into(),
+                session_id: "thread-1".into(),
+            },
+            now
+        ));
         let attachment = inbox.take("image-1", now).unwrap();
         assert_eq!(attachment.bytes, bytes);
         assert!(inbox.take("image-1", now).is_none());
@@ -1115,19 +1506,38 @@ printf '%s\n' 'server-pong'
         for mutation in ["sequence", "hash", "session"] {
             let mut inbox = AttachmentInbox::new("thread-1");
             let mut begin = attachment_begin(bytes, now);
-            if mutation == "hash" { begin.sha256 = "0".repeat(64); }
-            if mutation == "session" { begin.session_id = "thread-2".into(); }
+            if mutation == "hash" {
+                begin.sha256 = "0".repeat(64);
+            }
+            if mutation == "session" {
+                begin.session_id = "thread-2".into();
+            }
             inbox.begin(begin, now);
             inbox.chunk(AgentAttachmentChunkParams {
                 attachment_id: "image-1".into(),
-                session_id: if mutation == "session" { "thread-2" } else { "thread-1" }.into(),
+                session_id: if mutation == "session" {
+                    "thread-2"
+                } else {
+                    "thread-1"
+                }
+                .into(),
                 sequence: if mutation == "sequence" { 1 } else { 0 },
                 data_base64: BASE64.encode(bytes),
             });
-            assert!(!inbox.finish(&AgentAttachmentFinishParams {
-                attachment_id: "image-1".into(),
-                session_id: if mutation == "session" { "thread-2" } else { "thread-1" }.into(),
-            }, now));
+            assert!(
+                !inbox.finish(
+                    &AgentAttachmentFinishParams {
+                        attachment_id: "image-1".into(),
+                        session_id: if mutation == "session" {
+                            "thread-2"
+                        } else {
+                            "thread-1"
+                        }
+                        .into(),
+                    },
+                    now
+                )
+            );
             assert!(inbox.take("image-1", now).is_none());
         }
     }
@@ -1140,18 +1550,24 @@ printf '%s\n' 'server-pong'
         let mut expired = attachment_begin(bytes, now);
         expired.deadline = now;
         inbox.begin(expired, now);
-        assert!(!inbox.finish(&AgentAttachmentFinishParams {
-            attachment_id: "image-1".into(),
-            session_id: "thread-1".into(),
-        }, now));
+        assert!(!inbox.finish(
+            &AgentAttachmentFinishParams {
+                attachment_id: "image-1".into(),
+                session_id: "thread-1".into(),
+            },
+            now
+        ));
 
         let mut oversized = attachment_begin(bytes, now);
         oversized.byte_length = MAX_AGENT_ATTACHMENT_BYTES + 1;
         inbox.begin(oversized, now);
-        assert!(!inbox.finish(&AgentAttachmentFinishParams {
-            attachment_id: "image-1".into(),
-            session_id: "thread-1".into(),
-        }, now));
+        assert!(!inbox.finish(
+            &AgentAttachmentFinishParams {
+                attachment_id: "image-1".into(),
+                session_id: "thread-1".into(),
+            },
+            now
+        ));
     }
 
     #[tokio::test]
@@ -1168,28 +1584,57 @@ printf '%s\n' 'server-pong'
             sequence: 0,
             data_base64: BASE64.encode(bytes),
         });
-        assert!(inbox.finish(&AgentAttachmentFinishParams {
-            attachment_id: "image-1".into(),
-            session_id: "thread-1".into(),
-        }, now));
+        assert!(inbox.finish(
+            &AgentAttachmentFinishParams {
+                attachment_id: "image-1".into(),
+                session_id: "thread-1".into(),
+            },
+            now
+        ));
         let params = AgentInputParams {
             input_id: "input-image".into(),
             session_id: "thread-1".into(),
             source: AgentInputSource::Selection,
             content: "bounded image question".into(),
             attachment_id: Some("image-1".into()),
+            reply_mode: Some(AgentReplyMode::Stream),
             created_at: now,
             deadline: now + 10_000,
         };
         let (mut server, mut calls) = fake_app_server_with_calls().await;
         server.resume("thread-1").await.unwrap();
-        assert!(handle_input(&mut server, "thread-1", &params, &mut DedupResults::new(), &mut inbox).await.unwrap());
+        assert!(
+            handle_input(
+                &mut server,
+                "thread-1",
+                &params,
+                &mut DedupResults::new(),
+                &mut inbox
+            )
+            .await
+            .unwrap()
+            .0
+        );
         let requests: Vec<Value> = std::iter::from_fn(|| calls.try_recv().ok()).collect();
-        let start = requests.iter().find(|request| request.get("method").and_then(Value::as_str) == Some("turn/start")).unwrap();
-        let input = start.pointer("/params/input").and_then(Value::as_array).unwrap();
+        let start = requests
+            .iter()
+            .find(|request| request.get("method").and_then(Value::as_str) == Some("turn/start"))
+            .unwrap();
+        let input = start
+            .pointer("/params/input")
+            .and_then(Value::as_array)
+            .unwrap();
         assert_eq!(input.len(), 2);
-        assert_eq!(input[0].get("text").and_then(Value::as_str), Some("bounded image question"));
-        assert!(input[1].get("url").and_then(Value::as_str).is_some_and(|url| url.starts_with("data:image/png;base64,")));
+        assert_eq!(
+            input[0].get("text").and_then(Value::as_str),
+            Some("bounded image question")
+        );
+        assert!(
+            input[1]
+                .get("url")
+                .and_then(Value::as_str)
+                .is_some_and(|url| url.starts_with("data:image/png;base64,"))
+        );
         assert!(inbox.take("image-1", now).is_none());
     }
 
@@ -1204,6 +1649,7 @@ printf '%s\n' 'server-pong'
             source: AgentInputSource::Selection,
             content: "must not be sent alone".into(),
             attachment_id: Some("missing-image".into()),
+            reply_mode: Some(AgentReplyMode::Stream),
             created_at: now,
             deadline: now + 10_000,
         };
@@ -1211,9 +1657,17 @@ printf '%s\n' 'server-pong'
         server.resume("thread-1").await.unwrap();
         let mut dedup = DedupResults::new();
         let mut inbox = AttachmentInbox::new("thread-1");
-        assert!(!handle_input(&mut server, "thread-1", &params, &mut dedup, &mut inbox).await.unwrap());
+        assert!(
+            !handle_input(&mut server, "thread-1", &params, &mut dedup, &mut inbox)
+                .await
+                .unwrap()
+                .0
+        );
         assert!(std::iter::from_fn(|| calls.try_recv().ok()).all(|request| {
-            !matches!(request.get("method").and_then(Value::as_str), Some("thread/read" | "turn/start" | "turn/steer"))
+            !matches!(
+                request.get("method").and_then(Value::as_str),
+                Some("thread/read" | "turn/start" | "turn/steer")
+            )
         }));
     }
 

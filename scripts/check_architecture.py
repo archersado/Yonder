@@ -68,8 +68,13 @@ def check_protocol_single_source(root):
         raise ValueError("UnknownReason 与 wire 枚举必须只有 unknown_reason.rs 中的一份映射")
 
     bridge = (root / "apps/yonder-cli/src/codex_agent_bridge.rs").read_text(encoding="utf-8")
-    if "有意钉定 1.33" not in bridge or not re.search(r"minor:\s*33\b", bridge) or "minor: PROTOCOL_VERSION.minor" in bridge:
-        raise ValueError("Codex bridge 必须显式钉定 replan-input 所需的协议 1.33")
+    if (
+        "有意钉定 1.50" not in bridge
+        or not re.search(r"minor:\s*50\b", bridge)
+        or "OfferedCapability::UserInputReply" not in bridge
+        or "minor: PROTOCOL_VERSION.minor" in bridge
+    ):
+        raise ValueError("Codex bridge 必须显式钉定 agent-reply 所需的协议 1.50")
 
 
 def repository_file(root, value):
