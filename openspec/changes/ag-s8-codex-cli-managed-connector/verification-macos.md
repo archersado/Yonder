@@ -28,3 +28,10 @@ Codex 官方要求非托管 Hook 先由用户审阅并信任。不得使用 `--d
 ## 当前结论
 
 实现和隔离 macOS 合约通过；因官方 Hook 信任必须由用户显式完成，真实会话生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。
+
+## Hook 发现兼容性复核（2026-10-10）
+
+- 本机路径实际调用的 Codex CLI `0.156.1` 可以安装并启用 portable 根清单，但其 `/hooks` 运行时未从根清单的 `extensions.com.openai.hooks` 发现 Yonder Hook。
+- 插件同时提供 `.codex-plugin/plugin.json` 兼容清单，并从该清单声明 `./hooks/hooks.json`；portable 根清单继续作为新版本产品元数据来源。
+- 插件版本提升至 `0.1.1`，确保本地市场重新安装时刷新缓存和 Hook 定义哈希。
+- 验收方式：重新安装 `yonder-codex-connector@yonder-local`，新建 Codex CLI 会话，在 `/hooks` 的 `SessionStart` 详情中确认来源为 Yonder 插件并完成信任审阅。
