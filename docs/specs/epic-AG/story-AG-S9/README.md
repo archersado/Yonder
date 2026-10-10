@@ -1,9 +1,10 @@
 # AG-S9 Agent 回复回传与圈选会话卡
 
-Story: AG-S9  
-Epic: AG  
-Status: implementing  
+Story: AG-S9
+Epic: AG
+Status: done
 OpenSpec: ag-s9-agent-reply-presentation
+Verification: openspec/changes/archive/2026-10-10-ag-s9-agent-reply-presentation/verification-goal.md
 
 关联变更：[ag-s9-agent-reply-presentation](../../../../openspec/changes/ag-s9-agent-reply-presentation/proposal.md)。
 
@@ -23,3 +24,8 @@ OpenSpec: ag-s9-agent-reply-presentation
 - 首批只覆盖 macOS Codex CLI 托管连接器与圈选卡。
 - 回复为短生命运行时数据，不是任务状态、个人上下文或聊天历史。
 - Windows 继续 Deferred；ChatGPT Desktop 继续 Unsupported。
+
+## 完成证据
+
+- 协议 1.50、Codex Connector、Desktop AgentSession 与圈选卡已分阶段合并 `dev`。
+- [独立 macOS Verification Goal](../../../../openspec/changes/archive/2026-10-10-ag-s9-agent-reply-presentation/verification-goal.md)通过；Windows 与 ChatGPT Desktop 不纳入本次完成声明。
