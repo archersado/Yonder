@@ -14,6 +14,7 @@
 - `codex plugin marketplace add` 与 `codex plugin add yonder-codex-connector@yonder-local` 成功；`codex plugin list --json` 显示插件 installed/enabled，安装缓存包含可执行连接脚本与 Hook 清单。
 - macOS debug 应用包已重新生成；包内 `yonder codex-hook` 对非法 session 输入失败关闭，退出码 1、stdout 为空、诊断不含正文或完整 Payload。
 - `openspec validate ag-s8-codex-cli-managed-connector --strict`、`python3 scripts/check_architecture.py`、JSON/Shell 语法和 `git diff --check` 通过。
+- 兼容修复 `eedaf34` 后重新安装插件 `0.1.4`，在 Codex CLI `0.162.1 --no-daemon` 新会话中打开 `/hooks`：`SessionStart` 显示 Installed=2、Active=1、Review=1；待审项名称为“正在连接 Yonder”，来源为 `Plugin - yonder-codex-connector@yonder-local`，命令解析到安装缓存中的 `scripts/connect.sh`。
 
 ## 待完成真实样本
 
