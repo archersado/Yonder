@@ -21,7 +21,7 @@ macOS Codex CLI 连接器 MUST 只使用受支持 Hook 提供的当前 session I
 
 ### Requirement: 公开 App Server 传输
 
-连接器 MUST 启动 Codex 公开的 `app-server --listen stdio://` 并使用逐行 JSON App Server RPC，不自建、发现私有 endpoint 或把 daemon proxy 当作 JSONL 传输。
+连接器 MUST 使用 Codex 公开共享 daemon，并在 `app-server proxy` 原始双向字节流上建立 WebSocket App Server RPC；不得自建/发现私有 endpoint、把 proxy 当作 JSONL，或另起与当前 active writer 冲突的 App Server。
 
 #### Scenario: 投递输入
 
