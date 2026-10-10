@@ -1,0 +1,22 @@
+# AG-S10 圈选提交失败恢复与错误反馈
+
+Story: AG-S10  
+Epic: AG  
+Status: implementing  
+OpenSpec: ag-s10-circle-submit-recovery
+
+## 目标
+
+用户点击发送后，Yonder 只有在 Agent 明确接受输入时才清除圈选临时数据；任何未接受结果都保留当前图片和问题并给出准确、可操作的反馈。
+
+## 设计文档
+
+- [产品需求](product-requirements.md)
+- [架构设计](architecture-design.md)
+- [视觉交互设计](visual-interaction-design.md)
+
+## 范围
+
+- macOS 圈选确认卡、Application 临时会话和现有 AgentInputHub。
+- 不新增持久化、协议字段、旁路或截图压缩。
+- Windows 证据继续 Deferred。
