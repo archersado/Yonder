@@ -16,6 +16,7 @@ Epic: AG
 - [AG-S6 本地 Agent 注册与撤权](story-AG-S6/README.md)
 - [AG-S7 Codex 会话连接生命周期 Spike](story-AG-S7/README.md)
 - [AG-S8 macOS Codex CLI 托管连接器](story-AG-S8/README.md)
+- [AG-S9 Agent 回复回传与圈选会话卡](story-AG-S9/README.md)
 
 ## 验收与依赖
 
