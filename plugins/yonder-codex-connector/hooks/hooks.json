@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "yonder codex-hook",
+            "command": "\"${PLUGIN_ROOT}/scripts/connect.sh\"",
             "async": true,
             "timeout": 86400,
             "statusMessage": "正在连接 Yonder"

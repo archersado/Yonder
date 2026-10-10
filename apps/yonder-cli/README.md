@@ -18,7 +18,7 @@ codex plugin marketplace add /absolute/path/to/Yonder
 codex plugin add yonder-codex-connector@yonder-local
 ```
 
-安装后在 Codex `/hooks` 中审阅并信任该 Hook。`yonder` 必须是当前发布包安装到 PATH 的 CLI。Hook 只在 `startup|resume` 运行，读取 Codex 明确提供的当前 session ID；它不读取 transcript、内部数据库或最近会话。
+安装后在 Codex `/hooks` 中审阅并信任该 Hook。连接脚本依次使用显式 `YONDER_CLI_PATH`、PATH 中的 `yonder`、`/Applications` 或用户 Applications 中的 Yonda/Yonder 应用包 CLI。Hook 只在 `startup|resume` 运行，读取 Codex 明确提供的当前 session ID；它不读取 transcript、内部数据库或最近会话。
 
 Yonder 重启时后台连接器会在五分钟有界窗口内恢复同一会话。恢复只重新注册 Gateway，不重放未确认输入。ChatGPT Desktop 当前不支持，Windows 暂缓。
 
