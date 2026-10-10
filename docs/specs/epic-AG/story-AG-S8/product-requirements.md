@@ -18,12 +18,14 @@
 3. 使用公开 daemon 与 WebSocket-over-proxy 恢复同一 thread，向既有 Yonder Gateway 注册 UserInput/ReplanInput。
 4. Yonder 未启动或重启时进行有界退避重连；不重放未确认输入。
 5. 提供可安装、可审阅的 Codex Hook 配置与明确诊断，不记录输入正文或完整会话标识。
+6. 复用 CX-S2 已接受的同会话附件协议，向 Codex App Server 投递文字与单张圈选图片；截图仅驻留在连接器有界内存中，不落盘、不写日志。
 
 ### 非目标
 
 - 不启动新的 Codex 规划 Agent；不附着 ChatGPT Desktop 私有 App Server。
 - 不自动修改用户 Codex 全局配置或绕过 Hook 信任。
 - 不实现 Windows；不新增 Yonder wire 协议、数据库表或任务状态。
+- 不把附件转存为临时文件，不把本机路径交给 Codex，也不扩大 CX-S2 的单附件上限。
 
 ## 验收条件
 
@@ -32,3 +34,5 @@
 - AC3：重复输入 ID 不会向 Codex 重放；已接收但未确认的输入在传输失败后也不自动重放。
 - AC4：非法 Hook、非 startup/resume、缺少 Codex CLI、daemon/proxy 启动或 WebSocket 握手失败均失败关闭并给出无正文诊断。
 - AC5：ChatGPT Desktop 与 Windows 保持 Unsupported/Deferred；产品文档不误报支持。
+- AC6：声明附件能力的当前 Codex 会话可接收完整性校验通过的单张圈选图片；乱序、超限、哈希错误、跨会话引用、超时或断连均拒绝并清理，且不降级为只发送文字。
+- AC7：连接状态与错误反馈区分“普通输入已连接”和“截图输入可用”；附件不支持或投递失败时给出稳定原因，不只显示泛化的“提交失败”。

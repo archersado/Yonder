@@ -46,6 +46,24 @@ macOS Codex CLI 连接器 MUST 只使用受支持 Hook 提供的当前 session I
 - **THEN** 连接器退出并报告未连接
 - **AND** 不无限重试或误报已连接
 
+### Requirement: Codex 会话附件输入
+
+macOS Codex CLI 连接器 MUST 在同一已绑定 AgentSession 上声明并实现 `user_input_attachment`，且只把完整校验通过的单张圈选图片与文字投递到同一 Codex thread。
+
+#### Scenario: 圈选附件成功
+
+- **WHEN** 当前 session 收到合法 begin、连续 chunk、finish 和引用相同附件的 `agent.input`
+- **THEN** 连接器复核 session、MIME、大小、顺序、SHA-256 与 deadline
+- **AND** 使用同一个 `turn/start` 或 `turn/steer` 输入投递文字和内存图片
+- **AND** Codex 确认接收后才返回 accepted，并立即释放附件
+
+#### Scenario: 附件无效或投递未知
+
+- **WHEN** 附件超限、乱序、哈希错误、跨 session、过期、重复声明、Codex 拒绝或任一连接断开
+- **THEN** 连接器拒绝或返回 unknown 并清空本次附件
+- **AND** 不落盘、不记录正文/图片/摘要、不自动重试
+- **AND** 不降级成只发送文字
+
 ### Requirement: 不支持面清晰
 
 产品 MUST 不把 macOS Codex CLI 能力外推到 ChatGPT Desktop 或 Windows。

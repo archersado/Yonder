@@ -14,7 +14,7 @@ Codex CLI SessionStart Hook
           ├─ codex app-server proxy（原始双向字节流）
           ├─ WebSocket Upgrade → initialize / initialized
           ├─ thread/resume(session_id, excludeTurns=true)
-          └─ 既有 Agent Gateway hello(session_id, UserInput + ReplanInput)
+          └─ 既有 Agent Gateway hello(session_id, UserInput + UserInputAttachment + ReplanInput)
 ```
 
 Hook 配置只匹配 `startup|resume` 并以后台方式执行。`compact` 不创建重复桥；会话结束后由 Codex Hook 生命周期终止连接器。连接器不保存 thread ID、输入正文或 endpoint。
@@ -31,11 +31,18 @@ Hook 未显式提供 `YONDER_AGENT_ID` 时使用与正式 MCP 配置一致的 `c
 
 没有新增状态所有者、wire 字段或持久化。Gateway 仍是外部慢脑初始计划和 replan 的唯一入口。
 
+### 圈选附件
+
+连接器复用协议 1.33 已存在的 `agent.attachment.begin/chunk/finish` 与 `agent.input.attachment_id`。每个 Gateway 连接只允许一个本会话附件处于组装或待消费状态；连接器按序解码分块，复核声明长度、SHA-256、MIME、deadline 与 session，再把文字和内存 data URL 组成同一次 Codex App Server `turn/start` 或 `turn/steer` 输入。Codex 确认接收后才向 Yonder 返回 accepted。
+
+附件字节不得落盘、进入命令行、日志或错误文本。任何拒绝、超时、App Server 断开、Yonder 断开或输入消费后都立即释放附件；输入 ID 去重仍覆盖最终投递，避免同一截图重复进入 Codex。
+
 ## 失败与验证
 
 - Hook 输入无效或来源不是 startup/resume：失败关闭，不选择其他 session。
 - Yonder 不可达/断开：以封顶退避在固定恢复窗口重连相同 session；窗口耗尽后退出，由下一次显式 SessionStart 恢复。
 - Codex proxy 断开：当前输入视为未确认且加入去重终态，不自动重投；连接器退出，下一次显式 SessionStart 才可恢复相同 session。
+- 附件声明、分块、完整性或会话校验失败：拒绝本次附件并清理；不得继续发送纯文字形成伪成功。
 - thread 无法恢复或标识改变：旧连接器退出；新 session 只能由新 Hook 显式注册。
 - Hook 输出、stderr 与 Yonder 日志不得包含正文、完整 session ID 或完整 Agent Payload。
 
@@ -49,5 +56,6 @@ Hook 未显式提供 `YONDER_AGENT_ID` 时使用与正式 MCP 配置一致的 `c
 
 - Rust 单元：Hook 输入、来源、去重、退避边界。
 - 合约：验证 daemon/proxy 启动参数、双向字节适配和 WebSocket App Server RPC；再与 Gateway 验证 resume、start/steer、断开重连、不重放。
+- 附件合约：验证 begin/chunk/finish、大小/哈希/顺序/会话/deadline、内存图片输入、消费后清理及拒绝时不投递正文。
 - macOS 原生：真实 Codex CLI session 启动、Yonder 重启、桥退出、session 切换结构化日志。
 - Windows 与 ChatGPT Desktop 不纳入通过条件，但必须保留 Deferred/Unsupported 说明。
