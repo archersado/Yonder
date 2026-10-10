@@ -2,7 +2,7 @@
 
 Story: AG-S8  
 Epic: AG  
-Status: implementing
+Status: verifying
 OpenSpec: ag-s8-codex-cli-managed-connector
 
 ## 目标
@@ -23,3 +23,5 @@ OpenSpec: ag-s8-codex-cli-managed-connector
 - Windows 按主人决定继续挂起，不宣称跨平台 Done。
 
 关联变更：[ag-s8-codex-cli-managed-connector](../../../../openspec/changes/ag-s8-codex-cli-managed-connector/proposal.md)。
+
+2026-10-10 实现与自动化合约已通过并合并 `dev`：正式插件已被本机 Codex CLI 安装、启用并解析。独立 Verification Goal 等待用户在 Codex `/hooks` 审阅信任后，以新会话完成真实生命周期样本；不绕过 Hook 信任。
