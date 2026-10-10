@@ -1,3 +1,4 @@
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use futures_util::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
@@ -7,6 +8,7 @@ use interprocess::local_socket::{
     tokio::{Stream, prelude::*},
 };
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     collections::{HashMap, VecDeque},
     env, io,
@@ -25,12 +27,15 @@ use tokio::{
 };
 use tokio_tungstenite::{WebSocketStream, client_async, tungstenite::Message};
 use yonder_protocol::{
-    AgentInputParams, AgentInputResult, AgentRequest, AgentResponse, Capability, HelloParams,
-    MAX_REQUEST_BYTES, OfferedCapability, ProtocolVersion, PROTOCOL_VERSION, Request, Response, Version,
+    AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams,
+    AgentAttachmentMime, AgentInputParams, AgentInputResult, AgentRequest, AgentResponse, Capability,
+    HelloParams, MAX_AGENT_ATTACHMENT_BYTES, MAX_REQUEST_BYTES, OfferedCapability, ProtocolVersion,
+    PROTOCOL_VERSION, Request, Response, Version,
 };
 
 const CODEX_RPC_TIMEOUT: Duration = Duration::from_secs(10);
-const MAX_CODEX_FRAME_BYTES: usize = 1024 * 1024;
+const MAX_CODEX_RESPONSE_FRAME_BYTES: usize = 1024 * 1024;
+const MAX_CODEX_REQUEST_FRAME_BYTES: usize = 6 * 1024 * 1024;
 const MAX_DEDUP_RESULTS: usize = 1024;
 const MAX_PENDING_RESPONSES: usize = 8;
 const YONDER_RECONNECT_WINDOW: Duration = Duration::from_secs(300);
@@ -45,6 +50,150 @@ type CodexSocket = WebSocketStream<BoxedCodexTransport>;
 struct ChildDuplex {
     input: ChildStdin,
     output: ChildStdout,
+}
+
+struct PendingAttachment {
+    id: String,
+    session_id: String,
+    mime: AgentAttachmentMime,
+    byte_length: usize,
+    sha256: String,
+    deadline: u64,
+    next_sequence: u16,
+    bytes: Vec<u8>,
+}
+
+struct ReadyAttachment {
+    id: String,
+    mime: AgentAttachmentMime,
+    deadline: u64,
+    bytes: Vec<u8>,
+}
+
+enum AttachmentState {
+    Empty,
+    Receiving(PendingAttachment),
+    Ready(ReadyAttachment),
+    Rejected { id: String, deadline: u64 },
+}
+
+struct AttachmentInbox {
+    thread_id: String,
+    state: AttachmentState,
+}
+
+impl AttachmentInbox {
+    fn new(thread_id: &str) -> Self {
+        Self { thread_id: thread_id.into(), state: AttachmentState::Empty }
+    }
+
+    fn begin(&mut self, params: AgentAttachmentBeginParams, now: u64) {
+        let valid = params.validate(now).is_ok()
+            && params.session_id == self.thread_id
+            && matches!(self.state, AttachmentState::Empty);
+        if valid {
+            let byte_length = params.byte_length as usize;
+            self.state = AttachmentState::Receiving(PendingAttachment {
+                id: params.attachment_id,
+                session_id: params.session_id,
+                mime: params.mime,
+                byte_length,
+                sha256: params.sha256.to_ascii_lowercase(),
+                deadline: params.deadline,
+                next_sequence: 0,
+                bytes: Vec::with_capacity(byte_length),
+            });
+        } else {
+            self.state = AttachmentState::Rejected {
+                id: params.attachment_id,
+                deadline: params.deadline,
+            };
+        }
+    }
+
+    fn chunk(&mut self, params: AgentAttachmentChunkParams) {
+        let AttachmentState::Receiving(pending) = &mut self.state else { return };
+        let decoded = params.validate().ok().and_then(|_| BASE64.decode(&params.data_base64).ok());
+        let valid = params.attachment_id == pending.id
+            && params.session_id == pending.session_id
+            && params.sequence == pending.next_sequence
+            && decoded.as_ref().is_some_and(|bytes| {
+                pending.bytes.len().saturating_add(bytes.len()) <= pending.byte_length
+                    && pending.bytes.len().saturating_add(bytes.len()) <= MAX_AGENT_ATTACHMENT_BYTES as usize
+            });
+        if valid {
+            pending.bytes.extend_from_slice(decoded.as_deref().unwrap_or_default());
+            pending.next_sequence = pending.next_sequence.saturating_add(1);
+        } else {
+            let id = pending.id.clone();
+            let deadline = pending.deadline;
+            self.state = AttachmentState::Rejected { id, deadline };
+        }
+    }
+
+    fn finish(&mut self, params: &AgentAttachmentFinishParams, now: u64) -> bool {
+        if params.validate().is_err() {
+            self.state = AttachmentState::Empty;
+            return false;
+        }
+        let state = std::mem::replace(&mut self.state, AttachmentState::Empty);
+        let AttachmentState::Receiving(pending) = state else { return false };
+        let valid = params.attachment_id == pending.id
+            && params.session_id == pending.session_id
+            && pending.session_id == self.thread_id
+            && pending.deadline > now
+            && pending.bytes.len() == pending.byte_length
+            && format!("{:x}", Sha256::digest(&pending.bytes)) == pending.sha256;
+        if !valid { return false; }
+        self.state = AttachmentState::Ready(ReadyAttachment {
+            id: pending.id,
+            mime: pending.mime,
+            deadline: pending.deadline,
+            bytes: pending.bytes,
+        });
+        true
+    }
+
+    fn take(&mut self, attachment_id: &str, now: u64) -> Option<ReadyAttachment> {
+        let state = std::mem::replace(&mut self.state, AttachmentState::Empty);
+        match state {
+            AttachmentState::Ready(attachment)
+                if attachment.id == attachment_id && attachment.deadline > now => Some(attachment),
+            _ => None,
+        }
+    }
+
+    fn discard(&mut self, attachment_id: Option<&str>) {
+        let matches = match (&self.state, attachment_id) {
+            (_, None) => true,
+            (AttachmentState::Receiving(value), Some(id)) => value.id == id,
+            (AttachmentState::Ready(value), Some(id)) => value.id == id,
+            (AttachmentState::Rejected { id: value, .. }, Some(id)) => value == id,
+            (AttachmentState::Empty, Some(_)) => false,
+        };
+        if matches { self.state = AttachmentState::Empty; }
+    }
+
+    fn expiry_delay(&self, now: u64) -> Option<Duration> {
+        let deadline = match &self.state {
+            AttachmentState::Receiving(value) => value.deadline,
+            AttachmentState::Ready(value) => value.deadline,
+            AttachmentState::Rejected { deadline, .. } => *deadline,
+            AttachmentState::Empty => return None,
+        };
+        Some(Duration::from_millis(deadline.saturating_sub(now)))
+    }
+}
+
+impl ReadyAttachment {
+    fn data_url(&self) -> String {
+        let mime = match self.mime {
+            AgentAttachmentMime::ImagePng => "image/png",
+            AgentAttachmentMime::ImageJpeg => "image/jpeg",
+            AgentAttachmentMime::ImageWebp => "image/webp",
+        };
+        format!("data:{mime};base64,{}", BASE64.encode(&self.bytes))
+    }
 }
 
 impl AsyncRead for ChildDuplex {
@@ -162,7 +311,7 @@ impl CodexAppServer {
 
     async fn write(&mut self, message: &Value) -> io::Result<()> {
         let bytes = serde_json::to_vec(message).map_err(io::Error::other)?;
-        if bytes.len() > MAX_CODEX_FRAME_BYTES {
+        if bytes.len() > MAX_CODEX_REQUEST_FRAME_BYTES {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Codex App Server请求过大",
@@ -219,6 +368,7 @@ impl CodexAppServer {
         &mut self,
         thread_id: &str,
         content: &str,
+        attachment: Option<&ReadyAttachment>,
         timeout: Duration,
     ) -> io::Result<()> {
         let deadline = Instant::now() + timeout;
@@ -237,7 +387,10 @@ impl CodexAppServer {
             .and_then(|value| value.get("type"))
             .and_then(Value::as_str)
             .ok_or_else(|| io::Error::other("Codex thread状态缺失"))?;
-        let input = json!([{"type":"text","text":content}]);
+        let mut input = vec![json!({"type":"text","text":content})];
+        if let Some(attachment) = attachment {
+            input.push(json!({"type":"image","url":attachment.data_url(),"detail":"auto"}));
+        }
         match status {
             "active" => {
                 // 不拉取整段历史；长会话的完整turn载荷会超过App Server帧上限。
@@ -343,7 +496,7 @@ fn read_responses(mut output: SplitStream<CodexSocket>) -> (mpsc::Receiver<io::R
                     io::ErrorKind::UnexpectedEof,
                     "Codex App Server已断开",
                 )),
-                Some(Ok(Message::Text(text))) if text.len() <= MAX_CODEX_FRAME_BYTES => {
+                Some(Ok(Message::Text(text))) if text.len() <= MAX_CODEX_RESPONSE_FRAME_BYTES => {
                     serde_json::from_str(text.as_str()).map_err(|_| {
                         io::Error::new(io::ErrorKind::InvalidData, "Codex App Server响应无效")
                     })
@@ -519,6 +672,7 @@ async fn connect_yonder(
             session_id: Some(thread_id.into()),
             offered_capabilities: Some(vec![
                 OfferedCapability::UserInput,
+                OfferedCapability::UserInputAttachment,
                 OfferedCapability::ReplanInput,
             ]),
         },
@@ -545,31 +699,49 @@ async fn serve_yonder(
     dedup: &mut DedupResults,
 ) -> io::Result<()> {
     let mut reader = BufReader::new(stream);
+    let mut attachments = AttachmentInbox::new(thread_id);
     loop {
-        let bytes = read_yonder(&mut reader).await?;
+        let bytes = if let Some(delay) = attachments.expiry_delay(now_ms()?) {
+            match tokio::time::timeout(delay, read_yonder(&mut reader)).await {
+                Ok(result) => result?,
+                Err(_) => {
+                    attachments.discard(None);
+                    continue;
+                }
+            }
+        } else {
+            read_yonder(&mut reader).await?
+        };
         let request = serde_json::from_slice::<AgentRequest>(&bytes)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Yonder Agent请求无效"))?;
-        let AgentRequest::Input {
-            request_id, params, ..
-        } = request
-        else {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Codex桥接不支持Agent附件",
-            ));
-        };
-        let accepted = handle_input(codex, thread_id, &params, dedup)
-            .await
-            .map_err(|_| io::Error::other("Codex输入投递未确认"))?;
-        send_yonder(
-            stream,
-            &AgentResponse::Success {
-                jsonrpc: Version::V2,
-                id: request_id,
-                result: AgentInputResult { accepted },
-            },
-        )
-        .await?;
+        match request {
+            AgentRequest::AttachmentBegin { params, .. } => attachments.begin(params, now_ms()?),
+            AgentRequest::AttachmentChunk { params, .. } => attachments.chunk(params),
+            AgentRequest::AttachmentFinish { request_id, params, .. } => {
+                let accepted = attachments.finish(&params, now_ms()?);
+                send_yonder(
+                    stream,
+                    &AgentResponse::Success {
+                        jsonrpc: Version::V2,
+                        id: request_id,
+                        result: AgentInputResult { accepted },
+                    },
+                ).await?;
+            }
+            AgentRequest::Input { request_id, params, .. } => {
+                let accepted = handle_input(codex, thread_id, &params, dedup, &mut attachments)
+                    .await
+                    .map_err(|_| io::Error::other("Codex输入投递未确认"))?;
+                send_yonder(
+                    stream,
+                    &AgentResponse::Success {
+                        jsonrpc: Version::V2,
+                        id: request_id,
+                        result: AgentInputResult { accepted },
+                    },
+                ).await?;
+            }
+        }
     }
 }
 
@@ -626,20 +798,31 @@ async fn handle_input(
     thread_id: &str,
     params: &AgentInputParams,
     dedup: &mut DedupResults,
+    attachments: &mut AttachmentInbox,
 ) -> io::Result<bool> {
     if let Some(accepted) = dedup.get(&params.input_id) {
         return Ok(accepted);
     }
     let now = now_ms()?;
     if params.session_id != thread_id
-        || params.attachment_id.is_some()
         || params.validate(now).is_err()
     {
+        attachments.discard(params.attachment_id.as_deref());
         dedup.insert(params.input_id.clone(), false);
         return Ok(false);
     }
+    let attachment = match params.attachment_id.as_deref() {
+        Some(attachment_id) => match attachments.take(attachment_id, now) {
+            Some(attachment) => Some(attachment),
+            None => {
+                dedup.insert(params.input_id.clone(), false);
+                return Ok(false);
+            }
+        },
+        None => None,
+    };
     let timeout = Duration::from_millis(params.deadline.saturating_sub(now)).min(CODEX_RPC_TIMEOUT);
-    match codex.deliver(thread_id, &params.content, timeout).await {
+    match codex.deliver(thread_id, &params.content, attachment.as_ref(), timeout).await {
         Ok(()) => {
             dedup.insert(params.input_id.clone(), true);
             Ok(true)
@@ -685,16 +868,14 @@ printf '%s\n' 'server-pong'
         script
     }
 
-    async fn fake_app_server_with_calls() -> (CodexAppServer, mpsc::UnboundedReceiver<String>) {
+    async fn fake_app_server_with_calls() -> (CodexAppServer, mpsc::UnboundedReceiver<Value>) {
         let (client, server) = tokio::io::duplex(64 * 1024);
         let (calls, called) = mpsc::unbounded_channel();
         tokio::spawn(async move {
             let mut socket = tokio_tungstenite::accept_async(server).await.unwrap();
             while let Some(Ok(Message::Text(text))) = socket.next().await {
                 let request: Value = serde_json::from_str(text.as_str()).unwrap();
-                if let Some(method) = request.get("method").and_then(Value::as_str) {
-                    let _ = calls.send(method.to_owned());
-                }
+                let _ = calls.send(request.clone());
                 let Some(id) = request.get("id").and_then(Value::as_u64) else {
                     continue;
                 };
@@ -787,7 +968,7 @@ printf '%s\n' 'server-pong'
         let mut server = fake_app_server().await;
         server.resume("thread-1").await.unwrap();
         server
-            .deliver("thread-1", "bounded test input", Duration::from_secs(1))
+            .deliver("thread-1", "bounded test input", None, Duration::from_secs(1))
             .await
             .unwrap();
     }
@@ -820,9 +1001,14 @@ printf '%s\n' 'server-pong'
                 assert!(matches!(
                     request,
                     Request::Hello {
-                        params: HelloParams { session_id: Some(ref session), .. },
+                        params: HelloParams {
+                            session_id: Some(ref session),
+                            offered_capabilities: Some(ref capabilities),
+                            ..
+                        },
                         ..
                     } if session == "thread-1"
+                        && capabilities.contains(&OfferedCapability::UserInputAttachment)
                 ));
                 (&stream)
                     .write_all(
@@ -873,17 +1059,183 @@ printf '%s\n' 'server-pong'
         let (mut server, mut calls) = fake_app_server_with_calls().await;
         server.resume("thread-1").await.unwrap();
         let mut dedup = DedupResults::new();
-        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup)
+        let mut attachments = AttachmentInbox::new("thread-1");
+        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup, &mut attachments)
             .await
             .unwrap());
-        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup)
+        assert!(handle_input(&mut server, "thread-1", &params, &mut dedup, &mut attachments)
             .await
             .unwrap());
         let mut methods = Vec::new();
-        while let Ok(method) = calls.try_recv() {
-            methods.push(method);
+        while let Ok(request) = calls.try_recv() {
+            if let Some(method) = request.get("method").and_then(Value::as_str) {
+                methods.push(method.to_owned());
+            }
         }
         assert_eq!(methods.iter().filter(|method| *method == "thread/read").count(), 1);
         assert_eq!(methods.iter().filter(|method| *method == "turn/start").count(), 1);
+    }
+
+    fn attachment_begin(bytes: &[u8], now: u64) -> AgentAttachmentBeginParams {
+        AgentAttachmentBeginParams {
+            attachment_id: "image-1".into(),
+            session_id: "thread-1".into(),
+            mime: AgentAttachmentMime::ImagePng,
+            byte_length: bytes.len() as u32,
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+            deadline: now + 10_000,
+        }
+    }
+
+    #[test]
+    fn attachment_inbox_validates_and_consumes_once() {
+        let bytes = b"bounded-png-fixture";
+        let now = now_ms().unwrap();
+        let mut inbox = AttachmentInbox::new("thread-1");
+        inbox.begin(attachment_begin(bytes, now), now);
+        inbox.chunk(AgentAttachmentChunkParams {
+            attachment_id: "image-1".into(),
+            session_id: "thread-1".into(),
+            sequence: 0,
+            data_base64: BASE64.encode(bytes),
+        });
+        assert!(inbox.finish(&AgentAttachmentFinishParams {
+            attachment_id: "image-1".into(),
+            session_id: "thread-1".into(),
+        }, now));
+        let attachment = inbox.take("image-1", now).unwrap();
+        assert_eq!(attachment.bytes, bytes);
+        assert!(inbox.take("image-1", now).is_none());
+    }
+
+    #[test]
+    fn attachment_inbox_rejects_wrong_sequence_hash_and_session() {
+        let bytes = b"bounded-png-fixture";
+        let now = now_ms().unwrap();
+        for mutation in ["sequence", "hash", "session"] {
+            let mut inbox = AttachmentInbox::new("thread-1");
+            let mut begin = attachment_begin(bytes, now);
+            if mutation == "hash" { begin.sha256 = "0".repeat(64); }
+            if mutation == "session" { begin.session_id = "thread-2".into(); }
+            inbox.begin(begin, now);
+            inbox.chunk(AgentAttachmentChunkParams {
+                attachment_id: "image-1".into(),
+                session_id: if mutation == "session" { "thread-2" } else { "thread-1" }.into(),
+                sequence: if mutation == "sequence" { 1 } else { 0 },
+                data_base64: BASE64.encode(bytes),
+            });
+            assert!(!inbox.finish(&AgentAttachmentFinishParams {
+                attachment_id: "image-1".into(),
+                session_id: if mutation == "session" { "thread-2" } else { "thread-1" }.into(),
+            }, now));
+            assert!(inbox.take("image-1", now).is_none());
+        }
+    }
+
+    #[test]
+    fn attachment_inbox_rejects_expired_or_oversized_declarations() {
+        let bytes = b"bounded-png-fixture";
+        let now = now_ms().unwrap();
+        let mut inbox = AttachmentInbox::new("thread-1");
+        let mut expired = attachment_begin(bytes, now);
+        expired.deadline = now;
+        inbox.begin(expired, now);
+        assert!(!inbox.finish(&AgentAttachmentFinishParams {
+            attachment_id: "image-1".into(),
+            session_id: "thread-1".into(),
+        }, now));
+
+        let mut oversized = attachment_begin(bytes, now);
+        oversized.byte_length = MAX_AGENT_ATTACHMENT_BYTES + 1;
+        inbox.begin(oversized, now);
+        assert!(!inbox.finish(&AgentAttachmentFinishParams {
+            attachment_id: "image-1".into(),
+            session_id: "thread-1".into(),
+        }, now));
+    }
+
+    #[tokio::test]
+    async fn attachment_is_delivered_as_same_turn_memory_image() {
+        use yonder_protocol::AgentInputSource;
+
+        let bytes = b"bounded-png-fixture";
+        let now = now_ms().unwrap();
+        let mut inbox = AttachmentInbox::new("thread-1");
+        inbox.begin(attachment_begin(bytes, now), now);
+        inbox.chunk(AgentAttachmentChunkParams {
+            attachment_id: "image-1".into(),
+            session_id: "thread-1".into(),
+            sequence: 0,
+            data_base64: BASE64.encode(bytes),
+        });
+        assert!(inbox.finish(&AgentAttachmentFinishParams {
+            attachment_id: "image-1".into(),
+            session_id: "thread-1".into(),
+        }, now));
+        let params = AgentInputParams {
+            input_id: "input-image".into(),
+            session_id: "thread-1".into(),
+            source: AgentInputSource::Selection,
+            content: "bounded image question".into(),
+            attachment_id: Some("image-1".into()),
+            created_at: now,
+            deadline: now + 10_000,
+        };
+        let (mut server, mut calls) = fake_app_server_with_calls().await;
+        server.resume("thread-1").await.unwrap();
+        assert!(handle_input(&mut server, "thread-1", &params, &mut DedupResults::new(), &mut inbox).await.unwrap());
+        let requests: Vec<Value> = std::iter::from_fn(|| calls.try_recv().ok()).collect();
+        let start = requests.iter().find(|request| request.get("method").and_then(Value::as_str) == Some("turn/start")).unwrap();
+        let input = start.pointer("/params/input").and_then(Value::as_array).unwrap();
+        assert_eq!(input.len(), 2);
+        assert_eq!(input[0].get("text").and_then(Value::as_str), Some("bounded image question"));
+        assert!(input[1].get("url").and_then(Value::as_str).is_some_and(|url| url.starts_with("data:image/png;base64,")));
+        assert!(inbox.take("image-1", now).is_none());
+    }
+
+    #[tokio::test]
+    async fn missing_attachment_is_rejected_without_text_fallback() {
+        use yonder_protocol::AgentInputSource;
+
+        let now = now_ms().unwrap();
+        let params = AgentInputParams {
+            input_id: "input-missing-image".into(),
+            session_id: "thread-1".into(),
+            source: AgentInputSource::Selection,
+            content: "must not be sent alone".into(),
+            attachment_id: Some("missing-image".into()),
+            created_at: now,
+            deadline: now + 10_000,
+        };
+        let (mut server, mut calls) = fake_app_server_with_calls().await;
+        server.resume("thread-1").await.unwrap();
+        let mut dedup = DedupResults::new();
+        let mut inbox = AttachmentInbox::new("thread-1");
+        assert!(!handle_input(&mut server, "thread-1", &params, &mut dedup, &mut inbox).await.unwrap());
+        assert!(std::iter::from_fn(|| calls.try_recv().ok()).all(|request| {
+            !matches!(request.get("method").and_then(Value::as_str), Some("thread/read" | "turn/start" | "turn/steer"))
+        }));
+    }
+
+    #[test]
+    fn maximum_attachment_request_stays_inside_codex_frame_bound() {
+        let attachment = ReadyAttachment {
+            id: "image-max".into(),
+            mime: AgentAttachmentMime::ImagePng,
+            deadline: u64::MAX,
+            bytes: vec![0; MAX_AGENT_ATTACHMENT_BYTES as usize],
+        };
+        let request = json!({
+            "method":"turn/start",
+            "id":1,
+            "params":{
+                "threadId":"thread-1",
+                "input":[
+                    {"type":"text","text":"x".repeat(16 * 1024)},
+                    {"type":"image","url":attachment.data_url(),"detail":"auto"}
+                ]
+            }
+        });
+        assert!(serde_json::to_vec(&request).unwrap().len() <= MAX_CODEX_REQUEST_FRAME_BYTES);
     }
 }

@@ -5287,10 +5287,12 @@ dependencies = [
 name = "yonder-cli"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "futures-util",
  "interprocess",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "tokio-tungstenite",
  "yonder-protocol",

@@ -21,12 +21,14 @@
 - 真实重启恢复样本：保持原 `codex-hook` 与 proxy 进程不动，正常退出并重新启动正式 debug `Yonda.app`。桌面宿主 PID 发生变化；连接器在 300 秒恢复窗口内关闭旧连接，并建立指向新 Gateway 监听进程的全新 Unix Socket 对端。无需重启 Hook、重新填写 session/thread 或设置 `YONDER_AGENT_ID`。
 - 不重放合约补强后 `cargo test -p yonder-cli` 11/11 通过：相同合法 input ID 连续进入处理两次，两次都返回既有确认，Codex App Server 只收到一次 `thread/read` 与一次 `turn/start`；输入正文未进入日志。
 - Hook 生命周期清理样本：终止当前 Hook 宿主后，原连接器与其受监管 proxy 均在有界等待内消失，无残留；再次提交同一当前会话的受信 `SessionStart(resume)` 后，新连接器、单一 proxy 与新 Gateway Socket 均恢复连接。
+- 圈选附件实现预检：Connector hello 已声明 `user_input_attachment`；17 项 CLI 单元/合约测试覆盖同会话 begin/chunk/finish、顺序/哈希/session/超限/过期、一次性消费、缺附件不降级文字、最大 4 MiB 内存图片帧和既有不重放；`node --check apps/desktop/ui/region-preview.js`、严格 OpenSpec 校验与 `git diff --check` 通过。真实确认卡投递仍须使用重新构建后的正式 bundle 与新 Hook 连接器完成，不以自动化合约替代。
 
 ## 待完成真实样本
 
 Hook 已由用户审阅并信任，当前会话自动连接样本已通过。仍需完成：
 
 1. 一次无副作用 replan 输入进入同一 Codex thread；
+2. 一次无敏感内容的真实圈选确认卡，经托管 Connector 以图片+文字进入同一 Codex thread，并在 accepted 后清场。
 
 2026-10-10 尝试通过正式 Yonder MCP 创建无副作用 TextEdit Observe/replan 样本时，当前 Codex 会话内的 MCP stdio 已关闭，`task_create` 与 `task_list` 均返回 `Transport closed`。输入连接器仍保持连接；按产品边界不使用 shell 或直连 Gateway Socket 替代。须在下一个能重新拉起 Yonder MCP 的 Codex 会话中完成此样本。
 
