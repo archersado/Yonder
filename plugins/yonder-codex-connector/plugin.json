@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "yonder-codex-connector",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "把当前 macOS Codex CLI 会话显式连接到本机 Yonder Agent Gateway。"
 }

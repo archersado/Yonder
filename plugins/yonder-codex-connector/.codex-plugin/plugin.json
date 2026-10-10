@@ -1,6 +1,23 @@
 {
   "name": "yonder-codex-connector",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "把当前 macOS Codex CLI 会话显式连接到本机 Yonder Agent Gateway。",
-  "hooks": "./hooks/hooks.json"
+  "hooks": {
+    "hooks": {
+      "SessionStart": [
+        {
+          "matcher": "^(startup|resume)$",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "\"${PLUGIN_ROOT}/scripts/connect.sh\"",
+              "async": true,
+              "timeout": 86400,
+              "statusMessage": "正在连接 Yonder"
+            }
+          ]
+        }
+      ]
+    }
+  }
 }

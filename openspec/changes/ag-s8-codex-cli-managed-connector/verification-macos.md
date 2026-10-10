@@ -32,6 +32,6 @@ Codex 官方要求非托管 Hook 先由用户审阅并信任。不得使用 `--d
 ## Hook 发现兼容性复核（2026-10-10）
 
 - 本机路径实际调用的 Codex CLI `0.156.1` 可以安装并启用 portable 根清单，但其 `/hooks` 运行时未从根清单的 `extensions.com.openai.hooks` 发现 Yonder Hook。
-- 插件通过 `.codex-plugin/plugin.json` 兼容清单唯一声明 `./hooks/hooks.json`；portable 根清单只保留跨宿主产品元数据，避免其中的 `extensions.com.openai` 覆盖整个兼容清单。
-- 插件版本提升至 `0.1.2`，确保本地市场重新安装时刷新缓存和 Hook 定义哈希。
+- 插件通过 `.codex-plugin/plugin.json` 兼容清单内联声明 Hook；portable 根清单只保留跨宿主产品元数据，避免其中的 `extensions.com.openai` 覆盖整个兼容清单，也避免旧版运行时的外部 Hook 路径发现差异。
+- 插件版本提升至 `0.1.3`，确保本地市场重新安装时刷新缓存和 Hook 定义哈希。
 - 验收方式：重新安装 `yonder-codex-connector@yonder-local`，新建 Codex CLI 会话，在 `/hooks` 的 `SessionStart` 详情中确认来源为 Yonder 插件并完成信任审阅。
