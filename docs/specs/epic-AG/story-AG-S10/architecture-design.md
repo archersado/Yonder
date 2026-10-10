@@ -1,10 +1,10 @@
 # AG-S10 架构设计
 
-## 边界
+## 边界与依赖
 
 不改变 Gateway、协议或持久化边界。修复限于 Application 的 `PreviewSession`、Desktop 组合根、既有 `AgentInputHub` 和圈选 WebView。
 
-## 状态与所有权
+## 状态与契约
 
 `PreviewSession` 仍是截图临时数据的原生所有者。提交状态从 `Reviewing` 进入 `Submitting`：
 
@@ -18,7 +18,7 @@ WebView 只保存用户正在编辑的问题和预览投影，不成为连接或
 
 `AgentInputHub` 在 base64 解码后、建立回复关联及调用 `submit_selection` 前，按协议唯一来源 `MAX_AGENT_ATTACHMENT_BYTES` 校验。超限返回稳定本地分类，由 Desktop 映射为 `attachment-too-large`。不静默压缩、切片改变图片或落盘。
 
-## 验证
+## 失败与验证
 
 - Application 单元测试验证失败恢复和显式清理。
 - Desktop Hub 测试验证 4 MiB 边界及超限不投递。

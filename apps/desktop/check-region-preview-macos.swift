@@ -211,8 +211,10 @@ if let outcome = ProcessInfo.processInfo.environment["YONDA_TEXT_SUBMIT_OUTCOME"
     if outcome == "accepted" {
         guard wait(5, { find(ax, "已发送给 Agent") != nil }), wait(5, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "submitted" else { fail(76, "text-submit-accepted-not-closed") }
     } else {
-        let expected = outcome == "rejected" ? "Agent 拒绝了本次输入。" : "是否送达未知，未自动重试；请重新圈选。"
-        guard wait(5, { find(ax, expected) != nil }), previewImageInfo() == nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(77, "text-submit-failure-not-cleared") }
+        let expected = outcome == "rejected" ? "Agent 拒绝了本次输入；内容已保留，可重试。" : "是否送达未知；为避免重复，不可重试，请关闭或重新圈选。"
+        let questionPreserved = { (findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField")).flatMap { attr($0, "AXValue") as? String } == "explain without image" }
+        let sendEnabled = { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == (outcome == "rejected") }
+        guard wait(5, { find(ax, expected) != nil }), questionPreserved(), sendEnabled(), previewImageInfo() == nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(77, "text-submit-failure-not-preserved") }
         escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(78, "text-submit-failure-close-failed") }
     }
     let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "attachment_present": false, "window_closed": true], options: [.prettyPrinted, .sortedKeys])
@@ -229,11 +231,13 @@ if let outcome = ProcessInfo.processInfo.environment["YONDA_SUBMIT_OUTCOME"] {
     if outcome == "accepted" {
         guard wait(5, { find(ax, "已发送给 Agent") != nil }), wait(5, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "submitted" else { fail(65, "submit-accepted-not-closed") }
     } else {
-        let expected = outcome == "rejected" ? "Agent 拒绝了本次输入，截图未保留。" : outcome == "unknown" ? "是否送达未知，未自动重试；请重新圈选。" : "当前 Agent 不支持截图提问。"
-        guard wait(5, { find(ax, expected) != nil }), previewImageInfo() == nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(66, "submit-failure-not-cleared") }
+        let expected = outcome == "rejected" ? "Agent 拒绝了本次输入；内容已保留，可重试。" : outcome == "unknown" ? "是否送达未知；为避免重复，不可重试，请关闭或重新圈选。" : "当前 Agent 不支持截图提问；请重新圈选并仅发送文字。"
+        let questionPreserved = { (findRole(ax, "AXTextArea") ?? findRole(ax, "AXTextField")).flatMap { attr($0, "AXValue") as? String } == "explain selection" }
+        let sendEnabled = { findButton(ax, "发送").flatMap { attr($0, "AXEnabled") as? Bool } == (outcome == "rejected") }
+        guard wait(5, { find(ax, expected) != nil }), questionPreserved(), sendEnabled(), previewImageInfo() != nil, pressButton("重新圈选"), wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { $0.width > 800 } ?? false }) else { fail(66, "submit-failure-not-preserved") }
         escape(); guard wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(67, "submit-failure-close-failed") }
     }
-    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "preview_cleared": true, "window_closed": true], options: [.prettyPrinted, .sortedKeys])
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "outcome": outcome, "question_entered": true, "preview_preserved_on_failure": outcome != "accepted", "window_closed": true], options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!); exit(0)
 }
 if let entry = ProcessInfo.processInfo.environment["YONDA_EXPECT_DESKTOP_PAUSE"] {

@@ -5,6 +5,8 @@ Epic: AG
 Status: implementing  
 OpenSpec: ag-s10-circle-submit-recovery
 
+关联变更：[ag-s10-circle-submit-recovery](../../../../openspec/changes/ag-s10-circle-submit-recovery/proposal.md)。
+
 ## 目标
 
 用户点击发送后，Yonder 只有在 Agent 明确接受输入时才清除圈选临时数据；任何未接受结果都保留当前图片和问题并给出准确、可操作的反馈。

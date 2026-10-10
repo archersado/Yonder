@@ -11,6 +11,12 @@
 - 架构约束：AGENTS.md 数据安全与 Agent Gateway 规则、Accepted AD-CX-02 的同会话 4 MiB 附件上限、AG-S9 的运行时回复关联。
 - 待审设计建议：失败恢复只保留内存数据，不引入持久化或静默压缩。
 
+## 范围与非目标
+
+范围仅包括 macOS 圈选确认卡、Application 临时会话与现有 AgentInputHub 的失败恢复和错误反馈。Windows 保留 Deferred。
+
+不新增持久化草稿、协议字段、自动重试队列或截图压缩；不把 rejected 或 unknown 改写为 accepted，也不改变 Agent 回复回传契约。
+
 ## 验收条件
 
 - AC1：只有 Agent 返回 `accepted` 后才清除提交用的图片与问题；等待回复的卡片仍可展示原预览。
