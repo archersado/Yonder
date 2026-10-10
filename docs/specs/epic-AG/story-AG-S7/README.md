@@ -26,6 +26,6 @@ Timebox: 2026-10-10 ～ 2026-10-16
 - 未验证：ChatGPT Desktop 私有 `stdio://` App Server 是否存在受支持的当前会话连接器或生命周期 hook；不得从进程、最近会话或本地数据库猜测。
 - Windows 对照样本按既有决定保持待办；缺少 Windows 证据时 Spike 不得宣称跨平台完成，AD-AG-10 不得转 Accepted。
 
-2026-10-10 首个 macOS 能力探针通过：当前 Codex CLI 支持共享 Unix App Server 与 remote resume；缺少 thread/endpoint 时薄桥失败关闭。当前 ChatGPT Desktop 仅观察到宿主私有 App Server，未发现公开 Unix/WebSocket endpoint，结论保持 Unsupported/Deferred。真实 remote TUI 重启矩阵与 Windows 对照仍未完成，未授权产品守护进程。
+2026-10-10 首个 macOS 能力探针通过；随后公开 Hook 文档与 Codex CLI 0.162.1 进一步确认 `SessionStart` 提供当前 `session_id`，共享 daemon/proxy 可避免手填 endpoint。主人接受 macOS Codex CLI 子范围先行实施，AD-AG-10 对该子范围转 Accepted，并生成 AG-S8；ChatGPT Desktop 保持 Unsupported/Deferred，Windows 与完整跨平台终局仍挂起。
 
 关联变更：[ag-s7-codex-connector-lifecycle-spike](../../../../openspec/changes/ag-s7-codex-connector-lifecycle-spike/proposal.md)。

@@ -1,37 +1,39 @@
 # AD-AG-10 Codex 连接器生命周期所有权
 
-状态：Proposed（等待 AG-S7 Spike）  
+状态：Accepted（macOS Codex CLI 基线）；Deferred（Windows、ChatGPT Desktop）
 日期：2026-10-10  
 Architecture Impact：architecture-change（本地 Agent 连接器进程所有权、会话绑定与重连生命周期）  
 关联：AG-S1、AG-S5、AG-S7、AD-AG-05、AD-AG-07、AD-AG-08
 
-## 待决问题
+## 决策
 
 AG-S5 已验证 Codex CLI 0.156.1 的共享 App Server + 显式 thread 绑定可以向同一会话投递 `agent.input/replan`。但当前研发接线要求用户手工启动 App Server、remote TUI 与薄桥；Yonder 重启后薄桥退出且无人恢复。ChatGPT Desktop 当前使用宿主私有 stdio App Server，尚无证据证明外部连接器可受支持地附着到当前 thread。
 
-需要决定谁拥有 App Server、thread 绑定、薄桥监管与重连，以及如何在不猜测会话、不启动第二 Agent 的前提下提供自然启动体验。
+2026-10-10 主人接受先交付 macOS Codex CLI、ChatGPT Desktop 明确不支持、Windows 继续挂起。macOS 产品基线采用 Codex 公开生命周期 Hook 与共享 App Server：
 
-## 候选决策
+- Codex `SessionStart` command hook 是当前 session 标识的唯一来源；Yonder 不按最近会话、工作目录、进程或本地数据库推断。
+- Yonder CLI 连接器通过公开的 `codex app-server daemon` 与 `codex app-server proxy` 恢复同一 thread，不创建新的规划 Agent，不依赖自建 App Server Socket。
+- Hook 以后台方式运行连接器；Codex 会话结束时由 Hook 生命周期终止连接器。`startup|resume` 才建立绑定，`compact` 不重复启动。
+- 连接器拥有 Codex proxy、Gateway 注册和有界退避重连；Yonder Desktop 仍只消费统一 `AgentSession`，不拥有 Codex 进程或会话。
+- Yonder 断开后只重新注册相同 session；已接收但未确认的输入不得重放，任务副作用更不得重放。
+- Hook 安装与信任是一次性显式设置。未安装、未信任、Codex 版本不兼容、连接器退出和 Gateway 不可达必须呈现为未连接，不能误报已连接。
 
-建议采用“会话宿主显式发布绑定，厂商连接器监管桥，Yonder 消费统一 AgentSession”的边界：
+## 边界
 
-- Codex 会话宿主或受支持扩展提供当前 thread/session 标识和 endpoint；Yonder 不发现或推断。
+采用“会话宿主显式发布绑定，厂商连接器监管桥，Yonder 消费统一 AgentSession”的边界：
+
+- Codex 会话宿主通过受支持 Hook 提供当前 thread/session 标识；endpoint 由 Codex 公开共享 daemon/proxy 管理，Yonder 不发现或推断。
 - Codex 连接器拥有 App Server 兼容性、start/steer 映射、桥进程监管与有界重连；它不是规划 Agent。
 - Yonder Desktop 不启动 Codex，不读取 Codex 内部数据库/队列，不附着私有 stdio；只接受显式注册的统一 AgentSession。
 - MCP 任务连接与输入/replan 连接分别注册和展示；任一通道恢复不代表另一通道恢复。
 - 重连不重放未确认输入或任何任务副作用；旧 thread 变化后永久作废，等待新会话主动注册。
 
-## 当前限制
+## 平台结论与限制
 
-本决定保持 Proposed，不授权实施。AG-S7 必须先验证：
-
-1. Codex CLI 冷启动、Yonder 重启、桥崩溃、Codex 重启和 thread 切换；
-2. ChatGPT Desktop 是否存在公开支持的当前会话连接器；若无则明确 Unsupported；
-3. macOS/Windows 对照及相同失败矩阵；
-4. 不读取私有状态、不猜测会话、不启动第二 Agent、不持久化输入正文；
-5. 自动恢复不会误报连接或重放 unknown 输入。
-
-2026-10-10 macOS 初步证据：当前 Codex CLI 0.162.1 公开 Unix App Server 与 remote resume，薄桥在缺少显式 thread 或 endpoint 时失败关闭；当前 ChatGPT Desktop 样本未公开 Unix/WebSocket endpoint。该结果只支持 CLI 路线继续验证，并将 Desktop 路线保持 Unsupported/Deferred；尚未覆盖真实连续重启与 Windows，故本决定继续保持 Proposed。
+- macOS Codex CLI 0.162.1：Accepted。公开 Hook 输入含 `session_id`；共享 daemon、stdio proxy、`thread/resume`、active turn steer 与 idle turn start 构成受支持接线。
+- ChatGPT Desktop：Unsupported/Deferred。当前没有可供外部 Yonder 连接器附着当前会话的公开 endpoint；不得注入宿主私有 stdio。
+- Windows：Deferred。按主人决定不以缺少 Windows 对照阻断 macOS 子范围，但不得宣称跨平台完成。
+- AG-S7 保留未完成的 Windows 与跨平台终局验证；AG-S8 只实现并验证本决定接受的 macOS 子范围。
 
 ## 拒绝路线
 
@@ -40,3 +42,4 @@ AG-S5 已验证 Codex CLI 0.156.1 的共享 App Server + 显式 thread 绑定可
 - Yonder 启动新的 Codex Agent 代替原会话；
 - 让 MCP 单向任务连接冒充双向输入连接；
 - 用无限重试隐藏客户端不支持或绑定已经失效。
+- 把输入正文放入 `codex queue --message` 命令行参数，造成进程列表或诊断工具泄露正文。

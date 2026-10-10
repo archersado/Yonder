@@ -8,6 +8,6 @@
   - [ ] 完成真实 remote TUI 连续重启矩阵
 - [x] 调查当前 ChatGPT Desktop 的公开连接面；当前样本记录为 Unsupported/Deferred，不使用私有绕过
 - [ ] 完成 Windows 对照样本（按既有决定暂缓，不以 macOS 结果替代）
-- [ ] 根据双平台证据更新 AD-AG-10 为 Accepted/Rejected/Deferred
-- [ ] 审阅并生成后续产品实施 Story；本 Spike 不直接实现守护进程
+- [x] 按主人范围决定将 AD-AG-10 更新为 macOS Codex CLI Accepted、Windows/ChatGPT Desktop Deferred
+- [x] 审阅并生成后续产品实施 Story AG-S8；本 Spike 不直接实现守护进程
 - [ ] 建立独立 Verification Goal，审阅后 Archive

@@ -25,7 +25,9 @@
 
 ## 当前研发顺序
 
-2026-10-10 新增 [AG-S7 Codex 会话连接生命周期 Spike](epic-AG/story-AG-S7/README.md)：当前 AG-S5 共享 App Server 接线已能向同一 Codex thread 投递，但仍要求用户手工维护 App Server、thread ID、Socket 与薄桥，且 Yonder 重启后不会自动恢复。Proposed AD-AG-10 要求先分别验证 Codex CLI 与 ChatGPT Desktop 的公开连接面、进程所有者、有界重连和会话切换；不得猜测最近会话、读取 Codex 私有状态或启动第二 Agent。Windows 对照按既有决定暂缓，缺少双平台证据时不得接受终局路线或开始产品实现。
+2026-10-10 新增 [AG-S7 Codex 会话连接生命周期 Spike](epic-AG/story-AG-S7/README.md)：当前 AG-S5 共享 App Server 接线已能向同一 Codex thread 投递，但仍要求用户手工维护 App Server、thread ID、Socket 与薄桥。主人随后接受 AD-AG-10 的 macOS Codex CLI 子范围，ChatGPT Desktop 明确 Unsupported/Deferred，Windows 对照继续挂起。
+
+2026-10-10 新增 [AG-S8 macOS Codex CLI 托管连接器](epic-AG/story-AG-S8/README.md)：Codex `SessionStart` Hook 显式发布 session ID，Yonder CLI 通过公开共享 daemon/proxy 恢复同一 thread并向 Gateway 注册；消除手填 thread ID、Socket 和独立桥进程，并在 Yonder 重启后有界重连，不猜测会话或读取 Codex 私有状态。
 
 2026-09-29 启动 [AG-S4 Yonder Agent Skill](epic-AG/story-AG-S4/README.md) macOS实施：四类Gateway的macOS增量门禁已满足，发布源定为`skills/yonder/`，最低协议1.31。Skill要求慢脑一次提交完整多步计划片段、元素优先且视觉仅兜底；Windows与真实四链路验证仍保留，不提前Archive。
 
