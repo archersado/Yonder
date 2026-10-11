@@ -35,6 +35,10 @@ assert.ok(streaming.textContent.includes('**尚未') && !tags(streaming).include
 window.YondaMarkdown.render(streaming, '**已经补齐**');
 assert.ok(tags(streaming).includes('STRONG') && streaming.textContent.includes('已经补齐'));
 
+const looseList = render('- 第一项\n\n- 第二项\n\n- 第三项');
+assert.equal(tags(looseList).filter(tag => tag === 'UL').length, 1, '松散列表不应拆成多个列表');
+assert.equal(tags(looseList).filter(tag => tag === 'LI').length, 3, '松散列表应保留所有项目');
+
 const source = readFileSync(new URL('./ui/safe-markdown.js', import.meta.url), 'utf8');
 assert.ok(!source.includes('innerHTML'));
-console.log(JSON.stringify({ markdown: true, streaming: true, hostile_content_inert: true, inner_html: false }));
+console.log(JSON.stringify({ markdown: true, loose_list: true, streaming: true, hostile_content_inert: true, inner_html: false }));

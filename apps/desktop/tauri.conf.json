@@ -51,8 +51,8 @@
         "identifier": "pet-local", "description": "仅允许本地小龙原生拖动",
         "local": true, "windows": ["pet"], "permissions": ["core:window:allow-start-dragging"]
       }, {
-        "identifier": "region-preview-local", "description": "仅允许圈选预览窗口自行隐藏",
-        "local": true, "windows": ["region-preview"], "permissions": ["core:window:allow-hide"]
+        "identifier": "region-preview-local", "description": "仅允许圈选预览窗口自行隐藏并从标题区原生拖动",
+        "local": true, "windows": ["region-preview"], "permissions": ["core:window:allow-hide", "core:window:allow-start-dragging"]
       }, {
         "identifier": "cua-control-local", "description": "统一执行浮窗只允许 CUA 调用本机显式接管命令",
         "local": true, "windows": ["cua-control"], "permissions": []

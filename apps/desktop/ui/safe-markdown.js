@@ -87,9 +87,17 @@
       const list = /^([-+*])\s+(.+)$/.exec(line) || /^(\d+)[.)]\s+(.+)$/.exec(line);
       if (list) {
         const ordered = /^\d/.test(line), node = element(ordered ? 'ol' : 'ul');
+        const itemPattern = ordered ? /^\d+[.)]\s+(.+)$/ : /^[-+*]\s+(.+)$/;
         while (index < lines.length) {
-          const item = ordered ? /^\d+[.)]\s+(.+)$/.exec(lines[index]) : /^[-+*]\s+(.+)$/.exec(lines[index]);
-          if (!item) break;
+          const item = itemPattern.exec(lines[index]);
+          if (!item) {
+            if (!lines[index].trim()) {
+              let next = index;
+              while (next < lines.length && !lines[next].trim()) next += 1;
+              if (next < lines.length && itemPattern.test(lines[next])) { index = next; continue; }
+            }
+            break;
+          }
           const child = element('li'); appendInline(child, item[1]); node.appendChild(child); index += 1;
         }
         root.appendChild(node); continue;
