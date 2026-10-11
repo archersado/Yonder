@@ -2,6 +2,8 @@
 
 唯一规划入口。流程：Epic → Story 产品需求/架构设计/视觉交互设计 → OpenSpec Proposal → 实现 → 独立验证 → Archive。月份不是 Epic。
 
+2026-10-11 新增 [AG-S12 圈选回复卡呈现与拖拽](epic-AG/story-AG-S12/README.md)：修复回复卡松散列表与项目标记呈现，并允许从标题区原生拖动无边框圈选窗体；协议与短生命正文边界不变。
+
 拆解输入为既有产品简报、补充材料与架构材料，见 [需求来源与覆盖差距](REQUIREMENTS-TRACEABILITY.md)。本目录是派生规划，不能替代原需求；现有 Story 尚未覆盖完整产品，禁止按代码现状缩减主干目标。
 
 依据 [AD-DEV-01](../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-DEV-01-MODULE-EPICS.md)，旧记录保留追溯，新增目录不代表设计已通过。

@@ -21,6 +21,7 @@
 | 用户2026-10-10圈选回复回传要求；B桌宠轻量入口；CX-S2圈选提问；S Agent Gateway | 圈选输入进入当前Agent后，通过同一会话把最终回复有界回传并在Yonder展示 | AG-S9 | macOS Codex CLI首批实施；回复只驻内存，Windows与ChatGPT Desktop保持延期/不支持 |
 | 用户2026-10-10圈选提交失败现象；CX-S2圈选提问；S Agent Gateway与数据安全 | 提交失败不得销毁尚未送达的临时图片和问题；明确区分拒绝、附件超限、通道异常与送达未知 | AG-S10 | macOS产品修复；只在Agent明确接受、用户关闭或重新圈选时清理，Windows继续暂缓 |
 | 用户2026-10-10 Yonder返回Markdown要求；AG-S9回复回传；S日志与正文边界 | Agent回复在Yonder中按Markdown展示，同时禁止原始HTML、脚本、危险URL和外部资源加载 | AG-S11 | 首批覆盖macOS圈选回复卡；协议与64 KiB内存上限不变，Windows继续暂缓 |
+| 用户2026-10-11 Markdown呈现与圈选窗体拖拽要求；AG-S11安全Markdown；CX-S2圈选卡 | 松散列表与标记清晰可读；标题区可原生拖动且不破坏内容交互 | AG-S12 | 首批覆盖macOS圈选确认/回复卡；不持久化位置，Windows继续暂缓 |
 | A Agent Skill + 本地主机 CLI + 应用内 Runtime；用户2026-09-17变更 | 统一Yonder Skill覆盖BUA、CUA、文档和命令；BUA嵌入ego-browser规则 | AG-S4 | 规格已拆解；等待四类Gateway能力完成后再生成OpenSpec和Skill包 |
 | B Task Space 与权限模型；A CUA 与 BUA 的 Task Space；S 任务、状态与恢复 | 发起者、权限、生命周期、资源、时间线、产物、审计 | TM / DS | TM-S1 目前字段与范围不完整，不能只保留状态和最新详情 |
 | B MVP 主干 7–8；S 任务、状态与恢复 | 暂停、取消、接管、明确恢复 | TM-S3 / TM-S4 / CU-S2 | 停止确认、控制语义与 UI 仍待设计 |
