@@ -124,6 +124,21 @@ func drag(_ points: [CGPoint]) {
     for point in points.dropFirst() { CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap); Thread.sleep(forTimeInterval: 0.04) }
     CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: last, mouseButton: .left)?.post(tap: .cghidEventTap)
 }
+func dragWindow(from start: CGPoint, to end: CGPoint) {
+    guard let source = CGEventSource(stateID: .hidSystemState) else { return }
+    func post(_ type: CGEventType, _ point: CGPoint) {
+        CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    }
+    post(.mouseMoved, start)
+    Thread.sleep(forTimeInterval: 0.1)
+    post(.leftMouseDown, start)
+    for step in 1...30 {
+        let ratio = CGFloat(step) / 30
+        post(.leftMouseDragged, CGPoint(x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio))
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+    post(.leftMouseUp, end)
+}
 func escape() {
     let source = CGEventSource(stateID: .hidSystemState)
     CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)
@@ -156,6 +171,20 @@ func provideTestSpeech() throws {
 }
 let priorPointer = CGEvent(source: nil)?.location
 defer { if let priorPointer { CGWarpMouseCursorPosition(priorPointer) } }
+if ProcessInfo.processInfo.environment["YONDA_EXPECT_REVIEW_DRAG"] == "1" {
+    guard openRegion(), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(106, "review-drag-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    let selectionPoint = CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180)
+    drag([selectionPoint, selectionPoint])
+    guard wait(5, { find(ax, "仅提问") != nil }), let before = window("Yonda · 圈选提问").flatMap(rect), let dragLabel = find(ax, "YONDA · 圈选提问"), let labelPosition = position(dragLabel), let labelSize = size(dragLabel) else { fail(107, "review-drag-card-missing") }
+    Thread.sleep(forTimeInterval: 0.7)
+    let dragStart = CGPoint(x: labelPosition.x + labelSize.width / 2, y: labelPosition.y + labelSize.height / 2)
+    dragWindow(from: dragStart, to: CGPoint(x: dragStart.x + 120, y: dragStart.y + 80))
+    guard wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { abs($0.minX - before.minX) >= 50 || abs($0.minY - before.minY) >= 30 } ?? false }), let after = window("Yonda · 圈选提问").flatMap(rect) else { fail(108, "review-window-did-not-move") }
+    guard findRole(ax, "AXTextArea") != nil || findRole(ax, "AXTextField") != nil, pressButton("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(109, "review-drag-content-regressed") }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "native_window_moved": true, "before": [before.minX, before.minY], "after": [after.minX, after.minY], "content_interactive_after_drag": true], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
 if ProcessInfo.processInfo.environment["YONDA_EXPECT_APP_SWITCH"] == "1" {
     guard openRegion() else { fail(101, "selecting-app-switch-open-failed") }
     guard activateSwitchTarget(), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "app-switch" else { fail(102, "selecting-app-switch-not-cleared") }

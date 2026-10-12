@@ -1,0 +1,15 @@
+{
+  "after": [
+    301,
+    296
+  ],
+  "before": [
+    185,
+    219
+  ],
+  "content_interactive_after_drag": true,
+  "native_window_moved": true,
+  "passed": true,
+  "platform": "macOS 26.5.1 arm64",
+  "windows_deferred": true
+}
