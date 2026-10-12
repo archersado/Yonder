@@ -1,10 +1,16 @@
 # Verification Goal：Sky单一产品CUA Driver
 
-- 状态：FAIL（返回Apply）
-- 日期：2026-09-30
+- 状态：PASS（macOS；Windows暂缓）
+- 日期：2026-10-12（汇总；原始失败证据保留）
 - 平台：macOS；Windows按主人决定暂缓
 
-独立复核正式包不含trycua且没有Driver开关/回退；固定Sky身份校验、应用绑定、transcript元素计数、语义动作映射、动作后Observe、unknown交回和清理测试全部通过。通过正式Yonder Gateway提交QQ音乐多步骤片段，确认至少能从应用级AX定位搜索框并推进输入/搜索；不保存transcript、正文或完整Payload。失败则返回Apply，不Archive。
+独立复核正式包不含trycua且没有Driver开关/回退；固定Sky身份校验、应用绑定、transcript元素计数、语义动作映射、动作后Observe、unknown交回和清理测试全部通过。正式Yonder Gateway 已完成QQ音乐多步骤正向样本和后续回归；不保存transcript、正文或完整Payload。早期FAIL/Apply章节作为技术路线演进证据保留，不再覆盖2026-10-06及之后的macOS PASS结论。Windows暂缓，因此Story仍不Archive。
+
+## 2026-10-12 当前 dev 复核
+
+- 当前产品只打包 Sky Worker 与固定签名桥，未恢复 trycua、Qwen、Driver 开关或第二执行栈。
+- 正式任务 `task_78ac5b1e03f22dfec3356b8aafeae3b9` 经最新 `Yonda.app → MCP stdio → Gateway → Application → Sky Worker` 取得 QQ 音乐应用级 AX 句柄；目标按钮未变化时返回 `unknown/driver-action-unconfirmed@11 → handback@12`，任务在序号13取消，没有把无关 transcript 变化误报成功。
+- 当前回归证据复用 CU-S6 对 Sky 临时句柄与目标确认的增量验证：`apps/desktop/evidence/cu-s6-qqmusic-button-target-confirmation-20261012/`。该证据进一步证明 CU-S4 的 Sky 单栈仍是实际产品链路，但不扩大为 Windows 结论。
 
 ## 2026-10-01结果
 

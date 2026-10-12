@@ -7,5 +7,5 @@
 - [x] 覆盖错误目标、原前台失效与关闭清理
 - [x] 创建并运行独立Verification Goal
 - [x] 根据证据接受AD-CU-07的0.25.0保留路线并淘汰升级
-- [ ] 若接受，另建产品Apply Change；本Spike不得直接修改正式依赖
+- [x] 已另建产品Apply Change；其后又由Accepted AD-CU-09与Sky单栈Change取代，Spike未直接修改正式依赖
 - [ ] Windows对等验证（依用户决定暂缓）

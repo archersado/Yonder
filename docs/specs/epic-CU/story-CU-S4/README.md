@@ -56,3 +56,5 @@ FGD-28初次Gateway样本随后由正式Yonder Observation推翻：`task_080739e
 2026-10-08正式Gateway首步回归出现`worker-failed`。系统日志进一步给出确定根因：官方Client向Sky服务发送`SkCu/XpcN` Apple Event时，TCC把负责身份追溯为重建后的`com.yonder.desktop`，因旧Automation授权不匹配且Yonder包缺少`NSAppleEventsUsageDescription`而明确拒绝；Client随后以XPC assertion退出。AD-CU-09第13项与FGD-31补齐用途声明及包审计，固定Sky签名Node/Client、单栈边界和Socket禁令不变。正式Gateway在系统授权后正向回归完成前Story继续verifying。
 
 同日修复包正式回归PASS：系统记录`SkCu/XpcN = accepted`，任务`task_553f2563d4cbc2db40b24168379fb7ba`启动QQ音乐并在序号5取得`action_succeeded=true, observe_valid=true`及258个有界AX元素，独立Goal后`completed@9`。Windows对等验证仍按主人决定暂缓，因此Story保持verifying且不Archive。
+
+2026-10-12 队列复核确认：当前产品关联仍唯一为 `cu-s4-sky-product-driver`，其 macOS 独立 Goal 已 PASS；`cu-s4-trycua-foreground-delivery-spike`、`cu-s4-foreground-text-apply` 与 `cu-s4-ax-visual-fallback` 只保留历史决策和负样本，未完成项已按 Accepted AD-CU-09 标为 Superseded，不再代表待开发产品工作。最新正式 `Yonda.app` 任务 `task_78ac5b1e03f22dfec3356b8aafeae3b9` 继续经 Sky 单栈返回应用级 AX 句柄和有界 `driver-action-unconfirmed` 交回，未出现 trycua/Qwen 回退。Windows仍暂缓，Story继续保持 verifying、不Archive。
