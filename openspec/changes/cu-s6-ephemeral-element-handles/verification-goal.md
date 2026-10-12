@@ -87,6 +87,16 @@
 
 macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信目标企业切换未通过，CU-S6 仍处于实施阶段。本 Goal 不证明 Windows 等价行为；Windows 验证继续暂缓，不能由 macOS 结果外推。
 
+## 2026-10-12 QQ 音乐播放按钮目标确认回归
+
+- 修复前正式任务 `task_04cb1b11f7cf69eabc9db994ebd88d47` 直接激活新鲜“暂停播放”按钮；动作后按钮标签保持不变，但页面其他结构变化使旧 Worker 错误产生 `observed(action_succeeded=true)`。归属慢脑依据按钮事实提交 `not-achieved`，任务取消，未把 Driver 回执提升为业务成功。
+- Accepted AD-CU-12、Story 与 OpenSpec 已补充目标相关确认：按钮只在原角色/标签目标消失时确认结构效果；目标仍存在但其他结构变化时，禁止确认成功，也不得以不可归因变化触发恢复重放。
+- 修复后重新构建正式 `Yonda.app`。任务 `task_78ac5b1e03f22dfec3356b8aafeae3b9` 从 Observation 序号 5 取得“播放”按钮及新鲜引用，直接激活该句柄；动作后序号 11 明确为 `unknown/driver-action-unconfirmed`，序号 12 交回慢脑，按钮仍为“播放”，没有再次计划或自动重试不可核实结果。任务于序号 13 正式取消。
+- 隔离 Worker 夹具新增“目标按钮不变、无关 transcript 变化”样本，断言只派发一次且返回未确认；目标明确保持原状态且完整结构不变时仍按既有规则至多恢复一次。`python3 apps/desktop/check-sky-cua-worker.py` PASS；Adapters 86/86（单线程）、Desktop 33/33、OpenSpec strict 与架构检查通过。
+- 本样本满足本 Goal 的“播放按钮切换为暂停或安全交回”判据，并关闭播放按钮回归项；它不解决企业微信企业切换，也不外推 Windows。
+
+有界证据见 `apps/desktop/evidence/cu-s6-qqmusic-button-target-confirmation-20261012/`，不保存 transcript、截图、完整 Payload 或用户数据。
+
 ## 2026-10-08 Retina 坐标单位诊断
 
 - 正式诊断任务 `task_8ad9767345d4224afe9655020713cac2` 经 Yonder Gateway 创建和执行；任务结束前先读取序号 72 的快照与事件，再于序号 73 取消，没有留下运行态任务。

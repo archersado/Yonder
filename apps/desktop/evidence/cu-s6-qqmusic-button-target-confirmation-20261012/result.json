@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "platform": "macOS",
+  "product_path": "Yonda.app -> MCP stdio -> Agent Gateway -> Application -> Sky Worker",
+  "before_fix": {
+    "task_id": "task_04cb1b11f7cf69eabc9db994ebd88d47",
+    "attempt_result_sequence": 11,
+    "driver_result": "observed",
+    "target_state_changed": false,
+    "slow_brain_outcome": "not-achieved",
+    "terminal_status": "cancelled"
+  },
+  "after_fix": {
+    "task_id": "task_78ac5b1e03f22dfec3356b8aafeae3b9",
+    "attempt_result_sequence": 11,
+    "handback_sequence": 12,
+    "terminal_sequence": 13,
+    "driver_result": "unknown",
+    "unknown_reason": "driver-action-unconfirmed",
+    "target_state_changed": false,
+    "terminal_status": "cancelled"
+  },
+  "false_success_removed": true
+}
