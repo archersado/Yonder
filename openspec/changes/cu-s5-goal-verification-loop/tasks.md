@@ -8,4 +8,5 @@
 - [x] 接入顶部浮窗等待/通过/交回投影
 - [x] 覆盖协议、Application、Gateway、SQLite 与 Runtime 集成测试
 - [x] 建立并运行 macOS 独立 Verification Goal
+- [ ] 修复 Jev HandBack 后最新 achieved 核验的 Runtime 终结门禁并回归正式 QQ 音乐样本
 - [ ] Windows 对等验证（依用户决定暂缓）

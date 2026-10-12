@@ -32,3 +32,7 @@
 - Driver 返回的受控 Observation 继续经同一 Gateway 提供给归属慢脑。目标歌曲是否播放、企业是否切换、消息是否送达等开放业务状态，只能由慢脑基于最新 Observation 提交 `task.goal.verify`。
 - 旧的业务寓意 Observe 条件保留 wire 解码兼容，但不再由 Application 合成，也不能成为步骤成功或任务完成依据。新计划使用结构事实；无法从 Driver 状态直接证明时返回慢脑判断。
 - 本修订不允许慢脑绕过安全门禁，也不允许重放 `unknown` 副作用。`task.goal.verify` 仍只保存封闭结论，不保存推理正文。
+
+## 2026-10-12 修订：HandBack 后的 achieved 终结门禁
+
+正式 QQ 音乐样本证明：步骤动作与 Observe 已成功，Jev 因无法解释开放业务语义把片段交回，但归属慢脑可以从同一新鲜 Observation 中直接核验用户目标已达成。此时 `achieved` 必须把活动 Runtime 从 `HandBack` 恢复为 `Running`，保留最新成功 Observation 与核验事实，并立即开放 `task.complete`。这不是恢复 Driver 执行、不会重放动作，也不允许 `unknown` 结果绕过门禁；核验仍须绑定最新且步骤成功的 Observation。

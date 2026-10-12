@@ -18,7 +18,7 @@ Rust 协议新增 `task.goal.verify`、`task.goal.verify` capability、`GoalVeri
 
 ## Application 与持久化
 
-Runtime 命令 `VerifyGoal` 追加连续事件并更新快照；`not-achieved` 同时形成 HandBack 状态，`achieved` 保持 Running 并开放终结门禁。SQLite projector 批量投影事件与 Outbox；尚未迁入 Runtime 的兼容链使用 `task_goal_verifications` 不可变记录完成同样 CAS。
+Runtime 命令 `VerifyGoal` 追加连续事件并更新快照；`not-achieved` 同时形成 HandBack 状态，`achieved` 保持 Running，或在已由 Jev 交回但最新步骤/Observation 仍成功时从 HandBack 恢复 Running，并开放终结门禁。该恢复只改变终结可用性，不重启 Driver、不重放片段。SQLite projector 批量投影事件与 Outbox；尚未迁入 Runtime 的兼容链使用 `task_goal_verifications` 不可变记录完成同样 CAS。
 
 完成用例必须检查最新 achieved 核验 ID、核验后无新事件、当前无执行中步骤。失败终结不要求 achieved 核验，以免真实失败无法上报。
 

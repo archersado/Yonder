@@ -786,6 +786,10 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                         || Some(observation_sequence) != task.snapshot.last_observation_sequence
                         || task.snapshot.current_step.is_some()
                         || task.snapshot.last_step_succeeded != Some(true)
+                        || !matches!(
+                            task.snapshot.phase,
+                            RuntimePhase::Running | RuntimePhase::HandBack
+                        )
                     {
                         return Err(RuntimeError::Conflict);
                     }
@@ -802,6 +806,11 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     // Running + 旧 active_plan 形成一个永远无法绑定新版本的状态。
                     if outcome == crate::GoalVerificationOutcome::NotAchieved {
                         task.snapshot.phase = RuntimePhase::HandBack;
+                    } else if task.snapshot.phase == RuntimePhase::HandBack {
+                        // Jev 可能因无法解释开放业务语义而先交回；
+                        // 归属慢脑对同一新鲜、成功 Observation 的终局核验
+                        // 只恢复终结门禁，不重启 Driver 或重放任何动作。
+                        task.snapshot.phase = RuntimePhase::Running;
                     }
                     append(
                         task,
@@ -1195,5 +1204,19 @@ mod tests {
         let not_achieved=handle.apply(RuntimeCommand::VerifyGoal{task_id:"task-replan".into(),verification_id:"verify-replan".into(),observation_sequence,outcome:crate::GoalVerificationOutcome::NotAchieved}).unwrap();
         assert_eq!(not_achieved.phase,RuntimePhase::HandBack);
         assert_eq!(not_achieved.goal_verification.unwrap().outcome,crate::GoalVerificationOutcome::NotAchieved);
+
+        handle.apply(RuntimeCommand::Activate{task_id:"task-handback-achieved".into(),checkpoint:0}).unwrap();
+        handle.apply(start_step("task-handback-achieved","play","激活播放")).unwrap();
+        let observed=handle.apply(RuntimeCommand::CompleteStep{task_id:"task-handback-achieved".into(),step_id:"play".into(),action_succeeded:true}).unwrap();
+        let observation_sequence=observed.last_observation_sequence.unwrap();
+        handle.apply(RuntimeCommand::AdvanceStepBoundary{task_id:"task-handback-achieved".into(),step_id:"play".into()}).unwrap();
+        handle.apply(RuntimeCommand::HandBack{task_id:"task-handback-achieved".into(),reason:"快脑无法解释开放业务语义".into()}).unwrap();
+        let achieved=handle.apply(RuntimeCommand::VerifyGoal{task_id:"task-handback-achieved".into(),verification_id:"verify-playing".into(),observation_sequence,outcome:crate::GoalVerificationOutcome::Achieved}).unwrap();
+        assert_eq!(achieved.phase,RuntimePhase::Running);
+        assert_eq!(achieved.goal_verification.unwrap().outcome,crate::GoalVerificationOutcome::Achieved);
+
+        let paused=handle.apply(RuntimeCommand::StopForControl{task_id:"task-handback-achieved".into(),control_kind:"pause".into()}).unwrap();
+        assert_eq!(paused.phase,RuntimePhase::Paused);
+        assert!(handle.apply(RuntimeCommand::VerifyGoal{task_id:"task-handback-achieved".into(),verification_id:"verify-paused".into(),observation_sequence,outcome:crate::GoalVerificationOutcome::Achieved}).is_err());
     }
 }
