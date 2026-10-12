@@ -6,6 +6,8 @@ Sky Worker 每次动作后返回有界、过滤安全输入行的新鲜 transcri
 
 元素激活正常返回但首次动作后有界收敛仍无效果时，只有最新树仍能按同一角色/标签唯一解析出原目标，才能以新索引追加一次恢复动作。恢复后再次Observe；仍无效果即返回`driver-action-unconfirmed`。坐标、输入、发送、确认或一次性引用动作不进入该恢复路径。
 
+按钮句柄不再用任意 transcript 变化确认成功：原角色/标签按钮必须在动作后消失，才算目标结构已经变化。按钮保持原状态但其他区域变化时，返回 `driver-action-unconfirmed` 并禁止自动恢复；慢脑可以读取该新鲜 Observation 决定目标是否实际达成。
+
 transcript与句柄标签只出现在调用响应，生命周期不跨 Worker 重建。下一计划参数只携带无正文索引与引用；SQLite、事件、Outbox、Runtime快照、顶部浮窗与日志都不保存 transcript 或标签。
 
 坐标调用进入 Sky 后，无论返回成功或错误都进入同一个动作后 Observe；错误把动作效果保持为 unknown/handback，不跳过 Observe，也不自动重试。新鲜事实只供慢脑核实，不能把错误回执提升为成功。

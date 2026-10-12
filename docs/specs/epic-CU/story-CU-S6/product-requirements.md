@@ -13,6 +13,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - 后续正式对照（2026-10-08）：短暂引入的 Retina backing-scale 换算使企业微信精确原图坐标稳定失效；此前两个不同点位的结果不足以证明坐标单位差异，必须恢复 Sky 原始截图像素契约。
 - 后续用户变更（2026-10-08）：Driver 错误必须透出；只能返回不含 SDK 原文、正文、截图或完整 Payload 的有界错误码，并在顶部浮窗、任务面板和 Gateway 使用同一事实。
 - 后续用户变更（2026-10-09）：`driver-action-unconfirmed` 不应直接结束；在新鲜 Observe 能明确证明非敏感元素激活未产生效果时，必须有界重试，而不是交回后停住。
+- 后续正式回归（2026-10-12）：QQ 音乐播放按钮保持“暂停播放”但页面其他区域变化时，Driver 曾错误确认成功；按钮动作必须使用目标相关结构事实，不能消费无关 transcript 噪声。
 - 待审建议：未来是否为复杂表格、树增加更多结构字段，不在本 Story 自行扩展。
 
 ## 验收条件
@@ -39,6 +40,7 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 - OEH-20：元素动作只允许派发一次；若首次动作后 Observe 尚未出现预期结构变化，Worker 可在不重放动作的前提下进行不超过 900ms 的有界只读 Observe 收敛。期限内仍无直接结构证据时必须返回 unknown/handback，不得以等待时间或 Driver 回执替代成功事实。
 - OEH-21：若元素激活调用正常返回、900ms 收敛后 Observe 有效，且目标可按原 Observation 的角色与标签在最新树中唯一解析并明确保持原状态，Worker 必须使用新索引追加至多一次恢复动作；第二次仍无效果则交回慢脑。
 - OEH-22：受限恢复不得复用旧索引，也不得用于坐标、发送、文本输入、删除、支付、安装、提权或需要确认/一次性引用的动作；超时、拒绝、断连、Observe 失败及结果无法核实仍不得自动重试。
+- OEH-23：Observation 句柄按钮只能由同一角色/标签目标消失或改变来确认动作结构效果；目标仍保持原状态时，其他 transcript 变化不得提升为成功，也不得触发自动恢复。
 
 ## 验收映射
 
@@ -51,7 +53,8 @@ Yonder 的 Sky Worker 已能取得应用级 AX transcript，但 Gateway 只返�
 | 2026-10-08 Driver 错误透出用户变更 | OEH-18、OEH-19 |
 | 2026-10-09 Sky 播放控件延迟状态样本 | OEH-20 |
 | 2026-10-09 `driver-action-unconfirmed` 恢复变更 | OEH-21、OEH-22 |
-| AD-CU-09、AD-CU-10、AD-CU-11、AD-CU-12 | OEH-01～OEH-08、OEH-10～OEH-19 |
+| 2026-10-12 QQ 音乐播放按钮正式回归 | OEH-23 |
+| AD-CU-09、AD-CU-10、AD-CU-11、AD-CU-12 | OEH-01～OEH-08、OEH-10～OEH-19、OEH-23 |
 | AD-TM-23 | OEH-07 |
 
 ## 范围与非目标

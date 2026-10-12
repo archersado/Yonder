@@ -24,12 +24,13 @@ with tempfile.TemporaryDirectory(prefix="yonder-sky-worker-") as directory:
 import base64, json, os, sys, time
 state_path = os.environ['YONDER_SKY_TEST_STATE']
 delay_marker = state_path + '.startup-delayed'
-text = '1 文本框 搜索\\n2 按钮 播放\\n3 row (selectable)\\n\\t4 单元格\\n\\t\\t5 文本 狼顾科技\\n6 图像\\n7 按钮 账户\\n\\t8 图像\\n9 按钮 disabled 未读\\n40 按钮 可恢复控件\\n41 按钮 无响应控件' + open(state_path, encoding='utf-8').read()
+text = '1 文本框 搜索\\n2 按钮 播放\\n3 row (selectable)\\n\\t4 单元格\\n\\t\\t5 文本 狼顾科技\\n6 图像\\n7 按钮 账户\\n\\t8 图像\\n9 按钮 disabled 未读\\n40 按钮 可恢复控件\\n41 按钮 无响应控件\\n44 按钮 动态噪声控件' + open(state_path, encoding='utf-8').read()
 calculator_text = '1 按钮 1\\n2 文本 0'
 approved = False
 delayed_change_at = None
 element_three_clicks = 0
 recoverable_clicks = 0
+recoverable_done = False
 log = os.environ['YONDER_SKY_TEST_LOG']
 for line in sys.stdin:
     request = json.loads(line)
@@ -76,7 +77,7 @@ for line in sys.stdin:
             semantic_change = '\\n10 文本 同尺寸新界面' if os.path.exists(state_path + '.semantic-changed') else ''
             state = calculator_text if args['app'].endswith('Calculator.app') else text + semantic_change
             if os.path.exists(state_path + '.remap-element'):
-                state = state.replace('40 按钮 可恢复控件', '42 按钮 可恢复控件')
+                state = state.replace('40 按钮 可恢复控件', '42 按钮 已恢复控件' if recoverable_done else '42 按钮 可恢复控件')
             tree_state = '\\n'.join('├─ ' + item for item in state.split('\\n'))
             wrapped = 'App state follows:\\n```json\\n' + json.dumps({'app':args['app'],'text':tree_state}, ensure_ascii=False) + '\\n```' if args['app'].endswith('QQMusic.app') else state
             screenshot_size = 120 if os.path.exists(state_path + '.geometry-changed') else 100
@@ -100,7 +101,9 @@ for line in sys.stdin:
             elif name == 'click' and args.get('element_index') == '42':
                 recoverable_clicks += 1
                 if recoverable_clicks == 2:
-                    text += '\\n43 文本 已恢复执行'
+                    recoverable_done = True
+            elif name == 'click' and args.get('element_index') == '44':
+                text += '\\n45 文本 无关动态变化'
             elif name == 'click' and args.get('element_index') == '2':
                 text += '\\n10 文本 企业菜单已打开'
             elif name == 'click' and args.get('click_count') == 2:
@@ -191,7 +194,8 @@ for line in sys.stdin:
     remap_marker = pathlib.Path(str(state) + ".remap-element")
     remap_marker.touch()
     recovered_element = request("recovered-element", "click", {"observed_element_index": 40, "observation_ref": rejected_changed_geometry["observation_ref"], "_yonder_action_kind": "activate-control"})
-    exhausted_element = request("exhausted-element", "click", {"observed_element_index": 41, "observation_ref": recovered_element["observation_ref"], "_yonder_action_kind": "activate-control"})
+    unrelated_change_element = request("unrelated-change-element", "click", {"observed_element_index": 44, "observation_ref": recovered_element["observation_ref"], "_yonder_action_kind": "activate-control"})
+    exhausted_element = request("exhausted-element", "click", {"observed_element_index": 41, "observation_ref": unrelated_change_element["observation_ref"], "_yonder_action_kind": "activate-control"})
     remap_marker.unlink()
     observed_element = request("observed-element", "click", {"observed_element_index": 3, "observation_ref": exhausted_element["observation_ref"], "_yonder_action_kind": "activate-control"})
     image_element = request("image-element", "click", {"observed_element_index": 6, "observation_ref": observed_element["observation_ref"], "_yonder_action_kind": "activate-control"})
@@ -229,11 +233,12 @@ for line in sys.stdin:
     actions = [item for item in records if "name" in item]
     successful_results = (launched, recovered_element, observed_element, image_element, focused, entered, activated, navigated, activated_by_element, refocused, focused_entered, double_activated, visual_entered, calculator_launched, calculator_input, installed_fallback)
     assert all(result["action_succeeded"] and result["observe_valid"] for result in successful_results), [(result["step_id"], result["action_effect"], result["failure_stage"], result["element_count"]) for result in successful_results]
-    assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, stale_coordinate, generic_coordinate_error, exhausted_element, unconfirmed_input))
+    assert all(not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "suspected_noop" for result in (timed_coordinate, timed_noop, stale_coordinate, generic_coordinate_error, unrelated_change_element, exhausted_element, unconfirmed_input))
     assert timed_coordinate["failure_stage"] == "driver-action-timed-out"
     assert timed_noop["failure_stage"] == "driver-action-timed-out"
     assert stale_coordinate["failure_stage"] == "driver-action-rejected"
     assert generic_coordinate_error["failure_stage"] == "driver-action-rejected"
+    assert unrelated_change_element["failure_stage"] == "action-unconfirmed-unparsed-transcript"
     assert exhausted_element["failure_stage"] == "action-unconfirmed-unparsed-transcript"
     assert unconfirmed_input["failure_stage"] == "action-unconfirmed-unparsed-transcript"
     assert all(result["action_known"] and not result["action_succeeded"] and result["observe_valid"] and result["action_effect"] == "unverifiable" and result["failure_stage"] == "target-stale-visual-observation" for result in (rejected_changed_semantics, rejected_stale_ref, rejected_out_of_bounds, rejected_changed_geometry))
@@ -245,8 +250,8 @@ for line in sys.stdin:
     assert image == {"index": 6, "role": "image", "label": "图像"}
     assert next(item for item in launched["elements"] if item["index"] == 7)["role"] == "button"
     assert all(item["index"] not in (8, 9) for item in launched["elements"])
-    assert launched["element_count"] == 11
-    expected_action_names = ["press_key", "click", "click", "click", "click", "click", "click", "click", "click", "click", "click", "set_value", "press_key", "press_key", "click", "press_key", "type_text", "set_value", "click", "click", "type_text", "type_text"]
+    assert launched["element_count"] == 12
+    expected_action_names = ["press_key", "click", "click", "click", "click", "click", "click", "click", "click", "click", "click", "click", "set_value", "press_key", "press_key", "click", "press_key", "type_text", "set_value", "click", "click", "type_text", "type_text"]
     assert [item["name"] for item in actions] == expected_action_names, [item["name"] for item in actions]
     assert actions[0]["args"]["key"] == "super+f"
     assert actions[1]["args"]["x"] == 30 and actions[1]["args"]["y"] == 40
@@ -259,25 +264,27 @@ for line in sys.stdin:
     assert actions[4]["args"]["mouse_button"] == "left" and actions[4]["args"]["click_count"] == 1
     assert actions[5]["args"]["element_index"] == "42"
     assert actions[6]["args"]["element_index"] == "42"
-    assert actions[7]["args"]["element_index"] == "41"
+    assert actions[7]["args"]["element_index"] == "44"
+    assert sum(item["name"] == "click" and item["args"].get("element_index") == "44" for item in actions) == 1
     assert actions[8]["args"]["element_index"] == "41"
-    assert actions[9]["args"]["element_index"] == "3" and "observed_element_index" not in actions[9]["args"] and "observation_ref" not in actions[9]["args"]
+    assert actions[9]["args"]["element_index"] == "41"
+    assert actions[10]["args"]["element_index"] == "3" and "observed_element_index" not in actions[10]["args"] and "observation_ref" not in actions[10]["args"]
     assert sum(item["name"] == "click" and item["args"].get("element_index") == "3" for item in actions) == 2
-    assert actions[10]["args"]["element_index"] == "6" and "observed_element_index" not in actions[10]["args"] and "observation_ref" not in actions[10]["args"]
-    assert actions[11]["args"]["element_index"] == "1" and actions[11]["args"]["value"] == "one last kiss"
-    assert actions[12]["args"]["key"] == "Return"
-    assert actions[13]["args"]["key"] == "Down"
-    assert actions[14]["args"]["element_index"] == "3"
-    assert actions[15]["args"]["key"] == "super+f"
-    assert actions[16]["args"]["text"] == "focused query"
-    assert actions[17]["args"]["element_index"] == "1" and actions[17]["args"]["value"] == "ignored value"
-    assert actions[18]["args"]["x"] == 10 and actions[18]["args"]["y"] == 20 and actions[18]["args"]["click_count"] == 2
-    assert actions[18]["args"]["mouse_button"] == "left"
-    assert actions[19]["args"]["x"] == 10 and actions[19]["args"]["y"] == 20
-    assert actions[20]["args"]["text"] == "visual query"
-    assert actions[21]["args"]["text"] == "1+1"
-    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:21])
-    assert actions[21]["args"]["app"] == "/System/Applications/Calculator.app"
+    assert actions[11]["args"]["element_index"] == "6" and "observed_element_index" not in actions[11]["args"] and "observation_ref" not in actions[11]["args"]
+    assert actions[12]["args"]["element_index"] == "1" and actions[12]["args"]["value"] == "one last kiss"
+    assert actions[13]["args"]["key"] == "Return"
+    assert actions[14]["args"]["key"] == "Down"
+    assert actions[15]["args"]["element_index"] == "3"
+    assert actions[16]["args"]["key"] == "super+f"
+    assert actions[17]["args"]["text"] == "focused query"
+    assert actions[18]["args"]["element_index"] == "1" and actions[18]["args"]["value"] == "ignored value"
+    assert actions[19]["args"]["x"] == 10 and actions[19]["args"]["y"] == 20 and actions[19]["args"]["click_count"] == 2
+    assert actions[19]["args"]["mouse_button"] == "left"
+    assert actions[20]["args"]["x"] == 10 and actions[20]["args"]["y"] == 20
+    assert actions[21]["args"]["text"] == "visual query"
+    assert actions[22]["args"]["text"] == "1+1"
+    assert all(item["args"]["app"] == "/Applications/QQMusic.app" for item in actions[:22])
+    assert actions[22]["args"]["app"] == "/System/Applications/Calculator.app"
     assert installed_fallback["launched_app_id"] == "com.apple.TextEdit"
     assert not unavailable["action_known"] and unavailable["failure_stage"] == "target-window-unavailable"
     assert all("_yonder_action_kind" not in item["args"] and "_yonder_private_text" not in item["args"] for item in actions)

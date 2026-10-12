@@ -4224,10 +4224,16 @@ mod tests {
             tool_name: &str,
             action_kind: yonder_protocol::CuaActionKind,
         ) -> CandidateAction {
+            let arguments_json = match action_kind {
+                yonder_protocol::CuaActionKind::LaunchApplication => {
+                    r#"{"bundle_id":"com.yonder.fixture"}"#.into()
+                }
+                _ => "{}".into(),
+            };
             CandidateAction {
                 candidate_id: id.into(),
                 tool_name: tool_name.into(),
-                arguments_json: "{}".into(),
+                arguments_json,
                 action_kind,
                 target_ref: "verified-target".into(),
                 preconditions: vec![yonder_protocol::CuaObserveConditionParams {

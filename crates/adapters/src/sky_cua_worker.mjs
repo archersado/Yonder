@@ -846,7 +846,10 @@ async function perform(request, target, before) {
       throw new WorkerFailure('target-semantic-element');
     }
     await callAction('click', { app: target.app, element_index: String(currentHandle.index) }, target.applicationId);
-    return { kind: 'transcript-changed', recoverableElement: observedHandle };
+    return {
+      kind: observedHandle.role === 'button' ? 'element-transition' : 'transcript-changed',
+      recoverableElement: observedHandle,
+    };
   }
   if (semantic === 'activate-control' && request.tool_name === 'click'
       && Number.isFinite(request.arguments.x) && Number.isFinite(request.arguments.y)) {
@@ -1009,6 +1012,11 @@ function actionConfirmed(expectation, before, after) {
   if (expectation.kind === 'transcript-changed') {
     return stateText(before) !== stateText(after);
   }
+  if (expectation.kind === 'element-transition') {
+    // 按钮回执只有在目标自身的封闭角色/标签已变化时才可确认；页面其他
+    // 区域的动态变化不能代替目标后置事实。
+    return uniqueMatchingHandle(after, expectation.recoverableElement) == null;
+  }
   if (expectation.kind === 'coordinate-uncertain') return false;
   return fingerprint(before) !== fingerprint(after);
 }
@@ -1017,7 +1025,7 @@ async function observeAfterAction(request, target, before, expectation) {
   let after = await observe(target);
   const convergesElementAction = request.arguments._yonder_action_kind === 'activate-control'
     && Number.isInteger(request.arguments.observed_element_index)
-    && expectation?.kind === 'transcript-changed';
+    && ['transcript-changed', 'element-transition'].includes(expectation?.kind);
   if (!convergesElementAction || actionConfirmed(expectation, before, after)) return after;
   const deadline = Date.now() + elementObserveConvergenceMs;
   while (Date.now() < deadline) {

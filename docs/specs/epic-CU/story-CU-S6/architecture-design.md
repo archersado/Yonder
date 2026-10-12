@@ -20,6 +20,8 @@ Worker 在任务运行态只持有最近一次对外 Observation 的引用与可
 
 若期限耗尽，但动作调用正常返回、Observe 有效，且原 Observation 中目标的封闭角色与有界标签能在最新树中唯一匹配并明确保持原状态，则把该结果分类为 `verified-noop` 恢复边界。Worker 使用匹配得到的新索引追加一次、且仅一次元素激活，再次进入动作后 Observe 收敛。恢复不得复用旧索引；目标消失、重复、角色/标签变化或第二次仍无效果均返回 `driver-action-unconfirmed`/handback。该恢复仅适用于 `activate-control + click + observed_element_index`，不适用于坐标、文本输入、发送、确认或一次性引用动作。
 
+按钮句柄的动作确认必须绑定目标本身：动作前角色/标签在动作后已经消失才形成目标结构变化。若按钮仍以同一角色/标签存在，即使 transcript 的其他区域变化，也不能确认按钮成功；由于该变化可能是动作效果，Worker 同样不能据此证明 no-op 或追加恢复动作，只能携带新鲜 Observation 交回慢脑。selectable row、image 等无法以内在标签表达状态的句柄继续使用完整结构变化作为有界信号，由慢脑负责开放业务目标核验。
+
 坐标点击调用一旦进入 Sky 动作边界，SDK 的成功、超时、窗口失效或其他错误都不能单独决定动作结果。Worker 将调用错误收敛为“结果待核实”，继续执行唯一一次动作后 Observe，并携带新鲜 Observation 以 unknown/handback 交回；界面变化只用于慢脑核实，不能把错误回执提升为 confirmed。认证、Schema 或策略错误同样不重试动作。
 
 ## Observation 绑定的截图坐标
