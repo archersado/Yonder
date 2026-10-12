@@ -458,6 +458,26 @@ mod tests {
         let mut running=active.clone();running.phase=crate::execution_runtime::RuntimePhase::Running;
         assert!(!runtime_allows_plan_submit(&running,7));
         assert!(!runtime_allows_plan_submit(&active,8));
+
+        let runtime=crate::execution_runtime::ExecutionRuntime::with_defaults().unwrap();let handle=runtime.handle();
+        handle.apply(crate::execution_runtime::RuntimeCommand::Activate{task_id:"runtime-list".into(),checkpoint:11}).unwrap();
+        handle.apply(crate::execution_runtime::RuntimeCommand::StartStep{
+            task_id:"runtime-list".into(),
+            step_id:"list-step".into(),
+            label:"列表状态验证".into(),
+            attempt_id:"attempt-list".into(),
+            worker_instance_id:"worker-list".into(),
+            host_session_id:"host-list".into(),
+        }).unwrap();
+        handle.apply(crate::execution_runtime::RuntimeCommand::StopForControl{task_id:"runtime-list".into(),control_kind:"cancel".into()}).unwrap();
+        let listed=||Response::Success{jsonrpc:Version::V2,id:"list".into(),result:QueryResult::Tasks{tasks:vec![snapshot(crate::Task{id:"runtime-list".into(),owner_agent_id:"a1".into(),name:Some("列表任务".into()),source:crate::TaskSource::LocalAgent,status:crate::Status::Running,sequence:13})],next_after_task_id:Some("cursor".into())}};
+        let mut included=listed();overlay_runtime_list(&mut included,&handle,true,false);
+        let Response::Success{result:QueryResult::Tasks{tasks,next_after_task_id},..}=included else{panic!("响应类型错误")};
+        assert_eq!(next_after_task_id.as_deref(),Some("cursor"));assert_eq!(tasks.len(),1);assert_eq!(tasks[0].sequence,"14");assert_eq!(tasks[0].status,yonder_protocol::TaskStatus::Cancelled);
+        let mut running_only=listed();overlay_runtime_list(&mut running_only,&handle,true,true);
+        assert!(matches!(running_only,Response::Success{result:QueryResult::Tasks{tasks,..},..} if tasks.is_empty()));
+        let mut unfinished=listed();overlay_runtime_list(&mut unfinished,&handle,false,false);
+        assert!(matches!(unfinished,Response::Success{result:QueryResult::Tasks{tasks,..},..} if tasks.is_empty()));
     }
 
     #[test]
@@ -866,6 +886,13 @@ impl<'a> GatewaySession<'a> {
                     false,
                 ));
             }
+        }
+        if let Request::List{params,..}=&request{
+            let mut response=self.handle(store,bytes,now_ms);
+            if let Some(runtime)=execution_runtime{
+                overlay_runtime_list(&mut response,runtime,params.include_finished,params.running_only);
+            }
+            return Ok((yonder_protocol::encode(&response).map_err(|_|crate::Error::StorageUnavailable)?,false));
         }
         if let Request::Get{params,..}=&request{
             let mut response=self.handle(store,bytes,now_ms);
@@ -1959,6 +1986,10 @@ fn runtime_allows_plan_submit(active:&crate::execution_runtime::RuntimeSnapshot,
 
 fn overlay_runtime_snapshot(response:&mut Response,active:&crate::execution_runtime::RuntimeSnapshot,pending:Option<&[crate::execution_runtime::RuntimeEvent]>) {
     let Response::Success{result:QueryResult::Snapshot{task},..}=response else{return};
+    overlay_runtime_task(task,active,pending);
+}
+
+fn overlay_runtime_task(task:&mut yonder_protocol::TaskSnapshot,active:&crate::execution_runtime::RuntimeSnapshot,pending:Option<&[crate::execution_runtime::RuntimeEvent]>) {
     if task.task_id!=active.task_id{return;}
     // 计划提交仍以不可变Store事务接受；它可能刚好比尚未绑定新片段的活动
     // Runtime领先一个序号。读取投影绝不能用旧运行时快照把已接受序号倒退。
@@ -1966,6 +1997,18 @@ fn overlay_runtime_snapshot(response:&mut Response,active:&crate::execution_runt
     task.sequence=active.sequence.to_string();task.status=match active.phase{crate::execution_runtime::RuntimePhase::Completed=>yonder_protocol::TaskStatus::Completed,crate::execution_runtime::RuntimePhase::Failed=>yonder_protocol::TaskStatus::Failed,crate::execution_runtime::RuntimePhase::Cancelled=>yonder_protocol::TaskStatus::Cancelled,crate::execution_runtime::RuntimePhase::Interrupted=>yonder_protocol::TaskStatus::Interrupted,crate::execution_runtime::RuntimePhase::Paused=>yonder_protocol::TaskStatus::Paused,_=>yonder_protocol::TaskStatus::Running};
     task.current_step=active.current_step.as_ref().map(|step|yonder_protocol::StepDeclaration{step_id:step.step_id.clone(),label:step.label.clone(),accepted_sequence:active.sequence.to_string()});
     if active.phase==crate::execution_runtime::RuntimePhase::HandBack{if let Some(reason)=pending.and_then(|events|events.iter().rev().find_map(|event|match &event.kind{crate::execution_runtime::RuntimeEventKind::HandedBack{reason}=>Some(reason.clone()),_=>None})){task.next_intent=Some(reason);}}
+}
+
+fn overlay_runtime_list(response:&mut Response,runtime:&crate::execution_runtime::ExecutionRuntimeHandle,include_finished:bool,running_only:bool){
+    let Response::Success{result:QueryResult::Tasks{tasks,..},..}=response else{return};
+    tasks.retain_mut(|task|{
+        if let Ok(active)=runtime.snapshot(&task.task_id){
+            let pending=runtime.pending(&task.task_id,crate::execution_runtime::DEFAULT_EVENT_HARD_LIMIT).ok();
+            overlay_runtime_task(task,&active,pending.as_deref());
+        }
+        if running_only{return task.status==yonder_protocol::TaskStatus::Running;}
+        include_finished||!matches!(task.status,yonder_protocol::TaskStatus::Completed|yonder_protocol::TaskStatus::Failed|yonder_protocol::TaskStatus::Cancelled)
+    });
 }
 
 fn runtime_tail_events(mut status:yonder_protocol::TaskStatus,pending:&[crate::execution_runtime::RuntimeEvent],after:u64,limit:usize)->Vec<yonder_protocol::TaskEvent>{

@@ -18,3 +18,5 @@ OpenSpec: tm-s9-event-driven-runtime
 同日完成运行时控制与活动查询迁移：正式 Desktop 组合根的取消、暂停、接管、HandBack 均直接进入同一 reducer；顶部控制条沿 Driver 派发路径即时显示 effect/Observe 分类，Gateway `task.get` 与 `task.events` 会把未 checkpoint 的内存快照及连续尾部覆盖到旧 SQLite 投影之上。
 
 完成范围同时包含 CUA、EX-S2 计划片段、BUA、Document/Office、Command 和控制链路。允许按能力分阶段提交，但任一链路仍依赖同步 SQLite 推进时不得完成或 Archive。Windows继续暂缓。
+
+2026-10-12 正式 MCP 回归发现 `task.get/events` 已返回 `cancelled@13`，但 `task.list` 仍从旧 SQLite checkpoint 返回 `running@12`。该缺陷由增量 Change `tm-s9-task-list-runtime-overlay` 修复与验证；不改变已归档主 Change 的架构结论。

@@ -24,3 +24,4 @@
 | ER-06 | 重启只恢复完整 checkpoint，遗留 running 转 interrupted，未知副作用不重试。 |
 | ER-07 | 发送、支付、删除、安装、提权的确认仍是副作用前置条件。 |
 | ER-08 | CUA 首阶段通过后，BUA、Office、Command 复用同一机制。 |
+| ER-09 | `task.list` 与 `task.get/events` 必须消费同一活动 Runtime 覆盖；SQLite checkpoint 落后时，列表不得继续显示旧序号、旧状态或丢失 HandBack 原因，筛选必须基于覆盖后的可见状态。 |
