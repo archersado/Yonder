@@ -2,7 +2,7 @@
 
 ## 接线
 
-`SessionStart(startup|resume)` 后台 Hook 把事件 JSON 写入 `yonder codex-hook` stdin。CLI 只接受当前事件的 `session_id`，幂等启动共享 daemon，并把 `codex app-server proxy` 的 stdin/stdout 组合成双向字节流，在其上完成 WebSocket Upgrade，再发送 initialize、initialized、thread/resume 和 start/steer RPC。随后复用协议 1.33 的 Agent Gateway hello 与 agent.input/replan-input/attachment。不得把 proxy 当作 JSONL，也不得另起会与当前 writer 冲突的独立 stdio App Server。
+`SessionStart(startup|resume)` 后台 Hook 把事件 JSON 写入 `yonder codex-hook` stdin。CLI 只接受当前事件的 `session_id`，幂等启动共享 daemon，并把 `codex app-server proxy` 的 stdin/stdout 组合成双向字节流，在其上完成 WebSocket Upgrade 与 initialize/initialized。连接器先用 `thread/loaded/list` 确认当前 session：已加载时直接附着，仅未加载时才发送 `thread/resume(excludeTurns=true)`，避免与当前 CLI 的活动 writer 冲突。随后复用协议 1.33 的 Agent Gateway hello 与 agent.input/replan-input/attachment。不得把 proxy 当作 JSONL，也不得另起独立 stdio App Server。
 
 ## 附件输入
 

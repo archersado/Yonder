@@ -13,7 +13,7 @@ Codex CLI SessionStart Hook
           ├─ codex app-server daemon start（幂等）
           ├─ codex app-server proxy（原始双向字节流）
           ├─ WebSocket Upgrade → initialize / initialized
-          ├─ thread/resume(session_id, excludeTurns=true)
+          ├─ thread/loaded/list → 已加载则附着，未加载才 thread/resume(session_id, excludeTurns=true)
           └─ 既有 Agent Gateway hello(session_id, UserInput + UserInputAttachment + ReplanInput)
 ```
 
@@ -42,9 +42,11 @@ Hook 未显式提供 `YONDER_AGENT_ID` 时使用与正式 MCP 配置一致的 `c
 - Hook 输入无效或来源不是 startup/resume：失败关闭，不选择其他 session。
 - Yonder 不可达/断开：以封顶退避在固定恢复窗口重连相同 session；窗口耗尽后退出，由下一次显式 SessionStart 恢复。
 - Codex proxy 断开：当前输入视为未确认且加入去重终态，不自动重投；连接器退出，下一次显式 SessionStart 才可恢复相同 session。
+- 当前 CLI 已在共享 daemon 中加载同一 thread 时，连接器必须直接附着，不得再发 `thread/resume` 与活动 writer 争用所有权；仅未加载时允许恢复。
 - 附件声明、分块、完整性或会话校验失败：拒绝本次附件并清理；不得继续发送纯文字形成伪成功。
 - thread 无法恢复或标识改变：旧连接器退出；新 session 只能由新 Hook 显式注册。
 - Hook 输出、stderr 与 Yonder 日志不得包含正文、完整 session ID 或完整 Agent Payload。
+- App Server 诊断只允许暴露失败 RPC 阶段（初始化、已加载查询或恢复），不输出请求参数、session ID 或服务端原始错误载荷。
 
 ### 安全约束
 

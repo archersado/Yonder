@@ -286,7 +286,10 @@ impl CodexAppServer {
             proxy,
             next_id: 0,
         };
-        server.initialize().await?;
+        server
+            .initialize()
+            .await
+            .map_err(|_| io::Error::other("Codex App Server初始化失败"))?;
         Ok(server)
     }
 
@@ -351,22 +354,33 @@ impl CodexAppServer {
     }
 
     async fn ensure_loaded(&mut self, thread_id: &str) -> io::Result<()> {
+        if self.is_loaded(thread_id).await? {
+            Ok(())
+        } else {
+            Err(io::Error::other("Codex thread未在指定App Server中加载"))
+        }
+    }
+
+    async fn is_loaded(&mut self, thread_id: &str) -> io::Result<bool> {
         let result = self
             .call("thread/loaded/list", json!({}), CODEX_RPC_TIMEOUT)
-            .await?;
-        let loaded = result
+            .await
+            .map_err(|_| io::Error::other("Codex App Server已加载thread查询失败"))?;
+        Ok(result
             .get("data")
             .and_then(Value::as_array)
             .is_some_and(|threads| {
                 threads
                     .iter()
                     .any(|value| value.as_str() == Some(thread_id))
-            });
-        if loaded {
-            Ok(())
-        } else {
-            Err(io::Error::other("Codex thread未在指定App Server中加载"))
+            }))
+    }
+
+    async fn attach_or_resume(&mut self, thread_id: &str) -> io::Result<()> {
+        if self.is_loaded(thread_id).await? {
+            return Ok(());
         }
+        self.resume(thread_id).await
     }
 
     async fn resume(&mut self, thread_id: &str) -> io::Result<()> {
@@ -376,7 +390,8 @@ impl CodexAppServer {
                 json!({"threadId":thread_id,"excludeTurns":true}),
                 CODEX_RPC_TIMEOUT,
             )
-            .await?;
+            .await
+            .map_err(|_| io::Error::other("Codex App Server thread恢复失败"))?;
         if result
             .get("thread")
             .and_then(|thread| thread.get("id"))
@@ -691,7 +706,7 @@ pub async fn run_managed(
         return Err(io::Error::other("Codex Hook session_id无效"));
     }
     let mut codex = CodexAppServer::connect_managed().await?;
-    codex.resume(&thread_id).await?;
+    codex.attach_or_resume(&thread_id).await?;
     run_bound(agent_id, yonder_socket, thread_id, codex, true).await
 }
 
@@ -1148,7 +1163,9 @@ printf '%s\n' 'server-pong'
         script
     }
 
-    async fn fake_app_server_with_calls() -> (CodexAppServer, mpsc::UnboundedReceiver<Value>) {
+    async fn fake_app_server_with_loaded_state(
+        loaded: bool,
+    ) -> (CodexAppServer, mpsc::UnboundedReceiver<Value>) {
         let (client, server) = tokio::io::duplex(64 * 1024);
         let (calls, called) = mpsc::unbounded_channel();
         tokio::spawn(async move {
@@ -1161,6 +1178,13 @@ printf '%s\n' 'server-pong'
                 };
                 let result = match request.get("method").and_then(Value::as_str) {
                     Some("initialize") => json!({}),
+                    Some("thread/loaded/list") => {
+                        if loaded {
+                            json!({"data":["thread-1"]})
+                        } else {
+                            json!({"data":[]})
+                        }
+                    }
                     Some("thread/resume") => json!({"thread":{"id":"thread-1"}}),
                     Some("thread/read") => json!({"thread":{"status":{"type":"idle"}}}),
                     Some("turn/start") => json!({"turn":{"id":"turn-1"}}),
@@ -1180,6 +1204,10 @@ printf '%s\n' 'server-pong'
                 .unwrap(),
             called,
         )
+    }
+
+    async fn fake_app_server_with_calls() -> (CodexAppServer, mpsc::UnboundedReceiver<Value>) {
+        fake_app_server_with_loaded_state(true).await
     }
 
     async fn fake_app_server() -> CodexAppServer {
@@ -1328,6 +1356,26 @@ printf '%s\n' 'server-pong'
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn managed_app_server_attaches_loaded_thread_without_resuming_active_writer() {
+        let (mut server, mut calls) = fake_app_server_with_loaded_state(true).await;
+        server.attach_or_resume("thread-1").await.unwrap();
+        assert_eq!(calls.recv().await.unwrap()["method"], "initialize");
+        assert_eq!(calls.recv().await.unwrap()["method"], "initialized");
+        assert_eq!(calls.recv().await.unwrap()["method"], "thread/loaded/list");
+        assert!(calls.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn managed_app_server_resumes_only_an_unloaded_thread() {
+        let (mut server, mut calls) = fake_app_server_with_loaded_state(false).await;
+        server.attach_or_resume("thread-1").await.unwrap();
+        assert_eq!(calls.recv().await.unwrap()["method"], "initialize");
+        assert_eq!(calls.recv().await.unwrap()["method"], "initialized");
+        assert_eq!(calls.recv().await.unwrap()["method"], "thread/loaded/list");
+        assert_eq!(calls.recv().await.unwrap()["method"], "thread/resume");
     }
 
     #[cfg(unix)]

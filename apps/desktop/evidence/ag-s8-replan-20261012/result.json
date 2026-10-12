@@ -1,0 +1,16 @@
+{
+  "platform": "macos",
+  "date": "2026-10-12",
+  "yonder_mcp_connected": true,
+  "task_id": "task_879579cc082de10f3f7a8103c7207153",
+  "initial_plan_accepted_sequence": "2",
+  "handback_sequence": "6",
+  "attempt_phase": "unknown",
+  "unknown_reason": "worker-failed",
+  "replan_input_received_by_current_codex": false,
+  "current_codex_version": "0.156.1",
+  "isolated_connector_codex_version": "0.162.1",
+  "connector_failure_stage": "thread-resume",
+  "blocked_reason": "current thread is owned by the active Codex 0.156.1 host and cannot be safely rebound by a new shared App Server",
+  "passed": false
+}

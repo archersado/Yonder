@@ -34,6 +34,8 @@ Hook 已由用户审阅并信任，当前会话自动连接样本已通过。仍
 
 2026-10-12 定位到阻断来自 AG-S1 `yonder mcp` 的10分钟业务空闲退出，而非本 Story 的输入连接器：Codex MCP宿主不会在下一次调用时重新拉起已退出进程。已同步修订 AD-AG-05、AG-S1 Story 与 `ag-s1-local-cli-mcp`，让MCP随stdio宿主存活；18项CLI回归通过。当前会话的transport已经关闭，不能由Yonder进程侧复活；必须在装入修正版CLI的新Codex MCP会话中完成下述无副作用replan样本，且仍不得使用Socket或SQLite替代。
 
+2026-10-12 新会话中 Yonder MCP 已恢复，正式创建样本 `task_879579cc082de10f3f7a8103c7207153`；计划在序号 2 接受，不存在的隔离应用 Driver 返回 `unknown/worker-failed`，Yonder 在序号 6 交回且未自动重试。但当前 Codex 宿主实际仍为 0.156.1，SessionStart 没有 Connector 进程；经正式插件路径补发时，无论使用当前 0.156.1 还是隔离的 0.162.1 App Server，都无法安全接管正由 0.156.1 持有的活动 thread，失败点为 `thread/resume`。已补充“已加载 thread 直接附着、未加载才 resume”兼容逻辑与 20 项 CLI 合约；本 Goal 仍需在从启动起就由 0.162.1 持有的新会话中重试，证据见 `apps/desktop/evidence/ag-s8-replan-20261012/`。
+
 ## 当前结论
 
 实现、隔离 macOS 合约、真实当前会话连接、Yonder 重启恢复、不重放、Hook/proxy 清理和真实圈选附件投递均通过；仅缺一次正式 MCP 触发的无副作用 replan 投递，生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。
