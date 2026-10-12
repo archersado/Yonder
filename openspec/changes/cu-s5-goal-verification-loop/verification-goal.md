@@ -31,3 +31,11 @@ Windows 对等验证按用户决定暂缓，macOS 证据不得外推。
 - Application 74项测试通过；SQLite/Runtime集成测试新增“片段耗尽→not-achieved→异步投影→同任务新版本片段连续执行”，验证新片段可重新绑定且没有重放旧动作。
 
 仓库全局 `scripts/check_architecture.py` 仍被既有 `TM-S9` Story README 缺少 `Story:` 字段阻断；CU-S5 自身所需章节、双向 OpenSpec 关联与严格 OpenSpec 校验均已通过。该既有规划缺口未在本 Story 越界修改。
+
+## 2026-10-12 Jev HandBack 后终结回归
+
+- 正式任务 `task_0936219ea4be11d4aad8b4a94d6527c1` 只经打包后的 `Yonda.app → MCP stdio → Agent Gateway → Application Runtime → Sky Worker` 执行，没有直连 Socket、Driver 或 SQLite。
+- 启动步骤在 Observation 序号 5 返回 QQ 音乐的“播放”按钮；归属慢脑提交 `not-achieved@8` 后，以新计划版本执行 `SPACE`。动作只派发一次，Observation 序号 11 返回“暂停播放”，同时记录 `action_succeeded=true`、`observe_valid=true`。
+- Jev 因不解释开放业务语义在序号 13 交回；归属慢脑读取同一新鲜 Observation 后提交 `achieved@14`。Runtime 只恢复终结门禁，不重启 Driver、不重放动作；随后 `task.complete` 成功，任务在序号 15 为 `completed`。
+- `cargo test -p yonder-application`：83/83 通过；暂停态仍拒绝目标核验，unknown、陈旧 Observation 与结果待核实副作用仍不能绕过门禁。`openspec validate cu-s5-goal-verification-loop --strict`、架构检查与 `git diff --check` 均通过。
+- 有界结构化证据见 `apps/desktop/evidence/cu-s5-handback-achieved-20261012/`；不保存 transcript、截图、完整 Payload 或用户数据。

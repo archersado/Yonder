@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "platform": "macOS",
+  "product_path": "Yonda.app -> MCP stdio -> Agent Gateway -> Application Runtime -> Sky Worker",
+  "task_id": "task_0936219ea4be11d4aad8b4a94d6527c1",
+  "action_observation_sequence": 11,
+  "handback_sequence": 13,
+  "goal_verification_sequence": 14,
+  "terminal_sequence": 15,
+  "action_succeeded": true,
+  "observe_valid": true,
+  "goal_outcome": "achieved",
+  "terminal_status": "completed",
+  "driver_action_replayed_after_handback": false
+}
