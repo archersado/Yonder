@@ -32,6 +32,8 @@ Hook 已由用户审阅并信任，当前会话自动连接样本已通过。仍
 
 2026-10-10 尝试通过正式 Yonder MCP 创建无副作用 TextEdit Observe/replan 样本时，当前 Codex 会话内的 MCP stdio 已关闭，`task_create` 与 `task_list` 均返回 `Transport closed`。输入连接器仍保持连接；按产品边界不使用 shell 或直连 Gateway Socket 替代。须在下一个能重新拉起 Yonder MCP 的 Codex 会话中完成此样本。
 
+2026-10-12 定位到阻断来自 AG-S1 `yonder mcp` 的10分钟业务空闲退出，而非本 Story 的输入连接器：Codex MCP宿主不会在下一次调用时重新拉起已退出进程。已同步修订 AD-AG-05、AG-S1 Story 与 `ag-s1-local-cli-mcp`，让MCP随stdio宿主存活；18项CLI回归通过。当前会话的transport已经关闭，不能由Yonder进程侧复活；必须在装入修正版CLI的新Codex MCP会话中完成下述无副作用replan样本，且仍不得使用Socket或SQLite替代。
+
 ## 当前结论
 
 实现、隔离 macOS 合约、真实当前会话连接、Yonder 重启恢复、不重放、Hook/proxy 清理和真实圈选附件投递均通过；仅缺一次正式 MCP 触发的无副作用 replan 投递，生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。

@@ -36,6 +36,8 @@ Accepted AD-TM-04由TM-S3首批实现created取消；Agent协议1.2协商task.ca
 
 stdio只输出MCP JSON，诊断写stderr。键盘与无障碍由Codex CLI自身承担；Yonder任务菜单继续使用既有可访问按钮。macOS验证真实Codex/MCP进程、UDS所有权、无TCP和单桌宠；Windows证据暂缓且不得标记通过。
 
+长时间没有工具调用不得让Codex侧连接悄然失效。Gateway暂时不可达时，本次工具调用显示结构化“Yonder未运行/连接中断”，但MCP stdio仍可接收后续调用；恢复后的下一次调用重新握手，不要求用户重开Codex会话。
+
 ## 云端 Connector 交互
 
 Yonder保持轻量桌宠形态，不为云连接增加全屏页面。未配置时显示“云端Agent未连接”；连接中、已认证、重连等待和认证失败使用文字状态与可访问名称，不能只靠徽标颜色。只有认证并声明`user_input`后，桌宠才显示“Agent已连接”。

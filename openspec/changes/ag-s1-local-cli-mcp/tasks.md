@@ -6,6 +6,6 @@
 - [x] yonder CLI共享IPC客户端与MCP stdio工具
 - [x] 协议/集成测试及真实Codex CLI验证
 - [x] 独立Verification Goal
-- [x] MCP子进程10分钟空闲退出，防止宿主侧遗留长驻进程
+- [x] 修订错误的10分钟空闲退出假设：MCP随stdio宿主存活，EOF退出，Gateway恢复后由后续调用重新握手
 - [ ] Windows Named Pipe与原生验证（用户暂缓）
 - [ ] 完整Story/PR通过后Archive

@@ -1,20 +1,18 @@
 use interprocess::local_socket::{GenericFilePath, ToFsName, tokio::{Stream, prelude::*}};
 use serde_json::{Value, json};
-use std::{env, io::{self, BufRead, Read, Write}, path::PathBuf, sync::mpsc, thread, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{env, io::{self, BufRead, Read, Write}, path::PathBuf, sync::mpsc, thread, time::{SystemTime, UNIX_EPOCH}};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use yonder_protocol::{ArtifactParams, BrowserExecuteParams, BrowserOperation, Capability, CancelParams, CompleteParams, CommandExecuteParams, CommandProposeParams, ComputerExecuteParams, ComputerStepParams, ControlKind, ControlParams, CreateParams, CuaIntentProposeParams, DocumentExecuteParams, EventsParams, FileExecuteParams, FileOperation, GetParams, GoalVerificationOutcome, GoalVerifyParams, HelloParams, ListParams, PlanExecuteParams, PlanSlotParams, PlanSubmitParams, PROTOCOL_VERSION, Request, Response, StepAdvanceParams, StepDeclareParams, Version, WaitForUserParams, MAX_REQUEST_BYTES};
 
 mod codex_agent_bridge;
 
-const MCP_IDLE_TIMEOUT: Duration = Duration::from_secs(600);
 const DEFAULT_CODEX_AGENT_ID: &str = "codex-cli";
 
-fn receive_line(receiver: &mpsc::Receiver<io::Result<Option<String>>>, timeout: Duration) -> io::Result<Option<String>> {
-    match receiver.recv_timeout(timeout) {
+fn receive_line(receiver: &mpsc::Receiver<io::Result<Option<String>>>) -> io::Result<Option<String>> {
+    match receiver.recv() {
         Ok(Ok(line)) => Ok(line),
         Ok(Err(error)) => Err(error),
-        Err(mpsc::RecvTimeoutError::Timeout) => Err(io::Error::other("MCP idle timeout")),
-        Err(mpsc::RecvTimeoutError::Disconnected) => Ok(None),
+        Err(mpsc::RecvError) => Ok(None),
     }
 }
 
@@ -241,7 +239,7 @@ async fn mcp(agent_id: String) {
     let mut counter = 0;
     let mut gateway=GatewayClient::new(agent_id);
     loop {
-        let line = match receive_line(&line_receiver, MCP_IDLE_TIMEOUT) {
+        let line = match receive_line(&line_receiver) {
             Ok(Some(line)) => line,
             Ok(None) => break,
             Err(error) => { eprintln!("{error}"); break; }
@@ -275,16 +273,17 @@ async fn main() {
 mod tests {
     use super::*;
     #[test]
-    fn mcp_idle_timeout_is_ten_minutes() {
-        assert_eq!(MCP_IDLE_TIMEOUT, Duration::from_secs(600));
-    }
-
-    #[test]
-    fn mcp_line_receiver_reports_timeout_and_disconnect() {
+    fn mcp_line_receiver_waits_for_input_and_reports_disconnect() {
         let (sender, receiver) = mpsc::channel::<io::Result<Option<String>>>();
-        assert_eq!(receive_line(&receiver, Duration::ZERO).unwrap_err().to_string(), "MCP idle timeout");
-        drop(sender);
-        assert_eq!(receive_line(&receiver, Duration::ZERO).unwrap(), None);
+        let producer = thread::spawn(move || {
+            thread::sleep(std::time::Duration::from_millis(25));
+            sender.send(Ok(Some("request".into()))).unwrap();
+        });
+        let started = std::time::Instant::now();
+        assert_eq!(receive_line(&receiver).unwrap().as_deref(), Some("request"));
+        assert!(started.elapsed() >= std::time::Duration::from_millis(20));
+        producer.join().unwrap();
+        assert_eq!(receive_line(&receiver).unwrap(), None);
     }
 
     #[test]

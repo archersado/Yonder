@@ -45,6 +45,7 @@
 - AC10：MCP暴露任务创建、查询、取消和步骤声明工具，所有请求进入既有Gateway；任务创建继续遵守Agent专属、幂等及名称约束。
 - AC11：每条连接先由桥接器完成协议1.4握手，帧最多64KiB；Yonder未运行、连接中断、协议或业务拒绝均返回结构化错误且不输出正文日志。
 - AC12：本机连接首个`gateway.hello`的有效`agent_id`绑定其逻辑任务身份，后续请求必须一致；该ID用于归属隔离，不替代当前用户私有UDS认证边界。Windows Named Pipe实现与原生证据按用户要求暂缓。
+- AC12A：`yonder mcp`在调用方保持stdio会话期间不得因空闲计时自行退出；只有stdin EOF、宿主取消或不可恢复的stdio错误才能结束MCP进程。Yonder Gateway暂时不可达时，单次工具调用返回结构化错误，后续调用仍可重新建立Gateway连接，避免长会话永久变成`Transport closed`。
 
 ## 云端 Connector 增量
 

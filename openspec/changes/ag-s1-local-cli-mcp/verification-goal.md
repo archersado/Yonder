@@ -14,6 +14,8 @@ PASS。最终锁定离线回归共33项通过（protocol 5、application 6、ada
 
 ## 2026-09-22 MCP空闲生命周期补充验证
 
-修复宿主侧遗留`yonder mcp`子进程：CLI在连续10分钟无stdin输入后退出，父进程可在下一次MCP调用时重新拉起；不关闭桌面TaskHost、不清任务状态、不重试副作用。单元回归验证10分钟常量、超时与断开分支；真实CLI在stdin发送`initialize`后返回协议响应，EOF时进程`exit=0`。本补充未等待真实10分钟，不把它写成实机长时Idle证据；Windows仍暂缓。
+此前为清理宿主侧遗留进程加入“连续10分钟无stdin输入后退出”，并假设父进程会在下一次MCP调用时重新拉起。2026-10-12 正式Codex长会话证伪该假设：宿主保留已关闭transport，`task_list`返回`Transport closed`，即使Yonder Desktop和Codex输入连接器仍运行也无法恢复。该旧结论撤销，不再作为通过证据。
+
+生命周期修正后，MCP随调用方stdio存活：单元回归证明接收器会阻塞等待迟到输入并在发送端关闭后返回EOF；源码不再包含业务空闲计时或`recv_timeout`。`cargo test --offline --locked -p yonder-cli`共18项通过，`openspec validate ag-s1-local-cli-mcp --strict`、架构检查与`git diff --check`通过。仍需在装入新二进制的新Codex MCP会话中补一次长会话调用与Yonder重启后后续调用样本；本修复不重放工具请求，Windows仍暂缓。
 
 清理记录：2026-09-22修复前本机存在356个旧预览路径`yonder mcp`子进程；按完整命令精确匹配发送TERM后2秒计数为0。该清理只证明存量处置，不作为新生命周期逻辑的验证替代。

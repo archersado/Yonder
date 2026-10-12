@@ -40,6 +40,8 @@ Accepted AD-TM-04由TM-S3首批实现created取消；Agent协议1.2协商task.ca
 
 `apps/yonder-cli`只依赖`crates/protocol`及传输/序列化技术库。`yonder mcp`实现MCP stdio的initialize、tools/list和tools/call，把工具参数构造成Rust协议类型并经共享IPC客户端发送；启动时先hello 1.4。CLI不打开SQLite、不持有TaskHost、不启动Tauri、不接受外部agent_id。Windows仍映射Named Pipe但本轮不实现。
 
+2026-10-12 生命周期修订：此前“连续10分钟无stdin输入后退出，调用方会按需重新拉起”的假设已被正式Codex长会话证伪；Codex保留已关闭的MCP transport，不会为下一次工具调用重启进程。`yonder mcp`因此改为随stdio宿主生命周期存活，阻塞等待下一帧并在stdin EOF时正常退出。Gateway断开只清除当前UDS连接，下一次工具调用重新hello；不得让空闲清理关闭仍有效的MCP stdio会话，也不新增后台守护进程或自动重放工具调用。
+
 ## 云端 Connector 边界
 
 Desktop组合根只持有一个Cloud Connector Adapter。Adapter主动建立WSS，完成外部平台认证后构造固定`AuthContext`与`GatewaySession`，所有帧继续进入现有Application用例；Adapter不直接访问TaskStore、AgentInputHub以外的具体Adapter，也不定义第二份协议模型。
