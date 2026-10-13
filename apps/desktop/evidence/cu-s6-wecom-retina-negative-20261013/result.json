@@ -1,0 +1,40 @@
+{
+  "story": "CU-S6",
+  "platform": "macOS",
+  "date": "2026-10-13",
+  "result": "BLOCKED",
+  "path": "Yonda.app -> MCP stdio -> Agent Gateway -> Application -> Sky Worker",
+  "task_id": "task_17b1aea068b54dff0d06e1b3337341d9",
+  "initial_observation": {
+    "element_count": 336,
+    "screenshot_width_px": 3420,
+    "screenshot_height_px": 1986
+  },
+  "bounded_attempts": [
+    {
+      "target": "fresh-image-18",
+      "outcome": "no-structural-change"
+    },
+    {
+      "target": "fresh-image-19",
+      "outcome": "no-structural-change"
+    },
+    {
+      "target": "fresh-button-20",
+      "outcome": "no-structural-change"
+    },
+    {
+      "target": "fresh-original-pixel-point",
+      "outcome": "driver-action-rejected"
+    },
+    {
+      "target": "single-retina-logical-point-diagnostic",
+      "outcome": "no-structural-change"
+    }
+  ],
+  "target_enterprise_observed": false,
+  "automatic_unknown_replay": false,
+  "final_status": "cancelled@32",
+  "persistent_transcript_or_screenshot": false,
+  "windows": "Deferred by owner"
+}

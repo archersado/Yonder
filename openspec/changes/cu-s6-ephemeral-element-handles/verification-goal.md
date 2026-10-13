@@ -87,6 +87,15 @@
 
 macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信目标企业切换未通过，CU-S6 仍处于实施阶段。本 Goal 不证明 Windows 等价行为；Windows 验证继续暂缓，不能由 macOS 结果外推。
 
+## 2026-10-13 企业微信新鲜句柄与 Retina 对照复验
+
+- 正式任务 `task_17b1aea068b54dff0d06e1b3337341d9` 由 `Yonda.app → MCP stdio → Agent Gateway → Application → Sky Worker` 创建并执行；启动后的新鲜 Observation 含 336 个 AX 元素、`3420×1986` 原图和临时引用。
+- 历史入口索引不能复用：当前新鲜树中的 image 18、image 19 与唯一无标签 button 20 均分别绑定各自的新鲜 Observation 执行，动作后完整树保持 336 个元素，企业列表未出现，Yonder 均交回慢脑而未伪报成功。
+- 原图左下角视觉点绑定新鲜引用后，Sky 返回 `driver-action-rejected`；同位置的 2× 逻辑点仅作为一次诊断对照，动作后结构仍无变化。该结果既不支持原图像素路径，也不能把固定 2× 换算提升为产品规则。
+- 任务读取最新 `task.get/events` 后在序号 32 正式取消；没有自动重放 unknown 坐标，没有选择企业或产生消息副作用。
+- 当前阻断收敛为 Sky 对企业微信自绘左栏缺少可确认的投递路径，而非计划缺少上下文、旧索引误用或 Goal 核验提前成功。OEH-09、OEH-13～OEH-17 与两项正式回归任务继续保持未完成。
+- 有界证据：`apps/desktop/evidence/cu-s6-wecom-retina-negative-20261013/result.json`；不保存 transcript、截图、标签正文或完整 Payload。
+
 ## 2026-10-12 QQ 音乐播放按钮目标确认回归
 
 - 修复前正式任务 `task_04cb1b11f7cf69eabc9db994ebd88d47` 直接激活新鲜“暂停播放”按钮；动作后按钮标签保持不变，但页面其他结构变化使旧 Worker 错误产生 `observed(action_succeeded=true)`。归属慢脑依据按钮事实提交 `not-achieved`，任务取消，未把 Driver 回执提升为业务成功。
