@@ -46,10 +46,25 @@ CREATE TABLE task_controls_v26 (
   CHECK((focus_phase IS NULL AND focus_failure IS NULL AND focus_sequence IS NULL) OR (focus_phase='locating' AND focus_failure IS NULL AND focus_sequence IS NOT NULL) OR (focus_phase='focused' AND focus_failure IS NULL AND focus_sequence IS NOT NULL) OR (focus_phase='failed' AND focus_failure IS NOT NULL AND focus_sequence IS NOT NULL))
 );
 INSERT INTO task_controls_v26 SELECT * FROM task_controls;
+CREATE TABLE task_focus_events_v26 (
+    task_id TEXT NOT NULL,
+    sequence INTEGER NOT NULL CHECK(sequence > 0),
+    control_id TEXT NOT NULL,
+    phase TEXT NOT NULL CHECK(phase IN ('locating','focused','failed')),
+    failure TEXT,
+    PRIMARY KEY(task_id, sequence),
+    UNIQUE(task_id, control_id, phase),
+    FOREIGN KEY(task_id, sequence) REFERENCES events(task_id, sequence),
+    FOREIGN KEY(task_id, control_id) REFERENCES task_controls_v26(task_id, control_id),
+    CHECK((phase='failed' AND failure IS NOT NULL) OR (phase!='failed' AND failure IS NULL))
+);
+INSERT INTO task_focus_events_v26 SELECT * FROM task_focus_events;
+DROP TABLE task_focus_events;
 DROP TABLE task_controls;
 DROP INDEX task_attempt_active;
 DROP TABLE task_attempts;
 ALTER TABLE task_attempts_v26 RENAME TO task_attempts;
 ALTER TABLE task_controls_v26 RENAME TO task_controls;
+ALTER TABLE task_focus_events_v26 RENAME TO task_focus_events;
 CREATE UNIQUE INDEX task_attempt_active ON task_attempts(task_id) WHERE phase!='stopped' AND handback_sequence IS NULL;
 PRAGMA user_version=26;

@@ -8589,6 +8589,29 @@ mod tests {
                 matches!(result, yonder_protocol::Response::Success { result: yonder_protocol::QueryResult::Events { ref events, .. }, .. } if events.iter().filter(|event| event.focus_event.is_some()).count() == expected)
             );
         }
+        // v25 已经存在指向 task_controls 的不可变 focus 历史；v26 重建父表时
+        // 必须连同子表一起搬迁，不能因真实引用而在启动阶段触发外键失败。
+        store
+            .0
+            .execute_batch("PRAGMA user_version=25;")
+            .unwrap();
+        let db = store.0;
+        let mut store = SqliteTaskStore::initialize(db, true).unwrap();
+        assert_eq!(
+            store
+                .0
+                .query_row(
+                    "SELECT count(*) FROM task_focus_events WHERE task_id=?1",
+                    [&task.id],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            store.get_control(&task.id).unwrap().unwrap().focus_phase,
+            Some(FocusPhase::Focused)
+        );
         store
             .0
             .execute_batch("DROP TABLE task_runtime_projections; DROP INDEX tasks_created_at_id; DROP INDEX tasks_owner_created_at_id; ALTER TABLE tasks DROP COLUMN created_at; DROP TABLE task_focus_events; DROP INDEX task_attempt_active; ALTER TABLE task_attempts DROP COLUMN handback_sequence; CREATE UNIQUE INDEX task_attempt_active ON task_attempts(task_id) WHERE phase!='stopped'; PRAGMA user_version=18;")
