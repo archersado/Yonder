@@ -15,8 +15,14 @@
   "experience_promoted": true,
   "experience_recalled": true,
   "recall_visible_after_delivery_status": true,
-  "agent_input_delivery": "blocked-agent-input-session-missing",
+  "accepted_delivery_task_id": "task_c945c1ff998e04c643a524a5ec52971f",
+  "accepted_delivery_observation_sequence": "5",
+  "accepted_delivery_verification_sequence": "8",
+  "accepted_delivery_codex_cli_version": "0.162.1",
+  "agent_input_delivery": "accepted",
+  "agent_input_received_by_owner_session": true,
+  "accepted_delivery_experience_count": 2,
   "sensitive_payload_persisted_in_evidence": false,
   "ex_s5_product_scope_passed": true,
-  "full_connected_agent_sample_passed": false
+  "full_connected_agent_sample_passed": true
 }

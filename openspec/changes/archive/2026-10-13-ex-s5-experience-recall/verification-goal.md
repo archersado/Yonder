@@ -1,8 +1,8 @@
 # EX-S5 独立 Verification Goal
 
 Story: EX-S5
-Result: PARTIAL PASS
-状态：macOS 自动化与正式产品晋升/召回/UI 样本通过；当前 Codex 会话缺少 Agent 输入通道，真实慢脑投递待 AG-S8 恢复后补；Windows 原生证据暂缓
+Result: PASS
+状态：macOS 自动化、正式产品晋升/召回/UI 与唯一归属慢脑 accepted 投递均通过；Windows 原生证据暂缓
 
 ## 目标
 
@@ -36,4 +36,8 @@ Result: PARTIAL PASS
 - 首轮产品样本发现 `mark_replan_delivery` 会覆盖 EX5-06 的召回状态；`9e6aecb` 增加进程内召回标记并将其与 accepted/missing/ambiguous/failed 投递状态组合展示。Desktop 35/35、Application 经验测试 3/3、Adapter 经验测试 1/1、架构检查和 OpenSpec strict 均通过。
 - 结构化证据位于 `apps/desktop/evidence/ex-s5-experience-recall-product-20261013/result.json`；不保存正文、截图、transcript、坐标、Observation 引用、完整 Agent Payload 或凭据。
 
-本轮正式产品已经通过 EX-S5 的经验晋升、召回、轻量降级与顶部可观察性范围。当前 Codex 会话只注册了 Gateway/MCP，未注册 AG-S8 Agent 输入能力，因此 replan 投递按设计显示“等待慢脑连接”，不能声称“已向真实连接的唯一慢脑投递经验提示”。该缺口属于 AG-S8 会话接线阻塞；恢复受支持的 Codex CLI 输入会话后须以同类无副作用样本补一次 accepted 投递，之后才能 Archive。Windows 原生证据继续暂缓。
+本轮正式产品已经通过 EX-S5 的经验晋升、召回、轻量降级与顶部可观察性范围。
+
+在由 Codex CLI 0.162.1 从启动起持有、且 AG-S8 输入通道已注册的新会话中，终局任务 `task_c945c1ff998e04c643a524a5ec52971f` 再次执行相同无副作用样本：`launch-application` 在序号 5 返回 `action_succeeded=true / observe_valid=true`，归属慢脑提交 `not-achieved@8` 后，Yonder 将两条 `native-launch` 历史经验随 replan 输入投递到当前唯一 `codex-cli` 会话，当前 turn 实际收到该输入。慢脑随后按要求通过 Gateway 读取 `task.get` 与 `task.events`，确认不存在 `unknown` 或待核实副作用，并在序号 9 取消验证任务清理现场。
+
+该 accepted 样本不保存经验提示正文、任务正文、截图、transcript、坐标、Observation 引用、完整 Agent Payload 或凭据；结构化证据只记录数量、序号、连接版本和布尔结果。至此 EX5-01—06 的 macOS Verification Goal 全部通过，可以 Archive；Windows 原生证据继续按主人决定暂缓。

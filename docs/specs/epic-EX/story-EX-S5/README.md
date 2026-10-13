@@ -5,7 +5,7 @@ Epic: EX
 Status: verifying
 OpenSpec: ex-s5-experience-recall
 
-[OpenSpec Change](../../../../openspec/changes/ex-s5-experience-recall/)
+[已归档 OpenSpec Change](../../../../openspec/changes/archive/2026-10-13-ex-s5-experience-recall/)
 
 ## 目标
 
@@ -27,4 +27,4 @@ OpenSpec: ex-s5-experience-recall
 
 Application、SQLite 独立投影线程、20ms 有界召回、AG-S5 慢脑输入与顶部浮窗状态已经接通，并在 macOS 完成独立自动化验证。
 
-2026-10-13 正式 `Yonda.app` 已完成“安全任务 achieved 后晋升 → 同特征任务 not-achieved → 交回前召回 → 顶部持续展示”的产品样本，并修复慢脑投递状态覆盖“已召回执行经验”的问题（`9e6aecb`）。当前 Codex 会话未注册 AG-S8 Agent 输入能力，产品正确停在“已召回执行经验，等待慢脑连接”；恢复受支持的唯一慢脑输入会话后仍需补一次 accepted 投递，Change 暂不 Archive。Windows 原生证据按现有决定暂缓。
+2026-10-13 正式 `Yonda.app` 已完成“安全任务 achieved 后晋升 → 同特征任务 not-achieved → 交回前召回 → 顶部持续展示”的产品样本，并修复慢脑投递状态覆盖“已召回执行经验”的问题（`9e6aecb`）。随后在 Codex CLI 0.162.1 从启动起持有的新会话中，任务 `task_c945c1ff998e04c643a524a5ec52971f` 的两条有界历史经验成功投递到当前唯一归属慢脑，慢脑读取 Gateway 新鲜事实后安全清理任务。macOS Change 已通过独立 Verification Goal 并 Archive；Windows 原生证据按现有决定暂缓，因此 Story 保持 verifying。
