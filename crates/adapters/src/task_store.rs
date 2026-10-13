@@ -3318,9 +3318,11 @@ impl TaskStore for SqliteTaskStore {
                                     action_succeeded: value != 0,
                                 }
                             }
-                            ("unknown", None, Some(0), Some(value)) => AttemptConclusion::Unknown {
-                                reason: parse_reason(value)?,
-                            },
+                            ("unknown" | "stopped", None, Some(0), Some(value)) => {
+                                AttemptConclusion::Unknown {
+                                    reason: parse_reason(value)?,
+                                }
+                            }
                             _ => return Err(Error::StorageUnavailable),
                         };
                     Some(AttemptResultRecord {
@@ -9776,6 +9778,15 @@ mod tests {
         let persisted = TaskStore::get(&mut store, &task.id).unwrap();
         assert_eq!(persisted.status, Status::Cancelled);
         assert_eq!(persisted.sequence, 5);
+        let history = store.events_with_steps(&task.id, 0, 10).unwrap();
+        assert_eq!(history.len(), 5);
+        assert!(matches!(
+            history[3]
+                .attempt_result
+                .as_ref()
+                .map(|result| result.conclusion),
+            Some(AttemptConclusion::Unknown { .. })
+        ));
     }
 
     #[test]
