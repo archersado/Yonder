@@ -1377,6 +1377,71 @@ mod tests {
     }
 
     #[test]
+    fn task_host_drains_cancelled_runtime_before_normal_shutdown() {
+        let directory = std::env::temp_dir().join(format!(
+            "yonda-runtime-terminal-drain-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host = TaskHost::open(&directory).unwrap();
+        let task = host
+            .store
+            .create("runtime-terminal", "agent-a", yonder_application::TaskSource::LocalAgent)
+            .unwrap();
+        let runtime = host.execution_runtime();
+        let active = runtime
+            .apply(yonder_application::execution_runtime::RuntimeCommand::Activate {
+                task_id: task.id.clone(),
+                checkpoint: task.sequence,
+            })
+            .unwrap();
+        let started = runtime
+            .apply(yonder_application::execution_runtime::RuntimeCommand::StartStep {
+                task_id: task.id.clone(),
+                step_id: "cancel-step".into(),
+                label: "取消边界".into(),
+                attempt_id: "attempt-cancel".into(),
+                worker_instance_id: "worker".into(),
+                host_session_id: "host".into(),
+            })
+            .unwrap();
+        assert_eq!(started.sequence, active.sequence + 1);
+        let unknown = runtime
+            .apply(yonder_application::execution_runtime::RuntimeCommand::UnverifyStep {
+                task_id: task.id.clone(),
+                step_id: "cancel-step".into(),
+                reason: yonder_application::unknown_reason::UnknownReason::ObserveFailed,
+            })
+            .unwrap();
+        let (cancelled, _) = yonder_application::execution_runtime::stop_for_control(
+            &runtime,
+            &mut host.store,
+            AuthContext::LocalUser("desktop"),
+            &task.id,
+            unknown.sequence,
+            ControlKind::Cancel,
+        )
+        .unwrap();
+        assert_eq!(cancelled.status, yonder_application::Status::Cancelled);
+        drop(host);
+
+        let mut reopened = TaskHost::open(&directory).unwrap();
+        let persisted = reopened.store.get(&task.id).unwrap();
+        assert_eq!(persisted.status, yonder_application::Status::Cancelled);
+        assert_eq!(persisted.sequence, cancelled.sequence);
+        drop(reopened);
+        for name in ["tasks.db", "host.lock"] {
+            std::fs::remove_file(directory.join(name)).unwrap();
+        }
+        std::fs::remove_dir(directory.join("observations")).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
     fn cua_control_does_not_hide_a_new_agent_task() {
         assert!(!blocks_task_space_auto_show("cua-control"));
         assert!(blocks_task_space_auto_show("voice-input"));

@@ -23,6 +23,8 @@
 - 发送、支付、删除、安装和提权仍须副作用前取得本机确认；异步持久化不得把确认改成事后补记。
 - 不引入完整 Event Sourcing、第二数据库、本地 HTTP 或通用消息总线。使用进程内有界 channel、单一 runtime owner 和单一 persistence projector。
 
+2026-10-13 终态投影修订：projector 不得把 `unknown → stopped` 的取消事实误判为非法数据；`stopped` 只表达 Yonder 已停止该 attempt 的继续派发，原 `unknown` 结论必须保留。schema 25→26 依 AD-TM-04 扩展 stopped 约束。正常宿主关闭在 Runtime 销毁前有界排空 dirty；投影失败只输出错误分类与有界累计次数，不记录事件 Payload，并继续重试而不阻塞执行响应。
+
 ## 迁移与验证
 
 实现可按能力分阶段提交，但完成口径同时覆盖 CUA、BUA、Document/Office 与 Command；任何一条仍由同步 SQLite 写入驱动时，本 Story 不得标记完成或 Archive。统一验证 SQLite 延迟/失败不阻塞 Driver→Observe→下一步、即时顶部投影、背压暂停、取消/接管、HandBack、崩溃恢复与发送确认。macOS 先行，Windows继续暂缓。

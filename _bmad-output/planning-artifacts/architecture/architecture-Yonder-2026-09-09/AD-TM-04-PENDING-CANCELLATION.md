@@ -11,3 +11,5 @@ Application校验身份、归属与expected_sequence，通过原有CAS状态/事
 本机控制沿现有固定LocalUser桌面query入口使用task.cancel；Agent只走已握手Gateway。UI对全部非终态任务显示“取消任务”，不再把running分流到task.control；提交中禁用，成功刷新进行中列表，失败保留并提示刷新，不自动重试。终态在全部中保留事件和快照；取消不删除数据，不调用系统删除操作。
 
 验证：实际SQLite身份隔离、版本拒绝、序号冲突、重复取消单事件、Outbox失败回滚、Start竞态、创建重试不复活；macOS真实按钮取消一条本地测试Agent任务，另一条保留，全部可见取消态。Windows暂停，完整暂停/接管/执行中取消仍待停止确认与双平台证据，不Archive完整TM-S3。
+
+2026-10-13 事件运行时投影修订：直接取消活动 Runtime 时，`ControlStopped(cancel)` 表示 Yonder 已冻结后续派发并把任务置为 `cancelled`，不表示此前副作用已回滚或 unknown 已被证实。SQLite schema 25→26 放宽 `task_attempts.phase='stopped'` 的形状，使它可原样保留此前 `prepared`、`observed` 或 `unknown` 结论字段并追加 stop/control 关联；禁止把 unknown 改写成 observed。状态、事件、Outbox、control 与 attempt 更新仍在单个 projector 事务内，失败不 ACK 且持续重试。

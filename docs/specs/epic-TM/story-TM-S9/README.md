@@ -20,3 +20,5 @@ OpenSpec: tm-s9-event-driven-runtime
 完成范围同时包含 CUA、EX-S2 计划片段、BUA、Document/Office、Command 和控制链路。允许按能力分阶段提交，但任一链路仍依赖同步 SQLite 推进时不得完成或 Archive。Windows继续暂缓。
 
 2026-10-12 正式 MCP 回归发现 `task.get/events` 已返回 `cancelled@13`，但 `task.list` 仍从旧 SQLite checkpoint 返回 `running@12`。该缺陷由增量 Change `tm-s9-task-list-runtime-overlay` 修复与验证；不改变已归档主 Change 的架构结论。
+
+2026-10-13 重启回归发现活动 Runtime 已返回 `cancelled` 的任务在宿主重启后恢复为 `interrupted`，证明终态事件未在有界时间内完成异步投影。新增 Change `tm-s9-terminal-projection-recovery` 返回实施：终态响应仍不得等待 SQLite，但 projector 必须持续重试、提供有界诊断，并在正常宿主关闭前排空已接受事件；正式 Goal 必须等待持久 checkpoint 后重启复核。

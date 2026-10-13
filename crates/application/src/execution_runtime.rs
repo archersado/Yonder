@@ -9,11 +9,12 @@ use std::{
         Arc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub const DEFAULT_COMMAND_CAPACITY: usize = 128;
 pub const DEFAULT_EVENT_HARD_LIMIT: usize = 256;
+const SHUTDOWN_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -461,7 +462,36 @@ impl RuntimeProjectionWorker {
             .name("yonder-runtime-projector".into())
             .spawn(move || {
                 let mut dirty = HashSet::new();
-                while !worker_stop.load(Ordering::Acquire) {
+                let mut failures = HashMap::new();
+                loop {
+                    if worker_stop.load(Ordering::Acquire) {
+                        while let Ok(task_id) = wakes.try_recv() {
+                            dirty.insert(task_id);
+                        }
+                        let deadline = Instant::now() + SHUTDOWN_DRAIN_TIMEOUT;
+                        while !dirty.is_empty() && Instant::now() < deadline {
+                            project_dirty(
+                                &runtime,
+                                &mut projector,
+                                &mut dirty,
+                                &mut failures,
+                                batch_size,
+                            );
+                            while let Ok(task_id) = wakes.try_recv() {
+                                dirty.insert(task_id);
+                            }
+                            if !dirty.is_empty() {
+                                thread::sleep(retry_interval.min(Duration::from_millis(10)));
+                            }
+                        }
+                        if !dirty.is_empty() {
+                            eprintln!(
+                                "运行时投影关闭排空超时：待处理任务数={}",
+                                dirty.len()
+                            );
+                        }
+                        break;
+                    }
                     match wakes.recv_timeout(retry_interval) {
                         Ok(task_id) => {
                             dirty.insert(task_id);
@@ -472,7 +502,13 @@ impl RuntimeProjectionWorker {
                         Err(RecvTimeoutError::Timeout) => {}
                         Err(RecvTimeoutError::Disconnected) => break,
                     }
-                    project_dirty(&runtime, &mut projector, &mut dirty, batch_size);
+                    project_dirty(
+                        &runtime,
+                        &mut projector,
+                        &mut dirty,
+                        &mut failures,
+                        batch_size,
+                    );
                 }
             })
             .map_err(|_| RuntimeError::Unavailable)?;
@@ -496,6 +532,7 @@ fn project_dirty(
     runtime: &ExecutionRuntimeHandle,
     projector: &mut impl RuntimeEventProjector,
     dirty: &mut HashSet<String>,
+    failures: &mut HashMap<String, u32>,
     batch_size: usize,
 ) {
     let task_ids: Vec<_> = dirty.iter().cloned().collect();
@@ -508,18 +545,42 @@ fn project_dirty(
             continue;
         }
         let through_sequence = events.last().expect("non-empty batch").sequence;
-        if projector.project(&events).is_ok()
-            && runtime
-                .apply(RuntimeCommand::Ack {
-                    task_id: task_id.clone(),
-                    through_sequence,
-                })
-                .is_ok()
-        {
-            if events.len() < batch_size {
-                dirty.remove(&task_id);
+        let projected = match projector.project(&events) {
+            Ok(()) => true,
+            Err(error) => {
+                projection_retry_diagnostic(failures, &task_id, format!("{error:?}"));
+                false
             }
+        };
+        if !projected {
+            continue;
         }
+        if runtime
+            .apply(RuntimeCommand::Ack {
+                task_id: task_id.clone(),
+                through_sequence,
+            })
+            .is_err()
+        {
+            projection_retry_diagnostic(failures, &task_id, "ack".into());
+            continue;
+        }
+        failures.remove(&task_id);
+        if events.len() < batch_size {
+            dirty.remove(&task_id);
+        }
+    }
+}
+
+fn projection_retry_diagnostic(
+    failures: &mut HashMap<String, u32>,
+    task_id: &str,
+    error: String,
+) {
+    let attempts = failures.entry(task_id.to_owned()).or_default();
+    *attempts = attempts.saturating_add(1);
+    if attempts.is_power_of_two() && *attempts <= 1024 {
+        eprintln!("运行时投影待重试：分类={error}，累计次数={attempts}");
     }
 }
 

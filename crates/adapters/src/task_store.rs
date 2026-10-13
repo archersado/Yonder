@@ -24,7 +24,7 @@ use yonder_application::{
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 25;
+pub const SQLITE_SCHEMA_VERSION: i64 = 26;
 
 enum ExperienceProjectionCommand{Record(Vec<ExecutionExperience>),Recall(ExperienceQuery,usize,std::sync::mpsc::Sender<Result<Vec<ExecutionExperience>,Error>>),Stop}
 
@@ -559,7 +559,7 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
         ]
         .contains(&schema)
         {
@@ -605,7 +605,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
         ]
         .contains(&schema)
         {
@@ -705,6 +705,10 @@ impl SqliteTaskStore {
         }
         if schema < 25 {
             tx.execute_batch(include_str!("execution_experience_schema.sql"))
+                .map_err(storage)?;
+        }
+        if schema < 26 {
+            tx.execute_batch(include_str!("task_runtime_control_stop_schema.sql"))
                 .map_err(storage)?;
         }
         // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
@@ -5058,7 +5062,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            25
+            SQLITE_SCHEMA_VERSION
         );
         drop(store);
         for rejected in [
@@ -5104,7 +5108,7 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 25);
+        assert_eq!(version, SQLITE_SCHEMA_VERSION);
     }
 
     #[test]
@@ -5132,7 +5136,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            25
+            SQLITE_SCHEMA_VERSION
         );
         assert!(create(&mut recovered, "recovered-audit-quota").is_ok());
     }
@@ -5169,7 +5173,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            25
+            SQLITE_SCHEMA_VERSION
         );
     }
 
@@ -6530,7 +6534,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            25
+            SQLITE_SCHEMA_VERSION
         );
         fn hello(agent: &str, minor: u16) -> Vec<u8> {
             format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#).into_bytes()
@@ -8415,7 +8419,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            25
+            SQLITE_SCHEMA_VERSION
         );
     }
 
@@ -8608,7 +8612,7 @@ mod tests {
                 .0
                 .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
-            25
+            SQLITE_SCHEMA_VERSION
         );
     }
 
@@ -9703,6 +9707,52 @@ mod tests {
                 .unwrap(),
             "stopped"
         );
+    }
+
+    #[test]
+    fn runtime_projection_persists_unknown_then_cancelled() {
+        let mut store =
+            SqliteTaskStore::initialize(Connection::open_in_memory().unwrap(), true).unwrap();
+        let task = create(&mut store, "runtime-cancel").unwrap();
+        let events = vec![
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 2,
+                kind: RuntimeEventKind::Activated,
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 3,
+                kind: RuntimeEventKind::StepStarted {
+                    step_id: "cancel-step".into(),
+                    label: "取消边界".into(),
+                    attempt_id: "attempt-cancel".into(),
+                    worker_instance_id: "worker".into(),
+                    host_session_id: "host".into(),
+                },
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 4,
+                kind: RuntimeEventKind::StepUnverified {
+                    step_id: "cancel-step".into(),
+                    reason: yonder_application::unknown_reason::UnknownReason::ObserveFailed,
+                },
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 5,
+                kind: RuntimeEventKind::ControlStopped {
+                    attempt_id: "attempt-cancel".into(),
+                    control_id: "control_5".into(),
+                    control_kind: "cancel".into(),
+                },
+            },
+        ];
+        RuntimeEventProjector::project(&mut store, &events).unwrap();
+        let persisted = TaskStore::get(&mut store, &task.id).unwrap();
+        assert_eq!(persisted.status, Status::Cancelled);
+        assert_eq!(persisted.sequence, 5);
     }
 
     #[test]
