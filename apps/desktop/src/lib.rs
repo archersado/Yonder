@@ -1479,7 +1479,7 @@ mod tests {
     #[test]
     fn consecutive_runtime_attempts_project_through_terminal() {
         use yonder_application::{
-            AttemptConclusion, StepDeclaration,
+            AttemptConclusion,
             admission::Resource,
             execution_runtime::{
                 RuntimeCommand, RuntimePhase, advance_boundary, begin_attempt,
@@ -1496,15 +1496,20 @@ mod tests {
         ));
         std::fs::create_dir(&directory).unwrap();
         let mut host = TaskHost::open(&directory).unwrap();
-        let task = host
+        let created = host
             .store
             .create("runtime-consecutive", "agent-a", yonder_application::TaskSource::LocalAgent)
             .unwrap();
-        let step = StepDeclaration {
-            step_id: "browser-step".into(),
-            label: "连续浏览器动作".into(),
-            accepted_sequence: task.sequence,
-        };
+        let (task, step) = host
+            .store
+            .declare_step(
+                "agent-a",
+                &created.id,
+                created.sequence,
+                "browser-step",
+                "连续浏览器动作",
+            )
+            .unwrap();
         let runtime = host.execution_runtime();
         let first = begin_attempt(
             &runtime,
@@ -1517,7 +1522,7 @@ mod tests {
             &[Resource::Browser],
         )
         .unwrap();
-        let first_observed = record_attempt_outcome(
+        record_attempt_outcome(
             &runtime,
             &first,
             AttemptConclusion::Observed {
@@ -1526,6 +1531,17 @@ mod tests {
         )
         .unwrap()
         .0;
+        let first_observed = runtime
+            .apply(RuntimeCommand::UpdateBrowserReference {
+                task_id: task.id.clone(),
+                reference: yonder_application::execution_runtime::RuntimeBrowserReference {
+                    external_task_ref: "ego:1".into(),
+                    ownership: "agent".into(),
+                    managed_pages: 1,
+                    finished: false,
+                },
+            })
+            .unwrap();
         let second = begin_attempt(
             &runtime,
             &host.admission,
@@ -1537,7 +1553,7 @@ mod tests {
             &[Resource::Browser],
         )
         .unwrap();
-        let second_observed = record_attempt_outcome(
+        record_attempt_outcome(
             &runtime,
             &second,
             AttemptConclusion::Observed {
@@ -1546,6 +1562,17 @@ mod tests {
         )
         .unwrap()
         .0;
+        let second_observed = runtime
+            .apply(RuntimeCommand::UpdateBrowserReference {
+                task_id: task.id.clone(),
+                reference: yonder_application::execution_runtime::RuntimeBrowserReference {
+                    external_task_ref: "ego:1".into(),
+                    ownership: "agent".into(),
+                    managed_pages: 1,
+                    finished: true,
+                },
+            })
+            .unwrap();
         let boundary = advance_boundary(&runtime, &task.id, second_observed.sequence).unwrap();
         let terminal = runtime
             .apply(RuntimeCommand::Terminate {

@@ -1,0 +1,17 @@
+{
+  "platform": "macos",
+  "build_commit": "9372372",
+  "gateway_transport": "local-socket-via-mcp",
+  "task_id": "task_09edc4fd9bd30003ff7880522e51a4d0",
+  "browser_reference": "ego:47",
+  "terminal_operation": "browser.execute(finish)",
+  "terminal_status": "completed",
+  "terminal_sequence": "12",
+  "pet_old_step_cleared": true,
+  "readonly_query_did_not_restore_executing": true,
+  "normal_quit_and_restart_status": "completed",
+  "normal_quit_and_restart_sequence": "12",
+  "task_space_uses_runtime_overlay": true,
+  "windows": "deferred-by-user",
+  "passed": true
+}
