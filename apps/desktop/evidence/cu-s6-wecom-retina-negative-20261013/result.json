@@ -33,6 +33,11 @@
     }
   ],
   "target_enterprise_observed": false,
+  "codex_computer_use_comparison": {
+    "original_pixel_point": "noWindowsAvailable(-10005)",
+    "retina_logical_point": "noWindowsAvailable(-10005)",
+    "yonder_only_mapping_fault_supported": false
+  },
   "automatic_unknown_replay": false,
   "final_status": "cancelled@32",
   "persistent_transcript_or_screenshot": false,
