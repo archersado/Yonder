@@ -36,6 +36,12 @@
 - When Agent 或 Task Space 调用 task.get、task.list 或 task.events
 - Then 只读响应不得发布普通展示事件，也不得把 Yonda 改回 executing
 
+#### Scenario: Runtime 终态覆盖旧检查点
+
+- Given 当前进程 Runtime 已进入 completed、failed 或 cancelled，而 SQLite 仍保留旧 running 步骤
+- When Yonda 读取最新桌宠展示状态
+- Then 旧步骤被立即屏蔽，展示事件在原生 UI 主线程生效，且不等待 SQLite 投影完成
+
 #### Scenario: 重复与失败响应
 
 - Given 相同 task_id、sequence、status 的脉冲已经处理，或写请求被拒绝

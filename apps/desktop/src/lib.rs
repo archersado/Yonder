@@ -524,9 +524,14 @@ pub fn emit_pet_presentation(
         "state": state,
         "stepLabel": if state == "executing" { step_label } else { None },
     });
-    let _ = window.eval(&format!(
+    let script = format!(
         "window.dispatchEvent(new CustomEvent('yonda-presentation',{{detail:{detail}}}))"
-    ));
+    );
+    let window = window.clone();
+    let app = window.app_handle().clone();
+    let _ = app.run_on_main_thread(move || {
+        let _ = window.eval(&script);
+    });
 }
 
 pub fn emit_pet_terminal_presentation(
@@ -544,14 +549,21 @@ pub fn emit_pet_terminal_presentation(
         "stepLabel": null,
         "eventId": event_id,
     });
-    let _ = window.eval(&format!(
+    let script = format!(
         "window.dispatchEvent(new CustomEvent('yonda-presentation',{{detail:{detail}}}))"
-    ));
+    );
+    let window = window.clone();
+    let app = window.app_handle().clone();
+    let _ = app.run_on_main_thread(move || {
+        let _ = window.eval(&script);
+    });
 }
 
 pub fn emit_pet_agent_connection(window:&WebviewWindow,presence:agent_input::AgentConnectionPresence){
     let Ok(detail)=serde_json::to_string(&presence) else{return;};
-    let _=window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-agent-connection',{{detail:{detail}}}))"));
+    let script=format!("window.dispatchEvent(new CustomEvent('yonda-agent-connection',{{detail:{detail}}}))");
+    let window=window.clone();let app=window.app_handle().clone();
+    let _=app.run_on_main_thread(move||{let _=window.eval(&script);});
 }
 
 pub struct TaskHost {
@@ -1301,25 +1313,64 @@ impl TaskHost {
 
     /// 本地桌宠派生展示；执行优先，否则以首个未结束任务为代表。非执行/隐藏许可。
     pub fn presentation(&mut self) -> Result<(bool, &'static str, Option<String>), HostError> {
-        let tasks = self
+        let mut tasks = self
             .store
-            .list(None, None, false, 1)
+            .list(None, None, false, 64)
             .map_err(|_| HostError::StorageUnavailable)?;
+        let runtime = self.runtime.handle();
+        let mut runtime_busy = false;
         let mut step_label = None;
-        let state = match self.activity() {
-            ActivityState::Busy => {
+        let mut runtime_paused = false;
+        let mut persisted_running = false;
+        let mut runtime_unavailable = false;
+        tasks.retain(|task| match runtime.snapshot(&task.id) {
+            Ok(snapshot) => match snapshot.phase {
+                yonder_application::execution_runtime::RuntimePhase::Completed
+                | yonder_application::execution_runtime::RuntimePhase::Failed
+                | yonder_application::execution_runtime::RuntimePhase::Cancelled => false,
+                yonder_application::execution_runtime::RuntimePhase::Running
+                | yonder_application::execution_runtime::RuntimePhase::PersistenceBackpressure => {
+                    runtime_busy = true;
+                    if step_label.is_none() {
+                        step_label = snapshot.current_step.map(|step| step.label);
+                    }
+                    true
+                }
+                yonder_application::execution_runtime::RuntimePhase::HandBack
+                | yonder_application::execution_runtime::RuntimePhase::Paused
+                | yonder_application::execution_runtime::RuntimePhase::Interrupted => {
+                    runtime_paused = true;
+                    true
+                }
+            },
+            Err(yonder_application::execution_runtime::RuntimeError::NotFound) => {
+                persisted_running |= task.status == yonder_application::Status::Running;
+                true
+            }
+            Err(_) => {
+                runtime_unavailable = true;
+                true
+            }
+        });
+        if runtime_unavailable {
+            return Err(HostError::StorageUnavailable);
+        }
+        let occupied = self
+            .admission
+            .has_occupancy()
+            .map_err(|_| HostError::StorageUnavailable)?;
+        let state = if runtime_busy || persisted_running || occupied {
                 self.listening_pending = false;
                 self.listening_until = None;
-                step_label = self
-                    .store
-                    .list_running(None, None, 1)
-                    .ok()
-                    .and_then(|running| running.first().map(|task| task.id.clone()))
-                    .and_then(|task_id| self.running_step_label(&task_id));
+                if step_label.is_none() {
+                    step_label = tasks
+                        .iter()
+                        .find(|task| task.status == yonder_application::Status::Running)
+                        .and_then(|task| self.running_step_label(&task.id));
+                }
                 "executing"
-            }
-            ActivityState::Unknown => return Err(HostError::StorageUnavailable),
-            ActivityState::NoKnownWork => match tasks.first().map(|task| task.status) {
+        } else {
+            match tasks.first().map(|task| task.status) {
                 _ if self.listening_pending => {
                     self.listening_pending = false;
                     self.listening_until = Some(Instant::now() + Duration::from_millis(1600));
@@ -1331,12 +1382,13 @@ impl TaskHost {
                 {
                     "listening"
                 }
+                _ if runtime_paused => "paused",
                 Some(yonder_application::Status::WaitingForUser) => "waiting_for_user",
                 Some(
                     yonder_application::Status::Paused | yonder_application::Status::Interrupted,
                 ) => "paused",
                 _ => "idle",
-            },
+            }
         };
         Ok((!tasks.is_empty(), state, step_label))
     }
@@ -1380,6 +1432,42 @@ impl TaskHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pet_presentation_prefers_runtime_terminal_over_stale_store() {
+        use yonder_application::execution_runtime::{RuntimeCommand, RuntimePhase};
+        let directory = std::env::temp_dir().join(format!(
+            "yonda-runtime-presentation-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host = TaskHost::open(&directory).unwrap();
+        let task = host
+            .store
+            .create("runtime-presentation", "agent-a", yonder_application::TaskSource::LocalAgent)
+            .unwrap();
+        let runtime = host.execution_runtime();
+        runtime
+            .apply(RuntimeCommand::Activate {
+                task_id: task.id.clone(),
+                checkpoint: task.sequence,
+            })
+            .unwrap();
+        assert_eq!(host.presentation().unwrap().1, "executing");
+        runtime
+            .apply(RuntimeCommand::Terminate {
+                task_id: task.id,
+                phase: RuntimePhase::Completed,
+            })
+            .unwrap();
+        assert_eq!(host.presentation().unwrap(), (false, "idle", None));
+        drop(host);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn task_host_projects_runtime_events_on_a_separate_sqlite_connection() {
