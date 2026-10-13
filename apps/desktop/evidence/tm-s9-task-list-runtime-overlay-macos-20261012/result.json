@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-12",
+  "platform": "macOS 26.5.1 arm64",
+  "result": "PASS",
+  "gateway_path": "Yonda.app -> MCP stdio -> Agent Gateway -> Application",
+  "task_id": "task_e03f0f775dc1c3107c50a250029db628",
+  "terminal_fact": {
+    "sequence": "5",
+    "status": "cancelled",
+    "control_kind": "cancel",
+    "control_phase": "stopped"
+  },
+  "queries": {
+    "task_get": "cancelled@5",
+    "task_events": "continuous 1..5; cancelled control event at 5",
+    "task_list_include_finished": "cancelled@5",
+    "task_list_running_only": "absent",
+    "task_list_unfinished": "absent"
+  },
+  "automated_tests": {
+    "yonder_application": "83 passed",
+    "yonder_adapters": "86 passed",
+    "yonder_desktop_lib": "33 passed",
+    "openspec_strict": "passed",
+    "architecture_check": "passed",
+    "diff_check": "passed"
+  },
+  "privacy": "No screenshot, user content, full command output, complete Agent payload, direct Socket, SQLite, Runtime or Driver access was recorded.",
+  "windows": "Deferred by user decision"
+}
