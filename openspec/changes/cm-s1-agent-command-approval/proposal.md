@@ -8,6 +8,6 @@
 
 ## 变更
 
-建立 Rust 协议的提议/执行方法、desktop 内存批准 Registry、本机 Task Space 批准卡，以及 Application 受控执行用例。所有 Agent 命令须先由 LocalUser 对精确摘要批准；执行只引用一次性 `command_id`，先进入 TM-S7 事务再调用既有 Runtime。
+建立 Rust 协议的提议/执行方法、desktop 内存批准 Registry、本机 Task Space 批准卡，以及 Application 受控执行用例。所有 Agent 命令须先由 LocalUser 对精确摘要批准；提议成功后由 Yonda 自动展开并定位该卡，执行只引用一次性 `command_id`，先进入 TM-S7 事务再调用既有 Runtime。
 
 不实现 Shell、提权、安装、删除、支付、发送、批量命令、云端 WSS、Windows Runtime 或持久化批准。

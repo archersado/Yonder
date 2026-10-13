@@ -4,4 +4,6 @@
 
 TaskHost 持有 `CommandApprovalRegistry`，上限 32 项、最长五分钟。Registry 保存完整提议但不写 SQLite；本机 UI 获取预览、批准或拒绝。批准绑定任务、归属 Agent、当前 sequence 与 canonical command SHA-256；执行时原子消费。任何身份、sequence、摘要、终态、撤权、断连、过期或重启变化均拒绝。
 
+Gateway 成功接受命令提议后，desktop 组合根只产生携带 task_id 的一次性展示信号。Cocoa 主线程在 Yonda 旁显示既有 Task Space，前端切到全部任务、选中对应卡片并滚动至命令批准区域；完整提议仍由该窗口通过 LocalUser-only 入口从 Registry 读取，不进入展示信号或其他窗口。
+
 Application 执行用例先调用 TM-S7 `start_execution`，再消费批准并调用 `CommandPort`；确定结果映射 observed，无法确认进程组停止映射 unknown，均不自动重试。响应、事件、Outbox 和日志只带安全结果摘要，完整命令只存在本机内存预览。

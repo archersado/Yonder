@@ -197,6 +197,16 @@ export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.querySelectorAll('.task').length === 20);
   assert.equal(await page.evaluate(() => window.fixtureListRequests.every(params => params.newest_first === true)), true);
   await page.evaluate(() => {
+    const approval=window.fixtureCommandApprovals[0];
+    approval.taskId='test-task-00';
+    window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true,taskId:'test-task-00',section:'command-approval'}}));
+  });
+  await page.waitForFunction(() => document.querySelector('button.task[data-task-id="test-task-00"]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('.command-approval-card')?.dataset.attention === 'true');
+  assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
+  assert.ok((await page.evaluate(() => document.getElementById('notice').textContent)).includes('等待你的命令批准'));
+  assert.ok(await page.evaluate(() => document.querySelector('.command-approval-card').getBoundingClientRect().top < document.getElementById('detail').getBoundingClientRect().bottom));
+  await page.evaluate(() => { window.fixtureCommandApprovals[0].taskId='test-task-20'; });
+  await page.evaluate(() => {
     window.fixtureTasks.unshift({task_id:'new-created-task',name:'新建任务即时可见',owner_agent_id:'test-agent',source:'local-agent',status:'created',sequence:'1'});
     window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true}}));
   });

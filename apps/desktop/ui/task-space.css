@@ -72,6 +72,7 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .command-approval-note, .command-approval-empty { color: #8a8496; font-size: 12px; }
 .command-approvals { display: grid; gap: 8px; }
 .command-approval-card { padding: 9px; border: 1px solid #d8cdea; border-radius: 9px; background: #faf8ff; }
+.command-approval-card[data-attention="true"] { border-color: #8062bb; box-shadow: 0 0 0 3px #8062bb24; }
 .command-approval-state { margin: 0 0 8px; color: #5b468e; font-size: 12px; font-weight: 600; }
 .command-approval-fields { display: grid; gap: 7px; }
 .command-approval-fields div { min-width: 0; }

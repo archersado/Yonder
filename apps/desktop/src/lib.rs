@@ -281,7 +281,11 @@ pub fn position_window_in_pet_work_area(
     window.set_position(tauri::PhysicalPosition::new(x, y)).map_err(|_| "控制卡定位失败".into())
 }
 
-fn show_task_space_near_pet_inner(pet: &WebviewWindow, focus: bool) -> Result<(), String> {
+fn show_task_space_near_pet_inner(
+    pet: &WebviewWindow,
+    focus: bool,
+    command_approval_task_id: Option<&str>,
+) -> Result<(), String> {
     let app = pet.app_handle();
     let menu = app.get_webview_window("task-space").ok_or("任务菜单不可用")?;
     let monitor = pet.current_monitor().map_err(|_| "屏幕不可用")?
@@ -300,17 +304,26 @@ fn show_task_space_near_pet_inner(pet: &WebviewWindow, focus: bool) -> Result<()
     let target = tauri::PhysicalPosition::new(position.x.clamp(area.position.x, max_x), y.clamp(area.position.y, max_y));
     menu.set_position(target).and_then(|_| menu.show()).map_err(|_| "任务菜单打开失败")?;
     if focus { menu.set_focus().map_err(|_| "任务菜单打开失败")?; }
-    let event = if focus {
-        "window.dispatchEvent(new Event('yonda-tasks-open'))"
+    let event = if let Some(task_id) = command_approval_task_id {
+        let detail = serde_json::json!({
+            "automatic": true,
+            "taskId": task_id,
+            "section": "command-approval",
+        });
+        format!(
+            "window.dispatchEvent(new CustomEvent('yonda-tasks-open',{{detail:{detail}}}))"
+        )
+    } else if focus {
+        "window.dispatchEvent(new Event('yonda-tasks-open'))".to_owned()
     } else {
-        "window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true}}))"
+        "window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true}}))".to_owned()
     };
-    menu.eval(event).map_err(|_| "任务菜单打开失败".into())
+    menu.eval(&event).map_err(|_| "任务菜单打开失败".into())
 }
 
 /// 用户显式打开时保持既有焦点行为。
 pub fn show_task_space_near_pet(pet: &WebviewWindow) -> Result<(), String> {
-    show_task_space_near_pet_inner(pet, true)
+    show_task_space_near_pet_inner(pet, true, None)
 }
 
 fn blocks_task_space_auto_show(label: &str) -> bool {
@@ -331,7 +344,28 @@ pub fn show_task_space_after_agent_create(pet: &WebviewWindow) -> Result<bool, S
         }
     }
     // 自动透出不抢走用户当前焦点，否则 task-space 的 blur 收起规则会立刻关闭它。
-    show_task_space_near_pet_inner(pet, false)?;
+    show_task_space_near_pet_inner(pet, false, None)?;
+    Ok(true)
+}
+
+/// 命令提议已经由 Gateway 接受；只把任务引用投到本机受信 Task Space，
+/// 完整命令仍由窗口通过 LocalUser-only Registry 读取。
+pub fn show_command_approval_after_propose(
+    pet: &WebviewWindow,
+    task_id: &str,
+) -> Result<bool, String> {
+    if !yonder_application::valid_id(task_id) {
+        return Err("任务引用无效".into());
+    }
+    let app = pet.app_handle();
+    for label in ["voice-input", "region-input"] {
+        if let Some(window) = app.get_webview_window(label) {
+            if window.is_visible().unwrap_or(false) && blocks_task_space_auto_show(label) {
+                return Ok(false);
+            }
+        }
+    }
+    show_task_space_near_pet_inner(pet, false, Some(task_id))?;
     Ok(true)
 }
 
@@ -548,6 +582,7 @@ pub struct TaskHost {
     listening_pending: bool,
     listening_until: Option<Instant>,
     task_space_open_pending: bool,
+    command_approval_open_pending: Option<String>,
     #[cfg(target_os = "macos")]
     browser: Option<EgoLiteBridge>,
     #[cfg(target_os = "macos")]
@@ -665,6 +700,7 @@ impl TaskHost {
             listening_pending: false,
             listening_until: None,
             task_space_open_pending: false,
+            command_approval_open_pending: None,
             #[cfg(target_os = "macos")]
             browser,
             #[cfg(target_os = "macos")]
@@ -1016,6 +1052,8 @@ impl TaskHost {
         now_ms: u64,
     ) -> Result<Vec<u8>, HostError> {
         let cancel_task = yonder_application::gateway::cancel_request_task(request);
+        let command_approval_task =
+            yonder_application::gateway::command_proposal_task(request);
         #[cfg(target_os = "macos")]
         let browser = self
             .browser
@@ -1122,6 +1160,11 @@ impl TaskHost {
             self.listening_until = None;
             self.task_space_open_pending = true;
         }
+        if command_approval_task.is_some()
+            && yonder_application::gateway::response_succeeded(&response)
+        {
+            self.command_approval_open_pending = command_approval_task;
+        }
         Ok(response)
     }
 
@@ -1152,6 +1195,11 @@ impl TaskHost {
     /// 仅供已认证 Local Socket 在成功新建后消费一次展示请求。
     pub fn take_task_space_open_pending(&mut self) -> bool {
         std::mem::take(&mut self.task_space_open_pending)
+    }
+
+    /// 只供当前用户私有 Local Socket 消费一次；不含命令正文。
+    pub fn take_command_approval_open_pending(&mut self) -> Option<String> {
+        self.command_approval_open_pending.take()
     }
 
     fn running_step_label(&mut self, task_id: &str) -> Option<String> {
@@ -1865,11 +1913,17 @@ mod tests {
         let propose=format!(r#"{{"jsonrpc":"2.0","id":"propose","method":"task.command.propose","params":{{"agent_id":"agent-a","capability":"command.propose","deadline":{},"task_id":"{}","program":"/usr/bin/printf","args":["%s","gateway-ok"],"cwd":"{}","env":{{}},"timeout_ms":1000}}}}"#,now+2_000,task.id,directory.to_str().unwrap());
         let response:serde_json::Value=serde_json::from_slice(&host.query_session(&mut session,propose.as_bytes(),now+11).unwrap()).unwrap();
         let command_id=response["result"]["approval"]["command_id"].as_str().expect("命令提议响应").to_owned();
+        assert_eq!(host.take_command_approval_open_pending(),Some(task.id.clone()));
+        assert_eq!(host.take_command_approval_open_pending(),None,"展示请求只能消费一次");
+        let rejected_propose=format!(r#"{{"jsonrpc":"2.0","id":"bad-propose","method":"task.command.propose","params":{{"agent_id":"agent-a","capability":"command.propose","deadline":{},"task_id":"{}","program":"relative","args":[],"cwd":"{}","env":{{}},"timeout_ms":1000}}}}"#,now+2_000,task.id,directory.to_str().unwrap());
+        let rejected=host.query_session(&mut session,rejected_propose.as_bytes(),now+12).unwrap();
+        assert!(!yonder_application::gateway::response_succeeded(&rejected));
+        assert_eq!(host.take_command_approval_open_pending(),None,"失败提议不得打开批准卡");
         assert_eq!(host.store.get(&task.id).unwrap().status,yonder_application::Status::Created);
         assert!(host.store.get_attempt(&task.id).unwrap().is_none());
-        host.approve_command(&task.id,&command_id,now+12).unwrap();
+        host.approve_command(&task.id,&command_id,now+13).unwrap();
         let execute=format!(r#"{{"jsonrpc":"2.0","id":"execute","method":"task.command.execute","params":{{"agent_id":"agent-a","capability":"command.execute","deadline":{},"task_id":"{}","expected_sequence":"{}","command_id":"{}"}}}}"#,now+2_000,task.id,task.sequence,command_id);
-        let response_bytes=host.query_session(&mut session,execute.as_bytes(),now+13).unwrap();
+        let response_bytes=host.query_session(&mut session,execute.as_bytes(),now+14).unwrap();
         let response_text=String::from_utf8(response_bytes.clone()).unwrap();
         assert!(!response_text.contains("/usr/bin/printf")&&!response_text.contains(directory.to_str().unwrap())&&!response_text.contains("gateway-ok"));
         let response:serde_json::Value=serde_json::from_slice(&response_bytes).unwrap();
@@ -1878,8 +1932,8 @@ mod tests {
         assert_eq!(execution["exit_code"],0);
         assert_eq!(execution["stdout_base64"],"Z2F0ZXdheS1vaw==");
         assert_eq!(execution["attempt_result"]["action_succeeded"],true);
-        assert!(host.list_command_approvals(&task.id,now+14).unwrap().is_empty());
-        let replay=String::from_utf8(host.query_session(&mut session,execute.as_bytes(),now+15).unwrap()).unwrap();
+        assert!(host.list_command_approvals(&task.id,now+15).unwrap().is_empty());
+        let replay=String::from_utf8(host.query_session(&mut session,execute.as_bytes(),now+16).unwrap()).unwrap();
         assert!(replay.contains("-32003")||replay.contains("-32011")||replay.contains("-32012"));
         assert!(!replay.contains("gateway-ok")&&!replay.contains("/usr/bin/printf"));
         drop(host);

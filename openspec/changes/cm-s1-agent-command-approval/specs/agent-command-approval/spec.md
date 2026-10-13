@@ -19,7 +19,15 @@
 
 ### Requirement: 本机批准精确绑定命令和任务
 
-只有可信本机用户可以在 Task Space 预览并批准或拒绝提议。系统 MUST 将批准绑定 task、owner Agent、完整命令 SHA-256 摘要、当前 sequence 和一次性 `command_id`，最长有效五分钟；完整命令不得经 Gateway、事件、Outbox、日志或桌宠暴露。
+只有可信本机用户可以在 Task Space 预览并批准或拒绝提议。系统 MUST 将批准绑定 task、owner Agent、完整命令 SHA-256 摘要、当前 sequence 和一次性 `command_id`，最长有效五分钟；完整命令不得经 Gateway、事件、Outbox、日志、桌宠形象窗口或顶部执行浮窗暴露。
+
+#### Scenario: 命令提议直接透出本机批准卡
+
+- **WHEN** Gateway 成功接受归属 Agent 的命令提议
+- **THEN** Yonda 自动展开本机 Task Space、选中对应任务并把批准卡置于可见区域
+- **AND** 用户无需从任务列表逐层进入即可批准或拒绝
+- **AND** 自动展示信号只含任务引用，不含 program、args、cwd、env 或 timeout
+- **AND** 展示失败不改变任务或批准状态，也不触发 Command Runtime
 
 #### Scenario: 参数替换要求重新批准
 

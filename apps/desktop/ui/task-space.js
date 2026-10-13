@@ -345,7 +345,7 @@ function renderArtifacts(container, task, pageResult, current, currentRound) {
   if (page.next_after_ordinal != null) offerArtifactMore(container, list, task.task_id, manifest.version, after, manifest.item_count, current, currentRound);
   else if (list.childElementCount < manifest.item_count) throw new Error('产物清单未完整返回');
 }
-async function select(task, button) {
+async function select(task, button, revealSection = null) {
   const current = ++selection, currentRound = round;
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
   placeholder('正在读取详情…');
@@ -414,6 +414,16 @@ async function select(task, button) {
     }
     detail.append(dl);
     renderCommandApprovals(detail, result.task, approvalsResult);
+    if (revealSection === 'command-approval') {
+      const card = detail.querySelector('.command-approval-card');
+      if (card) {
+        card.dataset.attention = 'true';
+        card.scrollIntoView({ block: 'start' });
+        message('此任务正在等待你的命令批准');
+      } else {
+        message('命令批准已处理或已过期');
+      }
+    }
     renderFileGrants(detail, result.task, grantsResult);
     if (terminal && !confirmation) {
       const area = document.createElement('div'); area.className = 'confirm';
@@ -448,7 +458,7 @@ async function select(task, button) {
     if (current === selection && currentRound === round) placeholder(`详情读取失败：${error.message ?? '请重试'}`);
   }
 }
-async function load(reset = true) {
+async function load(reset = true, reveal = null) {
   const current = ++round; ++selection;
   if (reset) { cursor = null; pageNumber = 1; }
   const stale = tasks.childElementCount > 0;
@@ -480,6 +490,12 @@ async function load(reset = true) {
     nextCursor = result.next_after_task_id; next.hidden = !nextCursor;
     byId('page-label').textContent = `第 ${pageNumber} 页 · ${visibleTasks.length} 项`;
     message(visibleTasks.length ? '显示真实任务状态' : includeFinished ? '暂无任务' : '暂无正在执行的任务');
+    if (reveal?.taskId) {
+      const task = visibleTasks.find(item => item.task_id === reveal.taskId);
+      const button = tasks.querySelector(`button.task[data-task-id="${CSS.escape(reveal.taskId)}"]`);
+      if (task && button) await select(task, button, reveal.section ?? null);
+      else message('待批准任务未出现在当前列表，请刷新后重试', true);
+    }
   } catch (error) {
     if (current !== round) return;
     message(`${error.message ?? '任务读取失败'}${stale ? '；已有列表可能过期，请刷新' : ''}`, true);
@@ -511,7 +527,7 @@ window.addEventListener('yonda-tasks-open', event => {
   } else {
     byId('refresh').focus();
   }
-  load();
+  load(true, event.detail?.taskId ? { taskId: event.detail.taskId, section: event.detail.section } : null);
 });
 load();
 })();

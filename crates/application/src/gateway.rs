@@ -235,6 +235,13 @@ pub fn cancel_request_task(bytes: &[u8]) -> Option<String> {
         _ => None,
     }
 }
+/// 桌面组合根只消费任务引用来自动展示本机批准卡；命令正文仍留在批准 Registry。
+pub fn command_proposal_task(bytes: &[u8]) -> Option<String> {
+    match yonder_protocol::decode(bytes).ok()? {
+        Request::CommandPropose { params, .. } => Some(params.task_id),
+        _ => None,
+    }
+}
 pub fn response_is_stopped_control(bytes: &[u8]) -> bool {
     matches!(yonder_protocol::decode_response(bytes),Ok(Response::Success{result:QueryResult::Control{control,..},..}) if control.phase==yonder_protocol::ControlPhase::Stopped)
 }

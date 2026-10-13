@@ -36,10 +36,10 @@ Agent Gateway 的可信风险确认引用、任务事件投影及 Windows Job Ob
 
 来源：CM-03、产品简报“可见且可控”、Accepted AD-CM-01 和 AD-CM-02。以下为架构定案后的设计细化，不把它表述为新增原始产品需求。
 
-- CM-APPROVAL-01：所有 Agent 结构化命令均须由本机用户在 Task Space 明确批准；Agent、CLI/MCP、Jev 或请求字段不能自报批准。
+- CM-APPROVAL-01：所有 Agent 结构化命令均须由本机用户在 Task Space 明确批准；命令提议成功后 Yonda 自动展开该本机界面、选中对应任务并把批准卡置于可见区域，不能要求用户从任务列表逐层查找。Agent、CLI/MCP、Jev 或请求字段不能自报批准。
 - CM-APPROVAL-02：批准精确绑定任务、归属 Agent、命令摘要、当前 sequence 和一次性 `command_id`；替换任何 program、args、cwd、env 或 timeout 均须重新提议。
 - CM-APPROVAL-03：提议、预览、批准、拒绝、过期、撤权、断连和重启都有稳定可观察状态；未批准前不得启动任务、创建 attempt 或产生副作用。
-- CM-APPROVAL-04：完整命令只在本机内存预览中向用户展示，不进入任务事实、事件、Outbox、日志、桌宠或 Agent 响应；Agent 只获得不透明标识与状态。
+- CM-APPROVAL-04：完整命令只在自动透出的本机 Task Space 内存预览中向用户展示，不进入任务事实、事件、Outbox、日志、桌宠形象窗口、顶部执行浮窗或 Agent 响应；Agent 只获得不透明标识与状态。
 - CM-APPROVAL-05：执行只接受批准引用；Application 必须先复用 TM-S7 启动事务，再调用 AD-CM-01 Runtime；unknown 不重试。
 
 ## 需求来源

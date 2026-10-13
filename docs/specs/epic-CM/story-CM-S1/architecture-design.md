@@ -13,6 +13,8 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 Application 定义不含技术依赖的 `CommandRequest/CommandOutcome/CommandPort`，并定义 Command Approval Port：提议只在 TaskHost 内存登记，批准只允许 LocalUser UI 写入，执行原子消费绑定 task/owner/digest/sequence 的一次性引用。macOS Adapter 使用 Rust 标准库与原生进程组，不安装新依赖；请求边界拒绝相对或不可规范化的 program/cwd、NUL、超额参数与环境，并 `env_clear`。stdout/stderr 各有界读取，停止后必须确认整个进程组消失。
 
 Runtime 是同步的受监管调用：调用方提供只读取消信号，Adapter 轮询取消、超时和输出超限。它不持有任务状态、不创建线程池、不保存正文。Gateway 的提议不触碰 Runtime；执行用例先经 TM-S7 统一启动、准入和 attempt 登记，再消费批准并派发，结果再同事务写任务事实；不建立旁路。
+
+命令提议成功响应只在 desktop 组合根形成一次性本机展示信号，携带 task_id 而不携带命令正文。主线程据此在 Yonda 旁展开既有 Task Space；Task Space 使用已有 LocalUser-only 预览入口读取内存 Registry、选中目标任务并滚动到批准卡。展示失败不改变批准状态、任务状态或 Gateway 响应，也不建立新的批准协议。
 失败不得隐式重试未知副作用。验证覆盖正常、拒绝和中断路径；沿用架构依赖与关联检查。
 
 ## 架构影响
