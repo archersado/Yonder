@@ -10,7 +10,19 @@
 
 - Given 归属 Agent 通过统一 Gateway 成功提交任务完成
 - When 响应包含新的 completed 序号
-- Then Yonda 播放一次 success，隐藏时主动唤醒，并在约 1.8 秒后恢复真实派生状态
+- Then Yonda 播放一次 success，隐藏时主动唤醒，并在约 1.8 秒后向宿主读取并恢复最新真实派生状态
+
+#### Scenario: 终态响应早于异步投影
+
+- Given Runtime 已将任务终结，但终态响应附近取得的 SQLite 展示快照仍为旧的 executing 步骤
+- When success 或 failed 动画结束
+- Then Yonda 不恢复事件中的旧快照，而是读取 Runtime 优先的最新宿主状态并清除旧步骤
+
+#### Scenario: 终态退出与新状态竞争
+
+- Given 终态退出刷新尚未返回
+- When 新的普通展示事件到达，或最新状态读取失败
+- Then 新事件优先且旧刷新结果不得覆盖；读取失败时显示 unknown 并清除旧步骤
 
 #### Scenario: 读取终态
 

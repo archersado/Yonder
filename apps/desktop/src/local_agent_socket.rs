@@ -523,9 +523,6 @@ async fn exchange(
                         has_tasks,
                         terminal,
                         &event_id,
-                        has_tasks,
-                        state,
-                        step_label.as_deref(),
                     );
                 } else {
                     emit_pet_presentation(&pet, has_tasks, state, step_label.as_deref());

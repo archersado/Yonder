@@ -57,6 +57,7 @@
   let responseStarted = 0;
   let terminalTimer;
   let lastTerminalId = '';
+  let presentationGeneration = 0;
   let mode = 'awake';
   const IDLE_MS = 180000;
   const active = () => ready && mode === 'awake' && visible && !reduced.matches;
@@ -484,14 +485,26 @@
     const detail = event.detail;
     if (!detail || typeof detail.hasTasks !== 'boolean' || typeof detail.state !== 'string') return;
     if (typeof detail.eventId === 'string') {
-      if (!detail.eventId || detail.eventId === lastTerminalId || typeof detail.resumeHasTasks !== 'boolean' || typeof detail.resumeState !== 'string') return;
+      if (!detail.eventId || detail.eventId === lastTerminalId) return;
       lastTerminalId = detail.eventId;
+      const generation = ++presentationGeneration;
       clearTimeout(terminalTimer);
       applyPresentation(detail.hasTasks, detail.state, detail.stepLabel, true);
       if (mode === 'docked') wake();
-      terminalTimer = setTimeout(() => { terminalTimer = null; applyPresentation(detail.resumeHasTasks, detail.resumeState, detail.resumeStepLabel, true); }, 1800);
+      terminalTimer = setTimeout(async () => {
+        terminalTimer = null;
+        try {
+          const [nextHasTasks, nextState, nextStepLabel] = await native('pet_task_state');
+          if (presentationGeneration !== generation) return;
+          applyPresentation(nextHasTasks, nextState, nextStepLabel, true);
+        } catch {
+          if (presentationGeneration !== generation) return;
+          applyPresentation(detail.hasTasks, 'unknown', null, true);
+        }
+      }, 1800);
       return;
     }
+    presentationGeneration += 1;
     applyPresentation(detail.hasTasks, detail.state, detail.stepLabel);
   });
   window.addEventListener('yonda-agent-connection', event => {

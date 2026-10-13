@@ -534,28 +534,16 @@ pub fn emit_pet_terminal_presentation(
     has_tasks: bool,
     state: &str,
     event_id: &str,
-    resume_has_tasks: bool,
-    resume_state: &str,
-    resume_step_label: Option<&str>,
 ) {
-    if !matches!(state, "success" | "failed")
-        || !matches!(
-            resume_state,
-            "idle"
-                | "listening"
-                | "thinking"
-                | "executing"
-                | "waiting_for_user"
-                | "paused"
-                | "recording"
-                | "success"
-                | "failed"
-                | "unknown"
-        )
-    {
+    if !matches!(state, "success" | "failed") {
         return;
     }
-    let detail = serde_json::json!({"hasTasks":has_tasks,"state":state,"stepLabel":null,"eventId":event_id,"resumeHasTasks":resume_has_tasks,"resumeState":resume_state,"resumeStepLabel":if resume_state=="executing"{resume_step_label}else{None}});
+    let detail = serde_json::json!({
+        "hasTasks": has_tasks,
+        "state": state,
+        "stepLabel": null,
+        "eventId": event_id,
+    });
     let _ = window.eval(&format!(
         "window.dispatchEvent(new CustomEvent('yonda-presentation',{{detail:{detail}}}))"
     ));

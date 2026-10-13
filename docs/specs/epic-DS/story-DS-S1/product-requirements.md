@@ -113,4 +113,4 @@ Yonda 只做轻量桌面插件，不提供全屏应用形态。macOS 保留透�
 
 ### 终态一次性展示增量（2026-09-18）
 
-来源为产品简报桌宠状态反馈、架构主干九态定义，以及本 Story 已记录的“成功/失败一次性动画需真实事件去重，当前快照不重播”。验收 TERM-PRESENT-01：只有统一 Gateway 的写请求真实提交终态后，才播放 `success` 或 `failed`；`task.get/list/events` 和启动快照不得触发。TERM-PRESENT-02：事件以 `task_id + sequence + status` 去重，播放约 1.8 秒后恢复同次响应后的 SQLite/Admission 派生状态。TERM-PRESENT-03：隐藏态收到新终态立即唤醒；重复事件不重播、不重复唤醒。TERM-PRESENT-04：协议拒绝、存储失败及非终态响应不播放终态动画。当前公开 Gateway 已有 `task.complete` 与 BUA `finish` 成功来源；失败终态仍只存在于 Application 的真实 `Outcome::Failed` 提交能力，本增量不为动画发明 `task.fail` 协议。
+来源为产品简报桌宠状态反馈、架构主干九态定义，以及本 Story 已记录的“成功/失败一次性动画需真实事件去重，当前快照不重播”。验收 TERM-PRESENT-01：只有统一 Gateway 的写请求真实提交终态后，才播放 `success` 或 `failed`；`task.get/list/events` 和启动快照不得触发。TERM-PRESENT-02：事件以 `task_id + sequence + status` 去重，播放约 1.8 秒后重新向宿主读取最新 Runtime/任务派生状态；终态事件不得携带并恢复响应瞬间缓存的状态。TERM-PRESENT-03：隐藏态收到新终态立即唤醒；重复事件不重播、不重复唤醒。TERM-PRESENT-04：协议拒绝、存储失败及非终态响应不播放终态动画。TERM-PRESENT-05：终态退出期间若普通状态事件已到达，则普通事件优先且旧定时器不得覆盖；最新状态读取失败时进入 `unknown` 并清除旧步骤，不得复活旧 `executing`。当前公开 Gateway 已有 `task.complete` 与 BUA `finish` 成功来源；失败终态仍只存在于 Application 的真实 `Outcome::Failed` 提交能力，本增量不为动画发明 `task.fail` 协议。

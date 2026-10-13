@@ -5,13 +5,13 @@ export async function checkPetInteraction(page) {
   await page.cdp('Emulation.setDeviceMetricsOverride',{width:640,height:480,deviceScaleFactor:1,mobile:false});
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', {source:`
     window.nativeCalls=[];window.nativeArguments=[];
-    window.fixtureHasTasks=false;window.fixtureState='idle';window.fixtureStepLabel=null;window.fixtureFailure=false;
+    window.fixtureHasTasks=false;window.fixtureState='idle';window.fixtureStepLabel=null;window.fixtureFailure=false;window.fixtureTaskStateDelay=0;
     window.emitPresentation=(hasTasks,state,extra={})=>window.dispatchEvent(new CustomEvent('yonda-presentation',{detail:{hasTasks,state,...extra}}));
     window.__TAURI_INTERNALS__={invoke:async (command,args)=>{
       window.nativeCalls.push(command);
       window.nativeArguments.push({command,args});
       if(command==='pet_is_visible')return true;
-      if(command==='pet_task_state') {if(window.fixtureFailure)throw Error('test');return [window.fixtureHasTasks,window.fixtureState,window.fixtureStepLabel];}
+      if(command==='pet_task_state') {if(window.fixtureTaskStateDelay)await new Promise(resolve=>setTimeout(resolve,window.fixtureTaskStateDelay));if(window.fixtureFailure)throw Error('test');return [window.fixtureHasTasks,window.fixtureState,window.fixtureStepLabel];}
       if(command==='task_menu_show')return window.fixtureHasTasks;
       if(command==='pet_dock')return 'bottom';
     }};`});
@@ -69,16 +69,24 @@ export async function checkPetInteraction(page) {
   const wing=await page.evaluate(()=>document.querySelector('.state-gesture').style.transform);
   await page.waitForTimeout(200);
   assert.notEqual(await page.evaluate(()=>document.querySelector('.state-gesture').style.transform),wing);
-  await page.evaluate(() => window.emitPresentation(false,'success',{eventId:'task-1:5:success',resumeHasTasks:false,resumeState:'idle'}));
+  const terminalStateReads=await page.evaluate(() => {window.fixtureHasTasks=true;window.fixtureState='executing';window.fixtureStepLabel='已过期步骤';return window.nativeCalls.filter(c=>c==='pet_task_state').length;});
+  await page.evaluate(() => window.emitPresentation(false,'success',{eventId:'task-1:5:success'}));
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='success');
-  await page.evaluate(() => window.emitPresentation(false,'success',{eventId:'task-1:5:success',resumeHasTasks:false,resumeState:'paused'}));
+  await page.evaluate(() => {window.fixtureHasTasks=false;window.fixtureState='idle';window.fixtureStepLabel=null;window.emitPresentation(false,'success',{eventId:'task-1:5:success'});});
   await page.waitForTimeout(1850);
   assert.equal(await page.evaluate(() => document.getElementById('pet').dataset.state),'idle');
-  await page.evaluate(() => window.emitPresentation(false,'failed',{eventId:'task-2:7:failed',resumeHasTasks:false,resumeState:'idle'}));
+  assert.equal(await page.evaluate(() => document.getElementById('task-step-status').textContent),'');
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='pet_task_state').length),terminalStateReads+1);
+  await page.evaluate(() => window.emitPresentation(false,'failed',{eventId:'task-2:7:failed'}));
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='failed');
-  await page.evaluate(() => window.emitPresentation(false,'failed',{eventId:'task-2:7:failed',resumeHasTasks:false,resumeState:'paused'}));
+  await page.evaluate(() => window.emitPresentation(false,'failed',{eventId:'task-2:7:failed'}));
   await page.waitForTimeout(1850);
   assert.equal(await page.evaluate(() => document.getElementById('pet').dataset.state),'idle');
+  await page.evaluate(() => {window.fixtureTaskStateDelay=120;window.emitPresentation(false,'success',{eventId:'task-3:9:success'});});
+  await page.waitForTimeout(1820);
+  await page.evaluate(() => window.emitPresentation(true,'paused'));
+  await page.waitForTimeout(150);
+  assert.equal(await page.evaluate(() => {window.fixtureTaskStateDelay=0;return document.getElementById('pet').dataset.state;}),'paused');
   await page.evaluate(() => window.emitPresentation(true,'paused'));
   await page.waitForFunction(() => document.getElementById('pet').dataset.state==='paused');
   await page.cdp('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
