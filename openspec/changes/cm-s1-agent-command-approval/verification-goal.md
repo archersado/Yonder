@@ -28,6 +28,14 @@ Result: PASS
 
 界面证据使用 macOS 原生 `WKWebView` 加载产品 HTML/CSS/JavaScript，并注入隔离 Tauri 调用夹具；它不连接真实任务库，也不执行命令。真实 SQLite/Gateway/命令执行链路由 desktop 集成测试独立覆盖。两类证据组合验证 macOS 增量，但不把夹具描述为正式宿主 E2E。
 
+## 2026-10-13 自动透出增量
+
+- 正式 `dev` debug `Yonda.app` 经 MCP stdio、Local Socket 与 Agent Gateway 接受命令提议后，自动展开 Task Space、切换到“全部”、选择对应任务，并将待批准卡定位到可见区域。
+- macOS Accessibility 结构化读取确认页面提示“此任务正在等待你的命令批准”，任务选择态为开，批准卡显示“等待本机用户决定”以及“批准执行一次”“拒绝”两个本机操作入口。
+- Agent 响应只返回 `command_id`、有效期与状态；自动展示信号只携带 `task_id` 和固定区段名，未复制程序、参数、目录或环境变量。
+- `node apps/desktop/check-task-space.mjs`、`cargo test --offline --locked -p yonder-desktop --lib`（35/35）、`openspec validate cm-s1-agent-command-approval --strict` 与架构检查通过。
+- 结构化证据：[`result.json`](../../../apps/desktop/evidence/cm-s1-command-approval-auto-surface-macos-20261013/result.json)。
+
 ## 审阅结论与边界
 
 - PASS：协议 1.30 协商、无副作用提议、本机完整预览、批准/拒绝、TM-S7 启动、真实 macOS Adapter、一次消费、撤权、超时和 unknown 不重试。

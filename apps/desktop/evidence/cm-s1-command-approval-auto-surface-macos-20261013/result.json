@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-13",
+  "platform": "macOS",
+  "result": "PASS",
+  "product_path": "Yonda.app -> MCP stdio -> Local Socket -> Agent Gateway -> Task Space",
+  "task_id": "task_66f18090eac0dc398707f16ab17fcc97",
+  "gateway_response": {
+    "state": "awaiting_user",
+    "opaque_command_reference_returned": true,
+    "command_body_returned": false
+  },
+  "native_accessibility": {
+    "window": "Yonda · Task Space",
+    "target_task_selected": true,
+    "notice": "此任务正在等待你的命令批准",
+    "approval_state": "等待本机用户决定",
+    "approve_once_button_visible": true,
+    "reject_button_visible": true
+  },
+  "automated_checks": {
+    "task_space_webview": "PASS",
+    "desktop_library_tests": "35/35 PASS",
+    "openspec_strict": "PASS",
+    "architecture_check": "PASS"
+  },
+  "security": {
+    "full_command_persisted_in_evidence": false,
+    "automatic_signal_contains_task_reference_only": true,
+    "execution_requires_local_user_approval": true
+  }
+}
