@@ -1,0 +1,33 @@
+{
+  "story": "TM-S9",
+  "change": "tm-s9-terminal-projection-recovery",
+  "platform": "macOS",
+  "date": "2026-10-13",
+  "result": "PASS",
+  "path": "Yonda.app -> MCP stdio -> Agent Gateway",
+  "task_id": "task_c378c7490b4f95605ec2b559ef8c50da",
+  "before_restart": {
+    "status": "cancelled",
+    "sequence": 5,
+    "unknown_sequence": 4,
+    "unknown_reason": "worker-failed",
+    "control_sequence": 5,
+    "control_kind": "cancel"
+  },
+  "after_restart": {
+    "task_get": "cancelled@5",
+    "task_list": "cancelled@5",
+    "event_sequences": [1, 2, 3, 4, 5],
+    "unknown_event_preserved": true,
+    "cancel_event_preserved": true,
+    "recovered_as_interrupted": false
+  },
+  "automated": {
+    "adapter": "87 passed",
+    "desktop_lib": "34 passed",
+    "desktop_main": "11 passed",
+    "targeted_runtime_projection": "passed",
+    "targeted_v25_focus_migration": "passed"
+  },
+  "windows": "Deferred by owner"
+}
