@@ -121,4 +121,6 @@ EXEC-PRESENT-01按Accepted AD-DS-02实现：产品UDS对Rust协议成功解码�
 
 Task Space 的本机 `task.list/get/events` 在 Application Gateway 复用既有 Runtime overlay，与 Agent Gateway 返回相同活动事实；不新增 UI 状态、不等待 SQLite，也不允许 desktop 自行拼装任务状态。
 
+连续 BUA 等多次尝试在 `begin_attempt` 入口补齐已 Observe 步骤的 `StepBoundaryAdvanced`，随后再发布新的 `StepStarted`。这使 Runtime 事件序列与 SQLite 的“每任务仅一个未停止 attempt”约束一致，避免 projector 在第二次尝试处永久冲突；没有 Observe 成功事实时仍失败关闭。
+
 Architecture Impact：conforming。Application 在统一 Gateway 编码边界同时检查原始写请求和成功响应：仅 `task.complete` 或 `browser.execute(finish)` 返回终态快照时生成内部展示脉冲，读取响应不能生成。脉冲只携带固定状态及由 `task_id/sequence/status` 组成的标识，不携带响应瞬间的恢复快照；该快照可能早于 AD-TM-23 异步投影完成。前端只保存最后一个脉冲标识和单个 1.8 秒定时器，到期通过既有 `pet_task_state` 向宿主重新读取 Runtime 优先的最新派生状态；新普通状态事件立即取消旧脉冲，读取返回前若又有新事件则丢弃过期结果，读取失败进入 `unknown` 并清除步骤。该读取只发生在一次性终态动画退出点，不形成轮询。无协议字段、SQLite迁移、持久化展示队列或第二任务状态源。失败响应及非终态写响应直接沿现有派生状态。当前没有公开失败提交方法，不扩大 Gateway 能力；未来真实失败写入口复用同一响应判定。

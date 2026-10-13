@@ -266,6 +266,23 @@ pub fn begin_attempt(
     if (resumed && active.sequence != expected_sequence) || active.phase != RuntimePhase::Running {
         return Err(RuntimeError::Conflict);
     }
+    let active = if active
+        .current_step
+        .as_ref()
+        .is_some_and(|step| step.phase == RuntimeStepPhase::Completed)
+    {
+        runtime.apply(RuntimeCommand::AdvanceStepBoundary {
+            task_id: task.id.clone(),
+            step_id: active
+                .current_step
+                .as_ref()
+                .expect("completed step checked")
+                .step_id
+                .clone(),
+        })?
+    } else {
+        active
+    };
     admission
         .admit_runtime(&task.id, resources)
         .map_err(|_| RuntimeError::Backpressure)?;
@@ -1239,6 +1256,67 @@ mod tests {
         .unwrap();
         assert_eq!(second.accepted_sequence, 7);
         assert!(admission.holds("task-1").unwrap());
+    }
+
+    #[test]
+    fn next_attempt_publishes_the_missing_observed_boundary() {
+        let runtime = ExecutionRuntime::start(8, 16).unwrap();
+        let handle = runtime.handle();
+        let admission = crate::admission::Admission::new(2).unwrap();
+        let task = crate::Task {
+            id: "task-boundary".into(),
+            owner_agent_id: "agent-a".into(),
+            name: Some("连续 BUA 动作".into()),
+            source: crate::TaskSource::LocalAgent,
+            status: crate::Status::Created,
+            sequence: 2,
+        };
+        let first_step = crate::StepDeclaration {
+            step_id: "browse".into(),
+            label: "浏览器操作".into(),
+            accepted_sequence: 2,
+        };
+        let first = begin_attempt(
+            &handle,
+            &admission,
+            &task,
+            &first_step,
+            2,
+            "ego_bridge",
+            "host",
+            &[crate::admission::Resource::Browser],
+        )
+        .unwrap();
+        let observed = record_attempt_outcome(
+            &handle,
+            &first,
+            crate::AttemptConclusion::Observed {
+                action_succeeded: true,
+            },
+        )
+        .unwrap()
+        .0;
+        let second = begin_attempt(
+            &handle,
+            &admission,
+            &task,
+            &first_step,
+            observed.sequence,
+            "ego_bridge",
+            "host",
+            &[crate::admission::Resource::Browser],
+        )
+        .unwrap();
+        assert_eq!(second.accepted_sequence, observed.sequence + 2);
+        let pending = handle.pending(&task.id, 16).unwrap();
+        assert!(matches!(
+            pending[pending.len() - 2].kind,
+            RuntimeEventKind::StepBoundaryAdvanced { .. }
+        ));
+        assert!(matches!(
+            pending[pending.len() - 1].kind,
+            RuntimeEventKind::StepStarted { .. }
+        ));
     }
 
     #[test]

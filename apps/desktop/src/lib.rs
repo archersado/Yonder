@@ -1477,6 +1477,98 @@ mod tests {
     }
 
     #[test]
+    fn consecutive_runtime_attempts_project_through_terminal() {
+        use yonder_application::{
+            AttemptConclusion, StepDeclaration,
+            admission::Resource,
+            execution_runtime::{
+                RuntimeCommand, RuntimePhase, advance_boundary, begin_attempt,
+                record_attempt_outcome,
+            },
+        };
+        let directory = std::env::temp_dir().join(format!(
+            "yonda-runtime-consecutive-projection-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let mut host = TaskHost::open(&directory).unwrap();
+        let task = host
+            .store
+            .create("runtime-consecutive", "agent-a", yonder_application::TaskSource::LocalAgent)
+            .unwrap();
+        let step = StepDeclaration {
+            step_id: "browser-step".into(),
+            label: "连续浏览器动作".into(),
+            accepted_sequence: task.sequence,
+        };
+        let runtime = host.execution_runtime();
+        let first = begin_attempt(
+            &runtime,
+            &host.admission,
+            &task,
+            &step,
+            task.sequence,
+            "ego_bridge",
+            "host",
+            &[Resource::Browser],
+        )
+        .unwrap();
+        let first_observed = record_attempt_outcome(
+            &runtime,
+            &first,
+            AttemptConclusion::Observed {
+                action_succeeded: true,
+            },
+        )
+        .unwrap()
+        .0;
+        let second = begin_attempt(
+            &runtime,
+            &host.admission,
+            &task,
+            &step,
+            first_observed.sequence,
+            "ego_bridge",
+            "host",
+            &[Resource::Browser],
+        )
+        .unwrap();
+        let second_observed = record_attempt_outcome(
+            &runtime,
+            &second,
+            AttemptConclusion::Observed {
+                action_succeeded: true,
+            },
+        )
+        .unwrap()
+        .0;
+        let boundary = advance_boundary(&runtime, &task.id, second_observed.sequence).unwrap();
+        let terminal = runtime
+            .apply(RuntimeCommand::Terminate {
+                task_id: task.id.clone(),
+                phase: RuntimePhase::Completed,
+            })
+            .unwrap();
+        assert_eq!(terminal.sequence, boundary.sequence + 1);
+        host.admission.release_task_after_stop(&task.id).unwrap();
+        for _ in 0..100 {
+            let projected = host.store.get(&task.id).unwrap();
+            if projected.sequence == terminal.sequence {
+                assert_eq!(projected.status, yonder_application::Status::Completed);
+                drop(host);
+                std::fs::remove_dir_all(directory).unwrap();
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("连续 Runtime 尝试的终态未完成异步投影");
+    }
+
+    #[test]
     fn task_host_projects_runtime_events_on_a_separate_sqlite_connection() {
         let directory = std::env::temp_dir().join(format!(
             "yonda-runtime-projector-{}-{}",

@@ -48,6 +48,12 @@
 - When Task Space 与归属 Agent 分别读取 list、get 或 events
 - Then 两者使用同一 Runtime overlay，返回一致的任务状态和序号
 
+#### Scenario: 连续执行尝试可投影至终态
+
+- Given 同一任务的上一次尝试已 Observe 成功但未单独提交步骤推进
+- When 执行器开始下一次尝试并最终完成任务
+- Then Runtime 先追加步骤边界再开始新尝试，SQLite projector 连续写入全部事件和终态而不发生 attempt 冲突
+
 #### Scenario: 重复与失败响应
 
 - Given 相同 task_id、sequence、status 的脉冲已经处理，或写请求被拒绝
