@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "platform": "macos",
+  "codex_cli_version": "0.162.1",
+  "connector_plugin_version": "0.1.4",
+  "gateway_entry": "bundled-yonder-mcp",
+  "owner_agent_id": "codex-cli",
+  "task_id": "task_c945c1ff998e04c643a524a5ec52971f",
+  "observation_sequence": "5",
+  "goal_verification_sequence": "8",
+  "goal_verification_outcome": "not-achieved",
+  "replan_input_received_in_same_thread": true,
+  "recalled_experience_count": 2,
+  "task_and_input_channels_connected": true,
+  "fresh_gateway_facts_read_after_delivery": true,
+  "unknown_side_effect_present": false,
+  "cleanup_status": "cancelled",
+  "cleanup_sequence": "9",
+  "direct_socket_or_sqlite_bypass": false,
+  "sensitive_payload_persisted_in_evidence": false,
+  "passed": true
+}

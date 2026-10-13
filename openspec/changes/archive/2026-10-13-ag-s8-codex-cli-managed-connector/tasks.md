@@ -9,5 +9,5 @@
 - [x] 声明并实现 Codex 同会话圈选附件接收、校验、一次性消费与内存图片投递
 - [x] 覆盖附件成功、乱序、超限、哈希错误、跨会话、超时、断连、拒绝和不重放合约
 - [x] 修正圈选提交错误映射，确保附件能力缺失或投递失败可诊断
-- [ ] 建立并运行独立 macOS Verification Goal
-- [ ] 审阅并 Archive；Windows 与 ChatGPT Desktop 保留 Deferred/Unsupported
+- [x] 建立并运行独立 macOS Verification Goal
+- [x] 审阅并 Archive；Windows 与 ChatGPT Desktop 保留 Deferred/Unsupported

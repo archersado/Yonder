@@ -1,7 +1,7 @@
 # AG-S8 macOS Verification Goal
 
 日期：2026-10-10
-状态：真实连接样本通过；等待重启/不重放终局样本
+状态：PASS
 
 ## 目标
 
@@ -24,11 +24,9 @@
 - 圈选附件实现预检：Connector hello 已声明 `user_input_attachment`；17 项 CLI 单元/合约测试覆盖同会话 begin/chunk/finish、顺序/哈希/session/超限/过期、一次性消费、缺附件不降级文字、最大 4 MiB 内存图片帧和既有不重放；`node --check apps/desktop/ui/region-preview.js`、严格 OpenSpec 校验与 `git diff --check` 通过。
 - 真实圈选附件样本：从 `dev` cb3cc88 重新构建并签名 debug `Yonda.app`，正常退出旧桌面宿主和旧 Connector 后，以当前受信 `SessionStart(resume)` 恢复同一 Codex session。Yonder 显示“任务通道已连接 · 输入通道已连接”；用户圈选无敏感内容的屏幕局部并提交“这是什么”，图片与文字作为同一条输入进入当前 Codex thread。accepted 后确认卡关闭、截图清场，Yonder 回到已连接的小龙窗口；未降级为纯文字，也未再出现“提交失败”。
 
-## 待完成真实样本
+## 无副作用 replan 终局样本
 
-Hook 已由用户审阅并信任，当前会话自动连接样本已通过。仍需完成：
-
-1. 一次无副作用 replan 输入进入同一 Codex thread；
+Hook 已由用户审阅并信任，当前会话自动连接样本已通过。此前缺少一次无副作用 replan 输入进入同一 Codex thread，阻塞过程与终局结果如下。
 
 2026-10-10 尝试通过正式 Yonder MCP 创建无副作用 TextEdit Observe/replan 样本时，当前 Codex 会话内的 MCP stdio 已关闭，`task_create` 与 `task_list` 均返回 `Transport closed`。输入连接器仍保持连接；按产品边界不使用 shell 或直连 Gateway Socket 替代。须在下一个能重新拉起 Yonder MCP 的 Codex 会话中完成此样本。
 
@@ -36,9 +34,15 @@ Hook 已由用户审阅并信任，当前会话自动连接样本已通过。仍
 
 2026-10-12 新会话中 Yonder MCP 已恢复，正式创建样本 `task_879579cc082de10f3f7a8103c7207153`；计划在序号 2 接受，不存在的隔离应用 Driver 返回 `unknown/worker-failed`，Yonder 在序号 6 交回且未自动重试。但当前 Codex 宿主实际仍为 0.156.1，SessionStart 没有 Connector 进程；经正式插件路径补发时，无论使用当前 0.156.1 还是隔离的 0.162.1 App Server，都无法安全接管正由 0.156.1 持有的活动 thread，失败点为 `thread/resume`。已补充“已加载 thread 直接附着、未加载才 resume”兼容逻辑与 20 项 CLI 合约；本 Goal 仍需在从启动起就由 0.162.1 持有的新会话中重试，证据见 `apps/desktop/evidence/ag-s8-replan-20261012/`。
 
+2026-10-13 修正 login shell 的 Codex 启动优先级后，新会话确认由 Codex CLI 0.162.1 从启动起持有；受信 `SessionStart` Hook 自动启动单一 `yonder codex-hook` 与受监管 proxy。Yonder 小龙原生 AX 状态显示“任务通道已连接 · 输入通道已连接”，无需手填 thread ID、Socket 或另起 `agent-bridge`。
+
+正式产品任务 `task_c945c1ff998e04c643a524a5ec52971f` 从安装包内 MCP/Gateway 创建并执行无副作用 TextEdit 启动样本：序号 5 得到 `action_succeeded=true / observe_valid=true`；归属慢脑提交 `not-achieved@8` 后，Yonder 把 replan 输入及两条有界历史经验投递到当前唯一 `codex-cli` 会话，当前 turn 实际收到该输入。慢脑随后从同一 Gateway 读取 `task.get` 与 `task.events`，确认没有 `unknown` 或待核实副作用，并以 `cancelled@9` 清理验证任务。
+
+当前 `cargo test --offline --locked -p yonder-cli` 20/20 通过；生命周期能力探针确认共享 Unix App Server、remote resume 和缺失 thread/endpoint 失败关闭均通过。结构化证据见 `apps/desktop/evidence/ag-s8-final-replan-20261013/result.json`，只记录版本、序号、数量和布尔结论，不保存输入正文、thread/session ID、完整 Payload、截图或凭据。
+
 ## 当前结论
 
-实现、隔离 macOS 合约、真实当前会话连接、Yonder 重启恢复、不重放、Hook/proxy 清理和真实圈选附件投递均通过；仅缺一次正式 MCP 触发的无副作用 replan 投递，生命周期 Goal 尚未 PASS。Story 保持 `verifying`，不得 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported。
+实现、隔离 macOS 合约、真实当前会话连接、Yonder 重启恢复、不重放、Hook/proxy 清理、真实圈选附件投递和正式 MCP 触发的无副作用 replan 同 thread 投递均通过。macOS Verification Goal 为 PASS，可以 Archive。Windows 与 ChatGPT Desktop 分别保持 Deferred/Unsupported，不纳入本 Story 的完成声明。
 
 ## Hook 发现兼容性复核（2026-10-10）
 
