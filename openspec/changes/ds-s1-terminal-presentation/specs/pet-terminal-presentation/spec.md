@@ -30,6 +30,12 @@
 - When 启动恢复或 Agent 查询任务
 - Then 不播放 success 或 failed
 
+#### Scenario: 只读请求遇到滞后检查点
+
+- Given Runtime 已发布终态而 SQLite 异步检查点仍暂时显示旧 running 步骤
+- When Agent 或 Task Space 调用 task.get、task.list 或 task.events
+- Then 只读响应不得发布普通展示事件，也不得把 Yonda 改回 executing
+
 #### Scenario: 重复与失败响应
 
 - Given 相同 task_id、sequence、status 的脉冲已经处理，或写请求被拒绝

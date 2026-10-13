@@ -75,6 +75,14 @@ pub fn response_succeeded(bytes: &[u8]) -> bool {
     matches!(yonder_protocol::decode_response(bytes), Ok(Response::Success { .. }))
 }
 
+/// 桌宠状态由写入事实驱动；读取不得把异步持久化检查点重新发布为当前状态。
+pub fn is_presentation_update_request(bytes: &[u8]) -> bool {
+    let Ok(request) = yonder_protocol::decode(bytes) else {
+        return false;
+    };
+    is_agent_write_request(&request) && !matches!(&request, Request::Hello { .. })
+}
+
 /// 只在协议校验与连接身份一致后提供当前执行请求的步骤定位信息。
 pub fn execution_presentation_hint(
     bytes: &[u8],
@@ -606,6 +614,9 @@ mod tests {
         assert!(cua_execution_presentation_hint(step,"other",1000).is_none());
         assert!(!is_execution_request(br#"{"jsonrpc":"2.0","id":"r1","method":"task.get","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"t1"}}"#));
         assert!(!is_execution_request(br#"{"method":"computer.execute"}"#));
+        assert!(is_presentation_update_request(step));
+        assert!(!is_presentation_update_request(br#"{"jsonrpc":"2.0","id":"r1","method":"task.get","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"t1"}}"#));
+        assert!(!is_presentation_update_request(br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":31}}}"#));
         assert!(response_succeeded(br#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"hello","protocol_version":{"major":1,"minor":31},"platform":"macos","capabilities":[]}}"#));
         assert!(!response_succeeded(br#"{"jsonrpc":"2.0","id":"r1","error":{"code":-32011,"message":"conflict"}}"#));
     }

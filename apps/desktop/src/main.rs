@@ -1017,8 +1017,7 @@ async fn task_query(
         return Err("接管必须使用本地用户入口".into());
     }
     let host = Arc::clone(&state.0);
-    let pet = window.app_handle().get_webview_window("pet");
-    let (response, presentation) = tauri::async_runtime::spawn_blocking(move || {
+    let response = tauri::async_runtime::spawn_blocking(move || {
         let mut host = host.lock().map_err(|_| "任务存储不可用")?;
         let host = host.as_mut().ok_or("任务存储未就绪，请退出后重试")?;
         let now = std::time::SystemTime::now()
@@ -1032,13 +1031,10 @@ async fn task_query(
             )
             .map_err(|_| "任务读取失败")?;
         let response = String::from_utf8(response).map_err(|_| "任务响应不可用".to_owned())?;
-        Ok::<_, String>((response, host.presentation().ok()))
+        Ok::<_, String>(response)
     })
     .await
     .map_err(|_| "任务查询中断".to_owned())??;
-    if let (Some(pet), Some((has_tasks, task_state, step_label))) = (pet, presentation) {
-        yonder_desktop::emit_pet_presentation(&pet, has_tasks, task_state, step_label.as_deref());
-    }
     if let Some(task_id) = yonder_application::gateway::terminal_task_id(response.as_bytes()) {
         let hub = window.app_handle().state::<yonder_desktop::CuaControlHub>();
         if hub.finish(&task_id) || hub.presentation().is_none() {

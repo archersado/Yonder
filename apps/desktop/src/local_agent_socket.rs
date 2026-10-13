@@ -368,6 +368,8 @@ async fn exchange(
             }
         };
         let registration = registration(&frame);
+        let presentation_update =
+            yonder_application::gateway::is_presentation_update_request(&frame);
         let now = u64::try_from(
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -513,7 +515,7 @@ async fn exchange(
                 let _ = cua_control.hide();
             }
         }
-        if !suppress_stale_presentation {
+        if !suppress_stale_presentation && presentation_update {
             if let Some((has_tasks, state, step_label)) = presentation {
                 if let Some((terminal, event_id)) =
                     yonder_application::gateway::terminal_presentation(&frame, &response)
