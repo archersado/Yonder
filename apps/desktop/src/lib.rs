@@ -67,6 +67,7 @@ pub struct CuaControlPresentation {
 struct CuaControlState {
     task_id: String,
     takeover_requested: bool,
+    recalled_experience: bool,
     presentation: CuaControlPresentation,
     executing_step_id: Option<String>,
     completed_step_ids: HashSet<String>,
@@ -98,11 +99,12 @@ impl CuaControlHub {
             }
             active.presentation = presentation;
             active.executing_step_id = None;
+            active.recalled_experience = false;
             return true;
         }
         let completed_step_ids=presentation.planned_steps.iter().filter(|step|step.state=="completed").map(|step|step.step_id.clone()).collect();
         let next_driver_round=presentation.driver_rounds.last().map_or(0,|value|value.round);
-        *state = Some(CuaControlState { task_id: presentation.task_id.clone(), takeover_requested: false, presentation, executing_step_id: None, completed_step_ids, next_driver_round });
+        *state = Some(CuaControlState { task_id: presentation.task_id.clone(), takeover_requested: false, recalled_experience: false, presentation, executing_step_id: None, completed_step_ids, next_driver_round });
         true
     }
 
@@ -181,6 +183,7 @@ impl CuaControlHub {
         if reason.is_empty()||reason.len()>160||reason.contains('\0'){return}
         let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id) else{return};
         active.executing_step_id=None;
+        active.recalled_experience=recalled;
         active.presentation.plan_status="replanning".into();
         active.presentation.current_step=if recalled{"已召回执行经验，等待慢脑重新规划"}else{"无可用经验，等待慢脑重新规划"}.into();
         active.presentation.slow_brain_summary=format!("已交回慢脑：{reason}");
@@ -188,10 +191,11 @@ impl CuaControlHub {
     }
 
     pub fn mark_replan_delivery(&self,task_id:&str,state_name:&str){
-        let summary=match state_name{"accepted"=>"慢脑正在重新观察并规划","missing"=>"等待慢脑连接","ambiguous"=>"等待选择唯一慢脑会话",_=>"慢脑唤醒失败，可从任务继续"};
         let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id&&active.presentation.plan_status=="replanning") else{return};
-        active.presentation.current_step=summary.into();
-        active.presentation.slow_brain_summary=summary.into();
+        let delivery=match state_name{"accepted"=>"慢脑正在重新观察并规划","missing"=>"等待慢脑连接","ambiguous"=>"等待选择唯一慢脑会话",_=>"慢脑唤醒失败，可从任务继续"};
+        let summary=if active.recalled_experience{format!("已召回执行经验，{delivery}")}else{delivery.into()};
+        active.presentation.current_step=summary.clone();
+        active.presentation.slow_brain_summary=summary;
     }
 
     pub fn presentation(&self) -> Option<CuaControlPresentation> {
@@ -1606,6 +1610,23 @@ mod tests {
         assert_eq!(replanned.slow_brain_summary,"慢脑已提交重新规划：2 个步骤");
         assert!(replanned.planned_steps.iter().any(|step|step.step_id=="old-done"&&step.state=="completed"));
         assert!(replanned.planned_steps.iter().any(|step|step.step_id=="new-1"));
+    }
+
+    #[test]
+    fn cua_control_hub_keeps_experience_recall_visible_after_delivery_status() {
+        let hub=CuaControlHub::default();
+        assert!(hub.begin(CuaControlPresentation { task_id:"task-recall".into(), desktop_control:true, current_step:"旧步骤".into(), planned_steps:vec![], remaining_steps:0, plan_status:"available".into(), slow_brain_summary:"慢脑已提交 1 个受限步骤".into(), fast_brain_summary:"等待评估".into(), driver_rounds:vec![] }));
+
+        hub.mark_replanning_with_recall("task-recall","目标未完成，需要慢脑重新规划",true);
+        hub.mark_replan_delivery("task-recall","missing");
+        let missing=hub.presentation().unwrap();
+        assert_eq!(missing.current_step,"已召回执行经验，等待慢脑连接");
+        assert_eq!(missing.slow_brain_summary,"已召回执行经验，等待慢脑连接");
+
+        hub.mark_replan_delivery("task-recall","accepted");
+        let accepted=hub.presentation().unwrap();
+        assert_eq!(accepted.current_step,"已召回执行经验，慢脑正在重新观察并规划");
+        assert_eq!(accepted.slow_brain_summary,"已召回执行经验，慢脑正在重新观察并规划");
     }
 
     #[test]
