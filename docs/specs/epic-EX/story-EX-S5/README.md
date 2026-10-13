@@ -25,4 +25,6 @@ OpenSpec: ex-s5-experience-recall
 
 ## 当前结论
 
-Application、SQLite 独立投影线程、20ms 有界召回、AG-S5 慢脑输入与顶部浮窗状态已经接通，并在 macOS 完成独立自动化验证。Windows 原生证据按现有决定暂缓；Change 在补齐真实产品样本后再 Archive。
+Application、SQLite 独立投影线程、20ms 有界召回、AG-S5 慢脑输入与顶部浮窗状态已经接通，并在 macOS 完成独立自动化验证。
+
+2026-10-13 正式 `Yonda.app` 已完成“安全任务 achieved 后晋升 → 同特征任务 not-achieved → 交回前召回 → 顶部持续展示”的产品样本，并修复慢脑投递状态覆盖“已召回执行经验”的问题（`9e6aecb`）。当前 Codex 会话未注册 AG-S8 Agent 输入能力，产品正确停在“已召回执行经验，等待慢脑连接”；恢复受支持的唯一慢脑输入会话后仍需补一次 accepted 投递，Change 暂不 Archive。Windows 原生证据按现有决定暂缓。

@@ -1,8 +1,8 @@
 # EX-S5 独立 Verification Goal
 
 Story: EX-S5
-Result: PASS
-状态：macOS 自动化通过；真实产品样本与 Windows 原生证据待补
+Result: PARTIAL PASS
+状态：macOS 自动化与正式产品晋升/召回/UI 样本通过；当前 Codex 会话缺少 Agent 输入通道，真实慢脑投递待 AG-S8 恢复后补；Windows 原生证据暂缓
 
 ## 目标
 
@@ -25,4 +25,15 @@ Result: PASS
 - Adapter 全量 86 项中与 schema 25 相关的原有迁移失败已修复；其余 85 项通过。既有 `command::timeout_and_cancellation_stop_parent_and_descendant` 在全量运行中仍有 PID fixture 空输出的环境性波动，单测独立重跑通过，与本 Change 无代码交集。
 - 首次真实产品计划提交暴露出初始槽位也必须声明封闭前置事实；同时补齐此前缺失的 `launch-application` 参数 allowlist：只接受单一、最长 255 字节、含反向域分隔且仅含字母数字/点/连字符的 bundle ID，路径、无域名和多余字段均拒绝。
 
-结构化测试同时断言经验提示不含原坐标、旧 `observation_ref`、任务正文或消息内容。召回通过独立有界 worker，调用方最多等待 20ms；超时按空结果继续 replan。Windows 原生证据本轮暂缓；真实安装包任务样本留作 Archive 前最终证据。
+结构化测试同时断言经验提示不含原坐标、旧 `observation_ref`、任务正文或消息内容。召回通过独立有界 worker，调用方最多等待 20ms；超时按空结果继续 replan。
+
+## 2026-10-13 正式产品样本
+
+从 `dev` 的 `9e6aecb` 重建并临时签名正式 debug `Yonda.app` 后，经安装包内 MCP/Gateway 运行两阶段样本：
+
+- 晋升任务 `task_cce31eda392a7263e5d2fd3895ac5667` 以单一安全 `launch-application(com.apple.TextEdit)` 计划形成真实 Driver Observe；归属慢脑用序号 10 的新鲜 Observation 提交 `achieved`，任务在序号 14 完成，异步经验投影不阻塞任务终结。
+- 召回任务 `task_56c3b24293d3326045d96c8005c83ff5` 以相同稳定特征形成序号 5 的真实 Observe，随后归属慢脑提交 `not-achieved@8`。顶部控制窗持续显示“已召回执行经验，等待慢脑连接”，并同时保留已完成步骤和 Driver 已观察轮次，证明经验已从正式产品存储召回且投递状态不再覆盖召回结果。
+- 首轮产品样本发现 `mark_replan_delivery` 会覆盖 EX5-06 的召回状态；`9e6aecb` 增加进程内召回标记并将其与 accepted/missing/ambiguous/failed 投递状态组合展示。Desktop 35/35、Application 经验测试 3/3、Adapter 经验测试 1/1、架构检查和 OpenSpec strict 均通过。
+- 结构化证据位于 `apps/desktop/evidence/ex-s5-experience-recall-product-20261013/result.json`；不保存正文、截图、transcript、坐标、Observation 引用、完整 Agent Payload 或凭据。
+
+本轮正式产品已经通过 EX-S5 的经验晋升、召回、轻量降级与顶部可观察性范围。当前 Codex 会话只注册了 Gateway/MCP，未注册 AG-S8 Agent 输入能力，因此 replan 投递按设计显示“等待慢脑连接”，不能声称“已向真实连接的唯一慢脑投递经验提示”。该缺口属于 AG-S8 会话接线阻塞；恢复受支持的 Codex CLI 输入会话后须以同类无副作用样本补一次 accepted 投递，之后才能 Archive。Windows 原生证据继续暂缓。

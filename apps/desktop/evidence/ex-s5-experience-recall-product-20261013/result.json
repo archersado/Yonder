@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "platform": "macos",
+  "product_path": "Yonda.app -> MCP stdio -> Agent Gateway -> Application -> Sky Worker -> Observe -> Goal Verification -> experience projector -> replan recall",
+  "build_commit": "9e6aecb",
+  "promotion_task_id": "task_cce31eda392a7263e5d2fd3895ac5667",
+  "promotion_terminal_status": "completed",
+  "promotion_sequence": "14",
+  "recall_task_id": "task_56c3b24293d3326045d96c8005c83ff5",
+  "recall_observation_sequence": "5",
+  "recall_verification_sequence": "8",
+  "recall_outcome": "not-achieved",
+  "top_overlay_summary": "已召回执行经验，等待慢脑连接",
+  "driver_observed": true,
+  "experience_promoted": true,
+  "experience_recalled": true,
+  "recall_visible_after_delivery_status": true,
+  "agent_input_delivery": "blocked-agent-input-session-missing",
+  "sensitive_payload_persisted_in_evidence": false,
+  "ex_s5_product_scope_passed": true,
+  "full_connected_agent_sample_passed": false
+}
