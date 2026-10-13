@@ -229,6 +229,81 @@ pub fn handle_local_runtime_control(
     let response=match result{Ok(result)=>Response::Success{jsonrpc:Version::V2,id,result},Err(error)=>Response::Failure{jsonrpc:Version::V2,id:Some(id),error}};
     Some(yonder_protocol::encode(&response).map_err(|_|crate::Error::StorageUnavailable))
 }
+
+/// 本机 Task Space 的只读请求使用与 Agent Gateway 相同的 Runtime overlay。
+pub fn handle_local_runtime_query(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    bytes: &[u8],
+    now_ms: u64,
+) -> Option<Result<Vec<u8>, crate::Error>> {
+    let request = yonder_protocol::decode(bytes).ok()?;
+    if !matches!(request, Request::List { .. } | Request::Get { .. } | Request::Events { .. }) {
+        return None;
+    }
+    let auth = AuthContext::LocalUser("desktop");
+    let encoded = query::handle_encoded_current(store, auth, bytes, now_ms);
+    let result = (|| {
+        let mut response = yonder_protocol::decode_response(&encoded?)
+            .map_err(|_| crate::Error::StorageUnavailable)?;
+        match &request {
+            Request::List { params, .. } => {
+                overlay_runtime_list(
+                    &mut response,
+                    runtime,
+                    params.include_finished,
+                    params.running_only,
+                );
+            }
+            Request::Get { params, .. } => {
+                if let Ok(active) = runtime.snapshot(&params.task_id) {
+                    let pending = runtime
+                        .pending(
+                            &params.task_id,
+                            crate::execution_runtime::DEFAULT_EVENT_HARD_LIMIT,
+                        )
+                        .ok();
+                    overlay_runtime_snapshot(&mut response, &active, pending.as_deref());
+                }
+            }
+            Request::Events { params, .. } => {
+                if let Ok(active) = runtime.snapshot(&params.task_id) {
+                    let after = yonder_protocol::sequence(&params.after_sequence)
+                        .map_err(|_| crate::Error::InvalidInput)?;
+                    if let Response::Success {
+                        result: QueryResult::Events { events, .. },
+                        ..
+                    } = &mut response
+                    {
+                        let covered = events
+                            .last()
+                            .and_then(|event| event.sequence.parse::<u64>().ok())
+                            .unwrap_or(after);
+                        if covered >= active.checkpoint {
+                            let remaining = usize::from(params.limit).saturating_sub(events.len());
+                            let pending = runtime
+                                .pending(
+                                    &params.task_id,
+                                    crate::execution_runtime::DEFAULT_EVENT_HARD_LIMIT,
+                                )
+                                .unwrap_or_default();
+                            let persisted = crate::get(store, &params.task_id)?;
+                            events.extend(runtime_tail_events(
+                                query::status(persisted.status),
+                                &pending,
+                                covered,
+                                remaining,
+                            ));
+                        }
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        yonder_protocol::encode(&response).map_err(|_| crate::Error::StorageUnavailable)
+    })();
+    Some(result)
+}
 pub fn computer_request_task(bytes: &[u8]) -> Option<String> {
     match yonder_protocol::decode(bytes).ok()? {
         Request::ComputerExecute { params, .. } => Some(params.task_id),

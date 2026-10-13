@@ -42,6 +42,12 @@
 - When Yonda 读取最新桌宠展示状态
 - Then 旧步骤被立即屏蔽，展示事件在原生 UI 主线程生效，且不等待 SQLite 投影完成
 
+#### Scenario: Task Space 与 Agent 状态一致
+
+- Given Runtime 的状态新于 SQLite 检查点
+- When Task Space 与归属 Agent 分别读取 list、get 或 events
+- Then 两者使用同一 Runtime overlay，返回一致的任务状态和序号
+
 #### Scenario: 重复与失败响应
 
 - Given 相同 task_id、sequence、status 的脉冲已经处理，或写请求被拒绝

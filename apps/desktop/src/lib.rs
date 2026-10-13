@@ -892,7 +892,10 @@ impl TaskHost {
         let runtime=self.runtime.handle();
         let response=match yonder_application::gateway::handle_local_runtime_control(&mut self.store,&runtime,request,now_ms){
             Some(result)=>result.map_err(|_|HostError::StorageUnavailable)?,
-            None=>yonder_application::query::handle_encoded_current(&mut self.store,AuthContext::LocalUser("desktop"),request,now_ms).map_err(|_|HostError::StorageUnavailable)?,
+            None=>match yonder_application::gateway::handle_local_runtime_query(&mut self.store,&runtime,request,now_ms){
+                Some(result)=>result.map_err(|_|HostError::StorageUnavailable)?,
+                None=>yonder_application::query::handle_encoded_current(&mut self.store,AuthContext::LocalUser("desktop"),request,now_ms).map_err(|_|HostError::StorageUnavailable)?,
+            },
         };
         if cancel_task.as_deref().is_some_and(|task_id|yonder_application::gateway::terminal_task_id(&response).as_deref()==Some(task_id)) {
             if let Err(error)=self.finish_cancelled_runtime(cancel_task.as_deref().unwrap()){eprintln!("取消后的运行时清理失败：{error:?}");}
@@ -1465,6 +1468,10 @@ mod tests {
             })
             .unwrap();
         assert_eq!(host.presentation().unwrap(), (false, "idle", None));
+        let list = br#"{"jsonrpc":"2.0","id":"list","method":"task.list","params":{"agent_id":"desktop","capability":"task.read","deadline":2000,"include_finished":true,"running_only":false,"newest_first":true,"limit":20}}"#;
+        let response: serde_json::Value =
+            serde_json::from_slice(&host.query(list, 1000).unwrap()).unwrap();
+        assert_eq!(response["result"]["tasks"][0]["status"], "completed");
         drop(host);
         std::fs::remove_dir_all(directory).unwrap();
     }
