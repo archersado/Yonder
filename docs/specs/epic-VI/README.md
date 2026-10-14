@@ -10,6 +10,7 @@ Epic: VI
 
 - [VI-S1 单轮语音输入与转写](story-VI-S1/README.md)
 - [VI-S2 会议伴听与实时转写](story-VI-S2/README.md)
+- [VI-S3 Agent 语音回复与打断](story-VI-S3/README.md)
 
 ## 验收与依赖
 
