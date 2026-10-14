@@ -323,7 +323,43 @@ pub enum Error {
     StorageUnavailable,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct StoreCapabilities {
+    pub pending_cancel: bool,
+    pub running_filter: bool,
+    pub newest_first: bool,
+    pub registration: bool,
+    pub step_declarations: bool,
+    pub plan_fragments: bool,
+    pub goal_verification: bool,
+    pub execution_attempts: bool,
+    pub browser_references: bool,
+    pub controls: bool,
+    pub wait_for_user: bool,
+    pub presentation: bool,
+    pub audit: bool,
+}
+
 pub trait TaskStore {
+    /// 握手只读取一次的能力快照。默认实现保持旧 Store 的逐项声明兼容；
+    /// Gateway 不得在协商分支中再次调用 `supports_*`。
+    fn capabilities(&self) -> StoreCapabilities {
+        StoreCapabilities {
+            pending_cancel: self.supports_pending_cancel(),
+            running_filter: self.supports_running_filter(),
+            newest_first: self.supports_newest_first(),
+            registration: self.supports_registration(),
+            step_declarations: self.supports_step_declarations(),
+            plan_fragments: self.supports_plan_fragments(),
+            goal_verification: self.supports_goal_verification(),
+            execution_attempts: self.supports_execution_attempts(),
+            browser_references: self.supports_browser_references(),
+            controls: self.supports_controls(),
+            wait_for_user: self.supports_wait_for_user(),
+            presentation: self.supports_presentation(),
+            audit: self.supports_audit(),
+        }
+    }
     fn supports_pending_cancel(&self) -> bool {
         false
     }

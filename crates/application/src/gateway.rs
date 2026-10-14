@@ -473,6 +473,7 @@ pub struct GatewaySession<'a> {
 mod tests {
     use super::*;
     use crate::{Error, Task, Transition};
+    use std::cell::Cell;
 
     struct NoStore;
     impl TaskStore for NoStore {
@@ -526,8 +527,17 @@ mod tests {
         }
     }
 
-    struct FullCapabilityStore(NoStore);
+    struct FullCapabilityStore(NoStore, Cell<u8>);
     impl TaskStore for FullCapabilityStore {
+        fn capabilities(&self) -> crate::StoreCapabilities {
+            self.1.set(self.1.get().saturating_add(1));
+            crate::StoreCapabilities {
+                pending_cancel: true, running_filter: true, newest_first: true,
+                registration: true, step_declarations: true, plan_fragments: true,
+                goal_verification: true, execution_attempts: true, browser_references: true,
+                controls: true, wait_for_user: true, presentation: true, audit: true,
+            }
+        }
         fn supports_pending_cancel(&self) -> bool { true }
         fn supports_running_filter(&self) -> bool { true }
         fn supports_newest_first(&self) -> bool { true }
@@ -580,11 +590,13 @@ mod tests {
         let request = format!(
             r#"{{"jsonrpc":"2.0","id":"golden","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}{session_fields}{offered}}}}}"#
         );
-        let mut store = FullCapabilityStore(NoStore);
-        match session.handle(&mut store, request.as_bytes(), 1000) {
+        let mut store = FullCapabilityStore(NoStore, Cell::new(0));
+        let result = match session.handle(&mut store, request.as_bytes(), 1000) {
             Response::Success { result, .. } => result,
             response => panic!("minor {minor} 握手失败：{response:?}"),
-        }
+        };
+        assert_eq!(store.1.get(), 1, "每次握手只能读取一次 StoreCapabilities");
+        result
     }
 
     #[test]
@@ -1901,36 +1913,37 @@ impl<'a> GatewaySession<'a> {
         }
         let result = (|| {
             if let Request::Hello { params, .. } = &request {
+                let store_capabilities = store.capabilities();
                 self.negotiated = params.protocol_version.major == PROTOCOL.major;
                 self.can_cancel = self.negotiated
                     && params.protocol_version.minor >= 2
-                    && store.supports_pending_cancel();
+                    && store_capabilities.pending_cancel;
                 self.can_create = self.negotiated
                     && params.protocol_version.minor >= 1
-                    && store.supports_registration()
+                    && store_capabilities.registration
                     && matches!(self.auth, AuthContext::Agent(_));
                 self.can_name = self.negotiated
                     && params.protocol_version.minor >= 3
-                    && store.supports_registration();
+                    && store_capabilities.registration;
                 self.can_steps = self.negotiated
                     && params.protocol_version.minor >= 4
-                    && store.supports_step_declarations();
+                    && store_capabilities.step_declarations;
                 self.can_attempt_results = self.can_steps
                     && params.protocol_version.minor >= 5
-                    && store.supports_execution_attempts();
+                    && store_capabilities.execution_attempts;
                 self.can_driver_error_reasons=self.can_attempt_results&&params.protocol_version.minor>=49;
                 self.can_controls = self.can_attempt_results
                     && params.protocol_version.minor >= 6
-                    && store.supports_controls();
+                    && store_capabilities.controls;
                 self.can_focus = self.can_controls && params.protocol_version.minor >= 13;
                 self.can_advance = self.can_attempt_results && params.protocol_version.minor >= 7;
-                self.can_browser = self.can_advance && params.protocol_version.minor >= 8 && self.browser_available && store.supports_browser_references();
-                self.can_browser_read = self.negotiated && params.protocol_version.minor >= 15 && store.supports_browser_references();
-                self.can_running_filter = self.negotiated && params.protocol_version.minor >= 16 && store.supports_running_filter();
-                self.can_newest_first = self.negotiated && params.protocol_version.minor >= 32 && store.supports_newest_first();
-                self.can_wait_for_user = self.can_advance && params.protocol_version.minor >= 17 && store.supports_wait_for_user();
-                self.can_presentation = self.negotiated && params.protocol_version.minor >= 19 && store.supports_presentation();
-                self.can_audit = self.negotiated && params.protocol_version.minor >= 20 && store.supports_audit();
+                self.can_browser = self.can_advance && params.protocol_version.minor >= 8 && self.browser_available && store_capabilities.browser_references;
+                self.can_browser_read = self.negotiated && params.protocol_version.minor >= 15 && store_capabilities.browser_references;
+                self.can_running_filter = self.negotiated && params.protocol_version.minor >= 16 && store_capabilities.running_filter;
+                self.can_newest_first = self.negotiated && params.protocol_version.minor >= 32 && store_capabilities.newest_first;
+                self.can_wait_for_user = self.can_advance && params.protocol_version.minor >= 17 && store_capabilities.wait_for_user;
+                self.can_presentation = self.negotiated && params.protocol_version.minor >= 19 && store_capabilities.presentation;
+                self.can_audit = self.negotiated && params.protocol_version.minor >= 20 && store_capabilities.audit;
                 self.can_observation_history = self.can_presentation && params.protocol_version.minor >= 21;
                 self.can_control_history = self.can_observation_history && params.protocol_version.minor >= 22;
                 self.can_focus_history = self.can_control_history && params.protocol_version.minor >= 23;
@@ -1950,7 +1963,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_command_execute=self.negotiated&&params.protocol_version.minor>=30&&self.command_execution_available&&matches!(self.platform,Platform::Macos);
                 self.can_computer=self.can_advance&&params.protocol_version.minor>=11&&self.computer_available&&!self.computer_permission_required;
                 self.can_computer_step=self.can_computer&&params.protocol_version.minor>=12;
-                self.can_plan_submit=self.negotiated&&params.protocol_version.minor>=31&&store.supports_plan_fragments();
+                self.can_plan_submit=self.negotiated&&params.protocol_version.minor>=31&&store_capabilities.plan_fragments;
                 self.can_plan_execute=self.can_plan_submit&&self.can_computer&&matches!(self.platform,Platform::Macos);
                 self.can_plan_visual_observation=self.can_plan_execute&&params.protocol_version.minor>=34;
                 self.can_plan_element_handles=self.can_plan_visual_observation&&params.protocol_version.minor>=44;
@@ -1958,9 +1971,9 @@ impl<'a> GatewaySession<'a> {
                 self.can_plan_selectable_rows=self.can_plan_element_handles&&params.protocol_version.minor>=45;
                 self.can_plan_image_handles=self.can_plan_selectable_rows&&params.protocol_version.minor>=46;
                 self.can_cua_intent_propose=self.negotiated&&params.protocol_version.minor>=35&&self.cua_intent_available&&matches!(self.platform,Platform::Macos);
-                self.can_goal_verify=self.negotiated&&params.protocol_version.minor>=43&&store.supports_goal_verification();
+                self.can_goal_verify=self.negotiated&&params.protocol_version.minor>=43&&store_capabilities.goal_verification;
                 self.can_complete=self.can_goal_verify;
-                self.can_fail=self.negotiated&&params.protocol_version.minor>=18&&store.supports_execution_attempts();
+                self.can_fail=self.negotiated&&params.protocol_version.minor>=18&&store_capabilities.execution_attempts;
                 if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
                 let can_replan_input = params.protocol_version.minor >= 33
                     && params.offered_capabilities.as_deref().is_some_and(|value| value.contains(&yonder_protocol::OfferedCapability::ReplanInput));
@@ -2020,8 +2033,8 @@ impl<'a> GatewaySession<'a> {
                     item(self.can_steps,Capability::TaskStepDeclare,4,Availability::Available,Some("仅支持created任务声明")),
                     item(self.can_controls,Capability::TaskControl,if self.can_focus{13}else{6},Availability::Available,Some("登记停止请求，执行器在步骤边界确认")),
                     item(self.can_advance,Capability::TaskStepAdvance,7,Availability::Available,Some("仅推进已完成Observe的步骤")),
-                    item(params.protocol_version.minor>=8&&store.supports_browser_references(),Capability::BrowserExecute,8,if self.can_browser{Availability::Available}else{Availability::DependencyMissing},(!self.can_browser).then_some("ego-lite Bridge不可用")),
-                    item(params.protocol_version.minor>=11&&store.supports_execution_attempts(),Capability::ComputerExecute,if params.protocol_version.minor>=12{12}else{11},if self.can_computer{Availability::Available}else if self.computer_permission_required{Availability::PermissionRequired}else{Availability::DependencyMissing},(!self.can_computer).then_some(if self.computer_permission_required{"Yonda需要macOS辅助功能权限"}else{"CUA Runtime不可用"})),
+                    item(params.protocol_version.minor>=8&&store_capabilities.browser_references,Capability::BrowserExecute,8,if self.can_browser{Availability::Available}else{Availability::DependencyMissing},(!self.can_browser).then_some("ego-lite Bridge不可用")),
+                    item(params.protocol_version.minor>=11&&store_capabilities.execution_attempts,Capability::ComputerExecute,if params.protocol_version.minor>=12{12}else{11},if self.can_computer{Availability::Available}else if self.computer_permission_required{Availability::PermissionRequired}else{Availability::DependencyMissing},(!self.can_computer).then_some(if self.computer_permission_required{"Yonda需要macOS辅助功能权限"}else{"CUA Runtime不可用"})),
                     item(self.can_complete,Capability::TaskComplete,43,Availability::Available,Some("仅使用最新目标达成核验完成任务")),
                     item(self.can_goal_verify,Capability::TaskGoalVerify,43,Availability::Available,Some("基于最新Observation核验用户目标")),
                     item(self.can_fail,Capability::TaskFail,18,Availability::Available,Some("仅终结已Observe失败并推进边界的CUA任务")),
@@ -2031,8 +2044,8 @@ impl<'a> GatewaySession<'a> {
                     item(params.protocol_version.minor>=29&&self.document_execution_available,Capability::DocumentExecute,29,Availability::Available,None),
                     item(params.protocol_version.minor>=30&&self.command_approval_available&&matches!(self.platform,Platform::Macos),Capability::CommandPropose,30,if self.can_command_propose{Availability::Available}else{Availability::TemporarilyUnavailable},(!self.can_command_propose).then_some("本机命令批准入口不可用")),
                     item(params.protocol_version.minor>=30&&self.command_approval_available&&matches!(self.platform,Platform::Macos),Capability::CommandExecute,30,if self.can_command_execute{Availability::Available}else{Availability::DependencyMissing},(!self.can_command_execute).then_some("macOS命令运行时不可用")),
-                    item(params.protocol_version.minor>=31&&store.supports_plan_fragments(),Capability::TaskPlanSubmit,plan_submit_minor,if self.can_plan_submit{Availability::Available}else{Availability::DependencyMissing},(!self.can_plan_submit).then_some("计划片段存储不可用")),
-                    item(params.protocol_version.minor>=31&&store.supports_plan_fragments(),Capability::TaskPlanExecute,plan_execute_minor,if self.can_plan_execute{Availability::Available}else{Availability::DependencyMissing},(!self.can_plan_execute).then_some("macOS CUA运行时或辅助功能权限不可用")),
+                    item(params.protocol_version.minor>=31&&store_capabilities.plan_fragments,Capability::TaskPlanSubmit,plan_submit_minor,if self.can_plan_submit{Availability::Available}else{Availability::DependencyMissing},(!self.can_plan_submit).then_some("计划片段存储不可用")),
+                    item(params.protocol_version.minor>=31&&store_capabilities.plan_fragments,Capability::TaskPlanExecute,plan_execute_minor,if self.can_plan_execute{Availability::Available}else{Availability::DependencyMissing},(!self.can_plan_execute).then_some("macOS CUA运行时或辅助功能权限不可用")),
                     item(params.protocol_version.minor>=35&&self.cua_intent_available&&matches!(self.platform,Platform::Macos),Capability::CuaIntentPropose,35,if self.can_cua_intent_propose{Availability::Available}else{Availability::TemporarilyUnavailable},(!self.can_cua_intent_propose).then_some("本机 CUA 敏感意图入口不可用")),
                 ].into_iter().flatten().collect();
                 return Ok(QueryResult::Hello { protocol_version: version, platform: self.platform, capabilities });
