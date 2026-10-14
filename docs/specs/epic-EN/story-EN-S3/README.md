@@ -2,7 +2,7 @@
 
 Story: EN-S3  
 Epic: EN  
-Status: implementing
+Status: design-review
 OpenSpec: en-s3-capability-routing
 
 ## 设计文档
@@ -36,3 +36,5 @@ OpenSpec: en-s3-capability-routing
 [已归档 OpenSpec Change：en-s3-protocol-single-source](../../../../openspec/changes/archive/2026-10-08-en-s3-protocol-single-source/proposal.md)——阶段 1（协议单一来源）已按本 Change 实施并合入 dev（merge b4c3ba6）；Codex 桥随后因 replan-input 能力边界从 1.19 明确升级并钉定为 1.33。等价性证明、偏差记录与[独立 Verification Goal](../../../../openspec/changes/archive/2026-10-08-en-s3-protocol-single-source/verification-goal.md)均由该 Change 留存，2026-10-08 复核 PASS。
 
 2026-10-14 阶段 2 设计复核通过并进入实施，关联 [OpenSpec Change：en-s3-capability-routing](../../../../openspec/changes/en-s3-capability-routing/proposal.md)。基线协议常量已演进至 1.50，因此 golden 覆盖由原设计的 minor 0–31 扩展为 0–50；Gateway 既有能力链最高只投影 1.49 的现状也先作为等价基线锁定，不在纯重构中静默升版。阶段 3–5 继续保留，Windows 证据门禁暂缓且不视为通过。
+
+同日阶段 2 完成独立 Verification Goal：minor 0–50 golden、穷举请求门禁、261 项 Workspace 测试、协议生成与架构门禁全部 PASS，Change 已 Archive。完整 EN-S3 仍有阶段 3–5，状态回到 `design-review`，不宣称 Story Done。
