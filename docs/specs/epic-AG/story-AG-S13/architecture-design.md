@@ -4,7 +4,7 @@
 
 ### 状态所有权
 
-`AgentInputHub` 继续作为在线 AgentSession、当前输入与回复关联的唯一运行时状态所有者。Desktop 新增只读会话摘要与选择用例；React/HTML 只渲染并提交不透明 `session_ref`，不保存第二份当前目标。
+`AgentInputHub` 继续作为在线 AgentSession、当前输入与回复关联的唯一运行时状态所有者。Desktop 新增只读会话摘要与选择用例；React/HTML 只渲染并提交不透明 `session_ref`，不保存第二份当前目标。圈选卡只负责打开 Agent 管理并消费选择完成通知，不读写选择状态。
 
 ```text
 Local AgentSession register/unregister
@@ -30,6 +30,8 @@ Local AgentSession register/unregister
 会话摘要只包含 `session_ref`、Agent ID、进程内显示序号、是否当前目标和是否支持附件/回复；不向 UI 暴露 session_id、thread ID、Socket、正文或附件。选择是本地用户对当前运行时的操作，不增加 Gateway 协议、数据库 schema 或任务事件。
 
 选择不存在的引用返回 `agent-session-unavailable`；锁异常返回 `agent-session-state-unavailable`。圈选提交继续复用 `agent-target-required` 并保留草稿。
+
+`agent_settings_open` 只允许圈选窗口调用；选择成功后 Desktop 向圈选窗口投递无正文、无标识的 `yonda-agent-target-changed` 通知，用于恢复可重试提示。通知不是状态源。
 
 ## 失败与验证
 
