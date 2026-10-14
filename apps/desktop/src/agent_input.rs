@@ -93,11 +93,22 @@ pub struct SelectionDelivery {
     pub reply_expected: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct AgentSessionSummary {
+    pub session_ref: u64,
+    pub agent_id: String,
+    pub active: bool,
+    pub explicit: bool,
+    pub supports_attachment: bool,
+    pub supports_reply: bool,
+}
+
 #[derive(Default)]
 struct HubState {
     sessions: HashMap<String, (u64, SessionSink)>,
     gateways: HashMap<u64, String>,
     active: Option<String>,
+    active_explicit: bool,
     reply: Option<ReplyState>,
 }
 
@@ -143,11 +154,12 @@ impl AgentInputHub {
                     },
                 ),
             );
-            if state.sessions.len() == 1
-                || replacing && state.active.as_deref() == Some(&session_id)
-            {
+            if state.sessions.len() == 1 {
                 state.active = Some(session_id);
-            } else if !replacing {
+                if !replacing {
+                    state.active_explicit = false;
+                }
+            } else if !replacing && !state.active_explicit {
                 state.active = None;
             }
             true
@@ -164,6 +176,7 @@ impl AgentInputHub {
                 .get(session_id)
                 .is_some_and(|(current, _)| *current == token)
             {
+                let removed_active = state.active.as_deref() == Some(session_id);
                 state.sessions.remove(session_id);
                 if state
                     .reply
@@ -172,12 +185,11 @@ impl AgentInputHub {
                 {
                     state.reply = None;
                 }
-                state.active = state
-                    .sessions
-                    .keys()
-                    .next()
-                    .cloned()
-                    .filter(|_| state.sessions.len() == 1);
+                if removed_active {
+                    state.active = None;
+                    state.active_explicit = false;
+                }
+                reconcile_active(&mut state);
             }
             !state.sessions.is_empty()
         } else {
@@ -211,13 +223,38 @@ impl AgentInputHub {
         if removed.is_empty() {
             return !state.sessions.is_empty();
         }
-        state.active = state
-            .sessions
-            .keys()
-            .next()
-            .cloned()
-            .filter(|_| state.sessions.len() == 1);
+        if state
+            .active
+            .as_ref()
+            .is_some_and(|active| removed.contains(active))
+        {
+            state.active = None;
+            state.active_explicit = false;
+        }
+        reconcile_active(&mut state);
         !state.sessions.is_empty()
+    }
+
+    pub fn session_summaries(&self) -> Result<Vec<AgentSessionSummary>, &'static str> {
+        let state = self.inner.lock().map_err(|_| "Agent会话状态不可用")?;
+        Ok(session_summaries(&state))
+    }
+
+    pub fn select_session(
+        &self,
+        session_ref: u64,
+    ) -> Result<Vec<AgentSessionSummary>, &'static str> {
+        let mut state = self.inner.lock().map_err(|_| "Agent会话状态不可用")?;
+        let session_id = state
+            .sessions
+            .iter()
+            .find_map(|(session_id, (token, _))| {
+                (*token == session_ref).then(|| session_id.clone())
+            })
+            .ok_or("Agent会话已断开")?;
+        state.active = Some(session_id);
+        state.active_explicit = true;
+        Ok(session_summaries(&state))
     }
 
     pub fn connected(&self) -> bool {
@@ -567,6 +604,41 @@ impl AgentInputHub {
     }
 }
 
+fn reconcile_active(state: &mut HubState) {
+    if state
+        .active
+        .as_ref()
+        .is_some_and(|session_id| !state.sessions.contains_key(session_id))
+    {
+        state.active = None;
+        state.active_explicit = false;
+    }
+    if state.active.is_none() && state.sessions.len() == 1 {
+        state.active = state.sessions.keys().next().cloned();
+        state.active_explicit = false;
+    }
+    if state.sessions.is_empty() {
+        state.active_explicit = false;
+    }
+}
+
+fn session_summaries(state: &HubState) -> Vec<AgentSessionSummary> {
+    let mut sessions = state
+        .sessions
+        .iter()
+        .map(|(session_id, (token, sink))| AgentSessionSummary {
+            session_ref: *token,
+            agent_id: sink.agent_id.clone(),
+            active: state.active.as_deref() == Some(session_id),
+            explicit: state.active_explicit && state.active.as_deref() == Some(session_id),
+            supports_attachment: sink.supports_attachment,
+            supports_reply: sink.supports_reply,
+        })
+        .collect::<Vec<_>>();
+    sessions.sort_by_key(|session| session.session_ref);
+    sessions
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -667,6 +739,94 @@ mod tests {
         worker.join().unwrap();
         assert!(!hub.unregister("session-b", second_token));
         assert!(!hub.connected());
+    }
+
+    #[test]
+    fn explicit_session_target_survives_other_session_changes() {
+        let hub = AgentInputHub::default();
+        let register = |session: &str| {
+            let (tx, _rx) = tokio_mpsc::unbounded_channel();
+            let (close, _close_rx) = tokio_mpsc::unbounded_channel();
+            hub.register(
+                "codex-cli".into(),
+                session.into(),
+                true,
+                false,
+                true,
+                tx,
+                close,
+            )
+            .0
+        };
+        let first = register("session-a");
+        let only = hub.session_summaries().unwrap();
+        assert!(only[0].active && !only[0].explicit);
+
+        let second = register("session-b");
+        assert!(
+            hub.session_summaries()
+                .unwrap()
+                .iter()
+                .all(|value| !value.active)
+        );
+        assert_eq!(hub.deliver_voice("你好"), Err("请选择接收输入的Agent"));
+
+        let selected = hub.select_session(second).unwrap();
+        assert!(
+            selected
+                .iter()
+                .any(|value| value.session_ref == second && value.active && value.explicit)
+        );
+        let third = register("session-c");
+        assert!(
+            hub.session_summaries()
+                .unwrap()
+                .iter()
+                .any(|value| value.session_ref == second && value.active && value.explicit)
+        );
+
+        assert!(hub.unregister("session-a", first));
+        assert!(
+            hub.session_summaries()
+                .unwrap()
+                .iter()
+                .any(|value| value.session_ref == second && value.active && value.explicit)
+        );
+        assert!(hub.unregister("session-c", third));
+        assert!(
+            hub.session_summaries()
+                .unwrap()
+                .iter()
+                .any(|value| value.session_ref == second && value.active && value.explicit)
+        );
+    }
+
+    #[test]
+    fn target_disconnect_reconciles_to_the_only_remaining_session() {
+        let hub = AgentInputHub::default();
+        let register = |session: &str| {
+            let (tx, _rx) = tokio_mpsc::unbounded_channel();
+            let (close, _close_rx) = tokio_mpsc::unbounded_channel();
+            hub.register(
+                "codex-cli".into(),
+                session.into(),
+                false,
+                false,
+                true,
+                tx,
+                close,
+            )
+            .0
+        };
+        let first = register("session-a");
+        let second = register("session-b");
+        hub.select_session(first).unwrap();
+        assert!(hub.unregister("session-a", first));
+        let remaining = hub.session_summaries().unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].session_ref, second);
+        assert!(remaining[0].active && !remaining[0].explicit);
+        assert_eq!(hub.select_session(first), Err("Agent会话已断开"));
     }
 
     #[test]

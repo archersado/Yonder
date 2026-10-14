@@ -32,6 +32,13 @@ use yonder_application::{
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const ATTACHMENT_CHUNK_BYTES: usize = 47 * 1024;
 
+fn emit_agent_session_change(pet: &WebviewWindow) {
+    if let Some(window) = pet.app_handle().get_webview_window("agent-settings") {
+        let _ =
+            window.eval("window.dispatchEvent(new CustomEvent('yonda-agent-sessions-changed'))");
+    }
+}
+
 struct GatewayConnectionLease {
     hub: AgentInputHub,
     pet: WebviewWindow,
@@ -604,6 +611,7 @@ async fn exchange(
             );
             let _ = connected;
             emit_pet_agent_connection(&pet, hub.presence());
+            emit_agent_session_change(&pet);
             let result = async {
                 loop {
                     let delivery = tokio::select! {
@@ -655,6 +663,7 @@ async fn exchange(
             }
             let _ = hub.unregister(&session_id, token);
             emit_pet_agent_connection(&pet, hub.presence());
+            emit_agent_session_change(&pet);
             return result;
         }
     }
