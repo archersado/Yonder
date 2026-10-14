@@ -24,3 +24,5 @@ OpenSpec: vi-s3-agent-voice-reply-macos
 2026-10-14 macOS 隔离夹具已实现并完成实施侧三轮自检：本机发现 18 个中文声音，三句原生队列严格按序，控制面停止为 0～119ms，资源释放通过。系统在停止后以 `didFinish` 而非 `didCancel` 返回唯一终态，因此正式 Application 必须以 generation 失效屏蔽原生终态歧义。该证据未覆盖有声输出、真实断网、输出设备切换、Windows 或非实施者复核，不能单独关闭 Story。
 
 2026-10-14 用户要求进入正式实现。AD-VI-03 已接受 macOS 受限产品子范围，并建立 [vi-s3-agent-voice-reply-macos](../../../../openspec/changes/vi-s3-agent-voice-reply-macos/proposal.md)：接入 Application 会话、系统原生 Adapter、AG-S9 回复流、显式设置和停止入口。Windows 继续延期，完整 Story 不会因 macOS 子范围交付而标记 Done。
+
+2026-10-14 macOS 产品实现已完成：Application 持有有界回复会话，Desktop 接入 AG-S9 流式通知与 VI-S1 收音打断，系统 Adapter 使用 `AVSpeechSynthesizer`，Agent 设置和圈选回复卡提供显式开关、状态及停止入口。自动化测试与正式 debug GUI 设置验证通过；真实 Agent 回复有声播放/停止因当前 Connector 重启后断管及圈选桌面暂停边界未完成，详见 [macOS Verification Goal](../../../../openspec/changes/vi-s3-agent-voice-reply-macos/verification-goal-macos.md)。因此 Change 保持 implementing，未 Archive。
