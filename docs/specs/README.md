@@ -1,5 +1,7 @@
 # Yonder 技术模块 Epic 总规划
 
+2026-10-14 新增 [AG-S13 Agent 输入会话目标选择](epic-AG/story-AG-S13/README.md)：修复多个在线 AgentSession 时产品提示用户选择、却没有选择入口的闭环缺口；选择只驻 `AgentInputHub` 运行时并使用不透明引用，不展示或持久化 Codex thread ID。
+
 唯一规划入口。流程：Epic → Story 产品需求/架构设计/视觉交互设计 → OpenSpec Proposal → 实现 → 独立验证 → Archive。月份不是 Epic。
 
 2026-10-14 新增 [VI-S3 Agent 语音回复与打断](epic-VI/story-VI-S3/README.md)：把当前 Agent 的有界流式回复交给系统原生本地 TTS 异步合成并按序播放；文字始终可见，开始新一轮语音输入或用户停止时立即打断，音频与正文不持久化。双平台统一样本与 AD-VI-03 接受前不进入产品实施。

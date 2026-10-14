@@ -20,6 +20,7 @@ Epic: AG
 - [AG-S10 圈选提交失败恢复与错误反馈](story-AG-S10/README.md)
 - [AG-S11 Agent 回复 Markdown 渲染](story-AG-S11/README.md)
 - [AG-S12 圈选回复卡呈现与拖拽](story-AG-S12/README.md)
+- [AG-S13 Agent 输入会话目标选择](story-AG-S13/README.md)
 
 ## 验收与依赖
 

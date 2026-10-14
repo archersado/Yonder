@@ -43,3 +43,13 @@ Architecture Impact：architecture-change（AgentSession 双向协议、回复�
 - macOS Codex CLI：允许进入 AG-S9 产品实施与独立验证。
 - Windows：随 AG-S8 保持 Deferred，不以 macOS 证据宣称跨平台完成。
 - ChatGPT Desktop：保持 Unsupported，直到存在可支持附着当前 thread 的公开接口。
+
+## 2026-10-14 多会话目标选择增量
+
+真实 VI-S3 产品验证发现：多个 Codex CLI AgentSession 同时在线时，`AgentInputHub` 按本决策的“不得猜测回复归属”原则清空自动目标，但产品没有会话选择入口，错误提示无法闭环。接受 AG-S13 增量：
+
+- 在线会话与当前接收目标继续只由 `AgentInputHub` 持有，不新增持久化、协议或第二通道。
+- Desktop UI 只消费进程内不透明 `session_ref` 和有界能力摘要；不得显示、记录或提交完整 Codex session/thread ID。
+- 单会话自动选择；出现第二会话时只撤销尚未显式确认的自动目标。用户显式选择后，非目标会话增减不得改变路由。
+- 目标断连后引用立即失效；只剩一个会话时可重新自动选择，仍有多个时继续要求用户选择。
+- 圈选/语音草稿在选择失败时继续保留；Agent 注册授权、任务归属和回复关联规则不变。
