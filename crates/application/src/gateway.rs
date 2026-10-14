@@ -516,6 +516,103 @@ mod tests {
         }
     }
 
+    struct FullCapabilityStore(NoStore);
+    impl TaskStore for FullCapabilityStore {
+        fn supports_pending_cancel(&self) -> bool { true }
+        fn supports_running_filter(&self) -> bool { true }
+        fn supports_newest_first(&self) -> bool { true }
+        fn supports_registration(&self) -> bool { true }
+        fn supports_step_declarations(&self) -> bool { true }
+        fn supports_plan_fragments(&self) -> bool { true }
+        fn supports_goal_verification(&self) -> bool { true }
+        fn supports_execution_attempts(&self) -> bool { true }
+        fn supports_browser_references(&self) -> bool { true }
+        fn supports_controls(&self) -> bool { true }
+        fn supports_wait_for_user(&self) -> bool { true }
+        fn supports_presentation(&self) -> bool { true }
+        fn supports_audit(&self) -> bool { true }
+        fn create(&mut self, owner: &str, description: &str, source: crate::TaskSource) -> Result<Task, Error> {
+            self.0.create(owner, description, source)
+        }
+        fn get(&mut self, id: &str) -> Result<Task, Error> { self.0.get(id) }
+        fn list(&mut self, owner: Option<&str>, after: Option<&str>, include_finished: bool, limit: usize) -> Result<Vec<Task>, Error> {
+            self.0.list(owner, after, include_finished, limit)
+        }
+        fn running(&mut self, limit: usize) -> Result<Vec<Task>, Error> { self.0.running(limit) }
+        fn events(&mut self, id: &str, after: u64, limit: usize) -> Result<Vec<Transition>, Error> {
+            self.0.events(id, after, limit)
+        }
+        fn commit(&mut self, id: &str, expected: u64, transition: Transition) -> Result<(), Error> {
+            self.0.commit(id, expected, transition)
+        }
+    }
+
+    fn full_capability_hello(minor: u16) -> QueryResult {
+        let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);
+        session.browser_available = true;
+        session.computer_available = true;
+        session.file_grants_available = true;
+        session.file_execution_available = true;
+        session.document_execution_available = true;
+        session.command_approval_available = true;
+        session.command_execution_available = true;
+        session.cua_intent_available = true;
+        let session_fields = (minor >= 14).then_some(r#", "session_id":"golden-session""#).unwrap_or("");
+        let offered = if minor >= 50 {
+            r#", "offered_capabilities":["user_input","user_input_attachment","replan_input","user_input_reply"]"#
+        } else if minor >= 33 {
+            r#", "offered_capabilities":["user_input","user_input_attachment","replan_input"]"#
+        } else if minor >= 19 {
+            r#", "offered_capabilities":["user_input","user_input_attachment"]"#
+        } else if minor >= 14 {
+            r#", "offered_capabilities":["user_input"]"#
+        } else { "" };
+        let request = format!(
+            r#"{{"jsonrpc":"2.0","id":"golden","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}{session_fields}{offered}}}}}"#
+        );
+        let mut store = FullCapabilityStore(NoStore);
+        match session.handle(&mut store, request.as_bytes(), 1000) {
+            Response::Success { result, .. } => result,
+            response => panic!("minor {minor} 握手失败：{response:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_negotiation_minor_0_through_current_matches_golden() {
+        assert_eq!(PROTOCOL_VERSION.minor, 50, "协议升版后须显式扩展能力协商 golden");
+        let expected_top = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 47, 48, 49, 49,
+        ];
+        let expected_read = [
+            0, 0, 0, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 13, 15, 16, 17, 18, 19,
+            20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 29, 31, 32, 33, 34, 35, 36, 37,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 46, 46, 49, 49,
+        ];
+        for minor in 0..=PROTOCOL_VERSION.minor {
+            let QueryResult::Hello { protocol_version, capabilities, .. } = full_capability_hello(minor) else {
+                panic!("minor {minor} 未返回 hello")
+            };
+            assert_eq!(protocol_version.minor, expected_top[minor as usize], "minor {minor} 顶层版本漂移");
+            assert_eq!(capabilities[0].name, Capability::TaskRead);
+            assert_eq!(capabilities[0].version.minor, expected_read[minor as usize], "minor {minor} task.read 版本漂移");
+        }
+        let QueryResult::Hello { capabilities, .. } = full_capability_hello(PROTOCOL_VERSION.minor) else { unreachable!() };
+        assert_eq!(
+            capabilities.iter().map(|item| item.name).collect::<Vec<_>>(),
+            vec![
+                Capability::TaskRead, Capability::TaskCreate, Capability::TaskCancel,
+                Capability::TaskStepDeclare, Capability::TaskControl, Capability::TaskStepAdvance,
+                Capability::BrowserExecute, Capability::ComputerExecute, Capability::TaskComplete,
+                Capability::TaskGoalVerify, Capability::TaskFail, Capability::TaskWaitForUser,
+                Capability::FileGrantRead, Capability::FileExecute, Capability::DocumentExecute,
+                Capability::CommandPropose, Capability::CommandExecute, Capability::TaskPlanSubmit,
+                Capability::TaskPlanExecute, Capability::CuaIntentPropose,
+            ]
+        );
+    }
+
     #[test]
     fn extended_element_roles_are_version_gated() {
         let elements=||vec![

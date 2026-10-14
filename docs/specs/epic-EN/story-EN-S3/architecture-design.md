@@ -17,7 +17,7 @@
 ### 阶段 2：能力协商等价重构（AC2/AC3，独立可合）
 
 - 新增声明式能力表：每项为 `{ Capability, 最低 minor, 可用性闭包（negotiated/store supports_/runtime available/platform 的组合） }`，位于 `gateway.rs`。`GatewaySession::can_*` 布尔位改为从表按 hello 参数一次性计算；两条版本链、`CapabilityInfo` 列表生成、逐请求门禁（`-32010` 检查）全部由表派生。
-- 等价性 golden 测试：以重构前 hello 响应为基准，对 minor 0–当前 `PROTOCOL_VERSION.minor`（阶段 2 开工时为 49）逐档断言 `{ protocol_version, capabilities 列表（名称/版本/availability/reason） }` 完全一致；同时断言代表性请求在能力边界前后的接受/拒绝（错误码与消息）。基准在重构前一次提交固化，后续升版自动扩大覆盖。
+- 等价性 golden 测试：以重构前 hello 响应为基准，对 minor 0–当前 `PROTOCOL_VERSION.minor`（阶段 2 开工时为 50）逐档断言 `{ protocol_version, capabilities 列表（名称/版本/availability/reason） }` 完全一致；同时断言代表性请求在能力边界前后的接受/拒绝（错误码与消息）。基准在重构前一次提交固化，后续升版自动扩大覆盖。协议常量 1.50 而 Gateway 既有能力链最高投影 1.49 的差异属于本轮必须保留并显式记录的基线，不在纯重构中静默修正。
 - 请求分发：`handle` 与 `handle_encoded_with_runtimes_and_file_grants` 中的 `if let/matches!` 早返回串改为对 `Request` 全变体的穷举 `match`（按"握手前/握手/查询/执行"四组路由）；协议校验收敛到分发入口单次调用，删除 `gateway.rs:1120`、`:728` 与 `query.rs` 入口的重复 `validate`。拒绝语义不变由既有回归断言。
 - 顺手消除 `can_audit` 双赋值与两条版本链的不一致（以 golden 基准为准——基准即重构前行为，链不一致处按重构前实际行为对齐并单独记录差异点，不静默"修正"语义）。
 
