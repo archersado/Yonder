@@ -401,6 +401,16 @@ fn protocol_computer_observation(value:crate::computer_use::ComputerObservation,
     }
 }
 
+/// 协议版本投影只从有序 feature 表取已启用的最高 minor；调用方分别声明
+/// `task.read` 与 hello 顶层的历史能力面，避免再维护两条嵌套条件链。
+fn highest_enabled_minor(features: &[(u16, bool)]) -> u16 {
+    features
+        .iter()
+        .filter_map(|(minor, enabled)| enabled.then_some(*minor))
+        .max()
+        .unwrap_or(0)
+}
+
 pub struct GatewaySession<'a> {
     auth: AuthContext<'a>,
     platform: Platform,
@@ -959,6 +969,59 @@ mod tests {
 }
 
 impl<'a> GatewaySession<'a> {
+    /// 对协议所有请求变体做单一、穷举的会话能力分类。业务参数、身份与状态
+    /// 校验仍由各用例负责；这里仅保留重构前可观察的协商错误。
+    fn request_capability_gate(&self, request: &Request) -> Option<RpcError> {
+        match request {
+            Request::Hello { .. } | Request::Create { .. } | Request::StepDeclare { .. } => None,
+            Request::Cancel { .. } if self.negotiated && !self.can_cancel => {
+                Some(RpcError::new(-32010, "任务取消需要协议1.2及取消能力"))
+            }
+            Request::Control { .. } if !self.negotiated || !self.can_controls => {
+                Some(RpcError::new(-32010, "任务控制需要协议1.6及控制能力"))
+            }
+            Request::StepGet { .. } if self.negotiated && !self.can_steps => {
+                Some(RpcError::new(-32010, "步骤读取需要协议1.4及存储能力"))
+            }
+            Request::BrowserGet { .. } if self.negotiated && !self.can_browser_read => {
+                Some(RpcError::new(-32010, "浏览器引用读取需要协议1.15及存储能力"))
+            }
+            Request::Artifacts { .. } if self.negotiated && !self.can_artifact_items => {
+                Some(RpcError::new(-32010, "产物清单读取需要协议1.26及审计存储能力"))
+            }
+            Request::FileGrants { .. } => Some(RpcError::new(-32020, "本机文件授权入口不可用")),
+            Request::List { params, .. } if params.running_only && self.negotiated && !self.can_running_filter => {
+                Some(RpcError::new(-32010, "运行中任务筛选需要协议1.16及存储能力"))
+            }
+            Request::List { params, .. } if params.newest_first && self.negotiated && !self.can_newest_first => {
+                Some(RpcError::new(-32010, "最新任务排序需要协议1.32及存储能力"))
+            }
+            Request::BrowserExecute { .. }
+            | Request::ComputerExecute { .. }
+            | Request::ComputerStep { .. }
+            | Request::PlanSubmit { .. }
+            | Request::PlanExecute { .. }
+            | Request::CuaIntentPropose { .. }
+            | Request::FileExecute { .. }
+            | Request::DocumentExecute { .. }
+            | Request::CommandPropose { .. }
+            | Request::CommandExecute { .. }
+            | Request::Complete { .. }
+            | Request::GoalVerify { .. }
+            | Request::Fail { .. }
+            | Request::WaitForUser { .. }
+            | Request::StepAdvance { .. }
+            | Request::Cancel { .. }
+            | Request::Control { .. }
+            | Request::Get { .. }
+            | Request::Events { .. }
+            | Request::Artifacts { .. }
+            | Request::List { .. }
+            | Request::StepGet { .. }
+            | Request::BrowserGet { .. } => None,
+        }
+    }
+
     /// 正式组合根复用唯一协议编码，不需要直接依赖协议库。
     pub fn handle_encoded(
         &mut self,
@@ -1667,20 +1730,6 @@ impl<'a> GatewaySession<'a> {
                 },
             };
         }
-        if matches!(request, Request::Cancel { .. }) && self.negotiated && !self.can_cancel {
-            return Response::Failure {
-                jsonrpc: Version::V2,
-                id: Some(id),
-                error: RpcError::new(-32010, "任务取消需要协议1.2及取消能力"),
-            };
-        }
-        if matches!(request, Request::Control { .. }) && (!self.negotiated || !self.can_controls) {
-            return Response::Failure {
-                jsonrpc: Version::V2,
-                id: Some(id),
-                error: RpcError::new(-32010, "任务控制需要协议1.6及控制能力"),
-            };
-        }
         if let Request::StepDeclare { params, .. } = &request {
             let result = if !self.negotiated {
                 Err(RpcError::new(-32002, "请先完成Gateway握手"))
@@ -1726,58 +1775,11 @@ impl<'a> GatewaySession<'a> {
                 },
             };
         }
-        if matches!(request, Request::StepGet { .. }) && self.negotiated && !self.can_steps {
+        if let Some(error) = self.request_capability_gate(&request) {
             return Response::Failure {
                 jsonrpc: Version::V2,
                 id: Some(id),
-                error: RpcError::new(-32010, "步骤读取需要协议1.4及存储能力"),
-            };
-        }
-        if matches!(request, Request::BrowserGet { .. })
-            && self.negotiated
-            && !self.can_browser_read
-        {
-            return Response::Failure {
-                jsonrpc: Version::V2,
-                id: Some(id),
-                error: RpcError::new(-32010, "浏览器引用读取需要协议1.15及存储能力"),
-            };
-        }
-        if matches!(request, Request::Artifacts { .. })
-            && self.negotiated
-            && !self.can_artifact_items
-        {
-            return Response::Failure {
-                jsonrpc: Version::V2,
-                id: Some(id),
-                error: RpcError::new(-32010, "产物清单读取需要协议1.26及审计存储能力"),
-            };
-        }
-        if matches!(request, Request::FileGrants { .. }) {
-            return Response::Failure {
-                jsonrpc: Version::V2,
-                id: Some(id),
-                error: RpcError::new(-32020, "本机文件授权入口不可用"),
-            };
-        }
-        if matches!(&request, Request::List { params, .. } if params.running_only)
-            && self.negotiated
-            && !self.can_running_filter
-        {
-            return Response::Failure {
-                jsonrpc: Version::V2,
-                id: Some(id),
-                error: RpcError::new(-32010, "运行中任务筛选需要协议1.16及存储能力"),
-            };
-        }
-        if matches!(&request, Request::List { params, .. } if params.newest_first)
-            && self.negotiated
-            && !self.can_newest_first
-        {
-            return Response::Failure {
-                jsonrpc: Version::V2,
-                id: Some(id),
-                error: RpcError::new(-32010, "最新任务排序需要协议1.32及存储能力"),
+                error,
             };
         }
         if !matches!(request, Request::Hello { .. }) && self.negotiated {
@@ -1929,7 +1931,6 @@ impl<'a> GatewaySession<'a> {
                 self.can_wait_for_user = self.can_advance && params.protocol_version.minor >= 17 && store.supports_wait_for_user();
                 self.can_presentation = self.negotiated && params.protocol_version.minor >= 19 && store.supports_presentation();
                 self.can_audit = self.negotiated && params.protocol_version.minor >= 20 && store.supports_audit();
-                self.can_audit = self.negotiated && params.protocol_version.minor >= 20 && store.supports_audit();
                 self.can_observation_history = self.can_presentation && params.protocol_version.minor >= 21;
                 self.can_control_history = self.can_observation_history && params.protocol_version.minor >= 22;
                 self.can_focus_history = self.can_control_history && params.protocol_version.minor >= 23;
@@ -1977,27 +1978,63 @@ impl<'a> GatewaySession<'a> {
                 let has_screenshot_coordinates=self.can_plan_screenshot_coordinates;
                 let has_driver_error_reasons=self.can_driver_error_reasons;
                 let observed_elements_version=if has_image_handles{46}else if has_selectable_rows{45}else if has_element_handles{44}else{0};
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if has_driver_error_reasons {49} else if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if has_driver_error_reasons {49} else if has_screenshot_coordinates {48} else if has_driver_observe_facts {47} else if observed_elements_version>0 {observed_elements_version} else if has_goal_verification {43} else if has_bounded_double_click {41} else if has_generic_desktop_plan {40} else if has_foreground_coordinates {39} else if has_search_shortcut {38} else if has_visual_focus_handoff {37} else if has_composer_focus {36} else if self.can_cua_intent_propose {35} else if self.can_plan_visual_observation {34} else if can_replan_input {33} else if self.can_newest_first {32} else if self.can_plan_submit {31} else if self.can_command_propose||self.can_command_execute {30} else if self.can_document_execute {29} else if self.can_file_execute {28} else if self.can_file_grants {27} else if self.can_artifact_items {26} else if self.can_attempt_start_history {25} else if self.can_creation_history {24} else if self.can_focus_history {23} else if self.can_control_history {22} else if self.can_observation_history {21} else if self.can_audit {20} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
-                if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
-                if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("支持非终态任务直接取消".into()) }); }
-                if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
-                if self.can_controls { capabilities.push(CapabilityInfo { name: Capability::TaskControl, version: ProtocolVersion { major: 1, minor: if self.can_focus{13}else{6} }, availability: Availability::Available, reason: Some("登记停止请求，执行器在步骤边界确认".into()) }); }
-                if self.can_advance { capabilities.push(CapabilityInfo { name: Capability::TaskStepAdvance, version: ProtocolVersion { major: 1, minor: 7 }, availability: Availability::Available, reason: Some("仅推进已完成Observe的步骤".into()) }); }
-                if params.protocol_version.minor >= 8 && store.supports_browser_references() { capabilities.push(CapabilityInfo { name: Capability::BrowserExecute, version: ProtocolVersion { major: 1, minor: 8 }, availability: if self.can_browser { Availability::Available } else { Availability::DependencyMissing }, reason: (!self.can_browser).then(|| "ego-lite Bridge不可用".into()) }); }
-                if params.protocol_version.minor>=11&&store.supports_execution_attempts() {capabilities.push(CapabilityInfo{name:Capability::ComputerExecute,version:ProtocolVersion{major:1,minor:if params.protocol_version.minor>=12{12}else{11}},availability:if self.can_computer{Availability::Available}else if self.computer_permission_required{Availability::PermissionRequired}else{Availability::DependencyMissing},reason:(!self.can_computer).then(||if self.computer_permission_required{"Yonda需要macOS辅助功能权限".into()}else{"CUA Runtime不可用".into()})});}
-                if self.can_complete{capabilities.push(CapabilityInfo{name:Capability::TaskComplete,version:ProtocolVersion{major:1,minor:43},availability:Availability::Available,reason:Some("仅使用最新目标达成核验完成任务".into())});}
-                if self.can_goal_verify{capabilities.push(CapabilityInfo{name:Capability::TaskGoalVerify,version:ProtocolVersion{major:1,minor:43},availability:Availability::Available,reason:Some("基于最新Observation核验用户目标".into())});}
-                if self.can_fail{capabilities.push(CapabilityInfo{name:Capability::TaskFail,version:ProtocolVersion{major:1,minor:18},availability:Availability::Available,reason:Some("仅终结已Observe失败并推进边界的CUA任务".into())});}
-                if self.can_wait_for_user{capabilities.push(CapabilityInfo{name:Capability::TaskWaitForUser,version:ProtocolVersion{major:1,minor:17},availability:Availability::Available,reason:Some("仅在已Observe并推进的步骤边界等待".into())});}
-                if params.protocol_version.minor >= 27 && self.file_grants_available { capabilities.push(CapabilityInfo{name:Capability::FileGrantRead,version:ProtocolVersion{major:1,minor:27},availability:Availability::Available,reason:None}); }
-                if params.protocol_version.minor >= 28 && self.file_execution_available { capabilities.push(CapabilityInfo{name:Capability::FileExecute,version:ProtocolVersion{major:1,minor:28},availability:Availability::Available,reason:None}); }
-                if params.protocol_version.minor >= 29 && self.document_execution_available { capabilities.push(CapabilityInfo{name:Capability::DocumentExecute,version:ProtocolVersion{major:1,minor:29},availability:Availability::Available,reason:None}); }
-                if params.protocol_version.minor>=30 && self.command_approval_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CommandPropose,version:ProtocolVersion{major:1,minor:30},availability:if self.can_command_propose{Availability::Available}else{Availability::TemporarilyUnavailable},reason:(!self.can_command_propose).then(||"本机命令批准入口不可用".into())}); }
-                if params.protocol_version.minor>=30 && self.command_approval_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CommandExecute,version:ProtocolVersion{major:1,minor:30},availability:if self.can_command_execute{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_command_execute).then(||"macOS命令运行时不可用".into())}); }
-                if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanSubmit,version:ProtocolVersion{major:1,minor:if has_screenshot_coordinates{48}else if has_driver_observe_facts{47}else if observed_elements_version>0{observed_elements_version}else if has_bounded_double_click{41}else if has_generic_desktop_plan{40}else{31}},availability:if self.can_plan_submit{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_submit).then(||"计划片段存储不可用".into())}); }
-                if params.protocol_version.minor>=31 && store.supports_plan_fragments() { capabilities.push(CapabilityInfo{name:Capability::TaskPlanExecute,version:ProtocolVersion{major:1,minor:if has_screenshot_coordinates{48}else if has_driver_observe_facts{47}else if observed_elements_version>0{observed_elements_version}else if has_bounded_double_click{41}else if has_generic_desktop_plan{40}else if has_foreground_coordinates{39}else if has_search_shortcut{38}else if has_visual_focus_handoff{37}else if has_composer_focus{36}else if self.can_plan_visual_observation{34}else{31}},availability:if self.can_plan_execute{Availability::Available}else{Availability::DependencyMissing},reason:(!self.can_plan_execute).then(||"macOS CUA运行时或辅助功能权限不可用".into())}); }
-                if params.protocol_version.minor>=35 && self.cua_intent_available && matches!(self.platform,Platform::Macos) { capabilities.push(CapabilityInfo{name:Capability::CuaIntentPropose,version:ProtocolVersion{major:1,minor:35},availability:if self.can_cua_intent_propose{Availability::Available}else{Availability::TemporarilyUnavailable},reason:(!self.can_cua_intent_propose).then(||"本机 CUA 敏感意图入口不可用".into())}); }
+                let read_minor = highest_enabled_minor(&[
+                    (3,self.can_name),(4,self.can_steps),(5,self.can_attempt_results),(6,self.can_controls),
+                    (7,self.can_advance),(8,self.can_browser),(11,self.can_computer),(12,self.can_computer_step),
+                    (13,self.can_focus),(15,self.can_browser_read),(16,self.can_running_filter),(17,self.can_wait_for_user),
+                    (18,self.can_fail),(19,self.can_presentation),(20,self.can_audit),(21,self.can_observation_history),
+                    (22,self.can_control_history),(23,self.can_focus_history),(24,self.can_creation_history),
+                    (25,self.can_attempt_start_history),(26,self.can_artifact_items),(27,self.can_file_grants),
+                    (28,self.can_file_execute),(29,self.can_document_execute),(31,self.can_plan_submit),
+                    (32,self.can_newest_first),(33,can_replan_input),(34,self.can_plan_visual_observation),
+                    (35,self.can_cua_intent_propose),(36,has_composer_focus),(37,has_visual_focus_handoff),
+                    (38,has_search_shortcut),(39,has_foreground_coordinates),(40,has_generic_desktop_plan),
+                    (41,has_bounded_double_click),(43,has_goal_verification),(observed_elements_version,observed_elements_version>0),
+                    (49,has_driver_error_reasons),
+                ]);
+                let offered_input=params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput));
+                let offered_attachment=params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment));
+                let version_minor = highest_enabled_minor(&[
+                    (1,self.can_create),(2,self.can_cancel),(3,self.can_name),(4,self.can_steps),
+                    (5,self.can_attempt_results),(6,self.can_controls),(7,self.can_advance),(8,self.can_browser),
+                    (11,self.can_computer),(12,self.can_computer_step),(13,self.can_focus),(14,offered_input),
+                    (15,self.can_browser_read),(16,self.can_running_filter),(17,self.can_wait_for_user),(18,self.can_fail),
+                    (19,offered_attachment||self.can_presentation),(20,self.can_audit),(21,self.can_observation_history),
+                    (22,self.can_control_history),(23,self.can_focus_history),(24,self.can_creation_history),
+                    (25,self.can_attempt_start_history),(26,self.can_artifact_items),(27,self.can_file_grants),
+                    (28,self.can_file_execute),(29,self.can_document_execute),(30,self.can_command_propose||self.can_command_execute),
+                    (31,self.can_plan_submit),(32,self.can_newest_first),(33,can_replan_input),(34,self.can_plan_visual_observation),
+                    (35,self.can_cua_intent_propose),(36,has_composer_focus),(37,has_visual_focus_handoff),
+                    (38,has_search_shortcut),(39,has_foreground_coordinates),(40,has_generic_desktop_plan),
+                    (41,has_bounded_double_click),(43,has_goal_verification),(observed_elements_version,observed_elements_version>0),
+                    (47,has_driver_observe_facts),(48,has_screenshot_coordinates),(49,has_driver_error_reasons),
+                ]);
+                let version = ProtocolVersion { major: 1, minor: version_minor };
+                let item=|enabled:bool,name:Capability,minor:u16,availability:Availability,reason:Option<&str>|enabled.then(||CapabilityInfo{name,version:ProtocolVersion{major:1,minor},availability,reason:reason.map(str::to_owned)});
+                let plan_submit_minor=highest_enabled_minor(&[(31,true),(40,has_generic_desktop_plan),(41,has_bounded_double_click),(observed_elements_version,observed_elements_version>0),(47,has_driver_observe_facts),(48,has_screenshot_coordinates)]);
+                let plan_execute_minor=highest_enabled_minor(&[(31,true),(34,self.can_plan_visual_observation),(36,has_composer_focus),(37,has_visual_focus_handoff),(38,has_search_shortcut),(39,has_foreground_coordinates),(40,has_generic_desktop_plan),(41,has_bounded_double_click),(observed_elements_version,observed_elements_version>0),(47,has_driver_observe_facts),(48,has_screenshot_coordinates)]);
+                let capabilities=[
+                    Some(CapabilityInfo{name:Capability::TaskRead,version:ProtocolVersion{major:1,minor:read_minor},availability:Availability::Available,reason:None}),
+                    item(self.can_create,Capability::TaskCreate,if self.can_name{3}else{1},Availability::Available,None),
+                    item(self.can_cancel,Capability::TaskCancel,2,Availability::Available,Some("支持非终态任务直接取消")),
+                    item(self.can_steps,Capability::TaskStepDeclare,4,Availability::Available,Some("仅支持created任务声明")),
+                    item(self.can_controls,Capability::TaskControl,if self.can_focus{13}else{6},Availability::Available,Some("登记停止请求，执行器在步骤边界确认")),
+                    item(self.can_advance,Capability::TaskStepAdvance,7,Availability::Available,Some("仅推进已完成Observe的步骤")),
+                    item(params.protocol_version.minor>=8&&store.supports_browser_references(),Capability::BrowserExecute,8,if self.can_browser{Availability::Available}else{Availability::DependencyMissing},(!self.can_browser).then_some("ego-lite Bridge不可用")),
+                    item(params.protocol_version.minor>=11&&store.supports_execution_attempts(),Capability::ComputerExecute,if params.protocol_version.minor>=12{12}else{11},if self.can_computer{Availability::Available}else if self.computer_permission_required{Availability::PermissionRequired}else{Availability::DependencyMissing},(!self.can_computer).then_some(if self.computer_permission_required{"Yonda需要macOS辅助功能权限"}else{"CUA Runtime不可用"})),
+                    item(self.can_complete,Capability::TaskComplete,43,Availability::Available,Some("仅使用最新目标达成核验完成任务")),
+                    item(self.can_goal_verify,Capability::TaskGoalVerify,43,Availability::Available,Some("基于最新Observation核验用户目标")),
+                    item(self.can_fail,Capability::TaskFail,18,Availability::Available,Some("仅终结已Observe失败并推进边界的CUA任务")),
+                    item(self.can_wait_for_user,Capability::TaskWaitForUser,17,Availability::Available,Some("仅在已Observe并推进的步骤边界等待")),
+                    item(params.protocol_version.minor>=27&&self.file_grants_available,Capability::FileGrantRead,27,Availability::Available,None),
+                    item(params.protocol_version.minor>=28&&self.file_execution_available,Capability::FileExecute,28,Availability::Available,None),
+                    item(params.protocol_version.minor>=29&&self.document_execution_available,Capability::DocumentExecute,29,Availability::Available,None),
+                    item(params.protocol_version.minor>=30&&self.command_approval_available&&matches!(self.platform,Platform::Macos),Capability::CommandPropose,30,if self.can_command_propose{Availability::Available}else{Availability::TemporarilyUnavailable},(!self.can_command_propose).then_some("本机命令批准入口不可用")),
+                    item(params.protocol_version.minor>=30&&self.command_approval_available&&matches!(self.platform,Platform::Macos),Capability::CommandExecute,30,if self.can_command_execute{Availability::Available}else{Availability::DependencyMissing},(!self.can_command_execute).then_some("macOS命令运行时不可用")),
+                    item(params.protocol_version.minor>=31&&store.supports_plan_fragments(),Capability::TaskPlanSubmit,plan_submit_minor,if self.can_plan_submit{Availability::Available}else{Availability::DependencyMissing},(!self.can_plan_submit).then_some("计划片段存储不可用")),
+                    item(params.protocol_version.minor>=31&&store.supports_plan_fragments(),Capability::TaskPlanExecute,plan_execute_minor,if self.can_plan_execute{Availability::Available}else{Availability::DependencyMissing},(!self.can_plan_execute).then_some("macOS CUA运行时或辅助功能权限不可用")),
+                    item(params.protocol_version.minor>=35&&self.cua_intent_available&&matches!(self.platform,Platform::Macos),Capability::CuaIntentPropose,35,if self.can_cua_intent_propose{Availability::Available}else{Availability::TemporarilyUnavailable},(!self.can_cua_intent_propose).then_some("本机 CUA 敏感意图入口不可用")),
+                ].into_iter().flatten().collect();
                 return Ok(QueryResult::Hello { protocol_version: version, platform: self.platform, capabilities });
             }
             Err(RpcError::new(-32002, "请先完成 Gateway 握手"))
