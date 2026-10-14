@@ -23,6 +23,7 @@ pub mod jev_runtime;
 pub mod plan_fragment;
 pub mod query;
 pub mod unknown_reason;
+pub mod voice_reply;
 pub mod work_focus;
 
 #[derive(Clone, Debug, Eq, PartialEq)]

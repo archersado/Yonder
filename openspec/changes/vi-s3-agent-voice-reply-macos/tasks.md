@@ -1,7 +1,7 @@
 # 任务
 
 - [x] 接受 AD-VI-03 macOS 受限产品子范围并建立产品 OpenSpec
-- [ ] 实现 Application `VoiceReplySession`、句界、generation/sequence 与单元测试
+- [x] 实现 Application `VoiceReplySession`、句界、generation/sequence 与单元测试
 - [ ] 实现 macOS 系统原生 TTS Adapter、停止和回调契约
 - [ ] 在 Agent 设置增加默认关闭的语音回复配置
 - [ ] 接入 AG-S9 回复 delta/completed/failed/interrupted 与卡片关闭
