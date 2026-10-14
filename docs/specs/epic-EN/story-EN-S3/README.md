@@ -2,7 +2,7 @@
 
 Story: EN-S3  
 Epic: EN  
-Status: design-review
+Status: implementing
 OpenSpec: en-s3-capability-routing
 
 ## 设计文档
@@ -38,3 +38,5 @@ OpenSpec: en-s3-capability-routing
 2026-10-14 阶段 2 设计复核通过并进入实施，关联 [OpenSpec Change：en-s3-capability-routing](../../../../openspec/changes/archive/2026-10-14-en-s3-capability-routing/proposal.md)。基线协议常量已演进至 1.50，因此 golden 覆盖由原设计的 minor 0–31 扩展为 0–50；Gateway 既有能力链最高只投影 1.49 的现状也先作为等价基线锁定，不在纯重构中静默升版。阶段 3–5 继续保留，Windows 证据门禁暂缓且不视为通过。
 
 同日阶段 2 完成独立 Verification Goal：minor 0–50 golden、穷举请求门禁、261 项 Workspace 测试、协议生成与架构门禁全部 PASS，Change 已 Archive。完整 EN-S3 仍有阶段 3–5，状态回到 `design-review`，不宣称 Story Done。
+
+2026-10-14 阶段 3 设计复核后进入实施，关联 [OpenSpec Change：en-s3-task-store-split](../../../../openspec/changes/en-s3-task-store-split/proposal.md)。先以单次 `StoreCapabilities` 探测消除握手期散布查询，再拆分 Application 子 trait 与 SQLite 实现文件；既有 Adapter 测试断言、SQL、schema 和事务边界不得修改。
