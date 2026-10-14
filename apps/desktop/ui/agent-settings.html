@@ -24,6 +24,14 @@
       <h2 id="agents-title">已登记 Agent</h2>
       <ul id="agent-list" aria-live="polite"></ul>
     </section>
+    <section class="voice-reply" aria-labelledby="voice-reply-title">
+      <h2 id="voice-reply-title">语音回复</h2>
+      <label class="voice-option" for="voice-reply-enabled">
+        <input id="voice-reply-enabled" type="checkbox" />
+        <span>使用本地中文声音朗读 Agent 回复</span>
+      </label>
+      <p id="voice-reply-status" class="section-status" role="status" aria-live="polite">正在读取本地语音能力…</p>
+    </section>
     <p id="agent-status" role="status" aria-live="polite">正在读取 Agent…</p>
   </main>
   <script src="agent-settings.js"></script>

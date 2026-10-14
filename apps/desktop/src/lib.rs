@@ -3,6 +3,7 @@ pub mod agent_input;
 #[cfg(target_os = "macos")]
 pub mod local_agent_socket;
 pub mod local_agent_stdio;
+pub mod voice_reply;
 use std::{
     collections::{HashMap, HashSet},
     fs::{File, OpenOptions},

@@ -3,6 +3,8 @@
 const byId = id => document.getElementById(id);
 const status = byId('agent-status');
 const list = byId('agent-list');
+const voiceReplyEnabled = byId('voice-reply-enabled');
+const voiceReplyStatus = byId('voice-reply-status');
 const stateText = value => ({ enabled: '已启用', disabled: '已禁用', revoked: '已撤权' })[value] ?? value;
 const timeText = value => value ? new Date(value).toLocaleString() : '未连接';
 
@@ -62,6 +64,34 @@ async function load() {
   }
 }
 
+async function loadVoiceReply() {
+  voiceReplyStatus.textContent = '正在读取本地语音能力…';
+  try {
+    const config = await invoke('voice_reply_config_get');
+    voiceReplyEnabled.checked = config.enabled;
+    voiceReplyEnabled.disabled = !config.available;
+    voiceReplyStatus.textContent = config.available
+      ? (config.enabled ? '已开启；只使用本机已安装的中文声音。' : '默认关闭；开启后只使用本机已安装的中文声音。')
+      : '本地中文声音不可用；文字回复不受影响。';
+  } catch (error) {
+    voiceReplyEnabled.disabled = true;
+    voiceReplyStatus.textContent = `语音回复配置读取失败：${error?.message ?? error ?? '请重试'}`;
+  }
+}
+
+voiceReplyEnabled.addEventListener('change', async () => {
+  voiceReplyEnabled.disabled = true;
+  try {
+    const config = await invoke('voice_reply_config_save', { enabled: voiceReplyEnabled.checked });
+    voiceReplyEnabled.checked = config.enabled;
+    voiceReplyStatus.textContent = !config.available ? '本地中文声音不可用；文字回复不受影响。' : config.enabled ? '已开启本地语音回复。' : '已关闭并停止语音回复。';
+    voiceReplyEnabled.disabled = !config.available;
+  } catch (error) {
+    voiceReplyStatus.textContent = `语音回复配置保存失败：${error?.message ?? error ?? '请重试'}`;
+    await loadVoiceReply();
+  }
+});
+
 async function update(agent, value) {
   status.textContent = '正在更新 Agent状态…';
   try {
@@ -99,6 +129,7 @@ byId('close').addEventListener('click', async () => {
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') { event.preventDefault(); byId('close').click(); }
 });
-window.addEventListener('yonda-agent-open', load);
+window.addEventListener('yonda-agent-open', () => { load(); loadVoiceReply(); });
 load();
+loadVoiceReply();
 })();

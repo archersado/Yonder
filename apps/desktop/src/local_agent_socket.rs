@@ -2,7 +2,7 @@
 use crate::{
     CuaControlHub, TaskHost, agent_input::AgentInputHub, emit_pet_agent_connection,
     emit_pet_presentation, emit_pet_terminal_presentation, position_window_in_pet_work_area,
-    show_command_approval_after_propose,
+    show_command_approval_after_propose, voice_reply::VoiceReplyRuntime,
 };
 use base64::Engine;
 use interprocess::local_socket::{
@@ -69,6 +69,7 @@ async fn read_agent_outcome(
     timeout: Duration,
     hub: &AgentInputHub,
     window: Option<&WebviewWindow>,
+    voice_reply: &VoiceReplyRuntime,
 ) -> DeliveryOutcome {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
@@ -103,6 +104,7 @@ async fn read_agent_outcome(
             Ok(_) => return DeliveryOutcome::Unknown,
             Err(_) => match decode_notification(&frame) {
                 Ok(AgentNotification::Reply { params, .. }) if hub.accept_reply(&params) => {
+                    voice_reply.handle_reply(&params);
                     if let Some(window) = window {
                         let _ = emit_region_reply(window, &params);
                     }
@@ -164,6 +166,7 @@ impl Server {
         hub: AgentInputHub,
         cua_control: WebviewWindow,
         cua_hub: CuaControlHub,
+        voice_reply: VoiceReplyRuntime,
     ) -> io::Result<Self> {
         ensure_task_host_ready(&host)?;
         let parent = path
@@ -214,7 +217,7 @@ impl Server {
                     if ready_tx.send(Ok(())).is_err() {
                         return;
                     }
-                    serve(listener, host, pet, hub, cua_control, cua_hub, stopped).await;
+                    serve(listener, host, pet, hub, cua_control, cua_hub, voice_reply, stopped).await;
                     let _ = std::fs::remove_file(path);
                 });
             })?;
@@ -274,13 +277,14 @@ async fn serve(
     hub: AgentInputHub,
     cua_control: WebviewWindow,
     cua_hub: CuaControlHub,
+    voice_reply: VoiceReplyRuntime,
     mut stop: tokio::sync::oneshot::Receiver<()>,
 ) {
     loop {
         tokio::select! {
             _ = &mut stop => break,
             connection = listener.accept() => match connection {
-                Ok(stream) => { let host = host.clone(); let pet = pet.clone(); let hub=hub.clone(); let cua_control=cua_control.clone(); let cua_hub=cua_hub.clone(); tokio::spawn(async move { let _ = exchange(stream, host, pet, hub, cua_control, cua_hub).await; }); },
+                Ok(stream) => { let host = host.clone(); let pet = pet.clone(); let hub=hub.clone(); let cua_control=cua_control.clone(); let cua_hub=cua_hub.clone(); let voice_reply=voice_reply.clone(); tokio::spawn(async move { let _ = exchange(stream, host, pet, hub, cua_control, cua_hub, voice_reply).await; }); },
                 Err(_) => break,
             }
         }
@@ -318,6 +322,7 @@ async fn exchange(
     hub: AgentInputHub,
     cua_control: WebviewWindow,
     cua_hub: CuaControlHub,
+    voice_reply: VoiceReplyRuntime,
 ) -> io::Result<()> {
     let mut reader = BufReader::new(&stream);
     let mut first = Vec::new();
@@ -607,6 +612,7 @@ async fn exchange(
                         notification = read_agent_notification(&mut reader) => {
                             let params=notification?;
                             if hub.accept_reply(&params){
+                                voice_reply.handle_reply(&params);
                                 if let Some(window)=pet.app_handle().get_webview_window("region-preview"){let _=emit_region_reply(&window,&params);}
                             }
                             continue;
@@ -629,12 +635,12 @@ async fn exchange(
                         params.validate().map_err(|error|io::Error::other(error.message))?;
                         send_agent_request(&stream,&AgentRequest::AttachmentFinish{jsonrpc:Version::V2,request_id:finish_id.clone(),params}).await?;
                         let region_window=pet.app_handle().get_webview_window("region-preview");
-                        outcome=read_agent_outcome(&mut reader,&finish_id,Duration::from_secs(60),&hub,region_window.as_ref()).await;
+                        outcome=read_agent_outcome(&mut reader,&finish_id,Duration::from_secs(60),&hub,region_window.as_ref(),&voice_reply).await;
                     }
                     if outcome==DeliveryOutcome::Accepted {
                         send_agent_request(&stream,&AgentRequest::Input { jsonrpc: Version::V2, request_id: request_id.clone(), params: delivery.input }).await?;
                         let region_window=pet.app_handle().get_webview_window("region-preview");
-                        outcome=read_agent_outcome(&mut reader,&request_id,Duration::from_secs(60),&hub,region_window.as_ref()).await;
+                        outcome=read_agent_outcome(&mut reader,&request_id,Duration::from_secs(60),&hub,region_window.as_ref(),&voice_reply).await;
                     }
                     let _ = delivery.reply.send(outcome);
                     if outcome == DeliveryOutcome::Unknown { return Ok(()); }
@@ -642,6 +648,7 @@ async fn exchange(
                 Ok(())
             }.await;
             if let Some(params) = hub.interrupt_reply(&session_id) {
+                voice_reply.handle_reply(&params);
                 if let Some(window) = pet.app_handle().get_webview_window("region-preview") {
                     let _ = emit_region_reply(&window, &params);
                 }

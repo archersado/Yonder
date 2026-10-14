@@ -14,8 +14,10 @@ fn main() {
     #[cfg(target_os = "macos")]
     {
         println!("cargo:rerun-if-changed=src/voice_macos.m");
+        println!("cargo:rerun-if-changed=src/voice_reply_macos.m");
         println!("cargo:rerun-if-changed=src/region_capture_macos.m");
         cc::Build::new().file("src/voice_macos.m").flag("-fblocks").compile("yonda_voice");
+        cc::Build::new().file("src/voice_reply_macos.m").flag("-fblocks").compile("yonda_voice_reply");
         cc::Build::new().file("src/region_capture_macos.m").flag("-fblocks").compile("yonda_region_capture");
         for framework in ["AVFoundation", "Foundation", "Speech", "AppKit", "ApplicationServices", "ImageIO", "ScreenCaptureKit"] {
             println!("cargo:rustc-link-lib=framework={framework}");

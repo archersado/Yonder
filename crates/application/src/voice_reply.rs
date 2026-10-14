@@ -32,6 +32,7 @@ pub struct VoiceReplySession {
     in_code_block: bool,
     backtick_run: u8,
     reply_closed: bool,
+    native_idle: bool,
 }
 
 impl VoiceReplySession {
@@ -122,8 +123,20 @@ impl VoiceReplySession {
         self.enabled && self.active_reply_id.is_some() && self.generation == generation
     }
 
-    pub fn complete_playback(&mut self, generation: u64) -> bool {
-        if !self.accepts_callback(generation) || !self.reply_closed {
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    pub fn native_idle(&mut self, generation: u64) -> bool {
+        if !self.accepts_callback(generation) {
+            return false;
+        }
+        self.native_idle = true;
+        self.complete_if_idle(generation)
+    }
+
+    pub fn complete_if_idle(&mut self, generation: u64) -> bool {
+        if !self.accepts_callback(generation) || !self.reply_closed || !self.native_idle {
             return false;
         }
         self.active_reply_id = None;
@@ -157,6 +170,7 @@ impl VoiceReplySession {
             text: spoken,
         });
         self.next_sequence += 1;
+        self.native_idle = false;
     }
 
     fn invalidate(&mut self) {
@@ -168,6 +182,7 @@ impl VoiceReplySession {
         self.in_code_block = false;
         self.backtick_run = 0;
         self.reply_closed = false;
+        self.native_idle = true;
     }
 }
 
@@ -245,9 +260,19 @@ mod tests {
     fn completion_only_clears_a_closed_current_reply() {
         let mut session = VoiceReplySession::new(true);
         let generation = session.begin("reply-1").unwrap();
-        assert!(!session.complete_playback(generation));
+        assert!(!session.complete_if_idle(generation));
         session.finish("reply-1").unwrap();
-        assert!(session.complete_playback(generation));
+        assert!(session.complete_if_idle(generation));
         assert!(!session.accepts_callback(generation));
+    }
+
+    #[test]
+    fn native_idle_before_reply_terminal_completes_after_finish() {
+        let mut session = VoiceReplySession::new(true);
+        let generation = session.begin("reply-1").unwrap();
+        assert_eq!(session.push_delta("reply-1", "一句。").unwrap().len(), 1);
+        assert!(!session.native_idle(generation));
+        session.finish("reply-1").unwrap();
+        assert!(session.complete_if_idle(generation));
     }
 }
