@@ -3,7 +3,7 @@
 Story: VI-S3  
 Epic: VI  
 Status: design-review  
-OpenSpec: -
+OpenSpec: vi-s3-local-voice-reply-spike
 
 ## 设计文档
 
@@ -19,4 +19,4 @@ OpenSpec: -
 
 ## OpenSpec 与验证
 
-尚未创建。下一步应建立有期限的 `vi-s3-local-voice-reply-spike`，只验证系统原生 TTS 与 Application Port 契约，不接入第二套长期执行栈。
+已建立有期限的 [vi-s3-local-voice-reply-spike](../../../../openspec/changes/vi-s3-local-voice-reply-spike/proposal.md)，只验证系统原生 TTS 与 Application Port 契约，不接入第二套长期执行栈。该 Spike 不等于产品实施 Proposal；双平台结论与 AD-VI-03 接受前，Story 保持 `design-review`。
