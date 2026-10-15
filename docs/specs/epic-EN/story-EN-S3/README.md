@@ -2,8 +2,8 @@
 
 Story: EN-S3  
 Epic: EN  
-Status: design-review
-OpenSpec: en-s3-task-store-split
+Status: implementing
+OpenSpec: en-s3-engineering-guardrails
 
 ## 设计文档
 
@@ -40,3 +40,5 @@ OpenSpec: en-s3-task-store-split
 同日阶段 2 完成独立 Verification Goal：minor 0–50 golden、穷举请求门禁、261 项 Workspace 测试、协议生成与架构门禁全部 PASS，Change 已 Archive。完整 EN-S3 仍有阶段 3–5，状态回到 `design-review`，不宣称 Story Done。
 
 2026-10-14 阶段 3 设计复核后进入实施；2026-10-15 已完成 [OpenSpec Change：en-s3-task-store-split](../../../../openspec/changes/archive/2026-10-15-en-s3-task-store-split/proposal.md)。单次 `StoreCapabilities` 探测、四个 Application 子 trait 与 SQLite 六个职责文件均已落地；273 项 Workspace 单线程全量、协议生成、schema 回归与架构门禁 PASS，详见[独立 Verification Goal](../../../../openspec/changes/archive/2026-10-15-en-s3-task-store-split/verification-goal.md)。Change 已 Archive；完整 EN-S3 仍有阶段 4–5，状态回到 `design-review`，不宣称 Story Done。
+
+2026-10-15 阶段 5 设计复核后进入实施，关联 [OpenSpec Change：en-s3-engineering-guardrails](../../../../openspec/changes/en-s3-engineering-guardrails/proposal.md)。本阶段只增加前端协议单一来源门禁并迁移 Desktop 验证脚本；阶段 4 仍等待 TM-S8 验证基线确认，不在本 Change 中并行修改宿主线程模型。
