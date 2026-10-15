@@ -476,7 +476,9 @@ mod tests {
     use std::cell::Cell;
 
     struct NoStore;
-    impl TaskStore for NoStore {
+    impl crate::TaskStore for NoStore {
+    }
+    impl crate::TaskCoreStore for NoStore {
         fn create(&mut self, _: &str, _: &str, _: crate::TaskSource) -> Result<Task, Error> {
             panic!("握手不得访问存储")
         }
@@ -501,7 +503,14 @@ mod tests {
         fn commit(&mut self, _: &str, _: u64, _: Transition) -> Result<(), Error> {
             panic!("握手不得访问存储")
         }
+        }
+    impl crate::TaskExecutionStore for NoStore {
     }
+    impl crate::TaskAuditStore for NoStore {
+    }
+    impl crate::TaskPlanFragmentStore for NoStore {
+    }
+
 
     impl AgentRegistry for NoStore {
         fn register_agent(
@@ -528,7 +537,7 @@ mod tests {
     }
 
     struct FullCapabilityStore(NoStore, Cell<u8>);
-    impl TaskStore for FullCapabilityStore {
+    impl crate::TaskStore for FullCapabilityStore {
         fn capabilities(&self) -> crate::StoreCapabilities {
             self.1.set(self.1.get().saturating_add(1));
             crate::StoreCapabilities {
@@ -538,19 +547,13 @@ mod tests {
                 controls: true, wait_for_user: true, presentation: true, audit: true,
             }
         }
-        fn supports_pending_cancel(&self) -> bool { true }
+    }
+    impl crate::TaskCoreStore for FullCapabilityStore {
         fn supports_running_filter(&self) -> bool { true }
         fn supports_newest_first(&self) -> bool { true }
         fn supports_registration(&self) -> bool { true }
         fn supports_step_declarations(&self) -> bool { true }
-        fn supports_plan_fragments(&self) -> bool { true }
-        fn supports_goal_verification(&self) -> bool { true }
-        fn supports_execution_attempts(&self) -> bool { true }
-        fn supports_browser_references(&self) -> bool { true }
-        fn supports_controls(&self) -> bool { true }
-        fn supports_wait_for_user(&self) -> bool { true }
         fn supports_presentation(&self) -> bool { true }
-        fn supports_audit(&self) -> bool { true }
         fn create(&mut self, owner: &str, description: &str, source: crate::TaskSource) -> Result<Task, Error> {
             self.0.create(owner, description, source)
         }
@@ -565,7 +568,22 @@ mod tests {
         fn commit(&mut self, id: &str, expected: u64, transition: Transition) -> Result<(), Error> {
             self.0.commit(id, expected, transition)
         }
+        }
+    impl crate::TaskExecutionStore for FullCapabilityStore {
+        fn supports_pending_cancel(&self) -> bool { true }
+        fn supports_execution_attempts(&self) -> bool { true }
+        fn supports_browser_references(&self) -> bool { true }
+        fn supports_controls(&self) -> bool { true }
+        fn supports_wait_for_user(&self) -> bool { true }
     }
+    impl crate::TaskAuditStore for FullCapabilityStore {
+        fn supports_audit(&self) -> bool { true }
+    }
+    impl crate::TaskPlanFragmentStore for FullCapabilityStore {
+        fn supports_plan_fragments(&self) -> bool { true }
+        fn supports_goal_verification(&self) -> bool { true }
+    }
+
 
     fn full_capability_hello(minor: u16) -> QueryResult {
         let mut session = GatewaySession::new(AuthContext::Agent("a1"), Platform::Macos);

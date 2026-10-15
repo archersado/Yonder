@@ -341,29 +341,9 @@ pub struct StoreCapabilities {
     pub audit: bool,
 }
 
-pub trait TaskStore {
+pub trait TaskCoreStore {
     /// 握手只读取一次的能力快照。默认实现保持旧 Store 的逐项声明兼容；
     /// Gateway 不得在协商分支中再次调用 `supports_*`。
-    fn capabilities(&self) -> StoreCapabilities {
-        StoreCapabilities {
-            pending_cancel: self.supports_pending_cancel(),
-            running_filter: self.supports_running_filter(),
-            newest_first: self.supports_newest_first(),
-            registration: self.supports_registration(),
-            step_declarations: self.supports_step_declarations(),
-            plan_fragments: self.supports_plan_fragments(),
-            goal_verification: self.supports_goal_verification(),
-            execution_attempts: self.supports_execution_attempts(),
-            browser_references: self.supports_browser_references(),
-            controls: self.supports_controls(),
-            wait_for_user: self.supports_wait_for_user(),
-            presentation: self.supports_presentation(),
-            audit: self.supports_audit(),
-        }
-    }
-    fn supports_pending_cancel(&self) -> bool {
-        false
-    }
     fn supports_running_filter(&self) -> bool {
         false
     }
@@ -400,36 +380,6 @@ pub trait TaskStore {
     }
     fn supports_step_declarations(&self) -> bool {
         false
-    }
-    fn supports_plan_fragments(&self) -> bool { false }
-    fn supports_goal_verification(&self) -> bool { false }
-    fn record_goal_verification(
-        &mut self,
-        _: &str,
-        _: u64,
-        _: u64,
-        _: &str,
-        _: GoalVerificationOutcome,
-    ) -> Result<(Task, GoalVerificationRecord), Error> {
-        Err(Error::StorageUnavailable)
-    }
-    fn get_goal_verification(&mut self, _: &str) -> Result<Option<GoalVerificationRecord>, Error> {
-        Err(Error::StorageUnavailable)
-    }
-    /// 片段是不可变任务事实。实现必须在同一事务中完成 CAS、任务序号、事件与 Outbox。
-    fn submit_plan_fragment(&mut self, _: &str, _: &plan_fragment::PlanFragment) -> Result<Task, Error> {
-        Err(Error::StorageUnavailable)
-    }
-    fn get_plan_fragment(&mut self, _: &str, _: &str, _: u64) -> Result<Option<plan_fragment::StoredPlanFragment>, Error> {
-        Err(Error::StorageUnavailable)
-    }
-    /// 仅在已有动作已 Observe 的边界推进片段游标；同事务追加任务事件和 Outbox。
-    fn advance_plan_fragment(&mut self, _: &str, _: &str, _: u64, _: u16, _: u64) -> Result<Task, Error> {
-        Err(Error::StorageUnavailable)
-    }
-    /// 片段交回也必须作为任务序列、事件和 Outbox 的同事务事实，不能只停在内存返回值。
-    fn hand_back_plan_fragment(&mut self, _: &str, _: &str, _: u64, _: u64, _: &str) -> Result<Task, Error> {
-        Err(Error::StorageUnavailable)
     }
     fn declare_step(
         &mut self,
@@ -470,26 +420,8 @@ pub trait TaskStore {
                 .collect()
         })
     }
-    fn supports_execution_attempts(&self) -> bool {
-        false
-    }
-    fn supports_browser_references(&self) -> bool {
-        false
-    }
-    fn supports_controls(&self) -> bool {
-        false
-    }
-    fn supports_wait_for_user(&self) -> bool {
-        false
-    }
     fn supports_presentation(&self) -> bool {
         false
-    }
-    fn supports_audit(&self) -> bool {
-        false
-    }
-    fn wait_for_user(&mut self, _: &str, _: u64, _: &str) -> Result<Task, Error> {
-        Err(Error::StorageUnavailable)
     }
     fn get_presentation(&mut self, id: &str) -> Result<(Task, TaskPresentation), Error> {
         self.get(id).map(|task| {
@@ -503,33 +435,73 @@ pub trait TaskStore {
             )
         })
     }
-    fn get_audit(&mut self, _id: &str) -> Result<TaskAudit, Error> {
-        Ok(TaskAudit::default())
-    }
-    fn confirm_result(
+    fn create(&mut self, id: &str, owner_agent_id: &str, source: TaskSource)
+    -> Result<Task, Error>;
+    fn get(&mut self, id: &str) -> Result<Task, Error>;
+
+    /// 可信调用方限定存储范围；按 id 排他分页，最多 101 行（含下一页探针）。
+    fn list(
         &mut self,
-        _id: &str,
-        _expected_sequence: u64,
-        _confirmation_id: &str,
-        _comment: Option<&str>,
-    ) -> Result<Task, Error> {
-        Err(Error::StorageUnavailable)
-    }
-    fn publish_artifact_manifest(
+        owner: Option<&str>,
+        after: Option<&str>,
+        include_finished: bool,
+        limit: usize,
+    ) -> Result<Vec<Task>, Error>;
+    fn list_running(
         &mut self,
-        _: &str,
-        _: u64,
-        _: &[TaskArtifactManifestItem],
-    ) -> Result<(Task, TaskArtifactManifest), Error> {
-        Err(Error::StorageUnavailable)
-    }
-    fn artifact_manifest_items(
-        &mut self,
-        _: &str,
-        _: u64,
-        _: u16,
+        _: Option<&str>,
+        _: Option<&str>,
         _: usize,
-    ) -> Result<Vec<TaskArtifactManifestItem>, Error> {
+    ) -> Result<Vec<Task>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn list_newest(
+        &mut self,
+        _: Option<&str>,
+        _: Option<&str>,
+        _: bool,
+        _: usize,
+    ) -> Result<Vec<Task>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn list_running_newest(
+        &mut self,
+        _: Option<&str>,
+        _: Option<&str>,
+        _: usize,
+    ) -> Result<Vec<Task>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+
+    /// 可信宿主全局查询/启动恢复：按 id 升序读取至多 limit 个 running 快照。
+    fn running(&mut self, limit: usize) -> Result<Vec<Task>, Error>;
+
+    /// 按 sequence 升序返回 after 之后的事件，最多 limit 条。
+    fn events(&mut self, id: &str, after: u64, limit: usize) -> Result<Vec<Transition>, Error>;
+
+    /// 同事务比较序号、更新状态、追加事件及 Outbox；失败必须全部回滚。
+    /// 返回成功时持久化已完成，不得仅排入内存队列。
+    fn commit(&mut self, id: &str, expected_sequence: u64, change: Transition)
+    -> Result<(), Error>;
+}
+
+pub trait TaskExecutionStore {
+    fn supports_pending_cancel(&self) -> bool {
+        false
+    }
+    fn supports_execution_attempts(&self) -> bool {
+        false
+    }
+    fn supports_browser_references(&self) -> bool {
+        false
+    }
+    fn supports_controls(&self) -> bool {
+        false
+    }
+    fn supports_wait_for_user(&self) -> bool {
+        false
+    }
+    fn wait_for_user(&mut self, _: &str, _: u64, _: &str) -> Result<Task, Error> {
         Err(Error::StorageUnavailable)
     }
     fn record_observation(
@@ -626,55 +598,96 @@ pub trait TaskStore {
         Err(Error::StorageUnavailable)
     }
 
-    fn create(&mut self, id: &str, owner_agent_id: &str, source: TaskSource)
-    -> Result<Task, Error>;
-    fn get(&mut self, id: &str) -> Result<Task, Error>;
-
-    /// 可信调用方限定存储范围；按 id 排他分页，最多 101 行（含下一页探针）。
-    fn list(
-        &mut self,
-        owner: Option<&str>,
-        after: Option<&str>,
-        include_finished: bool,
-        limit: usize,
-    ) -> Result<Vec<Task>, Error>;
-    fn list_running(
-        &mut self,
-        _: Option<&str>,
-        _: Option<&str>,
-        _: usize,
-    ) -> Result<Vec<Task>, Error> {
-        Err(Error::StorageUnavailable)
-    }
-    fn list_newest(
-        &mut self,
-        _: Option<&str>,
-        _: Option<&str>,
-        _: bool,
-        _: usize,
-    ) -> Result<Vec<Task>, Error> {
-        Err(Error::StorageUnavailable)
-    }
-    fn list_running_newest(
-        &mut self,
-        _: Option<&str>,
-        _: Option<&str>,
-        _: usize,
-    ) -> Result<Vec<Task>, Error> {
-        Err(Error::StorageUnavailable)
-    }
-
-    /// 可信宿主全局查询/启动恢复：按 id 升序读取至多 limit 个 running 快照。
-    fn running(&mut self, limit: usize) -> Result<Vec<Task>, Error>;
-
-    /// 按 sequence 升序返回 after 之后的事件，最多 limit 条。
-    fn events(&mut self, id: &str, after: u64, limit: usize) -> Result<Vec<Transition>, Error>;
-
-    /// 同事务比较序号、更新状态、追加事件及 Outbox；失败必须全部回滚。
-    /// 返回成功时持久化已完成，不得仅排入内存队列。
-    fn commit(&mut self, id: &str, expected_sequence: u64, change: Transition)
-    -> Result<(), Error>;
 }
+
+pub trait TaskAuditStore {
+    fn supports_audit(&self) -> bool {
+        false
+    }
+    fn get_audit(&mut self, _id: &str) -> Result<TaskAudit, Error> {
+        Ok(TaskAudit::default())
+    }
+    fn confirm_result(
+        &mut self,
+        _id: &str,
+        _expected_sequence: u64,
+        _confirmation_id: &str,
+        _comment: Option<&str>,
+    ) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn publish_artifact_manifest(
+        &mut self,
+        _: &str,
+        _: u64,
+        _: &[TaskArtifactManifestItem],
+    ) -> Result<(Task, TaskArtifactManifest), Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn artifact_manifest_items(
+        &mut self,
+        _: &str,
+        _: u64,
+        _: u16,
+        _: usize,
+    ) -> Result<Vec<TaskArtifactManifestItem>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+}
+
+pub trait TaskPlanFragmentStore {
+    fn supports_plan_fragments(&self) -> bool { false }
+    fn supports_goal_verification(&self) -> bool { false }
+    fn record_goal_verification(
+        &mut self,
+        _: &str,
+        _: u64,
+        _: u64,
+        _: &str,
+        _: GoalVerificationOutcome,
+    ) -> Result<(Task, GoalVerificationRecord), Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn get_goal_verification(&mut self, _: &str) -> Result<Option<GoalVerificationRecord>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    /// 片段是不可变任务事实。实现必须在同一事务中完成 CAS、任务序号、事件与 Outbox。
+    fn submit_plan_fragment(&mut self, _: &str, _: &plan_fragment::PlanFragment) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    fn get_plan_fragment(&mut self, _: &str, _: &str, _: u64) -> Result<Option<plan_fragment::StoredPlanFragment>, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    /// 仅在已有动作已 Observe 的边界推进片段游标；同事务追加任务事件和 Outbox。
+    fn advance_plan_fragment(&mut self, _: &str, _: &str, _: u64, _: u16, _: u64) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
+    }
+    /// 片段交回也必须作为任务序列、事件和 Outbox 的同事务事实，不能只停在内存返回值。
+    fn hand_back_plan_fragment(&mut self, _: &str, _: &str, _: u64, _: u64, _: &str) -> Result<Task, Error> {
+        Err(Error::StorageUnavailable)
+    }
+}
+
+pub trait TaskStore: TaskCoreStore + TaskExecutionStore + TaskAuditStore + TaskPlanFragmentStore {
+    fn capabilities(&self) -> StoreCapabilities {
+        StoreCapabilities {
+            pending_cancel: self.supports_pending_cancel(),
+            running_filter: self.supports_running_filter(),
+            newest_first: self.supports_newest_first(),
+            registration: self.supports_registration(),
+            step_declarations: self.supports_step_declarations(),
+            plan_fragments: self.supports_plan_fragments(),
+            goal_verification: self.supports_goal_verification(),
+            execution_attempts: self.supports_execution_attempts(),
+            browser_references: self.supports_browser_references(),
+            controls: self.supports_controls(),
+            wait_for_user: self.supports_wait_for_user(),
+            presentation: self.supports_presentation(),
+            audit: self.supports_audit(),
+        }
+    }
+}
+
 
 /// ID 规则唯一来源是 protocol 的 `valid_id`；本函数只把同一规则映射为
 /// `Error::InvalidInput`，不得复制第二份字符集判断。
@@ -1287,6 +1300,10 @@ mod tests {
     }
 
     impl TaskStore for Store {
+    }
+
+    impl TaskCoreStore for Store {
+
         fn list(
             &mut self,
             _: Option<&str>,
@@ -1329,7 +1346,21 @@ mod tests {
             self.log.push(change);
             Ok(())
         }
+
     }
+
+    impl TaskExecutionStore for Store {
+
+    }
+
+    impl TaskAuditStore for Store {
+
+    }
+
+    impl TaskPlanFragmentStore for Store {
+
+    }
+
 
     #[test]
     fn commit_failure_never_reports_success_or_appends_events() {
@@ -1372,6 +1403,10 @@ mod tests {
     }
 
     impl TaskStore for AuditStore {
+    }
+
+    impl TaskCoreStore for AuditStore {
+
         fn create(&mut self, _: &str, _: &str, _: TaskSource) -> Result<Task, Error> {
             Err(Error::StorageUnavailable)
         }
@@ -1400,6 +1435,13 @@ mod tests {
         fn commit(&mut self, _: &str, _: u64, _: Transition) -> Result<(), Error> {
             Err(Error::StorageUnavailable)
         }
+    }
+
+    impl TaskExecutionStore for AuditStore {
+
+    }
+
+    impl TaskAuditStore for AuditStore {
         fn supports_audit(&self) -> bool {
             true
         }
@@ -1426,7 +1468,13 @@ mod tests {
             self.task.sequence = expected_sequence + 1;
             Ok(self.task.clone())
         }
+
     }
+
+    impl TaskPlanFragmentStore for AuditStore {
+
+    }
+
 
     #[test]
     fn audit_confirmation_is_local_user_only_and_bounds_inputs() {

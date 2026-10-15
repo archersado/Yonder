@@ -421,23 +421,9 @@ mod tests {
         attempt: ExecutionAttempt,
         pending: bool,
     }
-    impl TaskStore for Store {
-        fn get_attempt(&mut self, _: &str) -> Result<Option<ExecutionAttempt>, Error> {
-            Ok(Some(self.attempt.clone()))
-        }
-        fn get_control(&mut self, _: &str) -> Result<Option<crate::ControlRequestRecord>, Error> {
-            Ok(self.pending.then(|| crate::ControlRequestRecord {
-                task_id: "task".into(),
-                attempt_id: "attempt".into(),
-                control_id: "control".into(),
-                kind: crate::ControlKind::Takeover,
-                phase: crate::ControlPhase::Pending,
-                accepted_sequence: 2,
-                stopped_sequence: None,
-                focus_phase: None,
-                focus_failure: None,
-            }))
-        }
+    impl crate::TaskStore for Store {
+    }
+    impl crate::TaskCoreStore for Store {
         fn create(&mut self, _: &str, _: &str, _: crate::TaskSource) -> Result<Task, Error> {
             Err(Error::StorageUnavailable)
         }
@@ -467,7 +453,30 @@ mod tests {
         fn commit(&mut self, _: &str, _: u64, _: yonder_domain::Transition) -> Result<(), Error> {
             Err(Error::StorageUnavailable)
         }
+        }
+    impl crate::TaskExecutionStore for Store {
+        fn get_attempt(&mut self, _: &str) -> Result<Option<ExecutionAttempt>, Error> {
+            Ok(Some(self.attempt.clone()))
+        }
+        fn get_control(&mut self, _: &str) -> Result<Option<crate::ControlRequestRecord>, Error> {
+            Ok(self.pending.then(|| crate::ControlRequestRecord {
+                task_id: "task".into(),
+                attempt_id: "attempt".into(),
+                control_id: "control".into(),
+                kind: crate::ControlKind::Takeover,
+                phase: crate::ControlPhase::Pending,
+                accepted_sequence: 2,
+                stopped_sequence: None,
+                focus_phase: None,
+                focus_failure: None,
+            }))
+        }
     }
+    impl crate::TaskAuditStore for Store {
+    }
+    impl crate::TaskPlanFragmentStore for Store {
+    }
+
     struct Port;
     impl BrowserUsePort for Port {
         fn dispatch(&self, _: &ExecutionAttempt, _: &BrowserAction) -> BrowserOutcome {

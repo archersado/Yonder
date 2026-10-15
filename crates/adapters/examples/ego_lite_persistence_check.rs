@@ -7,8 +7,8 @@ fn main() {
         BrowserAction, BrowserOutcome, BrowserUsePort, record_outcome,
     };
     use yonder_application::{
-        AttemptPhase, AuthContext, ExecutionAttempt, TaskSource, TaskStore, advance_after_observe,
-        prepare_next_attempt, register,
+        AttemptPhase, AuthContext, ExecutionAttempt, TaskCoreStore, TaskExecutionStore, TaskSource,
+        advance_after_observe, prepare_next_attempt, register,
     };
     let cli = std::env::args().nth(1).expect("ego-browser绝对路径");
     let directory = std::env::temp_dir().join(format!("yonda-ego-persist-{}", std::process::id()));

@@ -2,7 +2,8 @@
 use std::path::Path;
 use yonder_adapters::task_store::SqliteTaskStore;
 use yonder_application::{
-    AttemptConclusion, AttemptPhase, AuthContext, ExecutionAttempt, TaskSource, TaskStore,
+    AttemptConclusion, AttemptPhase, AuthContext, ExecutionAttempt, TaskCoreStore,
+    TaskExecutionStore, TaskSource,
     agent_registry::AgentRegistry, register,
 };
 

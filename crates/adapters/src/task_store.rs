@@ -18,8 +18,12 @@ use yonder_application::{
     ControlKind, ControlPhase, ControlRequestRecord, Error, ExecutionAttempt, FocusPhase, Status,
     GoalVerificationOutcome, GoalVerificationRecord, StepBoundaryRecord, StepDeclaration, StopRecord, Task, TaskArtifactManifest,
     TaskArtifactManifestItem, TaskEventRecord, TaskObservation, TaskObservationResult,
-    TaskPresentation, TaskSource, TaskStore, Transition, MAX_ARTIFACT_MANIFEST_ITEMS,
+    TaskCoreStore, TaskExecutionStore, TaskPlanFragmentStore, TaskPresentation, TaskSource,
+    Transition, MAX_ARTIFACT_MANIFEST_ITEMS,
 };
+
+#[cfg(test)]
+use yonder_application::{TaskAuditStore, TaskStore};
 
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
@@ -989,9 +993,9 @@ impl SqliteTaskStore {
         };
         if current.as_deref() == Some(next) && current_failure.as_deref() == failure {
             tx.commit().map_err(storage)?;
-            let task = TaskStore::get(self, task_id)?;
+            let task = TaskCoreStore::get(self, task_id)?;
             let control =
-                TaskStore::get_control(self, task_id)?.ok_or(Error::StorageUnavailable)?;
+                TaskExecutionStore::get_control(self, task_id)?.ok_or(Error::StorageUnavailable)?;
             return Ok((task, control));
         }
         if (result.is_none() && current.is_some())
@@ -1027,16 +1031,998 @@ impl SqliteTaskStore {
         .map_err(storage)?;
         tx.execute("UPDATE task_controls SET focus_phase=?1,focus_failure=?2,focus_sequence=?3 WHERE task_id=?4 AND control_id=?5",params![next,failure,next_sequence,task_id,control_id]).map_err(storage)?;
         tx.commit().map_err(storage)?;
-        let task = TaskStore::get(self, task_id)?;
-        let control = TaskStore::get_control(self, task_id)?.ok_or(Error::StorageUnavailable)?;
+        let task = TaskCoreStore::get(self, task_id)?;
+        let control =
+            TaskExecutionStore::get_control(self, task_id)?.ok_or(Error::StorageUnavailable)?;
         Ok((task, control))
     }
 }
 
-impl TaskStore for SqliteTaskStore {
-    fn supports_pending_cancel(&self) -> bool {
-        true
+impl yonder_application::TaskStore for SqliteTaskStore {
+}
+
+impl yonder_application::TaskCoreStore for SqliteTaskStore {
+    fn declare_step(
+        &mut self,
+        owner: &str,
+        task_id: &str,
+        expected: u64,
+        step_id: &str,
+        label: &str,
+    ) -> Result<(Task, StepDeclaration), Error> {
+        if [owner, task_id, step_id]
+            .iter()
+            .any(|id| !yonder_application::valid_id(id))
+            || expected == 0
+            || expected >= i64::MAX as u64
+            || !yonder_application::valid_step_label(label)
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, actual_owner, task_name, source) = row.ok_or(Error::NotFound)?;
+        if actual_owner != owner {
+            return Err(Error::NotFound);
+        }
+        let current = Task {
+            id: task_id.into(),
+            owner_agent_id: actual_owner,
+            name: task_name,
+            source: task_source(&source)?,
+            status: status(&state)?,
+            sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+        };
+        let existing: Option<(String, i64)> = tx
+            .query_row(
+                "SELECT label,accepted_sequence FROM task_steps WHERE task_id=?1 AND step_id=?2",
+                params![task_id, step_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        if let Some((original, accepted)) = existing {
+            if original != label {
+                return Err(Error::StepConflict);
+            }
+            tx.commit().map_err(storage)?;
+            return Ok((
+                current,
+                StepDeclaration {
+                    step_id: step_id.into(),
+                    label: original,
+                    accepted_sequence: u64::try_from(accepted)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                },
+            ));
+        }
+        if !matches!(current.status, Status::Created | Status::Running) {
+            return Err(Error::StopRequired);
+        }
+        if current.sequence != expected {
+            return Err(Error::Conflict);
+        }
+        if current.status == Status::Running {
+            let boundary: Option<(String,Option<String>,Option<i64>)> = tx.query_row("SELECT phase,control_id,handback_sequence FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
+            let pending: i64 = tx
+                .query_row(
+                    "SELECT count(*) FROM task_controls WHERE task_id=?1 AND phase='pending'",
+                    [task_id],
+                    |r| r.get(0),
+                )
+                .map_err(storage)?;
+            if !matches!(boundary,Some((ref phase,None,handback)) if phase=="stopped" || phase=="unknown" && handback.is_some()) || pending != 0 {
+                return Err(Error::StopRequired);
+            }
+        }
+        let task_count: i64 = tx
+            .query_row(
+                "SELECT count(*) FROM task_steps WHERE task_id=?1",
+                [task_id],
+                |r| r.get(0),
+            )
+            .map_err(storage)?;
+        let total_count: i64 = tx
+            .query_row("SELECT count(*) FROM task_steps", [], |r| r.get(0))
+            .map_err(storage)?;
+        if task_count >= 1024 || total_count >= 10000 {
+            return Err(Error::QuotaExceeded);
+        }
+        let accepted = expected + 1;
+        if tx.execute("UPDATE tasks SET sequence=?1 WHERE id=?2 AND owner_agent_id=?3 AND state=?4 AND sequence=?5", params![accepted as i64,task_id,owner,state,expected as i64]).map_err(storage)? != 1 { return Err(Error::Conflict); }
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,?2,?3,?3)",
+            params![task_id, accepted as i64, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
+            params![task_id, accepted as i64],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO task_steps(task_id,step_id,label,accepted_sequence) VALUES (?1,?2,?3,?4)",
+            params![task_id, step_id, label, accepted as i64],
+        )
+        .map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok((
+            Task {
+                sequence: accepted,
+                ..current
+            },
+            StepDeclaration {
+                step_id: step_id.into(),
+                label: label.into(),
+                accepted_sequence: accepted,
+            },
+        ))
     }
+
+    fn get_with_step(&mut self, id: &str) -> Result<(Task, Option<StepDeclaration>), Error> {
+        let tx = self.0.transaction().map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, owner_agent_id, name, source) = row.ok_or(Error::NotFound)?;
+        let step: Option<(String,String,i64)> = tx.query_row("SELECT step_id,label,accepted_sequence FROM task_steps WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1", [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        let step = match step {
+            Some((step_id, label, accepted)) => Some(StepDeclaration {
+                step_id,
+                label,
+                accepted_sequence: u64::try_from(accepted)
+                    .map_err(|_| Error::StorageUnavailable)?,
+            }),
+            None => None,
+        };
+        Ok((
+            Task {
+                id: id.into(),
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            },
+            step,
+        ))
+    }
+
+    fn get_presentation(&mut self, id: &str) -> Result<(Task, TaskPresentation), Error> {
+        let tx = self.0.transaction().map_err(storage)?;
+        let row: Option<(String,i64,String,Option<String>,String,Option<String>,Option<String>,Option<String>,Option<String>)> = tx.query_row(
+            "SELECT state,sequence,owner_agent_id,name,source,observation_step_id,observation_result,observation_summary,next_intent FROM tasks WHERE id=?1", [id],
+            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?)),
+        ).optional().map_err(storage)?;
+        let (
+            state,
+            sequence,
+            owner_agent_id,
+            name,
+            source,
+            observation_step_id,
+            observation_result_value,
+            observation_summary,
+            next_intent,
+        ) = row.ok_or(Error::NotFound)?;
+        let step: Option<(String,String,i64)> = tx.query_row("SELECT step_id,label,accepted_sequence FROM task_steps WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1", [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        let current_step = match step {
+            Some((step_id, label, accepted)) => Some(StepDeclaration {
+                step_id,
+                label,
+                accepted_sequence: u64::try_from(accepted)
+                    .map_err(|_| Error::StorageUnavailable)?,
+            }),
+            None => None,
+        };
+        let observation = match (
+            observation_step_id,
+            observation_result_value,
+            observation_summary,
+        ) {
+            (Some(step_id), Some(result), Some(summary)) => Some(TaskObservation {
+                step_id,
+                result: observation_result(&result)?,
+                summary,
+            }),
+            (None, None, None) => None,
+            _ => return Err(Error::StorageUnavailable),
+        };
+        Ok((
+            Task {
+                id: id.into(),
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            },
+            TaskPresentation {
+                current_step,
+                observation,
+                next_intent,
+            },
+        ))
+    }
+
+    fn events_with_steps(
+        &mut self,
+        id: &str,
+        after: u64,
+        limit: usize,
+    ) -> Result<Vec<TaskEventRecord>, Error> {
+        if !(1..=100).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
+        if after >= i64::MAX as u64 {
+            return Ok(vec![]);
+        }
+        let mut stmt = self.0.prepare("SELECT e.previous,e.state,e.sequence,s.step_id,s.label,s.accepted_sequence,a.step_id,a.attempt_id,a.worker_instance_id,a.host_session_id,a.phase,a.action_succeeded,a.observe_valid,a.unknown_reason,e.wait_reason,m.version,m.item_count,c.confirmation_id,c.result_sequence,c.manifest_version,c.comment,c.confirmed_by,p.payload,h.attempt_id,h.control_id,h.kind,h.accepted_sequence,h.stopped_sequence,f.control_id,f.phase,f.failure,g.payload,t.owner_agent_id,ast.step_id,ast.attempt_id,ast.worker_instance_id,ast.host_session_id,v.verification_id,v.observation_sequence,v.outcome FROM events e JOIN tasks t ON t.id=e.task_id LEFT JOIN task_steps s ON s.task_id=e.task_id AND s.accepted_sequence=e.sequence LEFT JOIN task_attempts a ON a.task_id=e.task_id AND a.result_sequence=e.sequence LEFT JOIN task_attempts ast ON ast.task_id=e.task_id AND ast.accepted_sequence=e.sequence LEFT JOIN task_artifact_manifests m ON m.task_id=e.task_id AND m.created_sequence=e.sequence LEFT JOIN task_user_confirmations c ON c.task_id=e.task_id AND c.confirmation_sequence=e.sequence LEFT JOIN task_presentation_events p ON p.task_id=e.task_id AND p.sequence=e.sequence AND p.kind='observation' LEFT JOIN task_controls h ON h.task_id=e.task_id AND (h.accepted_sequence=e.sequence OR h.stopped_sequence=e.sequence) LEFT JOIN task_focus_events f ON f.task_id=e.task_id AND f.sequence=e.sequence LEFT JOIN task_presentation_events g ON g.task_id=e.task_id AND g.sequence=e.sequence AND g.kind='source' LEFT JOIN task_goal_verifications v ON v.task_id=e.task_id AND v.verified_sequence=e.sequence WHERE e.task_id=?1 AND e.sequence>?2 ORDER BY e.sequence LIMIT ?3").map_err(storage)?;
+        let rows = stmt
+            .query_map(params![id, after as i64, limit as i64], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, Option<i64>>(5)?,
+                    r.get::<_, Option<String>>(6)?,
+                    r.get::<_, Option<String>>(7)?,
+                    r.get::<_, Option<String>>(8)?,
+                    r.get::<_, Option<String>>(9)?,
+                    r.get::<_, Option<String>>(10)?,
+                    r.get::<_, Option<i64>>(11)?,
+                    r.get::<_, Option<i64>>(12)?,
+                    r.get::<_, Option<String>>(13)?,
+                    r.get::<_, Option<String>>(14)?,
+                    r.get::<_, Option<i64>>(15)?,
+                    r.get::<_, Option<i64>>(16)?,
+                    r.get::<_, Option<String>>(17)?,
+                    r.get::<_, Option<i64>>(18)?,
+                    r.get::<_, Option<i64>>(19)?,
+                    r.get::<_, Option<String>>(20)?,
+                    r.get::<_, Option<String>>(21)?,
+                    r.get::<_, Option<String>>(22)?,
+                    r.get::<_, Option<String>>(23)?,
+                    r.get::<_, Option<String>>(24)?,
+                    r.get::<_, Option<String>>(25)?,
+                    r.get::<_, Option<i64>>(26)?,
+                    r.get::<_, Option<i64>>(27)?,
+                    r.get::<_, Option<String>>(28)?,
+                    r.get::<_, Option<String>>(29)?,
+                    r.get::<_, Option<String>>(30)?,
+                    r.get::<_, Option<String>>(31)?,
+                    r.get::<_, String>(32)?,
+                    r.get::<_, Option<String>>(33)?,
+                    r.get::<_, Option<String>>(34)?,
+                    r.get::<_, Option<String>>(35)?,
+                    r.get::<_, Option<String>>(36)?,
+                    r.get::<_, Option<String>>(37)?,
+                    r.get::<_, Option<i64>>(38)?,
+                    r.get::<_, Option<String>>(39)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (
+                previous,
+                next,
+                sequence,
+                step_id,
+                label,
+                accepted,
+                result_step,
+                attempt_id,
+                worker_id,
+                host_id,
+                phase,
+                action_succeeded,
+                observe_valid,
+                unknown_reason,
+                wait_reason,
+                manifest_version,
+                manifest_item_count,
+                confirmation_id,
+                result_sequence,
+                confirmation_manifest_version,
+                confirmation_comment,
+                confirmed_by,
+                observation_payload,
+                control_attempt_id,
+                control_id,
+                control_kind,
+                control_accepted,
+                control_stopped,
+                focus_control_id,
+                focus_phase,
+                focus_failure_value,
+                source_payload,
+                owner_agent_id,
+                started_step_id,
+                started_attempt_id,
+                started_worker_id,
+                started_host_id,
+                verification_id,
+                verification_observation_sequence,
+                verification_outcome,
+            ) = row.map_err(storage)?;
+            let creation_event = source_payload
+                .as_deref()
+                .map(|payload| {
+                    if sequence != 1 || !yonder_application::valid_id(&owner_agent_id) {
+                        return Err(Error::StorageUnavailable);
+                    }
+                    Ok(yonder_application::CreationEventRecord {
+                        owner_agent_id: owner_agent_id.clone(),
+                        source: stored_source(payload)?,
+                    })
+                })
+                .transpose()?;
+            let step_declaration = match (step_id, label, accepted) {
+                (Some(step_id), Some(label), Some(accepted)) => Some(StepDeclaration {
+                    step_id,
+                    label,
+                    accepted_sequence: u64::try_from(accepted)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                }),
+                (None, None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let attempt_started = match (
+                started_step_id,
+                started_attempt_id,
+                started_worker_id,
+                started_host_id,
+            ) {
+                (
+                    Some(step_id),
+                    Some(attempt_id),
+                    Some(worker_instance_id),
+                    Some(host_session_id),
+                ) => {
+                    if [
+                        step_id.as_str(),
+                        attempt_id.as_str(),
+                        worker_instance_id.as_str(),
+                        host_session_id.as_str(),
+                    ]
+                    .iter()
+                    .any(|value| !yonder_application::valid_id(value))
+                    {
+                        return Err(Error::StorageUnavailable);
+                    }
+                    Some(yonder_application::AttemptStartedRecord {
+                        step_id,
+                        attempt_id,
+                        worker_instance_id,
+                        host_session_id,
+                    })
+                }
+                (None, None, None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let attempt_result = match (
+                result_step,
+                attempt_id,
+                worker_id,
+                host_id,
+                phase,
+                action_succeeded,
+                observe_valid,
+                unknown_reason,
+            ) {
+                (
+                    Some(step_id),
+                    Some(attempt_id),
+                    Some(worker_instance_id),
+                    Some(host_session_id),
+                    Some(phase),
+                    action,
+                    observe,
+                    reason_value,
+                ) => {
+                    let conclusion =
+                        match (phase.as_str(), action, observe, reason_value.as_deref()) {
+                            ("observed" | "stopped", Some(value), Some(1), None) => {
+                                AttemptConclusion::Observed {
+                                    action_succeeded: value != 0,
+                                }
+                            }
+                            ("unknown" | "stopped", None, Some(0), Some(value)) => {
+                                AttemptConclusion::Unknown {
+                                    reason: parse_reason(value)?,
+                                }
+                            }
+                            _ => return Err(Error::StorageUnavailable),
+                        };
+                    Some(AttemptResultRecord {
+                        task_id: id.into(),
+                        step_id,
+                        attempt_id,
+                        worker_instance_id,
+                        host_session_id,
+                        conclusion,
+                        result_sequence: u64::try_from(sequence)
+                            .map_err(|_| Error::StorageUnavailable)?,
+                    })
+                }
+                (None, None, None, None, None, None, None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let artifact_manifest = match (manifest_version, manifest_item_count) {
+                (Some(version), Some(item_count)) => {
+                    Some(yonder_application::TaskArtifactManifest {
+                        task_id: id.to_owned(),
+                        version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
+                        item_count: u16::try_from(item_count)
+                            .map_err(|_| Error::StorageUnavailable)?,
+                    })
+                }
+                (None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let user_confirmation = match (
+                confirmation_id,
+                result_sequence,
+                confirmation_manifest_version,
+                confirmation_comment,
+                confirmed_by,
+            ) {
+                (
+                    Some(confirmation_id),
+                    Some(result_sequence),
+                    Some(manifest_version),
+                    comment,
+                    Some(confirmed_by),
+                ) => Some(yonder_application::TaskUserConfirmation {
+                    task_id: id.to_owned(),
+                    confirmation_id,
+                    result_sequence: u64::try_from(result_sequence)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                    manifest_version: u64::try_from(manifest_version)
+                        .map_err(|_| Error::StorageUnavailable)?,
+                    comment,
+                    confirmed_by,
+                }),
+                (None, None, None, None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let observation = observation_payload
+                .as_deref()
+                .map(stored_observation)
+                .transpose()?;
+            let control_event = match (
+                control_attempt_id,
+                control_id,
+                control_kind,
+                control_accepted,
+                control_stopped,
+            ) {
+                (Some(attempt_id), Some(control_id), Some(kind), Some(accepted), stopped) => {
+                    if accepted <= 0
+                        || stopped.is_some_and(|value| value < accepted)
+                        || !yonder_application::valid_id(&attempt_id)
+                        || !yonder_application::valid_id(&control_id)
+                    {
+                        return Err(Error::StorageUnavailable);
+                    }
+                    let kind = match kind.as_str() {
+                        "pause" => ControlKind::Pause,
+                        "cancel" => ControlKind::Cancel,
+                        "takeover" => ControlKind::Takeover,
+                        _ => return Err(Error::StorageUnavailable),
+                    };
+                    let phase = if stopped == Some(sequence) {
+                        ControlPhase::Stopped
+                    } else if accepted == sequence {
+                        ControlPhase::Pending
+                    } else {
+                        return Err(Error::StorageUnavailable);
+                    };
+                    Some(yonder_application::ControlEventRecord {
+                        attempt_id,
+                        control_id,
+                        kind,
+                        phase,
+                    })
+                }
+                (None, None, None, None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let focus_event = match (focus_control_id, focus_phase, focus_failure_value) {
+                (Some(control_id), Some(phase), failure) => {
+                    if !yonder_application::valid_id(&control_id) {
+                        return Err(Error::StorageUnavailable);
+                    }
+                    let (phase, failure) = match (phase.as_str(), failure.as_deref()) {
+                        ("locating", None) => (FocusPhase::Locating, None),
+                        ("focused", None) => (FocusPhase::Focused, None),
+                        ("failed", Some(value)) => {
+                            (FocusPhase::Failed, Some(parse_focus_failure(value)?))
+                        }
+                        _ => return Err(Error::StorageUnavailable),
+                    };
+                    Some(yonder_application::FocusEventRecord {
+                        control_id,
+                        phase,
+                        failure,
+                    })
+                }
+                (None, None, None) => None,
+                _ => return Err(Error::StorageUnavailable),
+            };
+            let goal_verification=match(verification_id,verification_observation_sequence,verification_outcome){
+                (Some(verification_id),Some(observation_sequence),Some(outcome))=>Some(GoalVerificationRecord{task_id:id.into(),verification_id,observation_sequence:u64::try_from(observation_sequence).map_err(|_|Error::StorageUnavailable)?,verified_sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?,outcome:match outcome.as_str(){"achieved"=>GoalVerificationOutcome::Achieved,"not-achieved"=>GoalVerificationOutcome::NotAchieved,_=>return Err(Error::StorageUnavailable)}}),
+                (None,None,None)=>None,
+                _=>return Err(Error::StorageUnavailable),
+            };
+            Ok(TaskEventRecord {
+                transition: Transition {
+                    previous: status(&previous)?,
+                    next: status(&next)?,
+                    sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+                },
+                creation_event,
+                step_declaration,
+                attempt_started,
+                attempt_result,
+                observation,
+                control_event,
+                focus_event,
+                wait_reason,
+                artifact_manifest,
+                user_confirmation,
+                goal_verification,
+            })
+        })
+        .collect()
+    }
+
+    fn register(
+        &mut self,
+        owner: &str,
+        key: &str,
+        description: &str,
+        task_name: Option<&str>,
+        source: TaskSource,
+    ) -> Result<Task, Error> {
+        self.register_with_outcome(owner, key, description, task_name, source)
+            .map(|outcome| outcome.task)
+    }
+
+    fn register_with_outcome(
+        &mut self,
+        owner: &str,
+        key: &str,
+        description: &str,
+        task_name: Option<&str>,
+        source: TaskSource,
+    ) -> Result<yonder_application::RegistrationOutcome, Error> {
+        if [owner, key].iter().any(|id| {
+            id.is_empty()
+                || id.len() > 128
+                || !id
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
+        }) || description.trim().is_empty()
+            || description.len() > 4096
+            || task_name.is_some_and(|name| !yonder_application::valid_task_name(name))
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let existing: Option<(String,String,String,i64,Option<String>,Option<String>,String)> = tx.query_row(
+            "SELECT c.task_id,c.description,t.state,t.sequence,c.name,t.name,t.source FROM task_creations c JOIN tasks t ON t.id=c.task_id WHERE c.owner_agent_id=?1 AND c.idempotency_key=?2",
+            params![owner,key], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?)),
+        ).optional().map_err(storage)?;
+        let (task, created) = if let Some((
+            id,
+            original,
+            state,
+            sequence,
+            original_name,
+            current_name,
+            current_source,
+        )) = existing
+        {
+            if original != description
+                || original_name.as_deref() != task_name
+                || current_source != source_name(source)
+            {
+                return Err(Error::IdempotencyConflict);
+            }
+            (
+                Task {
+                    id,
+                    owner_agent_id: owner.into(),
+                    name: current_name,
+                    source: task_source(&current_source)?,
+                    status: status(&state)?,
+                    sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+                },
+                false,
+            )
+        } else {
+            Self::ensure_audit_capacity(&tx)?;
+            let id: String = tx
+                .query_row("SELECT 'task_' || lower(hex(randomblob(16)))", [], |r| {
+                    r.get(0)
+                })
+                .map_err(storage)?;
+            let created_at = next_created_at(&tx)?;
+            tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,name,source,created_at) VALUES (?1,?2,'created',1,?3,?4,?5)", params![id,owner,task_name,source_name(source),created_at]).map_err(storage)?;
+            tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,1,'created','created')", [&id]).map_err(storage)?;
+            tx.execute("INSERT INTO outbox(task_id,sequence) VALUES (?1,1)", [&id])
+                .map_err(storage)?;
+            tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES (?1,1,'source',?2)", params![id,format!(r#"{{"source":"{}"}}"#, source_name(source))]).map_err(storage)?;
+            tx.execute("INSERT INTO task_creations(owner_agent_id,idempotency_key,task_id,description,name) VALUES (?1,?2,?3,?4,?5)", params![owner,key,id,description,task_name]).map_err(storage)?;
+            (
+                Task {
+                    id,
+                    owner_agent_id: owner.into(),
+                    name: task_name.map(str::to_owned),
+                    source,
+                    status: Status::Created,
+                    sequence: 1,
+                },
+                true,
+            )
+        };
+        tx.commit().map_err(storage)?;
+        Ok(yonder_application::RegistrationOutcome { task, created })
+    }
+
+    fn list(
+        &mut self,
+        owner: Option<&str>,
+        after: Option<&str>,
+        include_finished: bool,
+        limit: usize,
+    ) -> Result<Vec<Task>, Error> {
+        if !(1..=101).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
+        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE id > ?1 COLLATE BINARY AND (?2 OR state NOT IN ('completed','failed','cancelled')) AND (?4 IS NULL OR owner_agent_id=?4) ORDER BY id COLLATE BINARY LIMIT ?3").map_err(storage)?;
+        let rows = stmt
+            .query_map(
+                params![after.unwrap_or(""), include_finished, limit as i64, owner],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i64>(2)?,
+                        r.get::<_, String>(3)?,
+                        r.get::<_, Option<String>>(4)?,
+                        r.get::<_, String>(5)?,
+                    ))
+                },
+            )
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
+            Ok(Task {
+                id,
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
+    }
+    fn list_running(
+        &mut self,
+        owner: Option<&str>,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<Task>, Error> {
+        if !(1..=101).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
+        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE id > ?1 COLLATE BINARY AND state='running' AND (?3 IS NULL OR owner_agent_id=?3) ORDER BY id COLLATE BINARY LIMIT ?2").map_err(storage)?;
+        let rows = stmt
+            .query_map(params![after.unwrap_or(""), limit as i64, owner], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
+            Ok(Task {
+                id,
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
+    }
+    fn list_newest(
+        &mut self,
+        owner: Option<&str>,
+        after: Option<&str>,
+        include_finished: bool,
+        limit: usize,
+    ) -> Result<Vec<Task>, Error> {
+        if !(1..=101).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
+        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND (?2 OR state NOT IN ('completed','failed','cancelled')) AND (?4 IS NULL OR owner_agent_id=?4) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?3").map_err(storage)?;
+        let rows = stmt
+            .query_map(params![after, include_finished, limit as i64, owner], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
+            Ok(Task {
+                id,
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
+    }
+    fn list_running_newest(
+        &mut self,
+        owner: Option<&str>,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<Task>, Error> {
+        if !(1..=101).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
+        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND state='running' AND (?3 IS NULL OR owner_agent_id=?3) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?2").map_err(storage)?;
+        let rows = stmt
+            .query_map(params![after, limit as i64, owner], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
+            Ok(Task {
+                id,
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: status(&state)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
+    }
+    fn create(
+        &mut self,
+        id: &str,
+        owner_agent_id: &str,
+        source: TaskSource,
+    ) -> Result<Task, Error> {
+        if [id, owner_agent_id].iter().any(|id| {
+            id.is_empty()
+                || id.len() > 128
+                || !id
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
+        }) {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let exists: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1)",
+                [id],
+                |r| r.get(0),
+            )
+            .map_err(storage)?;
+        if exists {
+            return Err(Error::Conflict);
+        }
+        let created_at = next_created_at(&tx)?;
+        tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,source,created_at) VALUES (?1,?2,'created',1,?3,?4)", params![id,owner_agent_id,source_name(source),created_at]).map_err(storage)?;
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,1,'created','created')",
+            [id],
+        )
+        .map_err(storage)?;
+        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES (?1,1)", [id])
+            .map_err(storage)?;
+        tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES (?1,1,'source',?2)", params![id,format!(r#"{{"source":"{}"}}"#, source_name(source))]).map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task {
+            id: id.into(),
+            owner_agent_id: owner_agent_id.into(),
+            name: None,
+            source,
+            status: Status::Created,
+            sequence: 1,
+        })
+    }
+
+    fn get(&mut self, id: &str) -> Result<Task, Error> {
+        let row: Option<(String, i64, String, Option<String>, String)> = self
+            .0
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, owner_agent_id, name, source) = row.ok_or(Error::NotFound)?;
+        Ok(Task {
+            id: id.into(),
+            owner_agent_id,
+            name,
+            source: task_source(&source)?,
+            status: status(&state)?,
+            sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+        })
+    }
+
+    fn events(&mut self, id: &str, after: u64, limit: usize) -> Result<Vec<Transition>, Error> {
+        if !(1..=100).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
+        if after >= i64::MAX as u64 {
+            return Ok(vec![]);
+        }
+        let mut stmt = self.0.prepare("SELECT previous,state,sequence FROM events WHERE task_id=?1 AND sequence>?2 ORDER BY sequence LIMIT ?3").map_err(storage)?;
+        let rows = stmt
+            .query_map(params![id, after as i64, limit as i64], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (previous, next, sequence) = row.map_err(storage)?;
+            Ok(Transition {
+                previous: status(&previous)?,
+                next: status(&next)?,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
+    }
+
+    fn running(&mut self, limit: usize) -> Result<Vec<Task>, Error> {
+        if !(1..=100).contains(&limit) {
+            return Err(Error::InvalidInput);
+        }
+        let mut stmt = self.0.prepare("SELECT id,sequence,owner_agent_id,name,source FROM tasks WHERE state='running' ORDER BY id LIMIT ?1").map_err(storage)?;
+        let rows = stmt
+            .query_map([limit as i64], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, String>(4)?,
+                ))
+            })
+            .map_err(storage)?;
+        rows.map(|row| {
+            let (id, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
+            Ok(Task {
+                id,
+                owner_agent_id,
+                name,
+                source: task_source(&source)?,
+                status: Status::Running,
+                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .collect()
+    }
+
+    fn commit(&mut self, id: &str, expected: u64, change: Transition) -> Result<(), Error> {
+        if expected == 0 || expected >= i64::MAX as u64 || change.sequence != expected + 1 {
+            return Err(Error::InvalidInput);
+        }
+        let legal = [
+            Action::Start,
+            Action::Pause,
+            Action::WaitForUser,
+            Action::Resume,
+            Action::Interrupt,
+            Action::Complete,
+            Action::Fail,
+            Action::Cancel,
+        ]
+        .iter()
+        .any(|action| change.previous.transition(expected, *action) == Ok(change));
+        if !legal {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let changed = tx
+            .execute(
+                "UPDATE tasks SET state=?1,sequence=?2 WHERE id=?3 AND sequence=?4 AND state=?5",
+                params![
+                    name(change.next),
+                    change.sequence as i64,
+                    id,
+                    expected as i64,
+                    name(change.previous)
+                ],
+            )
+            .map_err(storage)?;
+        if changed != 1 {
+            return Err(Error::Conflict);
+        }
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,?2,?3,?4)",
+            params![
+                id,
+                change.sequence as i64,
+                name(change.previous),
+                name(change.next)
+            ],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
+            params![id, change.sequence as i64],
+        )
+        .map_err(storage)?;
+        tx.commit().map_err(storage)
+    }
+
     fn supports_running_filter(&self) -> bool {
         true
     }
@@ -1049,293 +2035,14 @@ impl TaskStore for SqliteTaskStore {
     fn supports_step_declarations(&self) -> bool {
         true
     }
-    fn supports_plan_fragments(&self) -> bool {
+    fn supports_presentation(&self) -> bool {
         true
     }
-    fn submit_plan_fragment(
-        &mut self,
-        owner: &str,
-        fragment: &PlanFragment,
-    ) -> Result<Task, Error> {
-        yonder_application::plan_fragment::validate(fragment)?;
-        if !yonder_application::valid_id(owner) {
-            return Err(Error::InvalidInput);
-        }
-        let json = serde_json::to_string(fragment).map_err(|_| Error::StorageUnavailable)?;
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let row: Option<(String, i64, String, Option<String>, String)> = tx
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [&fragment.task_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let (state, sequence, actual_owner, name, source) = row.ok_or(Error::NotFound)?;
-        if actual_owner != owner {
-            return Err(Error::NotFound);
-        }
-        let task = Task {
-            id: fragment.task_id.clone(),
-            owner_agent_id: actual_owner.clone(),
-            name,
-            source: task_source(&source)?,
-            status: status(&state)?,
-            sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-        };
-        let existing: Option<String> = tx.query_row(
-            "SELECT fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
-            params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64], |r|r.get(0)
-        ).optional().map_err(storage)?;
-        if let Some(existing) = existing {
-            if existing == json {
-                tx.commit().map_err(storage)?;
-                return Ok(task);
-            }
-            return Err(Error::Conflict);
-        }
-        if !matches!(task.status, Status::Created | Status::Running)
-            || task.sequence != fragment.expected_sequence
-        {
-            return Err(Error::Conflict);
-        }
-        let accepted = task
-            .sequence
-            .checked_add(1)
-            .ok_or(Error::StorageUnavailable)?;
-        if tx
-            .execute(
-                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND owner_agent_id=?3 AND sequence=?4",
-                params![
-                    accepted as i64,
-                    fragment.task_id,
-                    owner,
-                    task.sequence as i64
-                ],
-            )
-            .map_err(storage)?
-            != 1
-        {
-            return Err(Error::Conflict);
-        }
-        tx.execute(
-            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",
-            params![fragment.task_id, accepted as i64, state],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
-            params![fragment.task_id, accepted as i64],
-        )
-        .map_err(storage)?;
-        tx.execute("INSERT INTO task_plan_fragments(task_id,plan_id,plan_version,owner_agent_id,accepted_sequence,fragment_json) VALUES(?1,?2,?3,?4,?5,?6)",params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64,owner,accepted as i64,json]).map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        Ok(Task {
-            sequence: accepted,
-            ..task
-        })
-    }
-    fn get_plan_fragment(
-        &mut self,
-        task_id: &str,
-        plan_id: &str,
-        plan_version: u64,
-    ) -> Result<Option<StoredPlanFragment>, Error> {
-        let row: Option<(String,i64,i64,String)> = self.0.query_row(
-            "SELECT owner_agent_id,accepted_sequence,current_slot,fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
-            params![task_id,plan_id,plan_version as i64], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))
-        ).optional().map_err(storage)?;
-        row.map(|(owner, accepted, current, json)| {
-            Ok(StoredPlanFragment {
-                owner_agent_id: owner,
-                accepted_sequence: u64::try_from(accepted)
-                    .map_err(|_| Error::StorageUnavailable)?,
-                current_slot: u16::try_from(current).map_err(|_| Error::StorageUnavailable)?,
-                fragment: serde_json::from_str(&json).map_err(|_| Error::StorageUnavailable)?,
-            })
-        })
-        .transpose()
-    }
-    fn advance_plan_fragment(
-        &mut self,
-        task_id: &str,
-        plan_id: &str,
-        plan_version: u64,
-        slot: u16,
-        expected: u64,
-    ) -> Result<Task, Error> {
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let row: Option<(String, i64, String, Option<String>, String)> = tx
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [task_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let (state, sequence, owner, name, source) = row.ok_or(Error::NotFound)?;
-        let current = u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?;
-        if current != expected || state != "running" {
-            return Err(Error::Conflict);
-        }
-        let changed=tx.execute("UPDATE task_plan_fragments SET current_slot=current_slot+1 WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3 AND current_slot=?4",params![task_id,plan_id,plan_version as i64,slot as i64]).map_err(storage)?;
-        if changed != 1 {
-            return Err(Error::Conflict);
-        }
-        let next = expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx
-            .execute(
-                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
-                params![next as i64, task_id, expected as i64],
-            )
-            .map_err(storage)?
-            != 1
-        {
-            return Err(Error::Conflict);
-        }
-        tx.execute(
-            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",
-            params![task_id, next as i64, state],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
-            params![task_id, next as i64],
-        )
-        .map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        Ok(Task {
-            id: task_id.into(),
-            owner_agent_id: owner,
-            name,
-            source: task_source(&source)?,
-            status: Status::Running,
-            sequence: next,
-        })
-    }
-    fn hand_back_plan_fragment(
-        &mut self,
-        task_id: &str,
-        plan_id: &str,
-        plan_version: u64,
-        expected: u64,
-        reason: &str,
-    ) -> Result<Task, Error> {
-        if reason.is_empty()
-            || reason.as_bytes().len() > 1024
-            || reason
-                .chars()
-                .any(|value| value.is_control() && value != '\n')
-        {
-            return Err(Error::InvalidInput);
-        }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let row: Option<(String, i64, String, Option<String>, String)> = tx
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [task_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let (state, sequence, owner, name, source) = row.ok_or(Error::NotFound)?;
-        // AD-TM-21：Jev 可在第一个 CUA 动作启动前交回，但 plan.execute 已经
-        // 启动产品执行闭环；交回必须让 created 原子进入 running，避免控制条
-        // 与 Task Space 状态分裂。
-        if !matches!(state.as_str(), "created" | "running")
-            || u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? != expected
-        {
-            return Err(Error::Conflict);
-        }
-        let exists:i64=tx.query_row("SELECT count(*) FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",params![task_id,plan_id,plan_version as i64],|r|r.get(0)).map_err(storage)?;
-        if exists != 1 {
-            return Err(Error::NotFound);
-        }
-        let next = expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx.execute("UPDATE tasks SET state='running',sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,reason,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
-        tx.execute(
-            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,'running')",
-            params![task_id, next as i64, state],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
-            params![task_id, next as i64],
-        )
-        .map_err(storage)?;
-        // unknown 结论永久保留，但已经交回慢脑的 Driver attempt 必须释放步骤
-        // 执行槽。以同一个 handback 序号关闭 attempt，归属 Agent 才能读取
-        // unknown/Observe 后提交新的受限片段；这不会推进旧片段或重放副作用。
-        tx.execute(
-            "UPDATE task_attempts SET handback_sequence=?1 WHERE task_id=?2 AND phase='unknown' AND result_sequence IS NOT NULL AND handback_sequence IS NULL",
-            params![next as i64, task_id],
-        )
-        .map_err(storage)?;
-        tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![task_id,next as i64,format!(r#"{{"next_intent":{}}}"#, serde_json::to_string(reason).map_err(|_| Error::StorageUnavailable)?) ]).map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        Ok(Task {
-            id: task_id.into(),
-            owner_agent_id: owner,
-            name,
-            source: task_source(&source)?,
-            status: Status::Running,
-            sequence: next,
-        })
-    }
-    fn supports_goal_verification(&self) -> bool { true }
-    fn record_goal_verification(
-        &mut self,
-        task_id: &str,
-        expected: u64,
-        observation_sequence: u64,
-        verification_id: &str,
-        outcome: GoalVerificationOutcome,
-    ) -> Result<(Task, GoalVerificationRecord), Error> {
-        if !yonder_application::valid_id(task_id)
-            || !yonder_application::valid_id(verification_id)
-            || expected == 0
-            || observation_sequence == 0
-            || observation_sequence > expected
-        { return Err(Error::InvalidInput); }
-        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
-        let row:Option<(String,i64,String,Option<String>,String)>=tx.query_row(
-            "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],
-            |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))
-        ).optional().map_err(storage)?;
-        let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
-        if state!="running" || u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?!=expected{return Err(Error::Conflict);}
-        let latest:Option<(i64,Option<i64>,Option<i64>)>=tx.query_row(
-            "SELECT result_sequence,action_succeeded,observe_valid FROM task_attempts WHERE task_id=?1 AND result_sequence IS NOT NULL ORDER BY result_sequence DESC LIMIT 1",
-            [task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))
-        ).optional().map_err(storage)?;
-        if !latest.is_some_and(|(result,action,observe)| result==observation_sequence as i64&&action==Some(1)&&observe==Some(1)){return Err(Error::StopRequired);}
-        let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        let outcome_name=match outcome{GoalVerificationOutcome::Achieved=>"achieved",GoalVerificationOutcome::NotAchieved=>"not-achieved"};
-        if tx.execute("UPDATE tasks SET sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,if outcome==GoalVerificationOutcome::NotAchieved{Some("目标未完成，已交回慢脑")}else{None::<&str>},task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
-        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,'running','running')",params![task_id,next as i64]).map_err(storage)?;
-        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
-        tx.execute("INSERT INTO task_goal_verifications(task_id,verification_id,observation_sequence,verified_sequence,outcome) VALUES(?1,?2,?3,?4,?5)",params![task_id,verification_id,observation_sequence as i64,next as i64,outcome_name]).map_err(|error|if matches!(error,rusqlite::Error::SqliteFailure(_, _)){Error::Conflict}else{storage(error)})?;
-        tx.commit().map_err(storage)?;
-        let record=GoalVerificationRecord{task_id:task_id.into(),verification_id:verification_id.into(),observation_sequence,verified_sequence:next,outcome};
-        Ok((Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next},record))
-    }
-    fn get_goal_verification(&mut self, task_id:&str)->Result<Option<GoalVerificationRecord>,Error>{
-        let row:Option<(String,i64,i64,String)>=self.0.query_row(
-            "SELECT verification_id,observation_sequence,verified_sequence,outcome FROM task_goal_verifications WHERE task_id=?1 ORDER BY verified_sequence DESC LIMIT 1",
-            [task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))
-        ).optional().map_err(storage)?;
-        row.map(|(verification_id,observation,verified,outcome)|Ok(GoalVerificationRecord{
-            task_id:task_id.into(),verification_id,observation_sequence:u64::try_from(observation).map_err(|_|Error::StorageUnavailable)?,verified_sequence:u64::try_from(verified).map_err(|_|Error::StorageUnavailable)?,outcome:match outcome.as_str(){"achieved"=>GoalVerificationOutcome::Achieved,"not-achieved"=>GoalVerificationOutcome::NotAchieved,_=>return Err(Error::StorageUnavailable)}
-        })).transpose()
+}
+
+impl yonder_application::TaskExecutionStore for SqliteTaskStore {
+    fn supports_pending_cancel(&self) -> bool {
+        true
     }
     fn supports_execution_attempts(&self) -> bool {
         true
@@ -1349,444 +2056,6 @@ impl TaskStore for SqliteTaskStore {
     fn supports_wait_for_user(&self) -> bool {
         true
     }
-    fn supports_presentation(&self) -> bool {
-        true
-    }
-    fn supports_audit(&self) -> bool {
-        true
-    }
-
-    fn get_audit(&mut self, task_id: &str) -> Result<yonder_application::TaskAudit, Error> {
-        if !yonder_application::valid_id(task_id) {
-            return Err(Error::InvalidInput);
-        }
-        let manifest: Option<(i64, i64, i64)> = self
-            .0
-            .query_row(
-                "SELECT version, created_sequence, item_count FROM task_artifact_manifests WHERE task_id=?1 ORDER BY version DESC LIMIT 1",
-                [task_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let confirmation: Option<(String, i64, i64, Option<String>, String)> = self
-            .0
-            .query_row(
-                "SELECT confirmation_id, result_sequence, manifest_version, comment, confirmed_by FROM task_user_confirmations WHERE task_id=?1",
-                [task_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let manifest = match manifest {
-            Some((version, _created_sequence, item_count)) => {
-                Some(yonder_application::TaskArtifactManifest {
-                    task_id: task_id.to_owned(),
-                    version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
-                    item_count: u16::try_from(item_count).map_err(|_| Error::StorageUnavailable)?,
-                })
-            }
-            None => None,
-        };
-        let confirmation = match confirmation {
-            Some((confirmation_id, result_sequence, manifest_version, comment, confirmed_by)) => {
-                Some(yonder_application::TaskUserConfirmation {
-                    task_id: task_id.to_owned(),
-                    confirmation_id,
-                    result_sequence: u64::try_from(result_sequence)
-                        .map_err(|_| Error::StorageUnavailable)?,
-                    manifest_version: u64::try_from(manifest_version)
-                        .map_err(|_| Error::StorageUnavailable)?,
-                    comment,
-                    confirmed_by,
-                })
-            }
-            None => None,
-        };
-        Ok(yonder_application::TaskAudit {
-            manifest,
-            confirmation,
-        })
-    }
-
-    fn publish_artifact_manifest(
-        &mut self,
-        task_id: &str,
-        expected_sequence: u64,
-        items: &[TaskArtifactManifestItem],
-    ) -> Result<(Task, TaskArtifactManifest), Error> {
-        if !yonder_application::valid_id(task_id)
-            || expected_sequence == 0
-            || expected_sequence >= i64::MAX as u64
-            || items.len() > MAX_ARTIFACT_MANIFEST_ITEMS
-            || items.iter().enumerate().any(|(index, item)| {
-                item.ordinal != u16::try_from(index + 1).unwrap_or(0)
-                    || !yonder_application::valid_id(&item.reference_id)
-            })
-        {
-            return Err(Error::InvalidInput);
-        }
-        let mut unique = std::collections::HashSet::with_capacity(items.len());
-        if items
-            .iter()
-            .any(|item| !unique.insert(item.reference_id.as_str()))
-        {
-            return Err(Error::InvalidInput);
-        }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let (state, sequence, owner_agent_id, task_name, source): (
-            String,
-            i64,
-            String,
-            Option<String>,
-            String,
-        ) = tx
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [task_id],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        row.get(3)?,
-                        row.get(4)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(storage)?
-            .ok_or(Error::NotFound)?;
-        if state == "created" {
-            return Err(Error::StopRequired);
-        }
-        if expected_sequence != u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? {
-            return Err(Error::Conflict);
-        }
-        Self::ensure_audit_capacity(&tx)?;
-        let version: i64 = tx
-            .query_row(
-                "SELECT COALESCE(MAX(version),0)+1 FROM task_artifact_manifests WHERE task_id=?1",
-                [task_id],
-                |row| row.get(0),
-            )
-            .map_err(storage)?;
-        if version <= 0 {
-            return Err(Error::StorageUnavailable);
-        }
-        let next_sequence = sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx
-            .execute(
-                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
-                params![next_sequence, task_id, sequence],
-            )
-            .map_err(storage)?
-            != 1
-        {
-            return Err(Error::Conflict);
-        }
-        tx.execute(
-            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,?2,?3,?3)",
-            params![task_id, next_sequence, state],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
-            params![task_id, next_sequence],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO task_artifact_manifests(task_id,version,created_sequence,item_count) VALUES (?1,?2,?3,?4)",
-            params![task_id, version, next_sequence, i64::try_from(items.len()).map_err(|_| Error::InvalidInput)?],
-        )
-        .map_err(storage)?;
-        for item in items {
-            tx.execute(
-                "INSERT INTO task_artifact_manifest_items(task_id,version,ordinal,reference_id,availability) VALUES (?1,?2,?3,?4,?5)",
-                params![task_id, version, i64::from(item.ordinal), item.reference_id, artifact_availability_name(item.availability)],
-            )
-            .map_err(storage)?;
-        }
-        tx.commit().map_err(storage)?;
-        let task = Task {
-            id: task_id.to_owned(),
-            owner_agent_id,
-            name: task_name,
-            source: task_source(&source)?,
-            status: status(&state)?,
-            sequence: u64::try_from(next_sequence).map_err(|_| Error::StorageUnavailable)?,
-        };
-        let manifest = TaskArtifactManifest {
-            task_id: task_id.to_owned(),
-            version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
-            item_count: u16::try_from(items.len()).map_err(|_| Error::StorageUnavailable)?,
-        };
-        Ok((task, manifest))
-    }
-
-    fn artifact_manifest_items(
-        &mut self,
-        task_id: &str,
-        version: u64,
-        after_ordinal: u16,
-        limit: usize,
-    ) -> Result<Vec<TaskArtifactManifestItem>, Error> {
-        if !yonder_application::valid_id(task_id)
-            || version == 0
-            || version >= i64::MAX as u64
-            || !(1..=101).contains(&limit)
-        {
-            return Err(Error::InvalidInput);
-        }
-        let exists: bool = self
-            .0
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM task_artifact_manifests WHERE task_id=?1 AND version=?2)",
-                params![task_id, version as i64],
-                |row| row.get(0),
-            )
-            .map_err(storage)?;
-        if !exists {
-            return Err(Error::NotFound);
-        }
-        let mut statement = self
-            .0
-            .prepare(
-                "SELECT ordinal,reference_id,availability FROM task_artifact_manifest_items WHERE task_id=?1 AND version=?2 AND ordinal>?3 ORDER BY ordinal LIMIT ?4",
-            )
-            .map_err(storage)?;
-        statement
-            .query_map(
-                params![
-                    task_id,
-                    version as i64,
-                    i64::from(after_ordinal),
-                    limit as i64
-                ],
-                |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                    ))
-                },
-            )
-            .map_err(storage)?
-            .map(|row| {
-                let (ordinal, reference_id, availability) = row.map_err(storage)?;
-                Ok(TaskArtifactManifestItem {
-                    ordinal: u16::try_from(ordinal).map_err(|_| Error::StorageUnavailable)?,
-                    reference_id,
-                    availability: artifact_availability(&availability)?,
-                })
-            })
-            .collect()
-    }
-
-    fn confirm_result(
-        &mut self,
-        task_id: &str,
-        expected_sequence: u64,
-        confirmation_id: &str,
-        comment: Option<&str>,
-    ) -> Result<Task, Error> {
-        if !yonder_application::valid_id(task_id)
-            || !yonder_application::valid_id(confirmation_id)
-            || expected_sequence == 0
-            || expected_sequence >= i64::MAX as u64
-            || comment.is_some_and(|value| {
-                value.trim().is_empty()
-                    || value.as_bytes().len() > 2048
-                    || value.chars().any(char::is_control)
-            })
-        {
-            return Err(Error::InvalidInput);
-        }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let (state, sequence, owner_agent_id, name, source): (
-            String,
-            i64,
-            String,
-            Option<String>,
-            String,
-        ) = tx
-            .query_row(
-                "SELECT state, sequence, owner_agent_id, name, source FROM tasks WHERE id=?1",
-                [task_id],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        row.get(3)?,
-                        row.get(4)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(storage)?
-            .ok_or(Error::NotFound)?;
-        if state != "completed" && state != "failed" {
-            return Err(Error::InvalidInput);
-        }
-        let existing: Option<(String, String, i64, Option<String>)> = tx
-            .query_row(
-                "SELECT confirmation_id, task_id, result_sequence, comment FROM task_user_confirmations WHERE confirmation_id=?1 OR task_id=?2",
-                params![confirmation_id, task_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        if let Some((
-            existing_confirmation_id,
-            existing_task_id,
-            result_sequence,
-            existing_comment,
-        )) = existing
-        {
-            if existing_confirmation_id == confirmation_id
-                && existing_task_id == task_id
-                && expected_sequence
-                    == u64::try_from(result_sequence).map_err(|_| Error::StorageUnavailable)?
-                && existing_comment.as_deref() == comment
-            {
-                return Ok(Task {
-                    id: task_id.to_owned(),
-                    owner_agent_id,
-                    name,
-                    source: task_source(&source)?,
-                    status: status(&state)?,
-                    sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-                });
-            }
-            return Err(Error::Conflict);
-        }
-        if expected_sequence != u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? {
-            return Err(Error::Conflict);
-        }
-        Self::ensure_audit_capacity(&tx)?;
-        let manifest_version: i64 = tx
-            .query_row(
-                "SELECT version FROM task_artifact_manifests WHERE task_id=?1 ORDER BY version DESC LIMIT 1",
-                [task_id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(storage)?
-            .unwrap_or(1);
-        let create_empty_manifest = !tx
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM task_artifact_manifests WHERE task_id=?1)",
-                [task_id],
-                |row| row.get::<_, bool>(0),
-            )
-            .map_err(storage)?;
-        let next_sequence = sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
-        if tx
-            .execute(
-                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
-                params![next_sequence, task_id, sequence],
-            )
-            .map_err(storage)?
-            != 1
-        {
-            return Err(Error::Conflict);
-        }
-        tx.execute(
-            "INSERT INTO events(task_id, sequence, previous, state) VALUES (?1, ?2, ?3, ?4)",
-            params![task_id, next_sequence, state, state],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO outbox(task_id, sequence) VALUES (?1, ?2)",
-            params![task_id, next_sequence],
-        )
-        .map_err(storage)?;
-        if create_empty_manifest {
-            tx.execute(
-                "INSERT INTO task_artifact_manifests(task_id, version, created_sequence, item_count) VALUES (?1, 1, ?2, 0)",
-                params![task_id, next_sequence],
-            )
-            .map_err(storage)?;
-        }
-        tx.execute(
-            "INSERT INTO task_user_confirmations(confirmation_id, task_id, result_sequence, confirmation_sequence, manifest_version, comment, confirmed_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'local-user')",
-            params![confirmation_id, task_id, sequence, next_sequence, manifest_version, comment],
-        )
-        .map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        Ok(Task {
-            id: task_id.to_owned(),
-            owner_agent_id,
-            name,
-            source: task_source(&source)?,
-            status: status(&state)?,
-            sequence: u64::try_from(next_sequence).map_err(|_| Error::StorageUnavailable)?,
-        })
-    }
-    fn wait_for_user(&mut self, task_id: &str, expected: u64, reason: &str) -> Result<Task, Error> {
-        if !yonder_application::valid_id(task_id)
-            || expected == 0
-            || expected >= i64::MAX as u64
-            || reason.trim() != reason
-            || reason.is_empty()
-            || reason.as_bytes().len() > 512
-            || reason.chars().any(char::is_control)
-        {
-            return Err(Error::InvalidInput);
-        }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let row: Option<(String, i64, String, Option<String>, String)> = tx
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [task_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let (state, sequence, owner_agent_id, task_name, source) = row.ok_or(Error::NotFound)?;
-        if state != "running" || sequence != expected as i64 {
-            return Err(Error::Conflict);
-        }
-        let pending: i64 = tx
-            .query_row(
-                "SELECT count(*) FROM task_controls WHERE task_id=?1 AND phase='pending'",
-                [task_id],
-                |r| r.get(0),
-            )
-            .map_err(storage)?;
-        let phase:Option<String>=tx.query_row("SELECT phase FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[task_id],|r|r.get(0)).optional().map_err(storage)?;
-        if pending != 0 || phase.as_deref() != Some("stopped") {
-            return Err(Error::StopRequired);
-        }
-        let next = expected + 1;
-        if tx.execute("UPDATE tasks SET state='waiting-for-user',sequence=?1 WHERE id=?2 AND state='running' AND sequence=?3",params![next as i64,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
-        tx.execute("INSERT INTO events(task_id,sequence,previous,state,wait_reason) VALUES (?1,?2,'running','waiting-for-user',?3)",params![task_id,next as i64,reason]).map_err(storage)?;
-        tx.execute(
-            "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
-            params![task_id, next as i64],
-        )
-        .map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        Ok(Task {
-            id: task_id.into(),
-            owner_agent_id,
-            name: task_name,
-            source: task_source(&source)?,
-            status: Status::WaitingForUser,
-            sequence: next,
-        })
-    }
-
     fn prepare_attempt(
         &mut self,
         requested: &ExecutionAttempt,
@@ -2765,226 +3034,6 @@ impl TaskStore for SqliteTaskStore {
         ))
     }
 
-    fn declare_step(
-        &mut self,
-        owner: &str,
-        task_id: &str,
-        expected: u64,
-        step_id: &str,
-        label: &str,
-    ) -> Result<(Task, StepDeclaration), Error> {
-        if [owner, task_id, step_id]
-            .iter()
-            .any(|id| !yonder_application::valid_id(id))
-            || expected == 0
-            || expected >= i64::MAX as u64
-            || !yonder_application::valid_step_label(label)
-        {
-            return Err(Error::InvalidInput);
-        }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let row: Option<(String, i64, String, Option<String>, String)> = tx
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [task_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let (state, sequence, actual_owner, task_name, source) = row.ok_or(Error::NotFound)?;
-        if actual_owner != owner {
-            return Err(Error::NotFound);
-        }
-        let current = Task {
-            id: task_id.into(),
-            owner_agent_id: actual_owner,
-            name: task_name,
-            source: task_source(&source)?,
-            status: status(&state)?,
-            sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-        };
-        let existing: Option<(String, i64)> = tx
-            .query_row(
-                "SELECT label,accepted_sequence FROM task_steps WHERE task_id=?1 AND step_id=?2",
-                params![task_id, step_id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        if let Some((original, accepted)) = existing {
-            if original != label {
-                return Err(Error::StepConflict);
-            }
-            tx.commit().map_err(storage)?;
-            return Ok((
-                current,
-                StepDeclaration {
-                    step_id: step_id.into(),
-                    label: original,
-                    accepted_sequence: u64::try_from(accepted)
-                        .map_err(|_| Error::StorageUnavailable)?,
-                },
-            ));
-        }
-        if !matches!(current.status, Status::Created | Status::Running) {
-            return Err(Error::StopRequired);
-        }
-        if current.sequence != expected {
-            return Err(Error::Conflict);
-        }
-        if current.status == Status::Running {
-            let boundary: Option<(String,Option<String>,Option<i64>)> = tx.query_row("SELECT phase,control_id,handback_sequence FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
-            let pending: i64 = tx
-                .query_row(
-                    "SELECT count(*) FROM task_controls WHERE task_id=?1 AND phase='pending'",
-                    [task_id],
-                    |r| r.get(0),
-                )
-                .map_err(storage)?;
-            if !matches!(boundary,Some((ref phase,None,handback)) if phase=="stopped" || phase=="unknown" && handback.is_some()) || pending != 0 {
-                return Err(Error::StopRequired);
-            }
-        }
-        let task_count: i64 = tx
-            .query_row(
-                "SELECT count(*) FROM task_steps WHERE task_id=?1",
-                [task_id],
-                |r| r.get(0),
-            )
-            .map_err(storage)?;
-        let total_count: i64 = tx
-            .query_row("SELECT count(*) FROM task_steps", [], |r| r.get(0))
-            .map_err(storage)?;
-        if task_count >= 1024 || total_count >= 10000 {
-            return Err(Error::QuotaExceeded);
-        }
-        let accepted = expected + 1;
-        if tx.execute("UPDATE tasks SET sequence=?1 WHERE id=?2 AND owner_agent_id=?3 AND state=?4 AND sequence=?5", params![accepted as i64,task_id,owner,state,expected as i64]).map_err(storage)? != 1 { return Err(Error::Conflict); }
-        tx.execute(
-            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,?2,?3,?3)",
-            params![task_id, accepted as i64, state],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
-            params![task_id, accepted as i64],
-        )
-        .map_err(storage)?;
-        tx.execute(
-            "INSERT INTO task_steps(task_id,step_id,label,accepted_sequence) VALUES (?1,?2,?3,?4)",
-            params![task_id, step_id, label, accepted as i64],
-        )
-        .map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        Ok((
-            Task {
-                sequence: accepted,
-                ..current
-            },
-            StepDeclaration {
-                step_id: step_id.into(),
-                label: label.into(),
-                accepted_sequence: accepted,
-            },
-        ))
-    }
-
-    fn get_with_step(&mut self, id: &str) -> Result<(Task, Option<StepDeclaration>), Error> {
-        let tx = self.0.transaction().map_err(storage)?;
-        let row: Option<(String, i64, String, Option<String>, String)> = tx
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .optional()
-            .map_err(storage)?;
-        let (state, sequence, owner_agent_id, name, source) = row.ok_or(Error::NotFound)?;
-        let step: Option<(String,String,i64)> = tx.query_row("SELECT step_id,label,accepted_sequence FROM task_steps WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1", [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        let step = match step {
-            Some((step_id, label, accepted)) => Some(StepDeclaration {
-                step_id,
-                label,
-                accepted_sequence: u64::try_from(accepted)
-                    .map_err(|_| Error::StorageUnavailable)?,
-            }),
-            None => None,
-        };
-        Ok((
-            Task {
-                id: id.into(),
-                owner_agent_id,
-                name,
-                source: task_source(&source)?,
-                status: status(&state)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            },
-            step,
-        ))
-    }
-
-    fn get_presentation(&mut self, id: &str) -> Result<(Task, TaskPresentation), Error> {
-        let tx = self.0.transaction().map_err(storage)?;
-        let row: Option<(String,i64,String,Option<String>,String,Option<String>,Option<String>,Option<String>,Option<String>)> = tx.query_row(
-            "SELECT state,sequence,owner_agent_id,name,source,observation_step_id,observation_result,observation_summary,next_intent FROM tasks WHERE id=?1", [id],
-            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?)),
-        ).optional().map_err(storage)?;
-        let (
-            state,
-            sequence,
-            owner_agent_id,
-            name,
-            source,
-            observation_step_id,
-            observation_result_value,
-            observation_summary,
-            next_intent,
-        ) = row.ok_or(Error::NotFound)?;
-        let step: Option<(String,String,i64)> = tx.query_row("SELECT step_id,label,accepted_sequence FROM task_steps WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1", [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        let current_step = match step {
-            Some((step_id, label, accepted)) => Some(StepDeclaration {
-                step_id,
-                label,
-                accepted_sequence: u64::try_from(accepted)
-                    .map_err(|_| Error::StorageUnavailable)?,
-            }),
-            None => None,
-        };
-        let observation = match (
-            observation_step_id,
-            observation_result_value,
-            observation_summary,
-        ) {
-            (Some(step_id), Some(result), Some(summary)) => Some(TaskObservation {
-                step_id,
-                result: observation_result(&result)?,
-                summary,
-            }),
-            (None, None, None) => None,
-            _ => return Err(Error::StorageUnavailable),
-        };
-        Ok((
-            Task {
-                id: id.into(),
-                owner_agent_id,
-                name,
-                source: task_source(&source)?,
-                status: status(&state)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            },
-            TaskPresentation {
-                current_step,
-                observation,
-                next_intent,
-            },
-        ))
-    }
-
     fn record_observation(
         &mut self,
         task_id: &str,
@@ -3134,238 +3183,106 @@ impl TaskStore for SqliteTaskStore {
         })
     }
 
-    fn events_with_steps(
-        &mut self,
-        id: &str,
-        after: u64,
-        limit: usize,
-    ) -> Result<Vec<TaskEventRecord>, Error> {
-        if !(1..=100).contains(&limit) {
+    fn wait_for_user(&mut self, task_id: &str, expected: u64, reason: &str) -> Result<Task, Error> {
+        if !yonder_application::valid_id(task_id)
+            || expected == 0
+            || expected >= i64::MAX as u64
+            || reason.trim() != reason
+            || reason.is_empty()
+            || reason.as_bytes().len() > 512
+            || reason.chars().any(char::is_control)
+        {
             return Err(Error::InvalidInput);
         }
-        if after >= i64::MAX as u64 {
-            return Ok(vec![]);
-        }
-        let mut stmt = self.0.prepare("SELECT e.previous,e.state,e.sequence,s.step_id,s.label,s.accepted_sequence,a.step_id,a.attempt_id,a.worker_instance_id,a.host_session_id,a.phase,a.action_succeeded,a.observe_valid,a.unknown_reason,e.wait_reason,m.version,m.item_count,c.confirmation_id,c.result_sequence,c.manifest_version,c.comment,c.confirmed_by,p.payload,h.attempt_id,h.control_id,h.kind,h.accepted_sequence,h.stopped_sequence,f.control_id,f.phase,f.failure,g.payload,t.owner_agent_id,ast.step_id,ast.attempt_id,ast.worker_instance_id,ast.host_session_id,v.verification_id,v.observation_sequence,v.outcome FROM events e JOIN tasks t ON t.id=e.task_id LEFT JOIN task_steps s ON s.task_id=e.task_id AND s.accepted_sequence=e.sequence LEFT JOIN task_attempts a ON a.task_id=e.task_id AND a.result_sequence=e.sequence LEFT JOIN task_attempts ast ON ast.task_id=e.task_id AND ast.accepted_sequence=e.sequence LEFT JOIN task_artifact_manifests m ON m.task_id=e.task_id AND m.created_sequence=e.sequence LEFT JOIN task_user_confirmations c ON c.task_id=e.task_id AND c.confirmation_sequence=e.sequence LEFT JOIN task_presentation_events p ON p.task_id=e.task_id AND p.sequence=e.sequence AND p.kind='observation' LEFT JOIN task_controls h ON h.task_id=e.task_id AND (h.accepted_sequence=e.sequence OR h.stopped_sequence=e.sequence) LEFT JOIN task_focus_events f ON f.task_id=e.task_id AND f.sequence=e.sequence LEFT JOIN task_presentation_events g ON g.task_id=e.task_id AND g.sequence=e.sequence AND g.kind='source' LEFT JOIN task_goal_verifications v ON v.task_id=e.task_id AND v.verified_sequence=e.sequence WHERE e.task_id=?1 AND e.sequence>?2 ORDER BY e.sequence LIMIT ?3").map_err(storage)?;
-        let rows = stmt
-            .query_map(params![id, after as i64, limit as i64], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, i64>(2)?,
-                    r.get::<_, Option<String>>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                    r.get::<_, Option<i64>>(5)?,
-                    r.get::<_, Option<String>>(6)?,
-                    r.get::<_, Option<String>>(7)?,
-                    r.get::<_, Option<String>>(8)?,
-                    r.get::<_, Option<String>>(9)?,
-                    r.get::<_, Option<String>>(10)?,
-                    r.get::<_, Option<i64>>(11)?,
-                    r.get::<_, Option<i64>>(12)?,
-                    r.get::<_, Option<String>>(13)?,
-                    r.get::<_, Option<String>>(14)?,
-                    r.get::<_, Option<i64>>(15)?,
-                    r.get::<_, Option<i64>>(16)?,
-                    r.get::<_, Option<String>>(17)?,
-                    r.get::<_, Option<i64>>(18)?,
-                    r.get::<_, Option<i64>>(19)?,
-                    r.get::<_, Option<String>>(20)?,
-                    r.get::<_, Option<String>>(21)?,
-                    r.get::<_, Option<String>>(22)?,
-                    r.get::<_, Option<String>>(23)?,
-                    r.get::<_, Option<String>>(24)?,
-                    r.get::<_, Option<String>>(25)?,
-                    r.get::<_, Option<i64>>(26)?,
-                    r.get::<_, Option<i64>>(27)?,
-                    r.get::<_, Option<String>>(28)?,
-                    r.get::<_, Option<String>>(29)?,
-                    r.get::<_, Option<String>>(30)?,
-                    r.get::<_, Option<String>>(31)?,
-                    r.get::<_, String>(32)?,
-                    r.get::<_, Option<String>>(33)?,
-                    r.get::<_, Option<String>>(34)?,
-                    r.get::<_, Option<String>>(35)?,
-                    r.get::<_, Option<String>>(36)?,
-                    r.get::<_, Option<String>>(37)?,
-                    r.get::<_, Option<i64>>(38)?,
-                    r.get::<_, Option<String>>(39)?,
-                ))
-            })
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(storage)?;
-        rows.map(|row| {
-            let (
-                previous,
-                next,
-                sequence,
-                step_id,
-                label,
-                accepted,
-                result_step,
-                attempt_id,
-                worker_id,
-                host_id,
-                phase,
-                action_succeeded,
-                observe_valid,
-                unknown_reason,
-                wait_reason,
-                manifest_version,
-                manifest_item_count,
-                confirmation_id,
-                result_sequence,
-                confirmation_manifest_version,
-                confirmation_comment,
-                confirmed_by,
-                observation_payload,
-                control_attempt_id,
-                control_id,
-                control_kind,
-                control_accepted,
-                control_stopped,
-                focus_control_id,
-                focus_phase,
-                focus_failure_value,
-                source_payload,
-                owner_agent_id,
-                started_step_id,
-                started_attempt_id,
-                started_worker_id,
-                started_host_id,
-                verification_id,
-                verification_observation_sequence,
-                verification_outcome,
-            ) = row.map_err(storage)?;
-            let creation_event = source_payload
-                .as_deref()
-                .map(|payload| {
-                    if sequence != 1 || !yonder_application::valid_id(&owner_agent_id) {
-                        return Err(Error::StorageUnavailable);
-                    }
-                    Ok(yonder_application::CreationEventRecord {
-                        owner_agent_id: owner_agent_id.clone(),
-                        source: stored_source(payload)?,
-                    })
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, owner_agent_id, task_name, source) = row.ok_or(Error::NotFound)?;
+        if state != "running" || sequence != expected as i64 {
+            return Err(Error::Conflict);
+        }
+        let pending: i64 = tx
+            .query_row(
+                "SELECT count(*) FROM task_controls WHERE task_id=?1 AND phase='pending'",
+                [task_id],
+                |r| r.get(0),
+            )
+            .map_err(storage)?;
+        let phase:Option<String>=tx.query_row("SELECT phase FROM task_attempts WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1",[task_id],|r|r.get(0)).optional().map_err(storage)?;
+        if pending != 0 || phase.as_deref() != Some("stopped") {
+            return Err(Error::StopRequired);
+        }
+        let next = expected + 1;
+        if tx.execute("UPDATE tasks SET state='waiting-for-user',sequence=?1 WHERE id=?2 AND state='running' AND sequence=?3",params![next as i64,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
+        tx.execute("INSERT INTO events(task_id,sequence,previous,state,wait_reason) VALUES (?1,?2,'running','waiting-for-user',?3)",params![task_id,next as i64,reason]).map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
+            params![task_id, next as i64],
+        )
+        .map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task {
+            id: task_id.into(),
+            owner_agent_id,
+            name: task_name,
+            source: task_source(&source)?,
+            status: Status::WaitingForUser,
+            sequence: next,
+        })
+    }
+
+}
+
+impl yonder_application::TaskAuditStore for SqliteTaskStore {
+    fn supports_audit(&self) -> bool {
+        true
+    }
+
+    fn get_audit(&mut self, task_id: &str) -> Result<yonder_application::TaskAudit, Error> {
+        if !yonder_application::valid_id(task_id) {
+            return Err(Error::InvalidInput);
+        }
+        let manifest: Option<(i64, i64, i64)> = self
+            .0
+            .query_row(
+                "SELECT version, created_sequence, item_count FROM task_artifact_manifests WHERE task_id=?1 ORDER BY version DESC LIMIT 1",
+                [task_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let confirmation: Option<(String, i64, i64, Option<String>, String)> = self
+            .0
+            .query_row(
+                "SELECT confirmation_id, result_sequence, manifest_version, comment, confirmed_by FROM task_user_confirmations WHERE task_id=?1",
+                [task_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let manifest = match manifest {
+            Some((version, _created_sequence, item_count)) => {
+                Some(yonder_application::TaskArtifactManifest {
+                    task_id: task_id.to_owned(),
+                    version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
+                    item_count: u16::try_from(item_count).map_err(|_| Error::StorageUnavailable)?,
                 })
-                .transpose()?;
-            let step_declaration = match (step_id, label, accepted) {
-                (Some(step_id), Some(label), Some(accepted)) => Some(StepDeclaration {
-                    step_id,
-                    label,
-                    accepted_sequence: u64::try_from(accepted)
-                        .map_err(|_| Error::StorageUnavailable)?,
-                }),
-                (None, None, None) => None,
-                _ => return Err(Error::StorageUnavailable),
-            };
-            let attempt_started = match (
-                started_step_id,
-                started_attempt_id,
-                started_worker_id,
-                started_host_id,
-            ) {
-                (
-                    Some(step_id),
-                    Some(attempt_id),
-                    Some(worker_instance_id),
-                    Some(host_session_id),
-                ) => {
-                    if [
-                        step_id.as_str(),
-                        attempt_id.as_str(),
-                        worker_instance_id.as_str(),
-                        host_session_id.as_str(),
-                    ]
-                    .iter()
-                    .any(|value| !yonder_application::valid_id(value))
-                    {
-                        return Err(Error::StorageUnavailable);
-                    }
-                    Some(yonder_application::AttemptStartedRecord {
-                        step_id,
-                        attempt_id,
-                        worker_instance_id,
-                        host_session_id,
-                    })
-                }
-                (None, None, None, None) => None,
-                _ => return Err(Error::StorageUnavailable),
-            };
-            let attempt_result = match (
-                result_step,
-                attempt_id,
-                worker_id,
-                host_id,
-                phase,
-                action_succeeded,
-                observe_valid,
-                unknown_reason,
-            ) {
-                (
-                    Some(step_id),
-                    Some(attempt_id),
-                    Some(worker_instance_id),
-                    Some(host_session_id),
-                    Some(phase),
-                    action,
-                    observe,
-                    reason_value,
-                ) => {
-                    let conclusion =
-                        match (phase.as_str(), action, observe, reason_value.as_deref()) {
-                            ("observed" | "stopped", Some(value), Some(1), None) => {
-                                AttemptConclusion::Observed {
-                                    action_succeeded: value != 0,
-                                }
-                            }
-                            ("unknown" | "stopped", None, Some(0), Some(value)) => {
-                                AttemptConclusion::Unknown {
-                                    reason: parse_reason(value)?,
-                                }
-                            }
-                            _ => return Err(Error::StorageUnavailable),
-                        };
-                    Some(AttemptResultRecord {
-                        task_id: id.into(),
-                        step_id,
-                        attempt_id,
-                        worker_instance_id,
-                        host_session_id,
-                        conclusion,
-                        result_sequence: u64::try_from(sequence)
-                            .map_err(|_| Error::StorageUnavailable)?,
-                    })
-                }
-                (None, None, None, None, None, None, None, None) => None,
-                _ => return Err(Error::StorageUnavailable),
-            };
-            let artifact_manifest = match (manifest_version, manifest_item_count) {
-                (Some(version), Some(item_count)) => {
-                    Some(yonder_application::TaskArtifactManifest {
-                        task_id: id.to_owned(),
-                        version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
-                        item_count: u16::try_from(item_count)
-                            .map_err(|_| Error::StorageUnavailable)?,
-                    })
-                }
-                (None, None) => None,
-                _ => return Err(Error::StorageUnavailable),
-            };
-            let user_confirmation = match (
-                confirmation_id,
-                result_sequence,
-                confirmation_manifest_version,
-                confirmation_comment,
-                confirmed_by,
-            ) {
-                (
-                    Some(confirmation_id),
-                    Some(result_sequence),
-                    Some(manifest_version),
-                    comment,
-                    Some(confirmed_by),
-                ) => Some(yonder_application::TaskUserConfirmation {
-                    task_id: id.to_owned(),
+            }
+            None => None,
+        };
+        let confirmation = match confirmation {
+            Some((confirmation_id, result_sequence, manifest_version, comment, confirmed_by)) => {
+                Some(yonder_application::TaskUserConfirmation {
+                    task_id: task_id.to_owned(),
                     confirmation_id,
                     result_sequence: u64::try_from(result_sequence)
                         .map_err(|_| Error::StorageUnavailable)?,
@@ -3373,130 +3290,37 @@ impl TaskStore for SqliteTaskStore {
                         .map_err(|_| Error::StorageUnavailable)?,
                     comment,
                     confirmed_by,
-                }),
-                (None, None, None, None, None) => None,
-                _ => return Err(Error::StorageUnavailable),
-            };
-            let observation = observation_payload
-                .as_deref()
-                .map(stored_observation)
-                .transpose()?;
-            let control_event = match (
-                control_attempt_id,
-                control_id,
-                control_kind,
-                control_accepted,
-                control_stopped,
-            ) {
-                (Some(attempt_id), Some(control_id), Some(kind), Some(accepted), stopped) => {
-                    if accepted <= 0
-                        || stopped.is_some_and(|value| value < accepted)
-                        || !yonder_application::valid_id(&attempt_id)
-                        || !yonder_application::valid_id(&control_id)
-                    {
-                        return Err(Error::StorageUnavailable);
-                    }
-                    let kind = match kind.as_str() {
-                        "pause" => ControlKind::Pause,
-                        "cancel" => ControlKind::Cancel,
-                        "takeover" => ControlKind::Takeover,
-                        _ => return Err(Error::StorageUnavailable),
-                    };
-                    let phase = if stopped == Some(sequence) {
-                        ControlPhase::Stopped
-                    } else if accepted == sequence {
-                        ControlPhase::Pending
-                    } else {
-                        return Err(Error::StorageUnavailable);
-                    };
-                    Some(yonder_application::ControlEventRecord {
-                        attempt_id,
-                        control_id,
-                        kind,
-                        phase,
-                    })
-                }
-                (None, None, None, None, None) => None,
-                _ => return Err(Error::StorageUnavailable),
-            };
-            let focus_event = match (focus_control_id, focus_phase, focus_failure_value) {
-                (Some(control_id), Some(phase), failure) => {
-                    if !yonder_application::valid_id(&control_id) {
-                        return Err(Error::StorageUnavailable);
-                    }
-                    let (phase, failure) = match (phase.as_str(), failure.as_deref()) {
-                        ("locating", None) => (FocusPhase::Locating, None),
-                        ("focused", None) => (FocusPhase::Focused, None),
-                        ("failed", Some(value)) => {
-                            (FocusPhase::Failed, Some(parse_focus_failure(value)?))
-                        }
-                        _ => return Err(Error::StorageUnavailable),
-                    };
-                    Some(yonder_application::FocusEventRecord {
-                        control_id,
-                        phase,
-                        failure,
-                    })
-                }
-                (None, None, None) => None,
-                _ => return Err(Error::StorageUnavailable),
-            };
-            let goal_verification=match(verification_id,verification_observation_sequence,verification_outcome){
-                (Some(verification_id),Some(observation_sequence),Some(outcome))=>Some(GoalVerificationRecord{task_id:id.into(),verification_id,observation_sequence:u64::try_from(observation_sequence).map_err(|_|Error::StorageUnavailable)?,verified_sequence:u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?,outcome:match outcome.as_str(){"achieved"=>GoalVerificationOutcome::Achieved,"not-achieved"=>GoalVerificationOutcome::NotAchieved,_=>return Err(Error::StorageUnavailable)}}),
-                (None,None,None)=>None,
-                _=>return Err(Error::StorageUnavailable),
-            };
-            Ok(TaskEventRecord {
-                transition: Transition {
-                    previous: status(&previous)?,
-                    next: status(&next)?,
-                    sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-                },
-                creation_event,
-                step_declaration,
-                attempt_started,
-                attempt_result,
-                observation,
-                control_event,
-                focus_event,
-                wait_reason,
-                artifact_manifest,
-                user_confirmation,
-                goal_verification,
-            })
+                })
+            }
+            None => None,
+        };
+        Ok(yonder_application::TaskAudit {
+            manifest,
+            confirmation,
         })
-        .collect()
     }
 
-    fn register(
+    fn publish_artifact_manifest(
         &mut self,
-        owner: &str,
-        key: &str,
-        description: &str,
-        task_name: Option<&str>,
-        source: TaskSource,
-    ) -> Result<Task, Error> {
-        self.register_with_outcome(owner, key, description, task_name, source)
-            .map(|outcome| outcome.task)
-    }
-
-    fn register_with_outcome(
-        &mut self,
-        owner: &str,
-        key: &str,
-        description: &str,
-        task_name: Option<&str>,
-        source: TaskSource,
-    ) -> Result<yonder_application::RegistrationOutcome, Error> {
-        if [owner, key].iter().any(|id| {
-            id.is_empty()
-                || id.len() > 128
-                || !id
-                    .bytes()
-                    .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
-        }) || description.trim().is_empty()
-            || description.len() > 4096
-            || task_name.is_some_and(|name| !yonder_application::valid_task_name(name))
+        task_id: &str,
+        expected_sequence: u64,
+        items: &[TaskArtifactManifestItem],
+    ) -> Result<(Task, TaskArtifactManifest), Error> {
+        if !yonder_application::valid_id(task_id)
+            || expected_sequence == 0
+            || expected_sequence >= i64::MAX as u64
+            || items.len() > MAX_ARTIFACT_MANIFEST_ITEMS
+            || items.iter().enumerate().any(|(index, item)| {
+                item.ordinal != u16::try_from(index + 1).unwrap_or(0)
+                    || !yonder_application::valid_id(&item.reference_id)
+            })
+        {
+            return Err(Error::InvalidInput);
+        }
+        let mut unique = std::collections::HashSet::with_capacity(items.len());
+        if items
+            .iter()
+            .any(|item| !unique.insert(item.reference_id.as_str()))
         {
             return Err(Error::InvalidInput);
         }
@@ -3504,397 +3328,594 @@ impl TaskStore for SqliteTaskStore {
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(storage)?;
-        let existing: Option<(String,String,String,i64,Option<String>,Option<String>,String)> = tx.query_row(
-            "SELECT c.task_id,c.description,t.state,t.sequence,c.name,t.name,t.source FROM task_creations c JOIN tasks t ON t.id=c.task_id WHERE c.owner_agent_id=?1 AND c.idempotency_key=?2",
-            params![owner,key], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?)),
-        ).optional().map_err(storage)?;
-        let (task, created) = if let Some((
-            id,
-            original,
-            state,
-            sequence,
-            original_name,
-            current_name,
-            current_source,
-        )) = existing
-        {
-            if original != description
-                || original_name.as_deref() != task_name
-                || current_source != source_name(source)
-            {
-                return Err(Error::IdempotencyConflict);
-            }
-            (
-                Task {
-                    id,
-                    owner_agent_id: owner.into(),
-                    name: current_name,
-                    source: task_source(&current_source)?,
-                    status: status(&state)?,
-                    sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-                },
-                false,
-            )
-        } else {
-            Self::ensure_audit_capacity(&tx)?;
-            let id: String = tx
-                .query_row("SELECT 'task_' || lower(hex(randomblob(16)))", [], |r| {
-                    r.get(0)
-                })
-                .map_err(storage)?;
-            let created_at = next_created_at(&tx)?;
-            tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,name,source,created_at) VALUES (?1,?2,'created',1,?3,?4,?5)", params![id,owner,task_name,source_name(source),created_at]).map_err(storage)?;
-            tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,1,'created','created')", [&id]).map_err(storage)?;
-            tx.execute("INSERT INTO outbox(task_id,sequence) VALUES (?1,1)", [&id])
-                .map_err(storage)?;
-            tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES (?1,1,'source',?2)", params![id,format!(r#"{{"source":"{}"}}"#, source_name(source))]).map_err(storage)?;
-            tx.execute("INSERT INTO task_creations(owner_agent_id,idempotency_key,task_id,description,name) VALUES (?1,?2,?3,?4,?5)", params![owner,key,id,description,task_name]).map_err(storage)?;
-            (
-                Task {
-                    id,
-                    owner_agent_id: owner.into(),
-                    name: task_name.map(str::to_owned),
-                    source,
-                    status: Status::Created,
-                    sequence: 1,
-                },
-                true,
-            )
-        };
-        tx.commit().map_err(storage)?;
-        Ok(yonder_application::RegistrationOutcome { task, created })
-    }
-
-    fn list(
-        &mut self,
-        owner: Option<&str>,
-        after: Option<&str>,
-        include_finished: bool,
-        limit: usize,
-    ) -> Result<Vec<Task>, Error> {
-        if !(1..=101).contains(&limit) {
-            return Err(Error::InvalidInput);
-        }
-        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE id > ?1 COLLATE BINARY AND (?2 OR state NOT IN ('completed','failed','cancelled')) AND (?4 IS NULL OR owner_agent_id=?4) ORDER BY id COLLATE BINARY LIMIT ?3").map_err(storage)?;
-        let rows = stmt
-            .query_map(
-                params![after.unwrap_or(""), include_finished, limit as i64, owner],
-                |r| {
+        let (state, sequence, owner_agent_id, task_name, source): (
+            String,
+            i64,
+            String,
+            Option<String>,
+            String,
+        ) = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |row| {
                     Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, i64>(2)?,
-                        r.get::<_, String>(3)?,
-                        r.get::<_, Option<String>>(4)?,
-                        r.get::<_, String>(5)?,
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
                     ))
                 },
             )
-            .map_err(storage)?;
-        rows.map(|row| {
-            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
-            Ok(Task {
-                id,
-                owner_agent_id,
-                name,
-                source: task_source(&source)?,
-                status: status(&state)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            })
-        })
-        .collect()
-    }
-    fn list_running(
-        &mut self,
-        owner: Option<&str>,
-        after: Option<&str>,
-        limit: usize,
-    ) -> Result<Vec<Task>, Error> {
-        if !(1..=101).contains(&limit) {
-            return Err(Error::InvalidInput);
-        }
-        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE id > ?1 COLLATE BINARY AND state='running' AND (?3 IS NULL OR owner_agent_id=?3) ORDER BY id COLLATE BINARY LIMIT ?2").map_err(storage)?;
-        let rows = stmt
-            .query_map(params![after.unwrap_or(""), limit as i64, owner], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, i64>(2)?,
-                    r.get::<_, String>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                    r.get::<_, String>(5)?,
-                ))
-            })
-            .map_err(storage)?;
-        rows.map(|row| {
-            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
-            Ok(Task {
-                id,
-                owner_agent_id,
-                name,
-                source: task_source(&source)?,
-                status: status(&state)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            })
-        })
-        .collect()
-    }
-    fn list_newest(
-        &mut self,
-        owner: Option<&str>,
-        after: Option<&str>,
-        include_finished: bool,
-        limit: usize,
-    ) -> Result<Vec<Task>, Error> {
-        if !(1..=101).contains(&limit) {
-            return Err(Error::InvalidInput);
-        }
-        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND (?2 OR state NOT IN ('completed','failed','cancelled')) AND (?4 IS NULL OR owner_agent_id=?4) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?3").map_err(storage)?;
-        let rows = stmt
-            .query_map(params![after, include_finished, limit as i64, owner], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, i64>(2)?,
-                    r.get::<_, String>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                    r.get::<_, String>(5)?,
-                ))
-            })
-            .map_err(storage)?;
-        rows.map(|row| {
-            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
-            Ok(Task {
-                id,
-                owner_agent_id,
-                name,
-                source: task_source(&source)?,
-                status: status(&state)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            })
-        })
-        .collect()
-    }
-    fn list_running_newest(
-        &mut self,
-        owner: Option<&str>,
-        after: Option<&str>,
-        limit: usize,
-    ) -> Result<Vec<Task>, Error> {
-        if !(1..=101).contains(&limit) {
-            return Err(Error::InvalidInput);
-        }
-        let mut stmt = self.0.prepare("SELECT id,state,sequence,owner_agent_id,name,source FROM tasks WHERE (?1 IS NULL OR created_at < (SELECT created_at FROM tasks WHERE id=?1) OR (created_at = (SELECT created_at FROM tasks WHERE id=?1) AND id < ?1 COLLATE BINARY)) AND state='running' AND (?3 IS NULL OR owner_agent_id=?3) ORDER BY created_at DESC, id COLLATE BINARY DESC LIMIT ?2").map_err(storage)?;
-        let rows = stmt
-            .query_map(params![after, limit as i64, owner], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, i64>(2)?,
-                    r.get::<_, String>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                    r.get::<_, String>(5)?,
-                ))
-            })
-            .map_err(storage)?;
-        rows.map(|row| {
-            let (id, state, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
-            Ok(Task {
-                id,
-                owner_agent_id,
-                name,
-                source: task_source(&source)?,
-                status: status(&state)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            })
-        })
-        .collect()
-    }
-    fn create(
-        &mut self,
-        id: &str,
-        owner_agent_id: &str,
-        source: TaskSource,
-    ) -> Result<Task, Error> {
-        if [id, owner_agent_id].iter().any(|id| {
-            id.is_empty()
-                || id.len() > 128
-                || !id
-                    .bytes()
-                    .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
-        }) {
-            return Err(Error::InvalidInput);
-        }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let exists: bool = tx
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1)",
-                [id],
-                |r| r.get(0),
-            )
-            .map_err(storage)?;
-        if exists {
-            return Err(Error::Conflict);
-        }
-        let created_at = next_created_at(&tx)?;
-        tx.execute("INSERT INTO tasks(id,owner_agent_id,state,sequence,source,created_at) VALUES (?1,?2,'created',1,?3,?4)", params![id,owner_agent_id,source_name(source),created_at]).map_err(storage)?;
-        tx.execute(
-            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,1,'created','created')",
-            [id],
-        )
-        .map_err(storage)?;
-        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES (?1,1)", [id])
-            .map_err(storage)?;
-        tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES (?1,1,'source',?2)", params![id,format!(r#"{{"source":"{}"}}"#, source_name(source))]).map_err(storage)?;
-        tx.commit().map_err(storage)?;
-        Ok(Task {
-            id: id.into(),
-            owner_agent_id: owner_agent_id.into(),
-            name: None,
-            source,
-            status: Status::Created,
-            sequence: 1,
-        })
-    }
-
-    fn get(&mut self, id: &str) -> Result<Task, Error> {
-        let row: Option<(String, i64, String, Option<String>, String)> = self
-            .0
-            .query_row(
-                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
-                [id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
             .optional()
-            .map_err(storage)?;
-        let (state, sequence, owner_agent_id, name, source) = row.ok_or(Error::NotFound)?;
-        Ok(Task {
-            id: id.into(),
-            owner_agent_id,
-            name,
-            source: task_source(&source)?,
-            status: status(&state)?,
-            sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-        })
-    }
-
-    fn events(&mut self, id: &str, after: u64, limit: usize) -> Result<Vec<Transition>, Error> {
-        if !(1..=100).contains(&limit) {
-            return Err(Error::InvalidInput);
+            .map_err(storage)?
+            .ok_or(Error::NotFound)?;
+        if state == "created" {
+            return Err(Error::StopRequired);
         }
-        if after >= i64::MAX as u64 {
-            return Ok(vec![]);
+        if expected_sequence != u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? {
+            return Err(Error::Conflict);
         }
-        let mut stmt = self.0.prepare("SELECT previous,state,sequence FROM events WHERE task_id=?1 AND sequence>?2 ORDER BY sequence LIMIT ?3").map_err(storage)?;
-        let rows = stmt
-            .query_map(params![id, after as i64, limit as i64], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, i64>(2)?,
-                ))
-            })
-            .map_err(storage)?;
-        rows.map(|row| {
-            let (previous, next, sequence) = row.map_err(storage)?;
-            Ok(Transition {
-                previous: status(&previous)?,
-                next: status(&next)?,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            })
-        })
-        .collect()
-    }
-
-    fn running(&mut self, limit: usize) -> Result<Vec<Task>, Error> {
-        if !(1..=100).contains(&limit) {
-            return Err(Error::InvalidInput);
-        }
-        let mut stmt = self.0.prepare("SELECT id,sequence,owner_agent_id,name,source FROM tasks WHERE state='running' ORDER BY id LIMIT ?1").map_err(storage)?;
-        let rows = stmt
-            .query_map([limit as i64], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, i64>(1)?,
-                    r.get::<_, String>(2)?,
-                    r.get::<_, Option<String>>(3)?,
-                    r.get::<_, String>(4)?,
-                ))
-            })
-            .map_err(storage)?;
-        rows.map(|row| {
-            let (id, sequence, owner_agent_id, name, source) = row.map_err(storage)?;
-            Ok(Task {
-                id,
-                owner_agent_id,
-                name,
-                source: task_source(&source)?,
-                status: Status::Running,
-                sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
-            })
-        })
-        .collect()
-    }
-
-    fn commit(&mut self, id: &str, expected: u64, change: Transition) -> Result<(), Error> {
-        if expected == 0 || expected >= i64::MAX as u64 || change.sequence != expected + 1 {
-            return Err(Error::InvalidInput);
-        }
-        let legal = [
-            Action::Start,
-            Action::Pause,
-            Action::WaitForUser,
-            Action::Resume,
-            Action::Interrupt,
-            Action::Complete,
-            Action::Fail,
-            Action::Cancel,
-        ]
-        .iter()
-        .any(|action| change.previous.transition(expected, *action) == Ok(change));
-        if !legal {
-            return Err(Error::InvalidInput);
-        }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let changed = tx
-            .execute(
-                "UPDATE tasks SET state=?1,sequence=?2 WHERE id=?3 AND sequence=?4 AND state=?5",
-                params![
-                    name(change.next),
-                    change.sequence as i64,
-                    id,
-                    expected as i64,
-                    name(change.previous)
-                ],
+        Self::ensure_audit_capacity(&tx)?;
+        let version: i64 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(version),0)+1 FROM task_artifact_manifests WHERE task_id=?1",
+                [task_id],
+                |row| row.get(0),
             )
             .map_err(storage)?;
-        if changed != 1 {
+        if version <= 0 {
+            return Err(Error::StorageUnavailable);
+        }
+        let next_sequence = sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx
+            .execute(
+                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
+                params![next_sequence, task_id, sequence],
+            )
+            .map_err(storage)?
+            != 1
+        {
             return Err(Error::Conflict);
         }
         tx.execute(
-            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,?2,?3,?4)",
-            params![
-                id,
-                change.sequence as i64,
-                name(change.previous),
-                name(change.next)
-            ],
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES (?1,?2,?3,?3)",
+            params![task_id, next_sequence, state],
         )
         .map_err(storage)?;
         tx.execute(
             "INSERT INTO outbox(task_id,sequence) VALUES (?1,?2)",
-            params![id, change.sequence as i64],
+            params![task_id, next_sequence],
         )
         .map_err(storage)?;
-        tx.commit().map_err(storage)
+        tx.execute(
+            "INSERT INTO task_artifact_manifests(task_id,version,created_sequence,item_count) VALUES (?1,?2,?3,?4)",
+            params![task_id, version, next_sequence, i64::try_from(items.len()).map_err(|_| Error::InvalidInput)?],
+        )
+        .map_err(storage)?;
+        for item in items {
+            tx.execute(
+                "INSERT INTO task_artifact_manifest_items(task_id,version,ordinal,reference_id,availability) VALUES (?1,?2,?3,?4,?5)",
+                params![task_id, version, i64::from(item.ordinal), item.reference_id, artifact_availability_name(item.availability)],
+            )
+            .map_err(storage)?;
+        }
+        tx.commit().map_err(storage)?;
+        let task = Task {
+            id: task_id.to_owned(),
+            owner_agent_id,
+            name: task_name,
+            source: task_source(&source)?,
+            status: status(&state)?,
+            sequence: u64::try_from(next_sequence).map_err(|_| Error::StorageUnavailable)?,
+        };
+        let manifest = TaskArtifactManifest {
+            task_id: task_id.to_owned(),
+            version: u64::try_from(version).map_err(|_| Error::StorageUnavailable)?,
+            item_count: u16::try_from(items.len()).map_err(|_| Error::StorageUnavailable)?,
+        };
+        Ok((task, manifest))
+    }
+
+    fn artifact_manifest_items(
+        &mut self,
+        task_id: &str,
+        version: u64,
+        after_ordinal: u16,
+        limit: usize,
+    ) -> Result<Vec<TaskArtifactManifestItem>, Error> {
+        if !yonder_application::valid_id(task_id)
+            || version == 0
+            || version >= i64::MAX as u64
+            || !(1..=101).contains(&limit)
+        {
+            return Err(Error::InvalidInput);
+        }
+        let exists: bool = self
+            .0
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM task_artifact_manifests WHERE task_id=?1 AND version=?2)",
+                params![task_id, version as i64],
+                |row| row.get(0),
+            )
+            .map_err(storage)?;
+        if !exists {
+            return Err(Error::NotFound);
+        }
+        let mut statement = self
+            .0
+            .prepare(
+                "SELECT ordinal,reference_id,availability FROM task_artifact_manifest_items WHERE task_id=?1 AND version=?2 AND ordinal>?3 ORDER BY ordinal LIMIT ?4",
+            )
+            .map_err(storage)?;
+        statement
+            .query_map(
+                params![
+                    task_id,
+                    version as i64,
+                    i64::from(after_ordinal),
+                    limit as i64
+                ],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .map_err(storage)?
+            .map(|row| {
+                let (ordinal, reference_id, availability) = row.map_err(storage)?;
+                Ok(TaskArtifactManifestItem {
+                    ordinal: u16::try_from(ordinal).map_err(|_| Error::StorageUnavailable)?,
+                    reference_id,
+                    availability: artifact_availability(&availability)?,
+                })
+            })
+            .collect()
+    }
+
+    fn confirm_result(
+        &mut self,
+        task_id: &str,
+        expected_sequence: u64,
+        confirmation_id: &str,
+        comment: Option<&str>,
+    ) -> Result<Task, Error> {
+        if !yonder_application::valid_id(task_id)
+            || !yonder_application::valid_id(confirmation_id)
+            || expected_sequence == 0
+            || expected_sequence >= i64::MAX as u64
+            || comment.is_some_and(|value| {
+                value.trim().is_empty()
+                    || value.as_bytes().len() > 2048
+                    || value.chars().any(char::is_control)
+            })
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let (state, sequence, owner_agent_id, name, source): (
+            String,
+            i64,
+            String,
+            Option<String>,
+            String,
+        ) = tx
+            .query_row(
+                "SELECT state, sequence, owner_agent_id, name, source FROM tasks WHERE id=?1",
+                [task_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage)?
+            .ok_or(Error::NotFound)?;
+        if state != "completed" && state != "failed" {
+            return Err(Error::InvalidInput);
+        }
+        let existing: Option<(String, String, i64, Option<String>)> = tx
+            .query_row(
+                "SELECT confirmation_id, task_id, result_sequence, comment FROM task_user_confirmations WHERE confirmation_id=?1 OR task_id=?2",
+                params![confirmation_id, task_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        if let Some((
+            existing_confirmation_id,
+            existing_task_id,
+            result_sequence,
+            existing_comment,
+        )) = existing
+        {
+            if existing_confirmation_id == confirmation_id
+                && existing_task_id == task_id
+                && expected_sequence
+                    == u64::try_from(result_sequence).map_err(|_| Error::StorageUnavailable)?
+                && existing_comment.as_deref() == comment
+            {
+                return Ok(Task {
+                    id: task_id.to_owned(),
+                    owner_agent_id,
+                    name,
+                    source: task_source(&source)?,
+                    status: status(&state)?,
+                    sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+                });
+            }
+            return Err(Error::Conflict);
+        }
+        if expected_sequence != u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? {
+            return Err(Error::Conflict);
+        }
+        Self::ensure_audit_capacity(&tx)?;
+        let manifest_version: i64 = tx
+            .query_row(
+                "SELECT version FROM task_artifact_manifests WHERE task_id=?1 ORDER BY version DESC LIMIT 1",
+                [task_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage)?
+            .unwrap_or(1);
+        let create_empty_manifest = !tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM task_artifact_manifests WHERE task_id=?1)",
+                [task_id],
+                |row| row.get::<_, bool>(0),
+            )
+            .map_err(storage)?;
+        let next_sequence = sequence.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx
+            .execute(
+                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
+                params![next_sequence, task_id, sequence],
+            )
+            .map_err(storage)?
+            != 1
+        {
+            return Err(Error::Conflict);
+        }
+        tx.execute(
+            "INSERT INTO events(task_id, sequence, previous, state) VALUES (?1, ?2, ?3, ?4)",
+            params![task_id, next_sequence, state, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id, sequence) VALUES (?1, ?2)",
+            params![task_id, next_sequence],
+        )
+        .map_err(storage)?;
+        if create_empty_manifest {
+            tx.execute(
+                "INSERT INTO task_artifact_manifests(task_id, version, created_sequence, item_count) VALUES (?1, 1, ?2, 0)",
+                params![task_id, next_sequence],
+            )
+            .map_err(storage)?;
+        }
+        tx.execute(
+            "INSERT INTO task_user_confirmations(confirmation_id, task_id, result_sequence, confirmation_sequence, manifest_version, comment, confirmed_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'local-user')",
+            params![confirmation_id, task_id, sequence, next_sequence, manifest_version, comment],
+        )
+        .map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task {
+            id: task_id.to_owned(),
+            owner_agent_id,
+            name,
+            source: task_source(&source)?,
+            status: status(&state)?,
+            sequence: u64::try_from(next_sequence).map_err(|_| Error::StorageUnavailable)?,
+        })
     }
 }
+
+impl yonder_application::TaskPlanFragmentStore for SqliteTaskStore {
+    fn supports_plan_fragments(&self) -> bool {
+        true
+    }
+    fn submit_plan_fragment(
+        &mut self,
+        owner: &str,
+        fragment: &PlanFragment,
+    ) -> Result<Task, Error> {
+        yonder_application::plan_fragment::validate(fragment)?;
+        if !yonder_application::valid_id(owner) {
+            return Err(Error::InvalidInput);
+        }
+        let json = serde_json::to_string(fragment).map_err(|_| Error::StorageUnavailable)?;
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [&fragment.task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, actual_owner, name, source) = row.ok_or(Error::NotFound)?;
+        if actual_owner != owner {
+            return Err(Error::NotFound);
+        }
+        let task = Task {
+            id: fragment.task_id.clone(),
+            owner_agent_id: actual_owner.clone(),
+            name,
+            source: task_source(&source)?,
+            status: status(&state)?,
+            sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
+        };
+        let existing: Option<String> = tx.query_row(
+            "SELECT fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
+            params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64], |r|r.get(0)
+        ).optional().map_err(storage)?;
+        if let Some(existing) = existing {
+            if existing == json {
+                tx.commit().map_err(storage)?;
+                return Ok(task);
+            }
+            return Err(Error::Conflict);
+        }
+        if !matches!(task.status, Status::Created | Status::Running)
+            || task.sequence != fragment.expected_sequence
+        {
+            return Err(Error::Conflict);
+        }
+        let accepted = task
+            .sequence
+            .checked_add(1)
+            .ok_or(Error::StorageUnavailable)?;
+        if tx
+            .execute(
+                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND owner_agent_id=?3 AND sequence=?4",
+                params![
+                    accepted as i64,
+                    fragment.task_id,
+                    owner,
+                    task.sequence as i64
+                ],
+            )
+            .map_err(storage)?
+            != 1
+        {
+            return Err(Error::Conflict);
+        }
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",
+            params![fragment.task_id, accepted as i64, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
+            params![fragment.task_id, accepted as i64],
+        )
+        .map_err(storage)?;
+        tx.execute("INSERT INTO task_plan_fragments(task_id,plan_id,plan_version,owner_agent_id,accepted_sequence,fragment_json) VALUES(?1,?2,?3,?4,?5,?6)",params![fragment.task_id,fragment.plan_id,fragment.plan_version as i64,owner,accepted as i64,json]).map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task {
+            sequence: accepted,
+            ..task
+        })
+    }
+    fn get_plan_fragment(
+        &mut self,
+        task_id: &str,
+        plan_id: &str,
+        plan_version: u64,
+    ) -> Result<Option<StoredPlanFragment>, Error> {
+        let row: Option<(String,i64,i64,String)> = self.0.query_row(
+            "SELECT owner_agent_id,accepted_sequence,current_slot,fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",
+            params![task_id,plan_id,plan_version as i64], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))
+        ).optional().map_err(storage)?;
+        row.map(|(owner, accepted, current, json)| {
+            Ok(StoredPlanFragment {
+                owner_agent_id: owner,
+                accepted_sequence: u64::try_from(accepted)
+                    .map_err(|_| Error::StorageUnavailable)?,
+                current_slot: u16::try_from(current).map_err(|_| Error::StorageUnavailable)?,
+                fragment: serde_json::from_str(&json).map_err(|_| Error::StorageUnavailable)?,
+            })
+        })
+        .transpose()
+    }
+    fn advance_plan_fragment(
+        &mut self,
+        task_id: &str,
+        plan_id: &str,
+        plan_version: u64,
+        slot: u16,
+        expected: u64,
+    ) -> Result<Task, Error> {
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, owner, name, source) = row.ok_or(Error::NotFound)?;
+        let current = u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?;
+        if current != expected || state != "running" {
+            return Err(Error::Conflict);
+        }
+        let changed=tx.execute("UPDATE task_plan_fragments SET current_slot=current_slot+1 WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3 AND current_slot=?4",params![task_id,plan_id,plan_version as i64,slot as i64]).map_err(storage)?;
+        if changed != 1 {
+            return Err(Error::Conflict);
+        }
+        let next = expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx
+            .execute(
+                "UPDATE tasks SET sequence=?1 WHERE id=?2 AND sequence=?3",
+                params![next as i64, task_id, expected as i64],
+            )
+            .map_err(storage)?
+            != 1
+        {
+            return Err(Error::Conflict);
+        }
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,?3)",
+            params![task_id, next as i64, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
+            params![task_id, next as i64],
+        )
+        .map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task {
+            id: task_id.into(),
+            owner_agent_id: owner,
+            name,
+            source: task_source(&source)?,
+            status: Status::Running,
+            sequence: next,
+        })
+    }
+    fn hand_back_plan_fragment(
+        &mut self,
+        task_id: &str,
+        plan_id: &str,
+        plan_version: u64,
+        expected: u64,
+        reason: &str,
+    ) -> Result<Task, Error> {
+        if reason.is_empty()
+            || reason.as_bytes().len() > 1024
+            || reason
+                .chars()
+                .any(|value| value.is_control() && value != '\n')
+        {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage)?;
+        let row: Option<(String, i64, String, Option<String>, String)> = tx
+            .query_row(
+                "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",
+                [task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+        let (state, sequence, owner, name, source) = row.ok_or(Error::NotFound)?;
+        // AD-TM-21：Jev 可在第一个 CUA 动作启动前交回，但 plan.execute 已经
+        // 启动产品执行闭环；交回必须让 created 原子进入 running，避免控制条
+        // 与 Task Space 状态分裂。
+        if !matches!(state.as_str(), "created" | "running")
+            || u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)? != expected
+        {
+            return Err(Error::Conflict);
+        }
+        let exists:i64=tx.query_row("SELECT count(*) FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=?3",params![task_id,plan_id,plan_version as i64],|r|r.get(0)).map_err(storage)?;
+        if exists != 1 {
+            return Err(Error::NotFound);
+        }
+        let next = expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        if tx.execute("UPDATE tasks SET state='running',sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,reason,task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
+        tx.execute(
+            "INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,?3,'running')",
+            params![task_id, next as i64, state],
+        )
+        .map_err(storage)?;
+        tx.execute(
+            "INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",
+            params![task_id, next as i64],
+        )
+        .map_err(storage)?;
+        // unknown 结论永久保留，但已经交回慢脑的 Driver attempt 必须释放步骤
+        // 执行槽。以同一个 handback 序号关闭 attempt，归属 Agent 才能读取
+        // unknown/Observe 后提交新的受限片段；这不会推进旧片段或重放副作用。
+        tx.execute(
+            "UPDATE task_attempts SET handback_sequence=?1 WHERE task_id=?2 AND phase='unknown' AND result_sequence IS NOT NULL AND handback_sequence IS NULL",
+            params![next as i64, task_id],
+        )
+        .map_err(storage)?;
+        tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES(?1,?2,'next-intent',?3)",params![task_id,next as i64,format!(r#"{{"next_intent":{}}}"#, serde_json::to_string(reason).map_err(|_| Error::StorageUnavailable)?) ]).map_err(storage)?;
+        tx.commit().map_err(storage)?;
+        Ok(Task {
+            id: task_id.into(),
+            owner_agent_id: owner,
+            name,
+            source: task_source(&source)?,
+            status: Status::Running,
+            sequence: next,
+        })
+    }
+    fn supports_goal_verification(&self) -> bool { true }
+    fn record_goal_verification(
+        &mut self,
+        task_id: &str,
+        expected: u64,
+        observation_sequence: u64,
+        verification_id: &str,
+        outcome: GoalVerificationOutcome,
+    ) -> Result<(Task, GoalVerificationRecord), Error> {
+        if !yonder_application::valid_id(task_id)
+            || !yonder_application::valid_id(verification_id)
+            || expected == 0
+            || observation_sequence == 0
+            || observation_sequence > expected
+        { return Err(Error::InvalidInput); }
+        let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate).map_err(storage)?;
+        let row:Option<(String,i64,String,Option<String>,String)>=tx.query_row(
+            "SELECT state,sequence,owner_agent_id,name,source FROM tasks WHERE id=?1",[task_id],
+            |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))
+        ).optional().map_err(storage)?;
+        let (state,sequence,owner,name,source)=row.ok_or(Error::NotFound)?;
+        if state!="running" || u64::try_from(sequence).map_err(|_|Error::StorageUnavailable)?!=expected{return Err(Error::Conflict);}
+        let latest:Option<(i64,Option<i64>,Option<i64>)>=tx.query_row(
+            "SELECT result_sequence,action_succeeded,observe_valid FROM task_attempts WHERE task_id=?1 AND result_sequence IS NOT NULL ORDER BY result_sequence DESC LIMIT 1",
+            [task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))
+        ).optional().map_err(storage)?;
+        if !latest.is_some_and(|(result,action,observe)| result==observation_sequence as i64&&action==Some(1)&&observe==Some(1)){return Err(Error::StopRequired);}
+        let next=expected.checked_add(1).ok_or(Error::StorageUnavailable)?;
+        let outcome_name=match outcome{GoalVerificationOutcome::Achieved=>"achieved",GoalVerificationOutcome::NotAchieved=>"not-achieved"};
+        if tx.execute("UPDATE tasks SET sequence=?1,next_intent=?2 WHERE id=?3 AND sequence=?4",params![next as i64,if outcome==GoalVerificationOutcome::NotAchieved{Some("目标未完成，已交回慢脑")}else{None::<&str>},task_id,expected as i64]).map_err(storage)?!=1{return Err(Error::Conflict);}
+        tx.execute("INSERT INTO events(task_id,sequence,previous,state) VALUES(?1,?2,'running','running')",params![task_id,next as i64]).map_err(storage)?;
+        tx.execute("INSERT INTO outbox(task_id,sequence) VALUES(?1,?2)",params![task_id,next as i64]).map_err(storage)?;
+        tx.execute("INSERT INTO task_goal_verifications(task_id,verification_id,observation_sequence,verified_sequence,outcome) VALUES(?1,?2,?3,?4,?5)",params![task_id,verification_id,observation_sequence as i64,next as i64,outcome_name]).map_err(|error|if matches!(error,rusqlite::Error::SqliteFailure(_, _)){Error::Conflict}else{storage(error)})?;
+        tx.commit().map_err(storage)?;
+        let record=GoalVerificationRecord{task_id:task_id.into(),verification_id:verification_id.into(),observation_sequence,verified_sequence:next,outcome};
+        Ok((Task{id:task_id.into(),owner_agent_id:owner,name,source:task_source(&source)?,status:Status::Running,sequence:next},record))
+    }
+    fn get_goal_verification(&mut self, task_id:&str)->Result<Option<GoalVerificationRecord>,Error>{
+        let row:Option<(String,i64,i64,String)>=self.0.query_row(
+            "SELECT verification_id,observation_sequence,verified_sequence,outcome FROM task_goal_verifications WHERE task_id=?1 ORDER BY verified_sequence DESC LIMIT 1",
+            [task_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))
+        ).optional().map_err(storage)?;
+        row.map(|(verification_id,observation,verified,outcome)|Ok(GoalVerificationRecord{
+            task_id:task_id.into(),verification_id,observation_sequence:u64::try_from(observation).map_err(|_|Error::StorageUnavailable)?,verified_sequence:u64::try_from(verified).map_err(|_|Error::StorageUnavailable)?,outcome:match outcome.as_str(){"achieved"=>GoalVerificationOutcome::Achieved,"not-achieved"=>GoalVerificationOutcome::NotAchieved,_=>return Err(Error::StorageUnavailable)}
+        })).transpose()
+    }
+}
+
+
+
 
 #[cfg(test)]
 mod tests {
@@ -9775,7 +9796,7 @@ mod tests {
             },
         ];
         RuntimeEventProjector::project(&mut store, &events).unwrap();
-        let persisted = TaskStore::get(&mut store, &task.id).unwrap();
+        let persisted = TaskCoreStore::get(&mut store, &task.id).unwrap();
         assert_eq!(persisted.status, Status::Cancelled);
         assert_eq!(persisted.sequence, 5);
         let history = store.events_with_steps(&task.id, 0, 10).unwrap();
