@@ -201,6 +201,12 @@ fn region_preview_clean_title(reason: Option<&str>, event_at_ms: Option<u64>) ->
     )
 }
 
+fn should_clear_region_after_application_switch(
+    phase: yonder_application::region_preview::Phase,
+) -> bool {
+    phase != yonder_application::region_preview::Phase::Capturing
+}
+
 #[cfg(test)]
 mod preview_title_tests {
     use super::*;
@@ -209,6 +215,19 @@ mod preview_title_tests {
         assert!(region_preview_clean_title(Some("escape"), None).contains("reason=escape"));
         assert!(region_preview_clean_title(Some("app-switch"), None).contains("reason=app-switch"));
         assert!(region_preview_clean_title(Some("untrusted"), None).contains("reason=close"));
+    }
+
+    #[test]
+    fn expected_activation_switch_during_capture_does_not_clear_preview() {
+        assert!(!should_clear_region_after_application_switch(
+            yonder_application::region_preview::Phase::Capturing
+        ));
+        assert!(should_clear_region_after_application_switch(
+            yonder_application::region_preview::Phase::Selecting
+        ));
+        assert!(should_clear_region_after_application_switch(
+            yonder_application::region_preview::Phase::Reviewing
+        ));
     }
 }
 
@@ -257,6 +276,16 @@ static REGION_PREVIEW_APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 #[cfg(target_os = "macos")]
 extern "C" fn clear_region_preview_after_application_switch() {
     if let Some(app) = REGION_PREVIEW_APP.get() {
+        let capturing = app
+            .state::<PreviewState>()
+            .0
+            .lock()
+            .is_ok_and(|session| {
+                !should_clear_region_after_application_switch(session.snapshot().0)
+            });
+        if capturing {
+            return;
+        }
         let app = app.clone();
         std::thread::spawn(move || {
             let _ = clear_region_preview(&app, Some("app-switch"), None);
