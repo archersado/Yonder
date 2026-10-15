@@ -61,7 +61,7 @@ class ProtocolSingleSourceTests(unittest.TestCase):
         files = {
             "crates/protocol/src/lib.rs": "pub const PROTOCOL_VERSION: u16 = 49;\npub fn valid_id(value: &str) -> bool { !value.is_empty() }\n",
             "crates/application/src/unknown_reason.rs": "pub enum UnknownReason { Invalid }\nimpl From<UnknownReason> for yonder_protocol::AttemptUnknownReason {}\n",
-            "apps/yonder-cli/src/codex_agent_bridge.rs": "// 有意钉定 1.33\nlet version = ProtocolVersion { major: PROTOCOL_VERSION.major, minor: 33 };\n",
+            "apps/yonder-cli/src/codex_agent_bridge.rs": "// 有意钉定 1.51\nlet version = ProtocolVersion { major: PROTOCOL_VERSION.major, minor: 51 };\nlet capability = OfferedCapability::UserInputReply;\n",
         }
         for name, content in files.items():
             path = self.root / name
