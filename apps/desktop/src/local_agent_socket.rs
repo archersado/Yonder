@@ -23,7 +23,8 @@ use yonder_application::{
     AuthContext,
     agent_input::{
         AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams,
-        AgentNotification, AgentReplyParams, AgentRequest, AgentResponse, DeliveryOutcome, Version,
+        AgentNotification, AgentReplyParams, AgentRequest, AgentResponse, AgentSessionCloseParams,
+        AgentSessionCloseReason, DeliveryOutcome, Version,
         decode_notification, decode_response, encode_request, hello_accepted, registration,
     },
     gateway::{GatewaySession, Platform, local_hello_agent_id},
@@ -613,7 +614,16 @@ async fn exchange(
                 loop {
                     let delivery = tokio::select! {
                         delivery = rx.recv() => match delivery { Some(delivery) => delivery, None => break },
-                        _ = close_rx.recv() => break,
+                        _ = close_rx.recv() => {
+                            send_agent_request(&stream, &AgentRequest::SessionClose {
+                                jsonrpc: Version::V2,
+                                params: AgentSessionCloseParams {
+                                    session_id: session_id.clone(),
+                                    reason: AgentSessionCloseReason::Preempted,
+                                },
+                            }).await?;
+                            break;
+                        },
                         notification = read_agent_notification(&mut reader) => {
                             let params=notification?;
                             if hub.accept_reply(&params){

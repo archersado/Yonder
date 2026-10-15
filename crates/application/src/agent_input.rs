@@ -1,7 +1,8 @@
 pub use yonder_protocol::{
     AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams,
     AgentAttachmentMime, AgentInputParams, AgentInputSource, AgentNotification, AgentReplyMode,
-    AgentReplyParams, AgentReplyPhase, AgentRequest, AgentResponse, Version,
+    AgentReplyParams, AgentReplyPhase, AgentRequest, AgentResponse, AgentSessionCloseParams,
+    AgentSessionCloseReason, Version,
 };
 
 pub const MAX_AGENT_ATTACHMENT_BYTES: usize = yonder_protocol::MAX_AGENT_ATTACHMENT_BYTES as usize;

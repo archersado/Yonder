@@ -11,7 +11,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: 1,
-    minor: 50,
+    minor: 51,
 };
 pub const MAX_AGENT_REPLY_DELTA_BYTES: usize = 16 * 1024;
 pub const MAX_AGENT_REPLY_BYTES: usize = 64 * 1024;
@@ -339,9 +339,36 @@ pub enum AgentNotification {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+pub enum AgentSessionCloseReason {
+    #[serde(rename = "preempted")]
+    Preempted,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSessionCloseParams {
+    pub session_id: String,
+    pub reason: AgentSessionCloseReason,
+}
+
+impl AgentSessionCloseParams {
+    pub fn validate(&self) -> Result<(), RpcError> {
+        if !valid_id(&self.session_id) {
+            return Err(RpcError::new(-32602, "非法Agent会话关闭通知"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "method", deny_unknown_fields)]
 pub enum AgentRequest {
+    #[serde(rename = "agent.session.close")]
+    SessionClose {
+        jsonrpc: Version,
+        params: AgentSessionCloseParams,
+    },
     #[serde(rename = "agent.attachment.begin")]
     AttachmentBegin {
         jsonrpc: Version,
@@ -3062,6 +3089,33 @@ mod tests {
             let bytes = serde_json::to_vec(&value).unwrap();
             assert!(decode(&bytes).unwrap().validate(1000).is_err());
         }
+    }
+
+    #[test]
+    fn agent_session_preemption_close_is_strict_and_round_trips() {
+        let request = AgentRequest::SessionClose {
+            jsonrpc: Version::V2,
+            params: AgentSessionCloseParams {
+                session_id: "session-1".into(),
+                reason: AgentSessionCloseReason::Preempted,
+            },
+        };
+        let encoded = encode_agent_request(&request).unwrap();
+        assert_eq!(decode_agent_request(&encoded).unwrap(), request);
+        let AgentRequest::SessionClose { params, .. } = request else {
+            unreachable!()
+        };
+        assert!(params.validate().is_ok());
+        assert!(AgentSessionCloseParams {
+            session_id: "../invalid".into(),
+            reason: AgentSessionCloseReason::Preempted,
+        }
+        .validate()
+        .is_err());
+        assert!(decode_agent_request(
+            br#"{"jsonrpc":"2.0","method":"agent.session.close","params":{"session_id":"session-1","reason":"unknown"}}"#
+        )
+        .is_err());
     }
 
     #[test]

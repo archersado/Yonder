@@ -19,7 +19,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf},
+    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf},
     net::UnixStream,
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::mpsc,
@@ -29,7 +29,8 @@ use tokio_tungstenite::{WebSocketStream, client_async, tungstenite::Message};
 use yonder_protocol::{
     AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams,
     AgentAttachmentMime, AgentInputParams, AgentInputResult, AgentNotification, AgentReplyMode,
-    AgentReplyParams, AgentReplyPhase, AgentRequest, AgentResponse, Capability, HelloParams,
+    AgentReplyParams, AgentReplyPhase, AgentRequest, AgentResponse, AgentSessionCloseReason,
+    Capability, HelloParams,
     MAX_AGENT_ATTACHMENT_BYTES, MAX_AGENT_REPLY_BYTES, MAX_AGENT_REPLY_DELTA_BYTES,
     MAX_REQUEST_BYTES, OfferedCapability, PROTOCOL_VERSION, ProtocolVersion, Request, Response,
     Version,
@@ -690,6 +691,27 @@ async fn read_yonder(reader: &mut BufReader<&Stream>) -> io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
+async fn read_yonder_handshake(stream: &Stream) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    loop {
+        let mut byte = [0_u8; 1];
+        let read = (&*stream).read(&mut byte).await?;
+        if read == 0 {
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Yonder已断开"));
+        }
+        if byte[0] == b'\n' {
+            return Ok(bytes);
+        }
+        bytes.push(byte[0]);
+        if bytes.len() > MAX_REQUEST_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Yonder Agent帧无效",
+            ));
+        }
+    }
+}
+
 pub async fn run(agent_id: String, yonder_socket: PathBuf) -> io::Result<()> {
     let thread_id = thread_id()?;
     let mut codex = CodexAppServer::connect(&app_server_socket()?).await?;
@@ -727,8 +749,8 @@ async fn connect_yonder(
             deadline: now_ms()?.saturating_add(10_000),
             protocol_version: ProtocolVersion {
                 major: PROTOCOL_VERSION.major,
-                // 有意钉定 1.50：只声明已实现的输入、附件、replan 与回复面。
-                minor: 50,
+                // 有意钉定 1.51：声明输入、附件、replan、回复与抢占关闭面。
+                minor: 51,
             },
             session_id: Some(thread_id.into()),
             offered_capabilities: Some(vec![
@@ -740,8 +762,7 @@ async fn connect_yonder(
         },
     };
     send_yonder(&stream, &hello).await?;
-    let mut reader = BufReader::new(&stream);
-    match serde_json::from_slice::<Response>(&read_yonder(&mut reader).await?) {
+    match serde_json::from_slice::<Response>(&read_yonder_handshake(&stream).await?) {
         Ok(Response::Success { .. }) => Ok(stream),
         Ok(Response::Failure { error, .. }) => Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
@@ -981,6 +1002,25 @@ async fn serve_yonder(
         let request = serde_json::from_slice::<AgentRequest>(&bytes)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Yonder Agent请求无效"))?;
         match request {
+            AgentRequest::SessionClose { params, .. } => {
+                params
+                    .validate()
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Yonder Agent会话关闭通知无效"))?;
+                if params.session_id != thread_id {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Yonder Agent会话关闭目标不匹配",
+                    ));
+                }
+                match params.reason {
+                    AgentSessionCloseReason::Preempted => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::ConnectionAborted,
+                            "Agent输入会话已被抢占",
+                        ));
+                    }
+                }
+            }
             AgentRequest::AttachmentBegin { params, .. } => attachments.begin(params, now_ms()?),
             AgentRequest::AttachmentChunk { params, .. } => attachments.chunk(params),
             AgentRequest::AttachmentFinish {
@@ -1256,6 +1296,10 @@ printf '%s\n' 'server-pong'
             io::ErrorKind::PermissionDenied,
             "revoked"
         )));
+        assert!(!reconnectable(&io::Error::new(
+            io::ErrorKind::ConnectionAborted,
+            "preempted"
+        )));
     }
 
     #[test]
@@ -1444,6 +1488,68 @@ printf '%s\n' 'server-pong'
         gateway.await.unwrap();
         bridge.abort();
         let _ = bridge.await;
+        let _ = std::fs::remove_file(socket);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn preempted_managed_bridge_exits_without_registering_again() {
+        use interprocess::local_socket::ListenerOptions;
+
+        let socket = PathBuf::from(format!(
+            "/tmp/yap-{}-{}.sock",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let listener = ListenerOptions::new()
+            .name(socket.clone().to_fs_name::<GenericFilePath>().unwrap())
+            .try_overwrite(true)
+            .create_tokio()
+            .unwrap();
+        let mut codex = fake_app_server().await;
+        codex.resume("thread-1").await.unwrap();
+        let bridge = tokio::spawn(run_bound(
+            "codex".into(),
+            socket.clone(),
+            "thread-1".into(),
+            codex,
+            true,
+        ));
+        let stream = listener.accept().await.unwrap();
+        let mut reader = BufReader::new(&stream);
+        let _: Request = serde_json::from_slice(&read_yonder(&mut reader).await.unwrap()).unwrap();
+        (&stream)
+            .write_all(
+                b"{\"jsonrpc\":\"2.0\",\"id\":\"hello\",\"result\":{\"kind\":\"hello\",\"protocol_version\":{\"major\":1,\"minor\":51},\"platform\":\"macos\",\"capabilities\":[]}}\n",
+            )
+            .await
+            .unwrap();
+        send_yonder(
+            &stream,
+            &AgentRequest::SessionClose {
+                jsonrpc: Version::V2,
+                params: yonder_protocol::AgentSessionCloseParams {
+                    session_id: "thread-1".into(),
+                    reason: AgentSessionCloseReason::Preempted,
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let error = tokio::time::timeout(Duration::from_secs(3), bridge)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted);
+        assert!(tokio::time::timeout(Duration::from_millis(250), listener.accept())
+            .await
+            .is_err());
+        drop(reader);
+        drop((stream, listener));
         let _ = std::fs::remove_file(socket);
     }
 

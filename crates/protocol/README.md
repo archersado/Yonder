@@ -24,6 +24,8 @@
 
 协议1.50增加显式协商的 `user_input_reply`、圈选输入的 `reply_mode` 与 Agent→Yonder `agent.reply` 通知。单段正文上限16 KiB、累计可见正文上限64 KiB；回复仅驻运行时内存，不进入任务持久化或日志。
 
+协议1.51增加 Yonder→Connector 的 `agent.session.close(reason=preempted)`。被单活新会话抢占的旧 Connector 必须终止绑定且不得自动重连；普通 EOF、连接重置和连接拒绝仍按既有有界策略恢复。关闭帧不包含正文、任务或回复内容。
+
 ## 生成与检查
 
 在仓库根目录运行：

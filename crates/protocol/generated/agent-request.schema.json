@@ -10,6 +10,27 @@
         },
         "method": {
           "type": "string",
+          "const": "agent.session.close"
+        },
+        "params": {
+          "$ref": "#/$defs/AgentSessionCloseParams"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "jsonrpc",
+        "params"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "type": "string",
           "const": "agent.attachment.begin"
         },
         "params": {
@@ -250,6 +271,28 @@
       "type": "string",
       "enum": [
         "stream"
+      ]
+    },
+    "AgentSessionCloseParams": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/AgentSessionCloseReason"
+        },
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "reason"
+      ]
+    },
+    "AgentSessionCloseReason": {
+      "type": "string",
+      "enum": [
+        "preempted"
       ]
     },
     "Version": {

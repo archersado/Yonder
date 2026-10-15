@@ -601,16 +601,16 @@ mod tests {
 
     #[test]
     fn capability_negotiation_minor_0_through_current_matches_golden() {
-        assert_eq!(PROTOCOL_VERSION.minor, 50, "协议升版后须显式扩展能力协商 golden");
+        assert_eq!(PROTOCOL_VERSION.minor, 51, "协议升版后须显式扩展能力协商 golden");
         let expected_top = [
             0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19,
             20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
-            38, 39, 40, 41, 41, 43, 44, 45, 46, 47, 48, 49, 49,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 47, 48, 49, 49, 49,
         ];
         let expected_read = [
             0, 0, 0, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 13, 15, 16, 17, 18, 19,
             20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 29, 31, 32, 33, 34, 35, 36, 37,
-            38, 39, 40, 41, 41, 43, 44, 45, 46, 46, 46, 49, 49,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 46, 46, 49, 49, 49,
         ];
         for minor in 0..=PROTOCOL_VERSION.minor {
             let QueryResult::Hello { protocol_version, capabilities, .. } = full_capability_hello(minor) else {
