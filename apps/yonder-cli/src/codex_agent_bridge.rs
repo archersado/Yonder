@@ -378,9 +378,10 @@ impl CodexAppServer {
     }
 
     async fn attach_or_resume(&mut self, thread_id: &str) -> io::Result<()> {
-        if self.is_loaded(thread_id).await? {
-            return Ok(());
-        }
+        // `thread/loaded/list` 只表示共享 daemon 持有该 thread，不表示
+        // 当前 App Server 客户端已订阅 item/turn 通知。无论是否已加载，
+        // 都必须经同一共享 daemon/proxy 执行 resume 才能回传 Agent 回复。
+        let _ = self.is_loaded(thread_id).await?;
         self.resume(thread_id).await
     }
 
@@ -1403,17 +1404,17 @@ printf '%s\n' 'server-pong'
     }
 
     #[tokio::test]
-    async fn managed_app_server_attaches_loaded_thread_without_resuming_active_writer() {
+    async fn managed_app_server_subscribes_an_already_loaded_thread() {
         let (mut server, mut calls) = fake_app_server_with_loaded_state(true).await;
         server.attach_or_resume("thread-1").await.unwrap();
         assert_eq!(calls.recv().await.unwrap()["method"], "initialize");
         assert_eq!(calls.recv().await.unwrap()["method"], "initialized");
         assert_eq!(calls.recv().await.unwrap()["method"], "thread/loaded/list");
-        assert!(calls.try_recv().is_err());
+        assert_eq!(calls.recv().await.unwrap()["method"], "thread/resume");
     }
 
     #[tokio::test]
-    async fn managed_app_server_resumes_only_an_unloaded_thread() {
+    async fn managed_app_server_resumes_an_unloaded_thread() {
         let (mut server, mut calls) = fake_app_server_with_loaded_state(false).await;
         server.attach_or_resume("thread-1").await.unwrap();
         assert_eq!(calls.recv().await.unwrap()["method"], "initialize");
