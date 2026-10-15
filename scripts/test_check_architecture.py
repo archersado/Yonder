@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from check_architecture import DOCUMENTS, cargo_executable, check_dependencies, check_planning, check_pr, check_protocol_single_source, repository_file
+from check_architecture import DOCUMENTS, cargo_executable, check_dependencies, check_frontend_single_source, check_planning, check_pr, check_protocol_single_source, repository_file
 
 
 def metadata(name, dependencies):
@@ -89,6 +89,51 @@ class ProtocolSingleSourceTests(unittest.TestCase):
         bridge.write_text("let version = ProtocolVersion { major: PROTOCOL_VERSION.major, minor: PROTOCOL_VERSION.minor };\n", encoding="utf-8")
         with self.assertRaises(ValueError):
             check_protocol_single_source(self.root)
+
+
+class FrontendSingleSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        generated = self.root / "crates/protocol/generated/protocol.ts"
+        generated.parent.mkdir(parents=True)
+        generated.write_text("\n".join([
+            'export type TaskStatus = "created" | "running" | "completed";',
+            'export type TaskSource = "local-agent" | "cloud-agent";',
+            'export type TaskObservationResult = "matched" | "not-matched" | "unknown";',
+            'export type AttemptUnknownReason = "invalid-input" | "timed-out";',
+            'export type FocusFailure = "window-missing" | "activation-failed";',
+            'export type ArtifactAvailability = "available" | "missing";',
+            'export type FileGrantPurpose = "read" | "replace";',
+        ]), encoding="utf-8")
+        self.page = self.root / "apps/desktop/ui/task-space.js"
+        self.page.parent.mkdir(parents=True)
+        self.page.write_text(
+            "// 协议模型唯一来源：crates/protocol/generated/protocol.ts\n"
+            "const labels = { created: '已创建', running: '执行中', completed: '已完成' };\n",
+            encoding="utf-8",
+        )
+
+    def test_accepts_display_mapping_with_generated_source(self):
+        check_frontend_single_source(self.root)
+
+    def test_rejects_missing_or_wrong_source_declaration(self):
+        original = self.page.read_text(encoding="utf-8")
+        for source in ("", "// 协议模型唯一来源：apps/desktop/ui/protocol.ts\n"):
+            with self.subTest(source=source):
+                self.page.write_text(source + original.split("\n", 1)[1], encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    check_frontend_single_source(self.root)
+
+    def test_rejects_a_second_protocol_enum(self):
+        self.page.write_text(
+            self.page.read_text(encoding="utf-8")
+            + "const taskStatuses = ['created', 'running', 'completed'];\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError):
+            check_frontend_single_source(self.root)
 
 
 class AssociationTests(unittest.TestCase):

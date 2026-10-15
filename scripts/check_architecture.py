@@ -19,6 +19,17 @@ ALLOWED = {
     "yonder-cli": {"yonder-protocol"},
 }
 
+FRONTEND_PROTOCOL_SOURCE = "crates/protocol/generated/protocol.ts"
+FRONTEND_PROTOCOL_TYPES = {
+    "TaskStatus",
+    "TaskSource",
+    "TaskObservationResult",
+    "AttemptUnknownReason",
+    "FocusFailure",
+    "ArtifactAvailability",
+    "FileGrantPurpose",
+}
+
 
 def cargo_executable():
     return os.environ.get("CARGO") or shutil.which("cargo") or str(Path.home() / ".cargo/bin/cargo")
@@ -75,6 +86,55 @@ def check_protocol_single_source(root):
         or "minor: PROTOCOL_VERSION.minor" in bridge
     ):
         raise ValueError("Codex bridge 必须显式钉定抢占关闭所需的协议 1.51")
+
+
+def check_frontend_single_source(root):
+    generated = root / FRONTEND_PROTOCOL_SOURCE
+    if not generated.is_file():
+        raise ValueError(f"前端协议生成来源不存在：{FRONTEND_PROTOCOL_SOURCE}")
+    generated_text = generated.read_text(encoding="utf-8")
+    unions = {}
+    for name, body in re.findall(
+        r'^export type (\w+) = ((?:"[^"]+"(?: \| )?)+);$',
+        generated_text,
+        re.MULTILINE,
+    ):
+        if name in FRONTEND_PROTOCOL_TYPES:
+            unions[name] = set(re.findall(r'"([^"]+)"', body))
+    missing = sorted(FRONTEND_PROTOCOL_TYPES - unions.keys())
+    if missing:
+        raise ValueError(f"前端协议生成来源缺少受控类型：{', '.join(missing)}")
+
+    declaration = f"协议模型唯一来源：{FRONTEND_PROTOCOL_SOURCE}"
+    for page in sorted((root / "apps/desktop/ui").glob("*.js")):
+        text = page.read_text(encoding="utf-8")
+        mappings = re.findall(
+            r"\bconst\s+(?:labels|[A-Za-z_$][\w$]*(?:Labels|Statuses|Sources|Purposes|Availabilities))\s*=\s*([\[{][^;]+)",
+            text,
+            re.DOTALL,
+        )
+        mapping_text = "\n".join(mappings)
+        literals = set(re.findall(r"(?<![\w-])['\"]([a-z][a-z0-9-]*)['\"]", mapping_text))
+        literals.update(re.findall(r"\b([a-z][a-z0-9-]*)\s*:", mapping_text))
+        used = sorted(
+            name for name, values in unions.items()
+            if len(literals & values) >= min(2, len(values))
+        )
+        if not used:
+            continue
+        relative = page.relative_to(root)
+        if declaration not in text:
+            raise ValueError(
+                f"{relative} 使用协议状态 {', '.join(used)}，但未声明唯一生成来源"
+            )
+        for variable, body in re.findall(
+            r"\bconst\s+([A-Za-z_$][\w$]*(?:Statuses|Sources|Purposes|Availabilities))\s*=\s*\[([^\]]*)\]",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        ):
+            values = set(re.findall(r"['\"]([a-z][a-z0-9-]*)['\"]", body))
+            if any(len(values & union) >= min(2, len(union)) for union in unions.values()):
+                raise ValueError(f"{relative} 重新声明协议枚举集合：{variable}")
 
 
 def repository_file(root, value):
@@ -223,6 +283,7 @@ def main():
     )
     check_dependencies(json.loads(metadata))
     check_protocol_single_source(root)
+    check_frontend_single_source(root)
     check_planning(root)
     if args.event:
         check_pr(root, json.loads(args.event.read_text(encoding="utf-8")))
