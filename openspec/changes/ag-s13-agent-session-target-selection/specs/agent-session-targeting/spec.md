@@ -16,6 +16,16 @@ Yonder MUST 同时只保留一个可接收用户输入的 AgentSession，新的�
 - **THEN** 新连接抢占旧连接
 - **AND** 旧连接延迟 unregister 不得删除新连接
 
+#### Scenario: 被抢占 Connector 终止
+- **WHEN** 新会话注册并抢占当前旧会话
+- **THEN** Yonder 向旧 Connector 发送 `agent.session.close` 且原因为 `preempted`
+- **AND** 旧 Connector 终止绑定，不得进入自动重连并再次竞争活动槽位
+
+#### Scenario: Yonder 重启仍可恢复
+- **WHEN** Connector 因 EOF、连接重置或连接拒绝失去 Yonder，而未收到 `preempted`
+- **THEN** Connector 继续使用既有有界退避重连
+- **AND** 不重放任何未确认输入或副作用
+
 ### Requirement: 抢占保持回复隔离
 Yonder MUST 在抢占时释放旧会话的短生命回复关联，并 MUST NOT 把旧回复通知投影到新会话。
 

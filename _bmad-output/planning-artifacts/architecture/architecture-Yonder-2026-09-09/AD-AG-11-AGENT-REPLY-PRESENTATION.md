@@ -53,3 +53,4 @@ Architecture Impact：architecture-change（AgentSession 双向协议、回复�
 - 旧连接随后到达的 unregister 必须因 token 不匹配而不能删除新会话；当前会话断开后输入通道离线，直到下一连接注册。
 - 被抢占会话若持有未完成回复，Yonder 清除其短生命关联并投影为中断，不把旧回复串入新会话。
 - Agent 注册授权、Gateway 任务连接和任务归属不受输入会话抢占影响；圈选/语音在抢占瞬间失败时仍保留草稿，可对唯一新会话重试。
+- 服务端抢占 MUST 向旧 Connector 发送显式 `preempted` 关闭原因；旧 Connector 将其视为终态并退出，不能把主动抢占误判为 Yonder 重启后再次竞争单活槽位。已发送但未确认的输入仍保持 `unknown` 且不可重放。

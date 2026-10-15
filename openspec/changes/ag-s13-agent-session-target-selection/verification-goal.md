@@ -11,6 +11,7 @@
 - Hub/Socket/Desktop/UI 自动化全部通过。
 - 正式预览包中不再出现会话列表、选择按钮或“请选择接收输入的 Agent”。
 - 抢占时旧连接退出，旧回复不会进入新卡片。
+- 旧 Connector 收到 `preempted` 后不再注册；模拟 Yonder 重启的 EOF 仍在有界窗口内恢复注册。
 - 唯一当前会话完成真实输入 → 回复 → 朗读 → 停止，且文字保留。
 
 全部门禁通过前，本 Goal 不记 PASS，不 Archive AG-S13。

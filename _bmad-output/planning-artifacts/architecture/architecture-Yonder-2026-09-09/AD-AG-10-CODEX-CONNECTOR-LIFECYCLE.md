@@ -43,5 +43,14 @@ AG-S5 已验证 Codex CLI 0.156.1 的共享 App Server + 显式 thread 绑定可
 - 让 MCP 单向任务连接冒充双向输入连接；
 - 用无限重试隐藏客户端不支持或绑定已经失效。
 - 把输入正文放入 `codex queue --message` 命令行参数，造成进程列表或诊断工具泄露正文。
+
+## 2026-10-15 单活抢占退出语义增量
+
+AG-S13 真实验证发现，仅关闭旧 Socket 会被 Codex Connector 按“Yonder 重启”处理并自动重连，导致旧会话与新会话持续互相抢占。接受以下修订：
+
+- Yonder 主动抢占旧 AgentSession 时，先通过既有本地 Agent 连接发送有界 `agent.session.close(reason=preempted)` 帧，再关闭连接。
+- Connector 收到 `preempted` 必须终止当前绑定进程，不得进入 Gateway 重连循环；只有连接拒绝、重置、EOF、超时等传输故障继续使用既有有界重连。
+- 关闭帧只包含当前 `session_id` 与封闭原因，不包含输入、回复、任务或 Agent Payload，不写入 SQLite、事件、Outbox 或日志。
+- 若输入已经发送但尚未收到接受回执时发生抢占，结果仍是 `unknown`，不得自动重放；关闭帧不能伪造未送达事实。
 - 把 `codex app-server proxy` 当作逐行 JSON App Server。该命令只转发 daemon 控制 Socket 的原始字节，客户端必须在其上完成 WebSocket 握手与帧协议。
 - 为当前仍由共享 daemon 持有 active writer 的会话另起 `app-server --listen stdio://`；第二个 App Server 会因 writer 冲突拒绝 `thread/resume`。
