@@ -17,7 +17,7 @@
 - macOS 原生 WKWebView 隔离夹具 PASS，结构化日志与可见截图在 `apps/desktop/evidence/tm-s5-historical-observation-visible-20260924/`。首次截图未滚到时间线，诊断截图保留在 `apps/desktop/evidence/tm-s5-historical-observation-20260924/`。此夹具不连接正式宿主或真实任务库，不能冒充正式端到端验证。
 - `cargo build -p yonder-desktop -p yonder-cli` 通过，本机预览包重建并重启（PID 31993）。正式任务库只读核对无观察事件，未为验证向真实库注入测试数据。
 - 以独立 Tauri bundle identifier `com.yonder.observation.fixture` 启动正式桌面宿主；仅在其专用 Application Support 目录生成任务库，两步 Observe 已提交，宿主重启恢复后任务转为 `interrupted`。通过该宿主私有 Unix Socket 的只读 Agent Gateway 验证：1.20 返回 11 条事件且无 `observation`；1.21 返回 11 条事件，其中两条历史 Observe 分别为 `step-one/matched/目标已打开` 和 `step-two/unknown/核实超时，结果未知`。证据：`/private/tmp/yonda-observation-gateway-20260924/result.json`。测试 Agent 只登记在隔离库，未写入真实任务库。
-- 隔离宿主原生 Task Space 经桌宠键盘入口打开，切换“全部”并选中真实持久化的测试任务；AX 检查两个不同序号的 Observe 文案，随后分别滚动并截图。`step-one` 截图显示“已匹配 · 目标已打开”，`step-two` 截图显示“未知 · 核实超时，结果未知”。正式 Tauri 宿主 macOS 原生可见 E2E PASS；截图、结构化结果和 Gateway 结果在 `apps/desktop/evidence/tm-s5-historical-observation-native-host-20260924/`。测试脚本：`apps/desktop/check-historical-observation-host-macos.swift`。
+- 隔离宿主原生 Task Space 经桌宠键盘入口打开，切换“全部”并选中真实持久化的测试任务；AX 检查两个不同序号的 Observe 文案，随后分别滚动并截图。`step-one` 截图显示“已匹配 · 目标已打开”，`step-two` 截图显示“未知 · 核实超时，结果未知”。正式 Tauri 宿主 macOS 原生可见 E2E PASS；截图、结构化结果和 Gateway 结果在 `apps/desktop/evidence/tm-s5-historical-observation-native-host-20260924/`。测试脚本：`scripts/verification/desktop/check-historical-observation-host-macos.swift`。
 
 ## 当前结论与保留项
 

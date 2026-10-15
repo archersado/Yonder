@@ -26,12 +26,12 @@ Result: PASS
 
 ## 回归结果
 
-- `python3 apps/desktop/check-sky-cua-worker.py`：PASS；覆盖已安装应用解析、Worker进程重建后的外置绑定恢复、`click_count=2`、`ARROWDOWN→Down`与敏感参数剥离。
+- `python3 scripts/verification/desktop/check-sky-cua-worker.py`：PASS；覆盖已安装应用解析、Worker进程重建后的外置绑定恢复、`click_count=2`、`ARROWDOWN→Down`与敏感参数剥离。
 - `cargo test --offline --locked -p yonder-protocol`：17 PASS。
 - `cargo test --offline --locked -p yonder-application`：58 PASS。
 - `cargo test --offline --locked -p yonder-adapters`：77 PASS；覆盖Adapter绑定与Worker进程生命周期分离、同任务激活及任务会话清理。
 - `cargo test --offline --locked -p yonder-desktop`：lib 25 PASS、main 11 PASS；发布契约负例已对齐协议1.41。
-- `python3 apps/desktop/check-cua-package.py`：PASS；Sky `0.7.1`、签名Node与Client Team `2DC432GLL2`，trycua/Qwen缺失符合单栈边界。
+- `python3 scripts/verification/desktop/check-cua-package.py`：PASS；Sky `0.7.1`、签名Node与Client Team `2DC432GLL2`，trycua/Qwen缺失符合单栈边界。
 
 ## 2026-10-08 Automation声明回归
 

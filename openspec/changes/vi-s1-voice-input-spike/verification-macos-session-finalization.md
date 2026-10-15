@@ -22,7 +22,7 @@
 
 ```text
 cargo test -p yonder-desktop voice_input -- --nocapture
-node apps/desktop/check-voice-session.mjs
+node scripts/verification/desktop/check-voice-session.mjs
 openspec validate vi-s1-voice-input-spike --strict
 cargo build -p yonder-desktop
 python3 apps/desktop/package-macos-observation-fixture.py voice-session

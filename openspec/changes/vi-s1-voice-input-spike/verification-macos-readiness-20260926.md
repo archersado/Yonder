@@ -18,7 +18,7 @@
 ## 已复核的实现子范围
 
 - `cargo test -p yonder-desktop voice_input -- --nocapture`：4 项确定性语音状态/终态回归通过。
-- `node apps/desktop/check-voice-session.mjs`：停顿后整段发送文案及单一 final 提交分支通过。
+- `node scripts/verification/desktop/check-voice-session.mjs`：停顿后整段发送文案及单一 final 提交分支通过。
 - `openspec validate vi-s1-voice-input-spike --strict`：通过。
 
 ## 恢复条件

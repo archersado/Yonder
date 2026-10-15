@@ -11,7 +11,7 @@
 
 - `cargo test -p yonder-adapters -p yonder-application`：38 项通过。
 - `clang -fsyntax-only -Wall -Wextra crates/adapters/src/work_focus_macos.c -framework ApplicationServices` 通过。
-- 隔离原生样本 `python3 apps/desktop/check-work-focus-macos.py apps/desktop/evidence/tm-s3-work-focus-visibility-macos-20260920` 通过：`visible_on_active_space=true`，最小化恢复、同名重叠拒绝、关闭拒绝、释放后拒绝均通过；未启动 Recording 或附加应用。
+- 隔离原生样本 `python3 scripts/verification/desktop/check-work-focus-macos.py apps/desktop/evidence/tm-s3-work-focus-visibility-macos-20260920` 通过：`visible_on_active_space=true`，最小化恢复、同名重叠拒绝、关闭拒绝、释放后拒绝均通过；未启动 Recording 或附加应用。
 - 结构化证据：[result.json](../../../apps/desktop/evidence/tm-s3-work-focus-visibility-macos-20260920/result.json)。
 
 ## 保留边界

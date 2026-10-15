@@ -14,7 +14,7 @@ v6只有整体轻晃，用户否决专属动作。v7初次四帧失败头部混�
 
 ## 可复现检查
 
-生成 `python3 apps/desktop/build-animation-preview.py`；同一 ego-browser space 21/p1，导入 apps/desktop/check-animation-preview.mjs 调用 checkAnimationPreview。连续上方观察17秒，下方11秒，各自至少两轮。
+生成 `python3 apps/desktop/build-animation-preview.py`；同一 ego-browser space 21/p1，导入 scripts/verification/desktop/check-animation-preview.mjs 调用 checkAnimationPreview。连续上方观察17秒，下方11秒，各自至少两轮。
 
 九态均检查呼吸变化、完整闭眼采样、maxMix=0。收到请求/等待响应/失败额外检查头部矩阵变化；等待用户/暂停/成功检查爪或翼的局部矩阵变化；执行检查左右爪角度变化。验证使用真实时钟，不注入进度、任务或录制事件。完成最后补充余弦起落以保证落地速度归零，其结构检查随后再次执行。
 

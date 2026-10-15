@@ -8,7 +8,7 @@
 
 ## 可复现检查
 
-先执行 `python3 apps/desktop/build-animation-preview.py`。在已有 ego-browser TaskSpace 中导入 `apps/desktop/check-animation-preview.mjs`，调用 `checkAnimationPreview(page, output)`；不得额外创建恢复用 TaskSpace。本次使用 space 21 / p1。
+先执行 `python3 apps/desktop/build-animation-preview.py`。在已有 ego-browser TaskSpace 中导入 `scripts/verification/desktop/check-animation-preview.mjs`，调用 `checkAnimationPreview(page, output)`；不得额外创建恢复用 TaskSpace。本次使用 space 21 / p1。
 
 上方六态连续观察17秒，下方三态连续观察11秒，覆盖各自主循环至少两轮。每态采样确认 ready、呼吸变化、闭眼覆盖度超过0.95、专属动作或两爪角度变化。检查通过不等同于用户认可动作自然程度。
 

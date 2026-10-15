@@ -14,8 +14,8 @@
 
 ## 验证结果
 
-- `YONDA_EXPECT_APP_SWITCH=1 swift apps/desktop/check-region-preview-macos.swift`：PASS。选择中切换真实 TextEdit 会清场；截图主动隐藏保留 `Capturing` 会话并显示图片确认卡；确认卡中再次切换会清场。
-- `YONDA_EXPECT_CAPTURE_CANCEL=1 swift apps/desktop/check-region-preview-macos.swift`：PASS。有效框选显示内存图片，取消后会话清零，重新打开不存在旧预览。
+- `YONDA_EXPECT_APP_SWITCH=1 swift scripts/verification/desktop/check-region-preview-macos.swift`：PASS。选择中切换真实 TextEdit 会清场；截图主动隐藏保留 `Capturing` 会话并显示图片确认卡；确认卡中再次切换会清场。
+- `YONDA_EXPECT_CAPTURE_CANCEL=1 swift scripts/verification/desktop/check-region-preview-macos.swift`：PASS。有效框选显示内存图片，取消后会话清零，重新打开不存在旧预览。
 - `cargo test --locked -p yonder-application region_preview`：5/5 PASS。
 - `cargo test --locked -p yonder-desktop preview_title_tests::`：2/2 PASS。
 - `python3 scripts/check_architecture.py` 与 `openspec validate cx-s2-capture-activation-race --strict`：PASS。

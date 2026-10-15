@@ -15,7 +15,7 @@ Windows：依主人决定暂缓，不纳入本次 macOS 结论。
 - `cargo test -p yonder-application -p yonder-protocol --locked`：44/44 与 13/13 PASS。
 - `cargo test -p yonder-desktop --locked`：library 15/15、binary 11/11 PASS；包含 CUA 控制条不压制新任务、语音/圈选保护与发布契约 1.32/schema 21。
 - `cargo run -p yonder-protocol --example generate --locked -- --check`：PASS。
-- `node --check apps/desktop/ui/task-space.js` 与 `node --check apps/desktop/check-task-space.mjs`：PASS；前端夹具断言每次列表请求均携带 `newest_first=true`。
+- `node --check apps/desktop/ui/task-space.js` 与 `node --check scripts/verification/desktop/check-task-space.mjs`：PASS；前端夹具断言每次列表请求均携带 `newest_first=true`。
 
 ## 正式链路证据
 

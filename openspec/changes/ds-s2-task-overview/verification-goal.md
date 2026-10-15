@@ -19,6 +19,6 @@
 - `apps/desktop/evidence/live-local-agent-menu-text-20260914/result.json`
 - `apps/desktop/evidence/task-filter-20260917/result.json`
 - `apps/desktop/evidence/task-overview-verification-20260918/browser-result.json`
-- `apps/desktop/check-task-space.mjs`
+- `scripts/verification/desktop/check-task-space.mjs`
 
 21 项跨页、失败注入和响应竞态使用显式测试夹具，不声称为 21 个真实执行任务。真实 SQLite 、两任务、授权边界和 macOS 原生菜单由独立证据覆盖。逐任务控制、外部 ego-lite 关联和 Windows 最终证据属完整 Story 剩余范围。

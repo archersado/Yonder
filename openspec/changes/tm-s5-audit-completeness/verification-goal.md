@@ -16,7 +16,7 @@
 ## 已通过检查
 
 - `/Users/archersado/.cargo/bin/cargo test --offline --locked --workspace`：88 项通过。
-- `node apps/desktop/check-task-space.mjs`：通过。
+- `node scripts/verification/desktop/check-task-space.mjs`：通过。
 - `openspec validate tm-s5-audit-completeness --strict` 与 `openspec validate --all --strict`：通过。
 - `env PATH=/usr/bin:/bin /usr/bin/python3 -m unittest discover -s scripts -p 'test_*.py'`：22 项通过。
 - `env PATH=/usr/bin:/bin /usr/bin/python3 scripts/check_architecture.py`：通过。

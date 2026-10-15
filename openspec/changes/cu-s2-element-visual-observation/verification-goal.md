@@ -6,7 +6,7 @@
 
 - `cargo test -p yonder-protocol -p yonder-application`：67项PASS。
 - `cargo check -p yonder-desktop`：PASS。
-- `python3 apps/desktop/check-cua-visual-fallback.py`：证明歧义元素不执行副作用、只采集同一后台可信窗口截图，输出`element_first=true`、`visual_fallback=true`、`side_effect_executed=false`。
+- `python3 scripts/verification/desktop/check-cua-visual-fallback.py`：证明歧义元素不执行副作用、只采集同一后台可信窗口截图，输出`element_first=true`、`visual_fallback=true`、`side_effect_executed=false`。
 
 ## 2026-10-08 Sky 正式 Worker 回归修正
 

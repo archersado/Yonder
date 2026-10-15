@@ -12,7 +12,7 @@
 ## 环境与结果
 
 - macOS arm64；`cargo test --workspace`：88 项通过（边界测试最后加严后，定向 2 项重跑通过）。
-- 合成事件测试覆盖转义、单项超限、256 KiB 精确临界值、首项超限、整页截断和续读；Task Space 既有分页脚本 `node apps/desktop/check-task-space.mjs` 通过。
+- 合成事件测试覆盖转义、单项超限、256 KiB 精确临界值、首项超限、整页截断和续读；Task Space 既有分页脚本 `node scripts/verification/desktop/check-task-space.mjs` 通过。
 - `openspec validate --all`：66 项通过；`python3 scripts/check_architecture.py` 与 `python3 scripts/test_check_architecture.py` 通过；`git diff --check` 通过。
 - `cargo build -p yonder-desktop -p yonder-cli` 通过，macOS 预览包重建并重启。
 - 本增量不改变原生 UI 或 Driver；查询字节预算为跨平台纯 Rust 路径。Windows 原生证据仍按用户指示暂缓。

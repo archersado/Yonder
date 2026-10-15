@@ -10,7 +10,7 @@ OpenSpec: e0-validate-desktop-foundation
 
 ## 本轮结果
 
-命令：`swift apps/desktop/check-dragon-native-drag-macos.swift <Yonda-PID> <证据目录>`。
+命令：`swift scripts/verification/desktop/check-dragon-native-drag-macos.swift <Yonda-PID> <证据目录>`。
 
 本轮在执行前读取 `CGSessionCopyCurrentDictionary()`，`CGSSessionScreenIsLocked=1`。验证工具因此写出 `native-result.json` 的 `blocked_by:"screen_locked"`、`passed:false` 并以 9 退出，不发送鼠标事件，也不把位移 0 判定为产品失败。
 
@@ -28,7 +28,7 @@ OpenSpec: e0-validate-desktop-foundation
 - `openspec validate e0-validate-desktop-foundation`：通过。
 - `node --check apps/desktop/ui/pet.js`：通过。
 - `python3 -m json.tool apps/desktop/tauri.conf.json`：通过。
-- `swift -frontend -parse apps/desktop/check-dragon-native-drag-macos.swift`：通过。
+- `swift -frontend -parse scripts/verification/desktop/check-dragon-native-drag-macos.swift`：通过。
 
 ## 剩余门禁
 

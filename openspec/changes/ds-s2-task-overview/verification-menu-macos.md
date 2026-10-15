@@ -10,7 +10,7 @@
 
 ## 浏览器验证
 
-ego-browser TaskSpace 3，使用同一p1。apps/desktop/check-task-space.mjs包含显式测试夹具，未进入产品任务库：21任务跨页可达、详情缺失字段反馈、读取失败保留过期页、全部筛选重置第一页均通过；小龙轻点仅一次打开，模拟减少动态效果下Enter仍打开、拖动不误开且调用原生拖动/隐藏均通过。
+ego-browser TaskSpace 3，使用同一p1。scripts/verification/desktop/check-task-space.mjs包含显式测试夹具，未进入产品任务库：21任务跨页可达、详情缺失字段反馈、读取失败保留过期页、全部筛选重置第一页均通过；小龙轻点仅一次打开，模拟减少动态效果下Enter仍打开、拖动不误开且调用原生拖动/隐藏均通过。
 
 最初file页面使用module脚本停在读取中，现场显示无资源条目，改为无模块依赖的defer脚本并以闭包隔离后正常执行。测试夹具用于UI回归，不声称21个任务已在真实桌面执行。该TaskSpace已finish，未保留测试页。
 
@@ -20,7 +20,7 @@ ego-browser TaskSpace 3，使用同一p1。apps/desktop/check-task-space.mjs包�
 
 新菜单早期task-menu-20260914因启动/状态下未找到清醒按钮未通过；task-menu-retry-20260914取得真实空任务画面，但关闭隐藏检查未通过。按钮/Escape改用统一原生task_menu_close，只允许本地菜单窗口，不再由UI传目标label。下一次启动早期task-menu-close-20260914辅助功能入口未就绪；验证工具补有界就绪等待，不据早期失败断言产品入口损坏。
 
-最终工具`swift apps/desktop/check-task-space-macos.swift apps/desktop/evidence/task-menu-settled-20260914`退出0：PID 88013，window_id 35357，pet_activation_opens_menu、real_empty_state、close_hides、tray_restores_same_window均true。native-empty.png人工查看为完整圆角透明任务菜单，result.json保留结构化证据。该工具使用AXPress激活小龙与关闭按钮，不能替代物理鼠标/所有屏幕位置验证；真实任务库目前为空，不将空库样本扩大为真实并行执行通过。
+最终工具`swift scripts/verification/desktop/check-task-space-macos.swift apps/desktop/evidence/task-menu-settled-20260914`退出0：PID 88013，window_id 35357，pet_activation_opens_menu、real_empty_state、close_hides、tray_restores_same_window均true。native-empty.png人工查看为完整圆角透明任务菜单，result.json保留结构化证据。该工具使用AXPress激活小龙与关闭按钮，不能替代物理鼠标/所有屏幕位置验证；真实任务库目前为空，不将空库样本扩大为真实并行执行通过。
 
 ## 单一桌宠与回归
 

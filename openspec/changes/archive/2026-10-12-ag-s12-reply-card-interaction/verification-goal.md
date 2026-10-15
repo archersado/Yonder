@@ -10,9 +10,9 @@
 
 ## 自动验证
 
-- `node apps/desktop/check-safe-markdown.mjs`：PASS；松散列表归并为一个 `ul` 与三个 `li`，既有流式、危险内容和禁用 `innerHTML` 合约继续通过。
-- `node apps/desktop/check-region-preview-drag.mjs`：PASS；标题拖动区、4 点阈值、释放 pointer capture、原生拖动命令和最小 capability 权限通过。
-- `node apps/desktop/check-region-submit-recovery.mjs`、`node apps/desktop/check-voice-session.mjs`：PASS。
+- `node scripts/verification/desktop/check-safe-markdown.mjs`：PASS；松散列表归并为一个 `ul` 与三个 `li`，既有流式、危险内容和禁用 `innerHTML` 合约继续通过。
+- `node scripts/verification/desktop/check-region-preview-drag.mjs`：PASS；标题拖动区、4 点阈值、释放 pointer capture、原生拖动命令和最小 capability 权限通过。
+- `node scripts/verification/desktop/check-region-submit-recovery.mjs`、`node scripts/verification/desktop/check-voice-session.mjs`：PASS。
 - `cargo test --offline --locked -p yonder-desktop`：lib 33/33、main 11/11 PASS。
 - `cargo check --offline --locked -p yonder-desktop`、`node --check apps/desktop/ui/region-preview.js`：PASS。
 - `openspec validate ag-s12-reply-card-interaction --strict`、`python3 scripts/check_architecture.py` 与 `git diff --check`：PASS。

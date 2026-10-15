@@ -55,7 +55,7 @@
 
 - `cargo test -p yonder-desktop --lib --locked`：16/16 通过。
 - `cargo test -p yonder-desktop --bin yonder-desktop --locked`：11/11 通过。
-- `node apps/desktop/check-cua-control.mjs`：通过；覆盖 CUA 标题与接管按钮、非 CUA 标题与禁用接管、当前步骤和计划显示。
+- `node scripts/verification/desktop/check-cua-control.mjs`：通过；覆盖 CUA 标题与接管按钮、非 CUA 标题与禁用接管、当前步骤和计划显示。
 
 ## 未覆盖范围
 

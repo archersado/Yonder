@@ -15,8 +15,8 @@
 
 2026-09-28 macOS PASS：
 
-- `node apps/desktop/check-cua-control.mjs`：规划步骤、执行中→已完成推进、显式接管与失败态通过。
+- `node scripts/verification/desktop/check-cua-control.mjs`：规划步骤、执行中→已完成推进、显式接管与失败态通过。
 - `cargo test -p yonder-desktop --lib --locked`：13 项通过，包含 Hub 真实派发步骤投影与参数脱敏。
-- 正式打包 `Yonda.app` 的 `python3 apps/desktop/check-cua-control-macos.py apps/desktop/evidence/tm-s3-cua-step-presentation-macos-20260928` 通过：控制条 560×174、顶部居中、规划标题和首个步骤可见，点击接管后 `paused/stopped`、未跑完全部槽位、零新增 `unknown/user-input`。
+- 正式打包 `Yonda.app` 的 `python3 scripts/verification/desktop/check-cua-control-macos.py apps/desktop/evidence/tm-s3-cua-step-presentation-macos-20260928` 通过：控制条 560×174、顶部居中、规划标题和首个步骤可见，点击接管后 `paused/stopped`、未跑完全部槽位、零新增 `unknown/user-input`。
 
 证据位于 `apps/desktop/evidence/tm-s3-cua-step-presentation-macos-20260928/`。Windows 按用户决定暂缓。

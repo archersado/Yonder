@@ -14,7 +14,7 @@
 
 - `cargo test -p yonder-application`：44 项通过；新增覆盖执行提示只接受可解码、未过期且连接身份一致的请求。
 - `cargo test -p yonder-desktop`：lib 11 项、bin 11 项通过；覆盖 created→running 的精确任务步骤投影、非运行态清理及发布契约回归。
-- `node --check apps/desktop/ui/pet.js apps/desktop/check-task-space.mjs`：通过。
+- `node --check apps/desktop/ui/pet.js scripts/verification/desktop/check-task-space.mjs`：通过。
 - `git diff --check`：通过。
 
 ## macOS 原生 WebKit 证据
@@ -22,7 +22,7 @@
 执行：
 
 ```text
-swiftc apps/desktop/check-pet-current-step-macos.swift -o /private/tmp/check-pet-current-step-macos
+swiftc scripts/verification/desktop/check-pet-current-step-macos.swift -o /private/tmp/check-pet-current-step-macos
 /private/tmp/check-pet-current-step-macos apps/desktop/evidence/ds-s2-pet-current-step-macos-20260928
 ```
 

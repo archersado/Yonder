@@ -17,7 +17,7 @@
 
 ## 自动化证据
 
-`python3 apps/desktop/check-sky-message-worker.py` 通过：唯一无标签输入框可定位，相同草稿不重复，发送 no-op 拒绝。
+`python3 scripts/verification/desktop/check-sky-message-worker.py` 通过：唯一无标签输入框可定位，相同草稿不重复，发送 no-op 拒绝。
 
 既有 `check-sky-cua-worker.py`、Node 语法检查、OpenSpec strict 与 diff 检查通过；Application 60 与 Adapter 78 项测试全部通过。正式 macOS debug GUI/CLI 构建和打包通过。
 

@@ -28,7 +28,7 @@ cargo test --offline -p yonder-application -p yonder-adapters -p yonder-desktop
 
 ## macOS 独立窗口证据
 
-2026-09-22 通过真实 `com.yonder.desktop` 进程与系统托盘入口执行 [原生验证脚本](../../../../apps/desktop/check-jev-config-macos.swift)。
+2026-09-22 通过真实 `com.yonder.desktop` 进程与系统托盘入口执行 [原生验证脚本](../../../../scripts/verification/desktop/check-jev-config-macos.swift)。
 
 - 读取配置：[截图](../../../../apps/desktop/evidence/ex-s2-jev-config-macos-20260922/independent-221211/jev-config-read.png)
 - 有效保存：[截图](../../../../apps/desktop/evidence/ex-s2-jev-config-macos-20260922/independent-221211/jev-config-saved.png)
@@ -46,7 +46,7 @@ cargo test --offline -p yonder-application -p yonder-adapters -p yonder-desktop
 - 未调用 Jev、未创建模型请求、未写凭据或敏感日志。
 
 ```bash
-swift apps/desktop/check-jev-config-macos.swift <新的空结果目录>
+swift scripts/verification/desktop/check-jev-config-macos.swift <新的空结果目录>
 ```
 
 结果：PASS。

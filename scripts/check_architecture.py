@@ -137,6 +137,17 @@ def check_frontend_single_source(root):
                 raise ValueError(f"{relative} 重新声明协议枚举集合：{variable}")
 
 
+def check_desktop_verification_layout(root):
+    legacy = sorted((root / "apps/desktop").glob("check-*"))
+    if legacy:
+        names = ", ".join(path.name for path in legacy)
+        raise ValueError(f"Desktop 验证脚本必须迁入 scripts/verification/desktop：{names}")
+    directory = root / "scripts/verification/desktop"
+    checks = sorted(path for path in directory.glob("check-*") if path.is_file())
+    if not checks:
+        raise ValueError("缺少统一 Desktop 验证脚本目录或 check-* 脚本")
+
+
 def repository_file(root, value):
     relative = Path(value)
     if relative.is_absolute() or ".." in relative.parts:
@@ -284,6 +295,7 @@ def main():
     check_dependencies(json.loads(metadata))
     check_protocol_single_source(root)
     check_frontend_single_source(root)
+    check_desktop_verification_layout(root)
     check_planning(root)
     if args.event:
         check_pr(root, json.loads(args.event.read_text(encoding="utf-8")))

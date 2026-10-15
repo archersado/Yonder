@@ -21,7 +21,7 @@ cargo run --offline --locked -p yonder-protocol --example generate
 cargo test --offline --locked -p yonder-protocol -p yonder-application -p yonder-adapters -p yonder-desktop --lib
 cargo test --offline --locked -p yonder-domain --lib
 cargo build --offline --locked -p yonder-desktop --example local-agent-gateway --bin yonder-desktop
-python3 apps/desktop/check-local-agent.py apps/desktop/evidence/local-agent-registration-20260914/result.json
+python3 scripts/verification/desktop/check-local-agent.py apps/desktop/evidence/local-agent-registration-20260914/result.json
 PATH=/Users/archersado/.cargo/bin:$PATH python3 scripts/check_architecture.py
 git diff --check
 ```

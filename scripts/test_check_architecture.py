@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from check_architecture import DOCUMENTS, cargo_executable, check_dependencies, check_frontend_single_source, check_planning, check_pr, check_protocol_single_source, repository_file
+from check_architecture import DOCUMENTS, cargo_executable, check_dependencies, check_desktop_verification_layout, check_frontend_single_source, check_planning, check_pr, check_protocol_single_source, repository_file
 
 
 def metadata(name, dependencies):
@@ -134,6 +134,31 @@ class FrontendSingleSourceTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             check_frontend_single_source(self.root)
+
+
+class DesktopVerificationLayoutTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        checks = self.root / "scripts/verification/desktop"
+        checks.mkdir(parents=True)
+        (checks / "check-smoke.py").write_text("print('ok')\n", encoding="utf-8")
+
+    def test_accepts_the_unified_verification_directory(self):
+        check_desktop_verification_layout(self.root)
+
+    def test_rejects_a_legacy_desktop_root_script(self):
+        legacy = self.root / "apps/desktop/check-old.py"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("print('old')\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            check_desktop_verification_layout(self.root)
+
+    def test_rejects_an_empty_verification_directory(self):
+        (self.root / "scripts/verification/desktop/check-smoke.py").unlink()
+        with self.assertRaises(ValueError):
+            check_desktop_verification_layout(self.root)
 
 
 class AssociationTests(unittest.TestCase):

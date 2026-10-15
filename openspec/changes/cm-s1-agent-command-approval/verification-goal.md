@@ -21,7 +21,7 @@ Result: PASS
 
 ## macOS 原生界面证据
 
-- 隔离验证器：[`check-command-approval-macos.swift`](../../../apps/desktop/check-command-approval-macos.swift)。
+- 隔离验证器：[`check-command-approval-macos.swift`](../../../scripts/verification/desktop/check-command-approval-macos.swift)。
 - 待批准截图：[`native-webkit-command-awaiting.png`](../../../apps/desktop/evidence/cm-s1-agent-command-approval-macos-20260927/native-webkit-command-awaiting.png)，完整显示程序、参数、工作目录、环境变量、超时、有效期、“批准执行一次”和“拒绝”。
 - 已批准截图：[`native-webkit-command-approved.png`](../../../apps/desktop/evidence/cm-s1-agent-command-approval-macos-20260927/native-webkit-command-approved.png)，显示“已批准，等待归属 Agent 执行”和“撤销批准”。
 - 结构化结果：[`result.json`](../../../apps/desktop/evidence/cm-s1-agent-command-approval-macos-20260927/result.json)，批准与撤销各调用一次。
@@ -33,7 +33,7 @@ Result: PASS
 - 正式 `dev` debug `Yonda.app` 经 MCP stdio、Local Socket 与 Agent Gateway 接受命令提议后，自动展开 Task Space、切换到“全部”、选择对应任务，并将待批准卡定位到可见区域。
 - macOS Accessibility 结构化读取确认页面提示“此任务正在等待你的命令批准”，任务选择态为开，批准卡显示“等待本机用户决定”以及“批准执行一次”“拒绝”两个本机操作入口。
 - Agent 响应只返回 `command_id`、有效期与状态；自动展示信号只携带 `task_id` 和固定区段名，未复制程序、参数、目录或环境变量。
-- `node apps/desktop/check-task-space.mjs`、`cargo test --offline --locked -p yonder-desktop --lib`（35/35）、`openspec validate cm-s1-agent-command-approval --strict` 与架构检查通过。
+- `node scripts/verification/desktop/check-task-space.mjs`、`cargo test --offline --locked -p yonder-desktop --lib`（35/35）、`openspec validate cm-s1-agent-command-approval --strict` 与架构检查通过。
 - 结构化证据：[`result.json`](../../../apps/desktop/evidence/cm-s1-command-approval-auto-surface-macos-20261013/result.json)。
 
 ## 审阅结论与边界

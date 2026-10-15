@@ -8,9 +8,9 @@
 
 ## 原生证据
 
-工具：apps/desktop/check-task-menu-hover-macos.swift。清醒入口使用CGEvent鼠标移动，未以AXPress代替悬停；关闭和托盘按钮用AXPress。切换当前编辑器使Yonda未激活，按CGWindow实际可见边界计算位置，离开后等待1.5秒确保原生查询观察，再重新进入。读取真实空任务库，无演示任务。
+工具：scripts/verification/desktop/check-task-menu-hover-macos.swift。清醒入口使用CGEvent鼠标移动，未以AXPress代替悬停；关闭和托盘按钮用AXPress。切换当前编辑器使Yonda未激活，按CGWindow实际可见边界计算位置，离开后等待1.5秒确保原生查询观察，再重新进入。读取真实空任务库，无演示任务。
 
-最终命令：swift apps/desktop/check-task-menu-hover-macos.swift apps/desktop/evidence/task-menu-hover-observed-20260914。退出0，PID94356、窗口36479，pet_hover_opens_menu、hover_preserves_inactive、real_empty_state、close_hides、tray_restores_same_window均true。result.json和native-empty.png为证据。焦点保持在实际菜单可见后重新读取；人工查看截图为圆角任务菜单与暂无任务。
+最终命令：swift scripts/verification/desktop/check-task-menu-hover-macos.swift apps/desktop/evidence/task-menu-hover-observed-20260914。退出0，PID94356、窗口36479，pet_hover_opens_menu、hover_preserves_inactive、real_empty_state、close_hides、tray_restores_same_window均true。result.json和native-empty.png为证据。焦点保持在实际菜单可见后重新读取；人工查看截图为圆角任务菜单与暂无任务。
 
 早期工具使用辅助功能旧位置造成鼠标目标偏差；Tauri全局鼠标位置实现还混用Retina像素/逻辑点，改为NSWindow窗口内同坐标系。原生宿主只用原生悬停观察，浏览器用DOM悬停，避免两套进入/离开通知相互取消计时。此前短暂离开未被未激活WebView观察、固定0.8秒恢复检查过早，不能据此判定最终版本入口失败；失败记录不改写为通过。最终工具采用有界状态等待，未为此增加产品延迟。
 

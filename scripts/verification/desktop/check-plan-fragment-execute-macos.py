@@ -1,0 +1,304 @@
+#!/usr/bin/env python3
+"""EX-S2 的受控 macOS 原生连续槽位验证；输出不含模型、窗口或输入正文。"""
+import json
+import os
+import pathlib
+import queue
+import signal
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+
+root = pathlib.Path(__file__).resolve().parents[3]
+binary = root / "target/debug/Yonda.app/Contents/MacOS/yonder-desktop"
+fixture_bin = pathlib.Path("/private/tmp/yonder-ex2-plan-fixture")
+fixture_src = root / "apps/desktop/tests/plan-fragment-fixture-macos.swift"
+result = {"platform": "macos", "recording_started": False}
+formal_gui = "--formal-gui" in sys.argv[1:]
+fixture = None
+agent = None
+fixture_state = {}
+test_home = None
+
+def verification_deadline(_signal, _frame):
+    raise TimeoutError("verification-deadline-exceeded")
+
+signal.signal(signal.SIGALRM, verification_deadline)
+signal.alarm(25)
+
+def read_line_with_timeout(stream, timeout=2):
+    """子进程意外保留 stdout 时也必须让验证器进入 finally 清理。"""
+    lines = queue.Queue(maxsize=1)
+    threading.Thread(target=lambda: lines.put(stream.readline()), daemon=True).start()
+    try:
+        return lines.get(timeout=timeout)
+    except queue.Empty:
+        return ""
+
+def isolated_agent_environment():
+    """创建全新任务库，只导入 Jev 非秘密配置；凭据始终由 Keychain 提供。"""
+    global test_home
+    test_home = tempfile.TemporaryDirectory(prefix="yonder-ex2-home-")
+    home = pathlib.Path(test_home.name)
+    environment = os.environ.copy()
+    # TaskHost 目录显式传入，不能为隔离任务库篡改用户 Keychain/SDK 的 HOME
+    # 上下文；凭据仍只由既有 Jev 面板配置的 Keychain 项提供。
+    database = home / "Library/Application Support/com.yonder.desktop/tasks.db"
+    environment["YONDER_TEST_CUA_RESOURCE_DIR"] = str(binary.parent.parent / "Resources/cua")
+    # 用现有无 GUI 测试宿主创建 schema，避免为初始化而启动第二个 Tauri 进程。
+    # 不能手写任务库结构；正式 GUI 只在后续 Gateway 样本启动一次。
+    initializer_binary = root / "target/debug/examples/local-agent-gateway"
+    if not initializer_binary.is_file():
+        raise RuntimeError("isolated-host-initializer-unavailable")
+    initializer = subprocess.Popen(
+        [str(initializer_binary), str(database.parent)],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
+    until = time.monotonic() + 10
+    schema_ready = False
+    while time.monotonic() < until:
+        if database.exists():
+            try:
+                with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as check_db:
+                    schema_ready = check_db.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='jev_config'"
+                    ).fetchone() is not None
+            except sqlite3.Error:
+                pass
+        if schema_ready:
+            break
+        time.sleep(0.05)
+    initializer.terminate()
+    try:
+        initializer.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        initializer.kill()
+        initializer.wait()
+    if not schema_ready:
+        raise RuntimeError("isolated-store-not-created")
+    source = pathlib.Path.home() / "Library/Application Support/com.yonder.desktop/tasks.db"
+    try:
+        with sqlite3.connect(f"file:{source}?mode=ro", uri=True) as source_db:
+            row = source_db.execute("SELECT config_json FROM jev_config WHERE id=1").fetchone()
+        if row is None:
+            raise RuntimeError("jev-config-unavailable")
+        with sqlite3.connect(database) as isolated_db:
+            isolated_db.execute(
+                "INSERT INTO jev_config(id, config_json) VALUES (1, ?1) "
+                "ON CONFLICT(id) DO UPDATE SET config_json=excluded.config_json",
+                row,
+            )
+    except sqlite3.Error as error:
+        raise RuntimeError("isolated-jev-config-unavailable") from error
+    return environment
+
+def refocus_fixture():
+    """宿主启动可能成为前台窗口；在派发前恢复唯一 fixture 为受控目标。"""
+    focus_adapter = root / "target/debug/examples/work_focus_check"
+    last_failure = "capture-failed"
+    for _ in range(3):
+        focus_process = subprocess.Popen(
+            [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
+        )
+        ready_line = read_line_with_timeout(focus_process.stdout)
+        ready = json.loads(ready_line) if ready_line else {"ready": False}
+        outcome = {}
+        if ready.get("ready"):
+            focus_process.stdin.write("focus\n")
+            focus_process.stdin.flush()
+            outcome_line = read_line_with_timeout(focus_process.stdout)
+            outcome = json.loads(outcome_line) if outcome_line else {}
+        focus_process.stdin.write("release\nquit\n")
+        focus_process.stdin.flush()
+        focus_process.wait(timeout=5)
+        if outcome.get("outcome") == "focused":
+            return
+        last_failure = outcome.get("outcome", "capture-failed")
+        time.sleep(0.2)
+    raise RuntimeError(f"fixture-refocus-{last_failure}")
+
+try:
+    result["phase"] = "fixture-compile"
+    subprocess.run(["swiftc", str(fixture_src), "-o", str(fixture_bin)], check=True)
+    result["phase"] = "fixture-ready"
+    fixture = subprocess.Popen([str(fixture_bin)], stdout=subprocess.PIPE, text=True)
+    def read_fixture():
+        for line in fixture.stdout:
+            try:
+                fixture_state.update(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+    threading.Thread(target=read_fixture, daemon=True).start()
+    until = time.monotonic() + 15
+    while time.monotonic() < until:
+        if (fixture_state.get("ready") and fixture_state.get("launched")
+                and fixture_state.get("pid") and fixture_state.get("window_id")):
+            break
+        time.sleep(0.05)
+    if not (fixture_state.get("ready") and fixture_state.get("launched")
+            and fixture_state.get("pid") and fixture_state.get("window_id")):
+        raise RuntimeError("fixture-not-ready")
+    # `windowNumber` 已分配并不表示 WindowServer/AX 树已经同时可查询；等待
+    # 一个短暂稳定窗口只影响无副作用的夹具预检。
+    time.sleep(0.3)
+    result["phase"] = "fixture-focus-precheck"
+    # AppKit 在首次激活期间可能重排标题栏。该循环只重新捕获 fixture 的
+    # 焦点引用，尚未创建任务或派发 CUA，不能掩盖实际执行时的几何变化拒绝。
+    focus_adapter = root / "target/debug/examples/work_focus_check"
+    focus_failure = "unknown"
+    for _ in range(3):
+        focus_process = subprocess.Popen(
+            [str(focus_adapter), str(fixture_state["pid"]), str(fixture_state["window_id"])],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
+        )
+        focus_ready_line = read_line_with_timeout(focus_process.stdout)
+        focus_ready = json.loads(focus_ready_line) if focus_ready_line else {"ready": False}
+        focus_result = {}
+        if focus_ready.get("ready"):
+            focus_process.stdin.write("focus\n")
+            focus_process.stdin.flush()
+            focus_result_line = read_line_with_timeout(focus_process.stdout)
+            focus_result = json.loads(focus_result_line) if focus_result_line else {}
+        focus_process.stdin.write("release\nquit\n")
+        focus_process.stdin.flush()
+        focus_process.wait(timeout=5)
+        if focus_result.get("outcome") == "focused":
+            break
+        focus_failure = focus_result.get("outcome", "capture-failed")
+        time.sleep(0.2)
+    else:
+        raise RuntimeError(f"fixture-focus-{focus_failure}")
+
+    if formal_gui:
+        result["phase"] = "formal-gui-initialization"
+        agent = subprocess.Popen(
+            [str(binary), "--local-agent-stdio"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    else:
+        result["phase"] = "isolated-host-initialization"
+        gateway_binary = root / "target/debug/examples/local-agent-gateway"
+        if not gateway_binary.is_file():
+            raise RuntimeError("isolated-gateway-unavailable")
+        agent_environment = isolated_agent_environment()
+        agent = subprocess.Popen(
+            [str(gateway_binary), str(pathlib.Path(test_home.name) / "Library/Application Support/com.yonder.desktop")],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=agent_environment,
+        )
+    # GUI 启动可能抢占前台；派发前恢复唯一 fixture 为 CUA 目标。
+    result["phase"] = "fixture-refocus"
+    time.sleep(0.3)
+    refocus_fixture()
+    agent_responses = queue.Queue()
+    def read_agent():
+        for line in agent.stdout:
+            try:
+                agent_responses.put(json.loads(line))
+            except json.JSONDecodeError:
+                agent_responses.put(None)
+    threading.Thread(target=read_agent, daemon=True).start()
+    counter = [0]
+    def call(method, capability, **params):
+        counter[0] += 1
+        request = {
+            "jsonrpc": "2.0", "id": f"ex2-{counter[0]}", "method": method,
+            "params": {"agent_id": "local-test-agent", "capability": capability,
+                       "deadline": int(time.time() * 1000) + 45_000, **params},
+        }
+        agent.stdin.write(json.dumps(request).encode() + b"\n")
+        agent.stdin.flush()
+        try:
+            # Gateway hello 不依赖远端模型；十秒未响应应作为宿主/stdio 故障，
+            # 不应耗尽整条原生验证的总时限。
+            response = agent_responses.get(timeout=10)
+        except queue.Empty:
+            exit_code = agent.poll()
+            if exit_code is not None:
+                raise RuntimeError(f"gateway-host-exited-{exit_code}")
+            raise RuntimeError("gateway-timeout")
+        if response is None or response.get("id") != request["id"]:
+            raise RuntimeError(f"gateway-{method}")
+        if "error" in response:
+            raise RuntimeError(f"gateway-{method}-{response['error'].get('code', 'unknown')}")
+        return response["result"]
+
+    result["phase"] = "gateway-handshake"
+    hello = call("gateway.hello", "task.read", protocol_version={"major": 1, "minor": 31})
+    capabilities = {entry.get("name"): entry.get("availability") for entry in hello.get("capabilities", [])}
+    result["plan_execute_capability"] = capabilities.get("task.plan.execute") == "available"
+    if not result["plan_execute_capability"]:
+        raise RuntimeError("plan-execute-unavailable")
+    result["phase"] = "plan-submit"
+    task = call(
+        "task.create", "task.create", idempotency_key=f"ex2-native-{time.time_ns()}",
+        description="EX-S2隔离原生计划片段验证", name="EX-S2 原生验证",
+    )["task"]
+    submitted = call(
+        "task.plan.submit", "task.plan.submit", task_id=task["task_id"],
+        expected_sequence=task["sequence"], plan_id="native-plan", plan_version=1,
+        token_budget=100, slots=[
+            {"step_id": "native-tab", "label": "隔离窗口切换焦点",
+             "candidates": [{"candidate_id": "press-tab", "tool_name": "press_key",
+                             "arguments": {"key": "tab", "delivery_mode": "background"},
+                             "action_kind": "resolve-conversation", "target_ref": "isolated-fixture-window",
+                             "preconditions": [{"fact": "target-resolved", "expected": True}],
+                             "expected_observe": [{"fact": "target-resolved", "expected": True}]}]},
+            {"step_id": "native-escape", "label": "隔离窗口返回安全焦点",
+             "candidates": [{"candidate_id": "press-escape", "tool_name": "press_key",
+                             "arguments": {"key": "escape", "delivery_mode": "background"},
+                             "action_kind": "resolve-conversation", "target_ref": "isolated-fixture-window",
+                             "preconditions": [{"fact": "target-resolved", "expected": True}],
+                             "expected_observe": [{"fact": "target-resolved", "expected": True}]}]},
+        ],
+    )
+    result["phase"] = "plan-execute"
+    executed = call(
+        "task.plan.execute", "task.plan.execute", task_id=task["task_id"],
+        expected_sequence=submitted["sequence"], plan_id="native-plan", plan_version=1,
+    )
+    result["continuous_native_actions_observed"] = executed.get("disposition") == "fragment-complete"
+    if not result["continuous_native_actions_observed"]:
+        raise RuntimeError("plan-handed-back")
+    result["phase"] = "task-complete"
+    completed = call("task.complete", "task.complete", task_id=task["task_id"], expected_sequence=executed["sequence"])["task"]
+    result["task_completed"] = completed.get("status") == "completed"
+    # recording_started 必须为 false，不能把这项安全断言混入正向通过条件。
+    result["phase"] = "completed"
+    result["passed"] = all(result.get(key) is True for key in (
+        "plan_execute_capability",
+        "continuous_native_actions_observed",
+        "task_completed",
+    ))
+except Exception as error:
+    result["failure_class"] = str(error)
+    result["passed"] = False
+finally:
+    if agent is not None:
+        agent.terminate()
+        try:
+            agent.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            agent.kill()
+            agent.wait()
+    if fixture is not None:
+        fixture.terminate()
+        try:
+            fixture.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            fixture.kill()
+            fixture.wait()
+    if test_home is not None:
+        test_home.cleanup()
+    signal.alarm(0)
+
+print(json.dumps(result, ensure_ascii=False))
+sys.exit(0 if result.get("passed") else 1)

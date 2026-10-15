@@ -18,9 +18,9 @@
 - Sky 元素点击仍只派发一次；首次动作后结构状态未变化时，Worker 在 900ms 内按
   100ms 间隔只读 Observe，取得既有结构后置事实即停止。坐标动作与结果待核实动作
   不进入该循环，期限耗尽仍按 unknown/handback 处理。
-- `python3 apps/desktop/check-sky-cua-worker.py`：通过。延迟状态夹具在后续 Observe
+- `python3 scripts/verification/desktop/check-sky-cua-worker.py`：通过。延迟状态夹具在后续 Observe
   才出现变化，动作日志与调用方提交步骤一一对应，没有新增点击。
-- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息草稿、确认与发送 no-op
+- `python3 scripts/verification/desktop/check-sky-message-worker.py`：通过；消息草稿、确认与发送 no-op
   边界未受影响。
 - `cargo test --offline --locked -p yonder-adapters`：85 项通过；`cargo test
   --offline --locked -p yonder-desktop --lib`：29 项通过。
@@ -33,11 +33,11 @@
   未变化且同一角色/标签目标仍唯一存在的非敏感元素激活定义为受限恢复边界。
   Worker 不复用旧数字索引，而是按新鲜角色/标签重新解析，并最多追加一次动作；
   坐标、输入、发送、确认与一次性引用动作仍不得自动重试。
-- `python3 apps/desktop/check-sky-cua-worker.py`：通过。夹具把“可恢复控件”从索引
+- `python3 scripts/verification/desktop/check-sky-cua-worker.py`：通过。夹具把“可恢复控件”从索引
   40 漂移到 42；Worker 两次都使用新索引 42，第二次出现结构变化并确认成功。
   “无响应控件”恰好派发两次后返回 `action-unconfirmed-*`，证明不会无限循环。
   坐标超时/拒绝和未确认文本输入的既有零重试断言继续通过。
-- `python3 apps/desktop/check-sky-message-worker.py`、Adapters 85 项、Desktop 29 项、
+- `python3 scripts/verification/desktop/check-sky-message-worker.py`、Adapters 85 项、Desktop 29 项、
   OpenSpec strict、架构检查与 Node 语法检查全部通过。实现提交 `41e3f46` 已
   ff-only 合并 `dev`，重新构建正式 `Yonda.app`，宿主 PID 为 93986。
 - 正式 Gateway 任务 `task_eced437b5a1b88c84db64e592f05a94d` 取得 QQ 音乐
@@ -50,13 +50,13 @@
 
 ## 2026-10-08 企业微信负样本后的收紧
 
-- `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明同尺寸 transcript 变化会使旧坐标失效且不派发动作；可操作按钮下的装饰性 image 与 disabled 按钮不会形成候选，独立 image 仍可通过新鲜引用执行。
+- `python3 scripts/verification/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明同尺寸 transcript 变化会使旧坐标失效且不派发动作；可操作按钮下的装饰性 image 与 disabled 按钮不会形成候选，独立 image 仍可通过新鲜引用执行。
 - macOS Sky 0.7.1 的公开接口经本机安装包核对，不提供 `screenshotId`；实现没有伪造未受支持字段，也没有对坐标猜测 Retina 比例。
 
 ## 2026-10-08 Observation 绑定坐标扩展
 
 - Rust 协议升级至 1.48，并从唯一来源重新生成 TypeScript 与 Response Schema；含截图的 Observation 以原子字段返回原始像素宽高，坐标候选必须携带同次 `observation_ref`。
-- `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离 Sky MCP 夹具从 PNG 字节头读取 100×100 原图尺寸；有效坐标只派发一次；过期引用、`x == width` 越界和动作前截图变为 120×120 三类负样本均未派发动作，并携带新鲜 Observation 以 `unverifiable` 交回。
+- `python3 scripts/verification/desktop/check-sky-cua-worker.py`：通过。隔离 Sky MCP 夹具从 PNG 字节头读取 100×100 原图尺寸；有效坐标只派发一次；过期引用、`x == width` 越界和动作前截图变为 120×120 三类负样本均未派发动作，并携带新鲜 Observation 以 `unverifiable` 交回。
 - `cargo test -p yonder-protocol`：18 项通过；`cargo test -p yonder-application`：70 项通过；`cargo test -p yonder-adapters`：81 项通过。
 - `cargo test --locked -p yonder-desktop --lib`：27 项通过；发布契约与 Gateway 最高协议同步到 1.48。
 - `openspec validate cu-s6-ephemeral-element-handles --strict`、`node --check crates/adapters/src/sky_cua_worker.mjs` 与 `git diff --check`：通过。
@@ -102,7 +102,7 @@ macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信�
 - 修复前正式任务 `task_04cb1b11f7cf69eabc9db994ebd88d47` 直接激活新鲜“暂停播放”按钮；动作后按钮标签保持不变，但页面其他结构变化使旧 Worker 错误产生 `observed(action_succeeded=true)`。归属慢脑依据按钮事实提交 `not-achieved`，任务取消，未把 Driver 回执提升为业务成功。
 - Accepted AD-CU-12、Story 与 OpenSpec 已补充目标相关确认：按钮只在原角色/标签目标消失时确认结构效果；目标仍存在但其他结构变化时，禁止确认成功，也不得以不可归因变化触发恢复重放。
 - 修复后重新构建正式 `Yonda.app`。任务 `task_78ac5b1e03f22dfec3356b8aafeae3b9` 从 Observation 序号 5 取得“播放”按钮及新鲜引用，直接激活该句柄；动作后序号 11 明确为 `unknown/driver-action-unconfirmed`，序号 12 交回慢脑，按钮仍为“播放”，没有再次计划或自动重试不可核实结果。任务于序号 13 正式取消。
-- 隔离 Worker 夹具新增“目标按钮不变、无关 transcript 变化”样本，断言只派发一次且返回未确认；目标明确保持原状态且完整结构不变时仍按既有规则至多恢复一次。`python3 apps/desktop/check-sky-cua-worker.py` PASS；Adapters 86/86（单线程）、Desktop 33/33、OpenSpec strict 与架构检查通过。
+- 隔离 Worker 夹具新增“目标按钮不变、无关 transcript 变化”样本，断言只派发一次且返回未确认；目标明确保持原状态且完整结构不变时仍按既有规则至多恢复一次。`python3 scripts/verification/desktop/check-sky-cua-worker.py` PASS；Adapters 86/86（单线程）、Desktop 33/33、OpenSpec strict 与架构检查通过。
 - 本样本满足本 Goal 的“播放按钮切换为暂停或安全交回”判据，并关闭播放按钮回归项；它不解决企业微信企业切换，也不外推 Windows。
 
 有界证据见 `apps/desktop/evidence/cu-s6-qqmusic-button-target-confirmation-20261012/`，不保存 transcript、截图、完整 Payload 或用户数据。
@@ -113,14 +113,14 @@ macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信�
 - 企业微信个人菜单 Observation 的截图尺寸为 560×872。直接把截图像素坐标派发给 Sky 时界面无变化；将同一视觉位置按当前显示器系统 2x backing scale 转为窗口逻辑点后，动作立即打开账户详情，动作后 Observation 出现企业字段。
 - 该样本只证明 Sky macOS 0.7.1 的动作坐标单位与截图像素单位不同，不证明目标企业已经切换。AD-CU-11 已修订：外部继续使用原图像素，Adapter 必须从可信窗口/显示器取得倍率后在调用边界换算，不能由慢脑猜测。
 - 后续正式对照任务 `task_df83da0c773b542c78e2cf8744c5bf2f` 撤销本节结论：3420×1986 原图中精确左下角点 `(58,1929)` 经 2x 除法后动作未命中，动作后界面与 transcript 均未变化；任务于序号 42 取消。此前两个不同点位不能证明坐标单位差异。
-- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息引用、草稿幂等和发送 no-op 拒绝未受换算影响。
+- `python3 scripts/verification/desktop/check-sky-message-worker.py`：通过；消息引用、草稿幂等和发送 no-op 拒绝未受换算影响。
 - `cargo test -p yonder-adapters --locked -- --test-threads=1`：81 项通过；Objective-C 原生桥随 Adapter 完成编译和链接。
 
 ## 2026-10-08 Sky 原图像素契约修正
 
 - 已撤销未经有效对照证明的 backing-scale 换算及其 Objective-C 原生桥。Gateway/Agent 提交的坐标继续属于绑定 Observation 的原始截图像素空间，Adapter 校验引用、尺寸、transcript 与边界后，将 `x/y` 原样交给 Sky；窗口置前后仍刷新并绑定实际前台目标。
-- `python3 apps/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明原图坐标 `(30, 40)`、`(31, 41)` 等不经倍率换算即派发；过期引用、尺寸变化、transcript 变化和越界负样本仍在动作前拒绝。
-- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息输入、确认与发送约束未受坐标契约修正影响。
+- `python3 scripts/verification/desktop/check-sky-cua-worker.py`：通过。隔离夹具证明原图坐标 `(30, 40)`、`(31, 41)` 等不经倍率换算即派发；过期引用、尺寸变化、transcript 变化和越界负样本仍在动作前拒绝。
+- `python3 scripts/verification/desktop/check-sky-message-worker.py`：通过；消息输入、确认与发送约束未受坐标契约修正影响。
 - `cargo test -p yonder-adapters --locked -- --test-threads=1`：81 项通过；`node --check crates/adapters/src/sky_cua_worker.mjs` 与 `git diff --check`：通过。
 - 企业微信目标企业切换仍须在重新构建的正式 Yonder 产品链路中重跑；在动作后直接观察到“狼顾”之前，本节不提升 Story 状态。
 
@@ -135,8 +135,8 @@ macOS 已通过协议、隔离回归和 QQ 音乐坐标样本，但企业微信�
 
 - Accepted AD-CU-12 与协议 1.49 增加六个封闭 Attempt Unknown Reason：动作超时、动作拒绝、动作未确认、目标失效、Observe 失败与传输失败。协议 1.48 及以下分别降级为既有 `timed-out`、`observe-failed` 或 `worker-failed`。
 - Sky Worker 坐标动作错误继续执行唯一一次动作后 Observe，并只返回安全 stage；SDK/MCP 原文、动作参数、应用名、AX transcript、截图、PID、窗口 ID 与完整 Payload 均不进入事件或界面。
-- `python3 apps/desktop/check-sky-cua-worker.py`：通过；夹具分别证明超时返回 `driver-action-timed-out`、窗口/通用调用错误返回 `driver-action-rejected`、成功回执但无后置变化返回 `action-unconfirmed-*`，视觉引用失效仍在派发前拒绝。
-- `python3 apps/desktop/check-sky-message-worker.py`：通过；消息引用和发送安全边界未受影响。
+- `python3 scripts/verification/desktop/check-sky-cua-worker.py`：通过；夹具分别证明超时返回 `driver-action-timed-out`、窗口/通用调用错误返回 `driver-action-rejected`、成功回执但无后置变化返回 `action-unconfirmed-*`，视觉引用失效仍在派发前拒绝。
+- `python3 scripts/verification/desktop/check-sky-message-worker.py`：通过；消息引用和发送安全边界未受影响。
 - `cargo test -p yonder-protocol -p yonder-application -p yonder-adapters -p yonder-desktop --locked -- --test-threads=1`：211 项通过（Protocol 18、Application 71、Adapters 83、Desktop 39），覆盖 SQLite 往返、Gateway 旧协议降级及顶部浮窗中文文案。
 - `cargo run -p yonder-protocol --example generate --locked -- --check`、`node --check crates/adapters/src/sky_cua_worker.mjs`、`openspec validate cu-s6-ephemeral-element-handles --strict` 与 `git diff --check`：通过。
 - 本扩展完成 OEH-18、OEH-19；企业微信目标企业切换与 Windows 对等验证仍保持未通过/暂缓，Story 不 Archive/Done。

@@ -30,7 +30,7 @@
 ### [x] T3 补齐隔离验证夹具与边界快照
 
 - 目标：在不保存截图正文的前提下复核权限拒绝、真实CUA租约拒绝、不持久化、不发送和无常驻指针。
-- 模块：`apps/desktop/check-region-preview-macos.swift`及最少一个编排脚本；复用现有任务/Admission和临时bundle夹具。
+- 模块：`scripts/verification/desktop/check-region-preview-macos.swift`及最少一个编排脚本；复用现有任务/Admission和临时bundle夹具。
 - 输入/输出：输入为无敏感四色窗口、临时bundle身份和真实Desktop租约；输出为单个结构化`result.json`及前后计数/文件清单差异。
 - 约束：不执行`tccutil reset`，不读取数据库正文，不保存截图/base64/窗口树，不引入新依赖；清理只作用于本次临时bundle和测试任务。
 - 验收：验证矩阵每行均有布尔判据；任务/事件/Outbox/索引计数不变；无图片文件、子进程或指针监听残留。

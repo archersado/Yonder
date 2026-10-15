@@ -4,7 +4,7 @@
 
 ## 自动验证
 
-- `node apps/desktop/check-cua-control.mjs`：首帧主动回放、慢脑规划、快脑决策、执行步骤、唯一显式接管、等待态与失败态全部通过。
+- `node scripts/verification/desktop/check-cua-control.mjs`：首帧主动回放、慢脑规划、快脑决策、执行步骤、唯一显式接管、等待态与失败态全部通过。
 - `cargo test -p yonder-application -p yonder-adapters -p yonder-desktop --offline --locked`：Application 45 项、Adapters 70 项、Desktop lib 17 项、Desktop main 11 项通过，含跨步骤 Hub、无参数决策投影、直接运行中取消与一次性接管消费。
 - `cargo build -p yonder-desktop --locked` 与 `git diff --check`：通过。
 - `python3 -m unittest test_check_architecture.py`（`scripts/`）：19 项通过。仓库全量 `check_architecture.py` 仍被既有 EX-S2 Story/Proposal 双向关联缺口阻断，与本变更无关，未修改其范围。
@@ -23,7 +23,7 @@
 ## 2026-09-29 步骤结果真实性增量
 
 - `cargo test -p yonder-application -p yonder-adapters -p yonder-desktop`：Application 45、Adapters 70、Desktop 19 项通过。Adapter 合约覆盖 `confirmed`、`refused`、`partial`、`unverifiable`、`suspected_noop`、缺失 effect 与字段矛盾；后三类及无效响应不得写成成功。
-- `node apps/desktop/check-cua-control.mjs`：绿色完成、当前执行、待核实及等待状态的可访问文案通过；Hub 回归证明不会由下一步开始反推前序成功。
+- `node scripts/verification/desktop/check-cua-control.mjs`：绿色完成、当前执行、待核实及等待状态的可访问文案通过；Hub 回归证明不会由下一步开始反推前序成功。
 - `check-cua-dispatch-macos.py`：trycua 0.25.0 对隔离原生文本框返回 confirmed 时，原生目标值同时匹配，结果才持久化为成功。
 - `check-cua-step-status-macos.py` 经正式 `Yonda.app`、Local Socket 与真实 trycua 运行：confirmed/CAS 推进样本显示可访问绿色 ✓；另一轮 Worker 不可确认时记录 unknown、片段 HandBack 并显示可访问黄色待核实 !，没有伪造成功。两轮验证任务均经正式 `task.cancel` 清理。
 

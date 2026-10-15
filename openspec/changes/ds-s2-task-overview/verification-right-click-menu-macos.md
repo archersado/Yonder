@@ -6,7 +6,7 @@
 
 - 构建正式 macOS 预览应用，并使用隔离 `HOME` 与真实 UDS/SQLite 任务库。
 - 通过 MCP/UDS 创建真实任务 `task_ea73cc14eb1e23cb028bbddb5caac0f8`，名称为“右键菜单验证”。
-- 运行 `swift apps/desktop/check-task-menu-right-click-macos.swift apps/desktop/evidence/ds-s2-right-click-menu-20260923`，使用原生 CGEvent 右键点击清醒小龙。
+- 运行 `swift scripts/verification/desktop/check-task-menu-right-click-macos.swift apps/desktop/evidence/ds-s2-right-click-menu-20260923`，使用原生 CGEvent 右键点击清醒小龙。
 
 ## 结果
 

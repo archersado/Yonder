@@ -10,9 +10,9 @@
 
 ## 自动验证
 
-- `node apps/desktop/check-safe-markdown.mjs`：PASS。覆盖标题、列表、引用、围栏/行内代码、粗体、斜体、删除线、安全链接文本、跨 delta 补齐、原始脚本、Markdown 图片、危险 URL 与禁止 `innerHTML`。
-- `node apps/desktop/check-region-submit-recovery.mjs`：PASS，失败保留与重试门禁未回归。
-- `node apps/desktop/check-voice-session.mjs`：PASS，语音整段提交未回归。
+- `node scripts/verification/desktop/check-safe-markdown.mjs`：PASS。覆盖标题、列表、引用、围栏/行内代码、粗体、斜体、删除线、安全链接文本、跨 delta 补齐、原始脚本、Markdown 图片、危险 URL 与禁止 `innerHTML`。
+- `node scripts/verification/desktop/check-region-submit-recovery.mjs`：PASS，失败保留与重试门禁未回归。
+- `node scripts/verification/desktop/check-voice-session.mjs`：PASS，语音整段提交未回归。
 - `cargo test -p yonder-desktop`：lib 33/33、main 11/11 PASS。
 - `scripts/check_architecture.py`：PASS。
 - `openspec validate ag-s11-markdown-agent-reply`：PASS。

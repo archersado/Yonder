@@ -17,7 +17,7 @@
 - `cargo test --offline --locked -p yonder-application --lib`：当前 `dev` 74 项通过，覆盖 Jev 三值步骤结论、低置信交回和脱敏观察摘要。
 - `cargo test -p yonder-adapters --lib`：本增量相关测试通过；完整运行 77/78，唯一失败的既有 Command 临时 PID 时序用例单独重跑通过。
 - 正式 `jev_worker.mjs` 配合固定 0.6.0 SDK fixture 已验证 `verify-step` 返回 complete，且不生成动作。
-- `python3 apps/desktop/check-cua-package.py`：Sky 0.7.1、Jev 0.6.0、签名 Bridge 和打包 Worker 全部通过。
+- `python3 scripts/verification/desktop/check-cua-package.py`：Sky 0.7.1、Jev 0.6.0、签名 Bridge 和打包 Worker 全部通过。
 - 正式产品任务 `task_fc1d0e8c5f4db936cec416645803e91b` 经 `yonder mcp → Gateway` 创建；GUI 重启后两次 `launch_app(com.tencent.QQMusicMac)` 均在进入 Jev 前返回 `worker-failed`，序号 10/15，任务已于序号 17 正式取消。故本轮不能声称真实 QQ 音乐步骤核验通过，待 Sky Worker 会话恢复后重跑。
 - 2026-10-08 MCP重新连接后，以正式产品任务 `task_b9e7241c78d7880acf822d6b9c7c2d56` 完成三版受限片段复验。`launch_app`与搜索入口聚焦分别在序号5/9得到`observed(action_succeeded=true, observe_valid=true)`；随后文本输入、绑定新鲜Observation的元素点击及封闭`SPACE`激活分别在序号13/17/21得到`unknown(driver-action-unconfirmed, observe_valid=false)`。每次均先交回慢脑、使用新plan/step/attempt身份且未自动重试旧副作用，任务最终在安全边界取消于序号23。
 - 因三个候选都在Driver结构事实成立前停止，正式样本尚未进入Jev三值步骤核验，不能把自动化通过外推为产品PASS。阻断点已收敛为CU-S4的Sky动作确认能力；结构化证据见 `apps/desktop/evidence/ex-s2-qqmusic-step-verification-20261008/result.json`。修复CU-S4并重建正式产品后重跑，本节继续保持BLOCKED。
@@ -38,13 +38,13 @@
 
 ## 已通过的 Gateway 原生样本
 
-2026-09-27 以正式 debug bundle、隔离 `/tmp/ex2-*` HOME 和私有 stdio 运行 `apps/desktop/check-plan-fragment-submit-macos.py`。自动登记的 `local-test-agent` 成功完成协议 1.31 握手、任务创建和 `task.plan.submit`；结果为 `hello_ok=true`、`plan_capabilities=true`、`accepted=true`、`sequence_advanced=true`。样本没有调用 Jev、未派发 CUA 动作、未保存候选参数或用户内容，因此只证明 EX-S2 的 Gateway/CAS/SQLite/Outbox 提交子范围。
+2026-09-27 以正式 debug bundle、隔离 `/tmp/ex2-*` HOME 和私有 stdio 运行 `scripts/verification/desktop/check-plan-fragment-submit-macos.py`。自动登记的 `local-test-agent` 成功完成协议 1.31 握手、任务创建和 `task.plan.submit`；结果为 `hello_ok=true`、`plan_capabilities=true`、`accepted=true`、`sequence_advanced=true`。样本没有调用 Jev、未派发 CUA 动作、未保存候选参数或用户内容，因此只证明 EX-S2 的 Gateway/CAS/SQLite/Outbox 提交子范围。
 
 ## 待运行原生样本
 
 需在用户主动提供的可控测试窗口中，以无敏感正文的 `computer_click` 候选运行一次。输出仅保留 task/plan/sequence、选择类别、Observe 成败、Outbox 数量与权限状态；若缺少 Keychain API Key、辅助功能权限、网络或测试窗口，应记录为环境阻塞，不将 EX-S2 标为 PASS。Windows 仍按用户决定暂缓。
 
-2026-09-27 已以 `apps/desktop/check-plan-fragment-execute-macos.py` 运行固定输入的隔离窗口样本。新增单窗口、每进程唯一标题的 EX-S2 fixture；正式 `MacWorkFocus` 优先将 AX `AXWindowNumber` 与已捕获的 WindowServer `window_id` 绑定，只在属性缺失时回退至同一 AX 引用去重，仍拒绝不同物理窗口的歧义。Gateway 1.31 握手、Jev 配置和 `task.plan.execute` 能力均已确认可用。修复 worker 错误地偏向 `handback` 的提示词后，Jev 已选择唯一已提交候选；HID 监控不再把窗口激活产生的鼠标移动归类为用户接管，样本已取得一次 CUA 已观察并推进片段槽位的 `advanced` 结果。标准 AppKit 文本字段不能稳定反映 AX 写入，验证 fixture 已改用显式 `setAccessibilityValue` 控件。夹具现在在未创建任务、未派发 CUA 前有限次重捕获 AppKit 首次激活的瞬态几何变化，并以 `input_matches` 作为唯一写入断言；修复后焦点预检通过，实际远端调用仍可合法地选择 `handback`。尚未取得包含新控件匹配断言的一条完整 PASS；Windows 仍按用户决定暂缓。
+2026-09-27 已以 `scripts/verification/desktop/check-plan-fragment-execute-macos.py` 运行固定输入的隔离窗口样本。新增单窗口、每进程唯一标题的 EX-S2 fixture；正式 `MacWorkFocus` 优先将 AX `AXWindowNumber` 与已捕获的 WindowServer `window_id` 绑定，只在属性缺失时回退至同一 AX 引用去重，仍拒绝不同物理窗口的歧义。Gateway 1.31 握手、Jev 配置和 `task.plan.execute` 能力均已确认可用。修复 worker 错误地偏向 `handback` 的提示词后，Jev 已选择唯一已提交候选；HID 监控不再把窗口激活产生的鼠标移动归类为用户接管，样本已取得一次 CUA 已观察并推进片段槽位的 `advanced` 结果。标准 AppKit 文本字段不能稳定反映 AX 写入，验证 fixture 已改用显式 `setAccessibilityValue` 控件。夹具现在在未创建任务、未派发 CUA 前有限次重捕获 AppKit 首次激活的瞬态几何变化，并以 `input_matches` 作为唯一写入断言；修复后焦点预检通过，实际远端调用仍可合法地选择 `handback`。尚未取得包含新控件匹配断言的一条完整 PASS；Windows 仍按用户决定暂缓。
 
 本轮原生样本还复现了 `unknown` 结果落库后用户输入中断与片段交回之间的 CAS 竞争。Application 现会在交回 CAS 冲突时重新读取任务；若任务已离开 `created/running`，返回该中断事实而不追加交回事件，其他冲突仍按失败处理。
 
@@ -60,7 +60,7 @@
 
 按用户确认的快慢脑职责修订 AD-AG-09 后，`task.plan.execute` 已改为在单次 Gateway 调用栈内同步消费片段剩余槽位。每轮仍复用 `execute_agent_step`，只有动作结果为 `Observed(action_succeeded=true)`、attempt 已推进到 `stopped` 且片段槽位 CAS 成功后，才读取并执行下一槽位；响应返回后没有后台执行。
 
-正式 debug `Yonda.app` 重新构建并临时签名后，以 `apps/desktop/check-plan-fragment-execute-macos.py --formal-gui` 在唯一隔离 AppKit 窗口执行两个真实 CUA 动作：`Tab` 后 `Escape`。两个槽位均为慢脑提交的单一已验证候选，因此没有请求 Jev；同一次 `task.plan.execute` 返回 `fragment-complete`，随后 `task.complete` 成功。结构化结果为：
+正式 debug `Yonda.app` 重新构建并临时签名后，以 `scripts/verification/desktop/check-plan-fragment-execute-macos.py --formal-gui` 在唯一隔离 AppKit 窗口执行两个真实 CUA 动作：`Tab` 后 `Escape`。两个槽位均为慢脑提交的单一已验证候选，因此没有请求 Jev；同一次 `task.plan.execute` 返回 `fragment-complete`，随后 `task.complete` 成功。结构化结果为：
 
 ```json
 {"platform":"macos","recording_started":false,"phase":"completed","plan_execute_capability":true,"continuous_native_actions_observed":true,"task_completed":true,"passed":true}

@@ -19,7 +19,7 @@
 - `apps/desktop/evidence/browser-open-live-20260918/result.json`
 - `apps/desktop/evidence/browser-open-live-20260918/task-menu-page2.png`
 - `apps/desktop/evidence/browser-open-handoff-20260918/bridge-result.json`
-- `apps/desktop/check-task-space.mjs`
+- `scripts/verification/desktop/check-task-space.mjs`
 - `cargo test --offline --locked -p yonder-protocol -p yonder-application -p yonder-adapters -p yonder-desktop`
 - `python3 scripts/check_architecture.py`
 

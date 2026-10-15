@@ -9,9 +9,9 @@
 
 ## 验证脚本目录
 
-- 所有 `apps/desktop/check-*` 文件机械迁移至 `scripts/verification/desktop/`，文件名和内容用途保持不变。
+- 所有 `scripts/verification/desktop/check-*` 文件机械迁移至 `scripts/verification/desktop/`，文件名和内容用途保持不变。
 - Python 脚本的仓库根推导从新目录层级计算；脚本间引用与 Node `new URL` 相对路径同步到新位置。
-- 全仓受版本控制文本中的 `apps/desktop/check-` 引用统一替换为新路径；迁移完成后架构门禁断言 Desktop 根目录不存在 `check-*`，新目录脚本数与迁移清单一致。
+- 全仓受版本控制文本中的 `scripts/verification/desktop/check-` 引用统一替换为新路径；迁移完成后架构门禁断言 Desktop 根目录不存在 `check-*`，新目录脚本数与迁移清单一致。
 - 不移动 `apps/desktop/tests`、fixture、打包脚本、证据目录或产品资源。
 
 ## 验证

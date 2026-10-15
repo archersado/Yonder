@@ -14,13 +14,13 @@
 - `native-result.json`：真实进程上`hover_does_not_open`、`inactive_before_click`、`right_click_opens_menu`、`menu_focused`、`blur_hides`均为true；`passed=true`。
 - `native-right-click-menu.png`：右键打开后的原生任务面板截图。
 
-原生工具：[`apps/desktop/check-task-menu-right-click-macos.swift`](../../../apps/desktop/check-task-menu-right-click-macos.swift)。工具按指定PID操作，避免误碰其他Yonda进程；鼠标移动与右键使用真实CGEvent，菜单/焦点/窗口可见性使用AX与CGWindow事实。切换Finder触发失焦隐藏，不使用内存对象伪造任务或窗口。
+原生工具：[`scripts/verification/desktop/check-task-menu-right-click-macos.swift`](../../../scripts/verification/desktop/check-task-menu-right-click-macos.swift)。工具按指定PID操作，避免误碰其他Yonda进程；鼠标移动与右键使用真实CGEvent，菜单/焦点/窗口可见性使用AX与CGWindow事实。切换Finder触发失焦隐藏，不使用内存对象伪造任务或窗口。
 
 ## 回归与门禁
 
 - `cargo test --offline --locked -p yonder-desktop`：6项通过、0失败。
-- `node --check apps/desktop/ui/pet.js apps/desktop/ui/task-space.js apps/desktop/check-task-space.mjs`：语法检查通过。
-- `swiftc -parse apps/desktop/check-task-menu-right-click-macos.swift`：通过。
+- `node --check apps/desktop/ui/pet.js apps/desktop/ui/task-space.js scripts/verification/desktop/check-task-space.mjs`：语法检查通过。
+- `swiftc -parse scripts/verification/desktop/check-task-menu-right-click-macos.swift`：通过。
 - `openspec validate ds-s2-task-overview`：通过。
 - ego-browser：`browser-result.json`返回`hoverDoesNotOpen`、`rightClickOpens`、`clickDoesNotOpen`、`keyboardAndDrag`、`unknownOnFailure`等全部true。夹具只注入UI测试值，不写产品任务库。
 

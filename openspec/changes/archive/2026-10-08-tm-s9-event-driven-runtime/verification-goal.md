@@ -18,7 +18,7 @@ Result: PASS
 - 关键新增样本证明：SQLite 片段游标仍为 0 且 projector 未 ACK 时，两个计划槽位已经连续派发；投影后游标、任务 sequence、events 与 Outbox 追平。运行时 takeover 随后立即得到 `paused/stopped`，再异步写入 control 记录。
 - `execution_runtime` 回归覆盖 projector 可控失败重试、无 ACK 连续推进、硬背压、unknown/HandBack、连续 checkpoint、目标核验绑定和计划游标。
 - Adapter/Desktop 回归覆盖事务回滚、幂等投影、重启 `running → interrupted`、直接运行中取消、显式接管、发送确认一次性消费和敏感信息不进入顶部控制条。
-- `node apps/desktop/check-cua-control.mjs`：规划、快脑决策、Driver 轮次、Observe 结论、显式接管、非 CUA 展示、确认按钮、无障碍文案与脱敏全部通过。
+- `node scripts/verification/desktop/check-cua-control.mjs`：规划、快脑决策、Driver 轮次、Observe 结论、显式接管、非 CUA 展示、确认按钮、无障碍文案与脱敏全部通过。
 - `cargo build --offline --locked -p yonder-desktop`、`git diff --check`、`openspec validate tm-s9-event-driven-runtime --strict`：通过。
 
 ## 门禁说明

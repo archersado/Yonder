@@ -14,8 +14,8 @@
 - `openspec validate ag-s10-circle-submit-recovery`：PASS。
 - `cargo test -p yonder-application`：83/83 PASS。
 - `cargo test -p yonder-desktop`：lib 33/33、main 11/11 PASS。
-- `node apps/desktop/check-region-submit-recovery.mjs`：PASS，覆盖失败不清空、unknown 禁止重试和附件超限反馈。
-- `swiftc -typecheck apps/desktop/check-region-preview-macos.swift`：PASS。
+- `node scripts/verification/desktop/check-region-submit-recovery.mjs`：PASS，覆盖失败不清空、unknown 禁止重试和附件超限反馈。
+- `swiftc -typecheck scripts/verification/desktop/check-region-preview-macos.swift`：PASS。
 - `cargo build -p yonder-desktop -p yonder-cli` 与 `package-macos-preview.py --allow-adhoc`：PASS；`target/debug/Yonda.app` 的标识为 `com.yonder.desktop`，deep/strict codesign 校验通过。
 
 ## 正式 GUI 证据
