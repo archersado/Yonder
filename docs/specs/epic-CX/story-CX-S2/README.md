@@ -37,7 +37,7 @@ OpenSpec: cx-s2-display-change-cleanup
 
 [应用切换清场Change](../../../../openspec/changes/archive/2026-09-22-cx-s2-app-switch-cleanup/proposal.md)已归档：macOS可见圈选层或确认卡切换应用时统一清场；截图流程主动隐藏窗口时不会误清场，当前`dev`正式预览bundle连续两次独立复核PASS。Windows保留后续门禁。
 
-2026-10-15：正式包回归显示截图主动隐藏窗口时，应用切换监听器错误清除了 `Capturing` 会话。已建立 [截图隐藏激活竞态修复 Change](../../../../openspec/changes/cx-s2-capture-activation-race/proposal.md)，按既有应用切换清场规格恢复捕获阶段豁免，并重新执行正式 GUI 验证。
+2026-10-15：[截图隐藏激活竞态修复 Change](../../../../openspec/changes/archive/2026-10-15-cx-s2-capture-activation-race/proposal.md)已完成并通过独立 macOS Verification Goal：截图主动隐藏保留 `Capturing` 会话和图片确认卡，选择中与确认卡中真实应用切换仍清场，取消后重新打开不存在旧预览。结构化证据不含截图内容；Windows、多显示器、物理显示器断开和运行中撤权仍沿用既有门禁，完整 CX-S2 保持 `verifying`。
 
 2026-09-22：[显示器参数变化清场Change](../../../../openspec/changes/cx-s2-display-change-cleanup/proposal.md)已实现并在macOS主显示器模式变化样本中PASS；原生关闭路径先完成清场时与屏幕通知共享同一不变量。物理显示器断开、副屏/负坐标、运行中撤权与Windows仍保留门禁。
 

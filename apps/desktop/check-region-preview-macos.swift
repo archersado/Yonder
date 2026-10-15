@@ -146,6 +146,7 @@ func escape() {
 }
 func activateSwitchTarget() -> Bool {
     guard NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/TextEdit.app")), wait(3, { NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first != nil }), let target = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first else { return false }
+    _ = target.activate(options: [.activateAllWindows])
     return wait(3, { NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier })
 }
 func openRegion() -> Bool {
@@ -183,6 +184,16 @@ if ProcessInfo.processInfo.environment["YONDA_EXPECT_REVIEW_DRAG"] == "1" {
     guard wait(3, { window("Yonda · 圈选提问").flatMap(rect).map { abs($0.minX - before.minX) >= 50 || abs($0.minY - before.minY) >= 30 } ?? false }), let after = window("Yonda · 圈选提问").flatMap(rect) else { fail(108, "review-window-did-not-move") }
     guard findRole(ax, "AXTextArea") != nil || findRole(ax, "AXTextField") != nil, pressButton("取消"), wait(3, { window("Yonda · 圈选提问") == nil }) else { fail(109, "review-drag-content-regressed") }
     let data = try JSONSerialization.data(withJSONObject: ["passed": true, "native_window_moved": true, "before": [before.minX, before.minY], "after": [after.minX, after.minY], "content_interactive_after_drag": true], options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!); exit(0)
+}
+if ProcessInfo.processInfo.environment["YONDA_EXPECT_CAPTURE_CANCEL"] == "1" {
+    guard openRegion(), let overlay = window("Yonda · 圈选提问"), let overlayRect = rect(overlay) else { fail(110, "capture-cancel-open-failed") }
+    Thread.sleep(forTimeInterval: 0.45)
+    drag([CGPoint(x: overlayRect.minX + 180, y: overlayRect.minY + 180), CGPoint(x: overlayRect.minX + 360, y: overlayRect.minY + 280)])
+    guard wait(8, { window("Yonda · 圈选提问").flatMap(rect).map { (430...450).contains(Int($0.width)) && (550...570).contains(Int($0.height)) } ?? false }), previewImageInfo() != nil else { fail(111, "capture-cancel-preview-missing") }
+    guard pressButton("取消"), wait(3, { window("Yonda · 圈选提问") == nil }), wait(3, cleanupHidden), cleanupInfo()?.reason == "review-cancel" else { fail(112, "capture-cancel-not-cleared") }
+    guard reopenWithoutOldPreview() else { fail(113, "capture-cancel-stale-preview") }
+    let data = try JSONSerialization.data(withJSONObject: ["passed": true, "capture_preview_present": true, "review_cancel_cleared": true, "reopen_without_old_preview": true], options: [.prettyPrinted, .sortedKeys])
     print(String(data: data, encoding: .utf8)!); exit(0)
 }
 if ProcessInfo.processInfo.environment["YONDA_EXPECT_APP_SWITCH"] == "1" {

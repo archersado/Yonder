@@ -1,0 +1,20 @@
+{
+  "bundle": "target/debug/Yonda.app",
+  "capture_cancel": {
+    "capture_preview_present": true,
+    "passed": true,
+    "reopen_without_old_preview": true,
+    "review_cancel_cleared": true
+  },
+  "capture_permission_preflight": true,
+  "change": "cx-s2-capture-activation-race",
+  "commit": "90f6d3c",
+  "macos_single_display": true,
+  "real_application_switch": {
+    "capture_hide_preserved_session": true,
+    "passed": true,
+    "reviewing_app_switch_cleared": true,
+    "selecting_app_switch_cleared": true
+  },
+  "screenshots_saved": false
+}
