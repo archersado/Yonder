@@ -19,8 +19,7 @@ li { display: grid; gap: 4px; padding: 7px; border: 1px solid #e8e3ef; border-ra
 .id { font-weight: 650; overflow-wrap: anywhere; }
 .state { color: #777286; font-size: 11px; }
 .actions { display: flex; gap: 5px; }
-.agent-sessions, .voice-reply { margin-top: 10px; padding-top: 5px; border-top: 1px solid #e8e3ef; }
-.session-current { color: #3a7551; font-weight: 650; }
+.voice-reply { margin-top: 10px; padding-top: 5px; border-top: 1px solid #e8e3ef; }
 .voice-option { display: flex; align-items: center; gap: 7px; color: inherit; }
 .voice-option input { width: auto; accent-color: #7652d6; }
 .section-status { min-height: 16px; margin: 5px 0 0; font-size: 11px; color: #777286; }
@@ -29,6 +28,5 @@ li { display: grid; gap: 4px; padding: 7px; border: 1px solid #e8e3ef; border-ra
   :root { color: #ebe7f1; }
   .settings { background: #28242ffa; border-color: #45404f; }
   button, input, li { background: #2e2b37; border-color: #45404f; color: #ebe7f1; }
-  .agent-sessions, .voice-reply { border-color: #45404f; }
-  .session-current { color: #8dd2a4; }
+  .voice-reply { border-color: #45404f; }
 }

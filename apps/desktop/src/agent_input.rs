@@ -93,22 +93,10 @@ pub struct SelectionDelivery {
     pub reply_expected: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
-pub struct AgentSessionSummary {
-    pub session_ref: u64,
-    pub agent_id: String,
-    pub active: bool,
-    pub explicit: bool,
-    pub supports_attachment: bool,
-    pub supports_reply: bool,
-}
-
 #[derive(Default)]
 struct HubState {
-    sessions: HashMap<String, (u64, SessionSink)>,
+    session: Option<(u64, SessionSink)>,
     gateways: HashMap<u64, String>,
-    active: Option<String>,
-    active_explicit: bool,
     reply: Option<ReplyState>,
 }
 
@@ -135,13 +123,13 @@ impl AgentInputHub {
         supports_reply: bool,
         tx: tokio_mpsc::UnboundedSender<Delivery>,
         close: tokio_mpsc::UnboundedSender<()>,
-    ) -> (u64, bool) {
+    ) -> (u64, bool, Option<AgentReplyParams>) {
         let token = self.next_session.fetch_add(1, Ordering::Relaxed) + 1;
-        let connected = if let Ok(mut state) = self.inner.lock() {
-            let replacing = state.sessions.contains_key(&session_id);
-            state.sessions.insert(
-                session_id.clone(),
-                (
+        let mut previous = None;
+        let mut interrupted = None;
+        let connected = match self.inner.lock() {
+            Ok(mut state) => {
+                previous = state.session.replace((
                     token,
                     SessionSink {
                         agent_id,
@@ -152,32 +140,32 @@ impl AgentInputHub {
                         tx,
                         close,
                     },
-                ),
-            );
-            if state.sessions.len() == 1 {
-                state.active = Some(session_id);
-                if !replacing {
-                    state.active_explicit = false;
+                ));
+                if let Some(reply) = state
+                    .reply
+                    .take()
+                    .filter(|reply| reply.session_id != session_id || previous.is_some())
+                {
+                    interrupted = Some(interrupted_reply(reply));
                 }
-            } else if !replacing && !state.active_explicit {
-                state.active = None;
+                true
             }
-            true
-        } else {
-            false
+            Err(_) => false,
         };
-        (token, connected)
+        if let Some((_, sink)) = previous {
+            let _ = sink.close.send(());
+        }
+        (token, connected, interrupted)
     }
 
     pub(crate) fn unregister(&self, session_id: &str, token: u64) -> bool {
         if let Ok(mut state) = self.inner.lock() {
             if state
-                .sessions
-                .get(session_id)
-                .is_some_and(|(current, _)| *current == token)
+                .session
+                .as_ref()
+                .is_some_and(|(current, sink)| *current == token && sink.session_id == session_id)
             {
-                let removed_active = state.active.as_deref() == Some(session_id);
-                state.sessions.remove(session_id);
+                state.session = None;
                 if state
                     .reply
                     .as_ref()
@@ -185,13 +173,8 @@ impl AgentInputHub {
                 {
                     state.reply = None;
                 }
-                if removed_active {
-                    state.active = None;
-                    state.active_explicit = false;
-                }
-                reconcile_active(&mut state);
             }
-            !state.sessions.is_empty()
+            state.session.is_some()
         } else {
             false
         }
@@ -202,59 +185,16 @@ impl AgentInputHub {
             Ok(state) => state,
             Err(_) => return false,
         };
-        let removed: Vec<String> = state
-            .sessions
-            .iter()
-            .filter(|(_, (_, sink))| sink.agent_id == agent_id)
-            .map(|(session_id, _)| session_id.clone())
-            .collect();
-        for session_id in &removed {
-            if let Some((_, sink)) = state.sessions.remove(session_id.as_str()) {
+        if state
+            .session
+            .as_ref()
+            .is_some_and(|(_, sink)| sink.agent_id == agent_id)
+        {
+            if let Some((_, sink)) = state.session.take() {
                 let _ = sink.close.send(());
             }
         }
-        if state
-            .reply
-            .as_ref()
-            .is_some_and(|reply| removed.contains(&reply.session_id))
-        {
-            state.reply = None;
-        }
-        if removed.is_empty() {
-            return !state.sessions.is_empty();
-        }
-        if state
-            .active
-            .as_ref()
-            .is_some_and(|active| removed.contains(active))
-        {
-            state.active = None;
-            state.active_explicit = false;
-        }
-        reconcile_active(&mut state);
-        !state.sessions.is_empty()
-    }
-
-    pub fn session_summaries(&self) -> Result<Vec<AgentSessionSummary>, &'static str> {
-        let state = self.inner.lock().map_err(|_| "Agent会话状态不可用")?;
-        Ok(session_summaries(&state))
-    }
-
-    pub fn select_session(
-        &self,
-        session_ref: u64,
-    ) -> Result<Vec<AgentSessionSummary>, &'static str> {
-        let mut state = self.inner.lock().map_err(|_| "Agent会话状态不可用")?;
-        let session_id = state
-            .sessions
-            .iter()
-            .find_map(|(session_id, (token, _))| {
-                (*token == session_ref).then(|| session_id.clone())
-            })
-            .ok_or("Agent会话已断开")?;
-        state.active = Some(session_id);
-        state.active_explicit = true;
-        Ok(session_summaries(&state))
+        state.session.is_some()
     }
 
     pub fn connected(&self) -> bool {
@@ -265,7 +205,7 @@ impl AgentInputHub {
             .lock()
             .map(|state| AgentConnectionPresence {
                 gateway_connected: !state.gateways.is_empty(),
-                input_connected: !state.sessions.is_empty(),
+                input_connected: state.session.is_some(),
             })
             .unwrap_or_default()
     }
@@ -400,16 +340,11 @@ impl AgentInputHub {
 
     fn active_sink(&self) -> Result<SessionSink, &'static str> {
         let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
-        let session = state.active.as_ref().ok_or(if state.sessions.is_empty() {
-            "当前没有可接收输入的Agent"
-        } else {
-            "请选择接收输入的Agent"
-        })?;
         state
-            .sessions
-            .get(session)
+            .session
+            .as_ref()
             .map(|(_, sink)| sink.clone())
-            .ok_or("Agent会话已断开")
+            .ok_or("当前没有可接收输入的Agent")
     }
 
     pub(crate) fn accept_reply(&self, params: &AgentReplyParams) -> bool {
@@ -471,15 +406,7 @@ impl AgentInputHub {
             .reply
             .take()
             .filter(|reply| reply.session_id == session_id)?;
-        Some(AgentReplyParams {
-            input_id: reply.input_id.clone(),
-            session_id: reply.session_id,
-            reply_id: reply.reply_id.unwrap_or(reply.input_id),
-            sequence: reply.next_sequence,
-            phase: AgentReplyPhase::Interrupted,
-            content: None,
-            truncated: false,
-        })
+        Some(interrupted_reply(reply))
     }
 
     pub fn deliver_for_agent(
@@ -489,16 +416,12 @@ impl AgentInputHub {
     ) -> Result<DeliveryOutcome, &'static str> {
         let sink = {
             let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
-            let mut sessions = state
-                .sessions
-                .values()
+            state
+                .session
+                .as_ref()
                 .filter(|(_, sink)| sink.agent_id == agent_id)
-                .map(|(_, sink)| sink.clone());
-            let sink = sessions.next().ok_or("任务归属Agent未连接")?;
-            if sessions.next().is_some() {
-                return Err("任务归属Agent存在多个会话");
-            }
-            sink
+                .map(|(_, sink)| sink.clone())
+                .ok_or("任务归属Agent未连接")?
         };
         let now = u64::try_from(
             SystemTime::now()
@@ -557,16 +480,12 @@ impl AgentInputHub {
         }
         let sink = {
             let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
-            let mut sessions = state
-                .sessions
-                .values()
+            state
+                .session
+                .as_ref()
                 .filter(|(_, sink)| sink.agent_id == agent_id && sink.supports_replan)
-                .map(|(_, sink)| sink.clone());
-            let sink = sessions.next().ok_or("任务归属Agent未连接")?;
-            if sessions.next().is_some() {
-                return Err("任务归属Agent存在多个会话");
-            }
-            sink
+                .map(|(_, sink)| sink.clone())
+                .ok_or("任务归属Agent未连接")?
         };
         let now = u64::try_from(
             SystemTime::now()
@@ -604,39 +523,16 @@ impl AgentInputHub {
     }
 }
 
-fn reconcile_active(state: &mut HubState) {
-    if state
-        .active
-        .as_ref()
-        .is_some_and(|session_id| !state.sessions.contains_key(session_id))
-    {
-        state.active = None;
-        state.active_explicit = false;
+fn interrupted_reply(reply: ReplyState) -> AgentReplyParams {
+    AgentReplyParams {
+        input_id: reply.input_id.clone(),
+        session_id: reply.session_id,
+        reply_id: reply.reply_id.unwrap_or(reply.input_id),
+        sequence: reply.next_sequence,
+        phase: AgentReplyPhase::Interrupted,
+        content: None,
+        truncated: false,
     }
-    if state.active.is_none() && state.sessions.len() == 1 {
-        state.active = state.sessions.keys().next().cloned();
-        state.active_explicit = false;
-    }
-    if state.sessions.is_empty() {
-        state.active_explicit = false;
-    }
-}
-
-fn session_summaries(state: &HubState) -> Vec<AgentSessionSummary> {
-    let mut sessions = state
-        .sessions
-        .iter()
-        .map(|(session_id, (token, sink))| AgentSessionSummary {
-            session_ref: *token,
-            agent_id: sink.agent_id.clone(),
-            active: state.active.as_deref() == Some(session_id),
-            explicit: state.active_explicit && state.active.as_deref() == Some(session_id),
-            supports_attachment: sink.supports_attachment,
-            supports_reply: sink.supports_reply,
-        })
-        .collect::<Vec<_>>();
-    sessions.sort_by_key(|session| session.session_ref);
-    sessions
 }
 
 #[cfg(test)]
@@ -657,7 +553,7 @@ mod tests {
         );
         let (tx, _rx) = tokio_mpsc::unbounded_channel();
         let (close_tx, _close_rx) = tokio_mpsc::unbounded_channel();
-        let (session_token, _) = hub.register(
+        let (session_token, _, _) = hub.register(
             "agent-a".into(),
             "session-a".into(),
             false,
@@ -692,9 +588,9 @@ mod tests {
         let hub = AgentInputHub::default();
         let (first, mut first_rx) = tokio_mpsc::unbounded_channel();
         let (second, mut second_rx) = tokio_mpsc::unbounded_channel();
-        let (first_close, _) = tokio_mpsc::unbounded_channel();
+        let (first_close, mut first_close_rx) = tokio_mpsc::unbounded_channel();
         let (second_close, _) = tokio_mpsc::unbounded_channel();
-        let (first_token, connected) = hub.register(
+        let (first_token, connected, interrupted) = hub.register(
             "agent-a".into(),
             "session-a".into(),
             false,
@@ -703,8 +599,8 @@ mod tests {
             first,
             first_close,
         );
-        assert!(connected && hub.connected());
-        let (second_token, _) = hub.register(
+        assert!(connected && hub.connected() && interrupted.is_none());
+        let (second_token, connected, interrupted) = hub.register(
             "agent-b".into(),
             "session-b".into(),
             true,
@@ -713,6 +609,8 @@ mod tests {
             second,
             second_close,
         );
+        assert!(connected && interrupted.is_none());
+        assert!(first_close_rx.try_recv().is_ok());
         let worker = std::thread::spawn(move || {
             assert!(first_rx.try_recv().is_err());
             let delivery = second_rx.blocking_recv().unwrap();
@@ -726,10 +624,10 @@ mod tests {
             delivery.reply.send(DeliveryOutcome::Accepted).unwrap();
         });
         assert_eq!(
-            hub.deliver_for_agent("agent-b", "你好"),
-            Ok(DeliveryOutcome::Accepted)
+            hub.deliver_for_agent("agent-a", "你好"),
+            Err("任务归属Agent未连接")
         );
-        assert_eq!(hub.deliver_voice("你好"), Err("请选择接收输入的Agent"));
+        assert_eq!(hub.deliver_voice("你好"), Ok(DeliveryOutcome::Accepted));
         assert!(hub.unregister("session-a", first_token));
         assert_eq!(
             hub.deliver_selection("看这里", "eA==")
@@ -742,91 +640,35 @@ mod tests {
     }
 
     #[test]
-    fn explicit_session_target_survives_other_session_changes() {
+    fn reconnect_with_same_session_id_preempts_and_ignores_old_unregister() {
         let hub = AgentInputHub::default();
-        let register = |session: &str| {
-            let (tx, _rx) = tokio_mpsc::unbounded_channel();
-            let (close, _close_rx) = tokio_mpsc::unbounded_channel();
-            hub.register(
-                "codex-cli".into(),
-                session.into(),
-                true,
-                false,
-                true,
-                tx,
-                close,
-            )
-            .0
-        };
-        let first = register("session-a");
-        let only = hub.session_summaries().unwrap();
-        assert!(only[0].active && !only[0].explicit);
-
-        let second = register("session-b");
-        assert!(
-            hub.session_summaries()
-                .unwrap()
-                .iter()
-                .all(|value| !value.active)
+        let (first_tx, _first_rx) = tokio_mpsc::unbounded_channel();
+        let (first_close, mut first_close_rx) = tokio_mpsc::unbounded_channel();
+        let (first, _, _) = hub.register(
+            "codex-cli".into(),
+            "session-a".into(),
+            false,
+            false,
+            false,
+            first_tx,
+            first_close,
         );
-        assert_eq!(hub.deliver_voice("你好"), Err("请选择接收输入的Agent"));
-
-        let selected = hub.select_session(second).unwrap();
-        assert!(
-            selected
-                .iter()
-                .any(|value| value.session_ref == second && value.active && value.explicit)
+        let (second_tx, _second_rx) = tokio_mpsc::unbounded_channel();
+        let (second_close, _) = tokio_mpsc::unbounded_channel();
+        let (second, _, _) = hub.register(
+            "codex-cli".into(),
+            "session-a".into(),
+            false,
+            false,
+            false,
+            second_tx,
+            second_close,
         );
-        let third = register("session-c");
-        assert!(
-            hub.session_summaries()
-                .unwrap()
-                .iter()
-                .any(|value| value.session_ref == second && value.active && value.explicit)
-        );
-
+        assert!(first_close_rx.try_recv().is_ok());
         assert!(hub.unregister("session-a", first));
-        assert!(
-            hub.session_summaries()
-                .unwrap()
-                .iter()
-                .any(|value| value.session_ref == second && value.active && value.explicit)
-        );
-        assert!(hub.unregister("session-c", third));
-        assert!(
-            hub.session_summaries()
-                .unwrap()
-                .iter()
-                .any(|value| value.session_ref == second && value.active && value.explicit)
-        );
-    }
-
-    #[test]
-    fn target_disconnect_reconciles_to_the_only_remaining_session() {
-        let hub = AgentInputHub::default();
-        let register = |session: &str| {
-            let (tx, _rx) = tokio_mpsc::unbounded_channel();
-            let (close, _close_rx) = tokio_mpsc::unbounded_channel();
-            hub.register(
-                "codex-cli".into(),
-                session.into(),
-                false,
-                false,
-                true,
-                tx,
-                close,
-            )
-            .0
-        };
-        let first = register("session-a");
-        let second = register("session-b");
-        hub.select_session(first).unwrap();
-        assert!(hub.unregister("session-a", first));
-        let remaining = hub.session_summaries().unwrap();
-        assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].session_ref, second);
-        assert!(remaining[0].active && !remaining[0].explicit);
-        assert_eq!(hub.select_session(first), Err("Agent会话已断开"));
+        assert!(hub.connected());
+        assert!(!hub.unregister("session-a", second));
+        assert!(!hub.connected());
     }
 
     #[test]
@@ -920,6 +762,57 @@ mod tests {
         assert!(hub.accept_reply(&reply(2, AgentReplyPhase::Delta, "session-a")));
         assert!(hub.accept_reply(&reply(3, AgentReplyPhase::Completed, "session-a")));
         assert!(!hub.accept_reply(&reply(4, AgentReplyPhase::Completed, "session-a")));
+    }
+
+    #[test]
+    fn preemption_interrupts_old_reply_and_rejects_late_delta() {
+        let hub = AgentInputHub::default();
+        let (first_tx, mut first_rx) = tokio_mpsc::unbounded_channel();
+        let (first_close, mut first_close_rx) = tokio_mpsc::unbounded_channel();
+        hub.register(
+            "agent-a".into(),
+            "session-a".into(),
+            false,
+            false,
+            true,
+            first_tx,
+            first_close,
+        );
+        let worker = std::thread::spawn(move || {
+            first_rx
+                .blocking_recv()
+                .unwrap()
+                .reply
+                .send(DeliveryOutcome::Accepted)
+                .unwrap();
+        });
+        let delivery = hub.deliver_selection_text("解释这里").unwrap();
+        worker.join().unwrap();
+
+        let (second_tx, _second_rx) = tokio_mpsc::unbounded_channel();
+        let (second_close, _) = tokio_mpsc::unbounded_channel();
+        let (_, connected, interrupted) = hub.register(
+            "agent-a".into(),
+            "session-b".into(),
+            false,
+            false,
+            true,
+            second_tx,
+            second_close,
+        );
+        let interrupted = interrupted.unwrap();
+        assert!(connected && first_close_rx.try_recv().is_ok());
+        assert_eq!(interrupted.input_id, delivery.input_id);
+        assert_eq!(interrupted.phase, AgentReplyPhase::Interrupted);
+        assert!(!hub.accept_reply(&AgentReplyParams {
+            input_id: delivery.input_id,
+            session_id: "session-a".into(),
+            reply_id: "turn-old".into(),
+            sequence: 1,
+            phase: AgentReplyPhase::Started,
+            content: None,
+            truncated: false,
+        }));
     }
 
     #[test]

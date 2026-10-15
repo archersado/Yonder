@@ -32,13 +32,6 @@ use yonder_application::{
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const ATTACHMENT_CHUNK_BYTES: usize = 47 * 1024;
 
-fn emit_agent_session_change(pet: &WebviewWindow) {
-    if let Some(window) = pet.app_handle().get_webview_window("agent-settings") {
-        let _ =
-            window.eval("window.dispatchEvent(new CustomEvent('yonda-agent-sessions-changed'))");
-    }
-}
-
 struct GatewayConnectionLease {
     hub: AgentInputHub,
     pet: WebviewWindow,
@@ -583,7 +576,6 @@ async fn exchange(
                         "accepted"
                     }
                     Ok(Err("任务归属Agent未连接")) => "missing",
-                    Ok(Err("任务归属Agent存在多个会话")) => "ambiguous",
                     _ => "failed",
                 };
                 cua_hub.mark_replan_delivery(&task_id, state);
@@ -600,7 +592,7 @@ async fn exchange(
             }
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
             let (close_tx, mut close_rx) = tokio::sync::mpsc::unbounded_channel();
-            let (token, connected) = hub.register(
+            let (token, connected, interrupted) = hub.register(
                 agent_id,
                 session_id.clone(),
                 supports_attachment,
@@ -610,8 +602,13 @@ async fn exchange(
                 close_tx,
             );
             let _ = connected;
+            if let Some(params) = interrupted {
+                voice_reply.handle_reply(&params);
+                if let Some(window) = pet.app_handle().get_webview_window("region-preview") {
+                    let _ = emit_region_reply(&window, &params);
+                }
+            }
             emit_pet_agent_connection(&pet, hub.presence());
-            emit_agent_session_change(&pet);
             let result = async {
                 loop {
                     let delivery = tokio::select! {
@@ -663,7 +660,6 @@ async fn exchange(
             }
             let _ = hub.unregister(&session_id, token);
             emit_pet_agent_connection(&pet, hub.presence());
-            emit_agent_session_change(&pet);
             return result;
         }
     }
