@@ -20,3 +20,5 @@
 - 正式打包 `Yonda.app` 的 `python3 scripts/verification/desktop/check-cua-control-macos.py apps/desktop/evidence/tm-s3-cua-step-presentation-macos-20260928` 通过：控制条 560×174、顶部居中、规划标题和首个步骤可见，点击接管后 `paused/stopped`、未跑完全部槽位、零新增 `unknown/user-input`。
 
 证据位于 `apps/desktop/evidence/tm-s3-cua-step-presentation-macos-20260928/`。Windows 按用户决定暂缓。
+
+2026-10-15 归档复核：在 `task-control` 主规格建立后，本 Change 的 `MODIFIED` delta 已补齐基线全部接管场景，避免替换语义静默删除既有要求；新增的连续计划展示与诚实降级场景保持不变。当前控制条 Node 合约及 Adapters 87、Application 92、Desktop lib 39、Desktop bin 12 项回归全部 PASS，严格 OpenSpec 与架构门禁通过。
