@@ -44,7 +44,7 @@ Accepted AD-TM-04审阅通过，首批仅created取消；openspec/changes/tm-s3-
 
 2026-09-17接管定位增量PASS：真实UDS Agent经trycua SDK执行步骤，Yonda任务卡片接管后提交`paused/stopped/focused`并精确前置原生任务窗口，Recording未启动；见[独立 Verification Goal](../../../../openspec/changes/tm-s3-takeover-work-focus/verification-goal.md)。完整Story仍保留跨Space/多显示器、Windows及RC-S1 Recording前置。
 
-2026-09-20接管定位可见性增量PASS：macOS Adapter 在 AX 焦点确认后复核原窗口处于 WindowServer 当前可见列表，避免跨 Space 不可见窗口被误报为已定位；见[独立 Verification Goal](../../../../openspec/changes/tm-s3-work-focus-visibility/verification-goal.md)。真实跨 Space/多显示器仍需单独原生样本，Windows与 Recording 继续保留。
+2026-09-20接管定位可见性增量PASS，2026-10-15完成自包含复跑并归档：macOS Adapter 在 AX 焦点确认后复核原窗口处于 WindowServer 当前可见列表，避免跨 Space 不可见窗口被误报为已定位；见[独立 Verification Goal](../../../../openspec/changes/archive/2026-10-15-tm-s3-work-focus-visibility/verification-goal.md)。真实跨 Space/多显示器仍需单独原生样本，Windows与 Recording 继续保留，TM-S3整体仍为 `implementing`。
 
 2026-09-28依据用户明确变更与 Accepted AD-CU-07 开始显式 CUA 接管增量：移除普通 HID 自动中断，在真实 CUA 执行区间显示与圈选工具条同屏、同顶部居中位置及同视觉的控制条，只允许用户点击“接管电脑”后在动作完成并 Observe 的安全边界暂停。Windows与 Recording 不在本增量范围。
 
