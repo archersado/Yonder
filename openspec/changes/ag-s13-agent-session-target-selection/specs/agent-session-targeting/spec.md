@@ -2,37 +2,37 @@
 
 ## ADDED Requirements
 
-### Requirement: 在线会话可显式选择
-Yonder MUST 在多个可接收输入的在线 AgentSession 并存时提供本地显式选择入口，且 MUST NOT 猜测目标。
+### Requirement: 输入会话单活抢占
+Yonder MUST 同时只保留一个可接收用户输入的 AgentSession，新的已认证会话 MUST 抢占并关闭旧会话。
 
-#### Scenario: 多会话未选择
-- **WHEN** 第二个会话连接且当前目标仅由唯一会话自动产生
-- **THEN** 系统清除自动目标并拒绝输入
-- **AND** Agent 管理展示所有当前在线会话的选择入口
-- **AND** 保留输入的圈选卡直接提供打开 Agent 管理的入口
+#### Scenario: 后连抢占
+- **WHEN** 当前已有输入会话且新的已认证输入会话注册
+- **THEN** Hub 原子地把新会话设为唯一目标
+- **AND** 向旧会话发出关闭信号
+- **AND** 后续圈选与语音输入不得再进入旧会话
 
-#### Scenario: 用户选择目标
-- **WHEN** 用户选择一个仍在线的不透明 `session_ref`
-- **THEN** 后续圈选与语音输入只投递到该会话
-- **AND** 非目标会话不接收正文或附件
-- **AND** 原圈选卡提示可以重新发送且不丢失草稿或截图
+#### Scenario: 同会话重连
+- **WHEN** 相同 session 标识以新连接 token 重连
+- **THEN** 新连接抢占旧连接
+- **AND** 旧连接延迟 unregister 不得删除新连接
 
-### Requirement: 自动选择与断连稳定
-Yonder MUST 自动选择唯一在线会话，并在显式目标有效期间保持选择；失效引用不得继续投递。
+### Requirement: 抢占保持回复隔离
+Yonder MUST 在抢占时释放旧会话的短生命回复关联，并 MUST NOT 把旧回复通知投影到新会话。
 
-#### Scenario: 非目标断连
-- **WHEN** 用户已显式选择目标且其他会话断连
-- **THEN** 当前目标保持不变
+#### Scenario: 回复进行中发生抢占
+- **WHEN** 旧会话存在未完成回复且新会话注册
+- **THEN** 旧回复关联被清除并显示中断
+- **AND** 旧会话后续 delta 被拒绝
 
-#### Scenario: 目标断连
-- **WHEN** 当前目标断连
-- **THEN** 系统立即清除该引用
-- **AND** 只剩一个会话时自动选择，否则继续要求用户选择
+### Requirement: 不暴露会话路由
+Yonder MUST NOT 要求用户选择 Agent 输入会话，也 MUST NOT 在 Desktop UI 暴露会话引用或列表。
 
-### Requirement: 会话身份最小披露
-Yonder MUST 只向本地 UI 暴露进程内不透明引用和有界摘要；完整 session/thread ID 与选择状态 MUST NOT 持久化或进入日志。
+#### Scenario: Agent 管理展示
+- **WHEN** 用户打开 Agent 管理
+- **THEN** 页面只显示 Agent 注册授权与语音回复设置
+- **AND** 不显示在线会话、当前接收目标或选择按钮
 
-#### Scenario: Agent 管理展示会话
-- **WHEN** Agent 管理读取在线会话
-- **THEN** 每行只显示 Agent ID、进程内会话序号、能力和当前目标
-- **AND** 不显示完整 session/thread ID
+#### Scenario: 唯一会话不可用
+- **WHEN** 当前没有活动输入会话
+- **THEN** 圈选或语音输入显示通道不可用并保留草稿
+- **AND** 不提示用户选择会话

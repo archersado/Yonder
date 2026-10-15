@@ -1,7 +1,7 @@
 # 设计
 
-`AgentInputHub::register` 已生成进程内 token，本变更将其作为不透明 `session_ref` 返回 Desktop UI。Hub 增加 `active_explicit` 区分唯一会话自动选择与用户选择，并集中处理 register/unregister/select 状态转换；输入投递继续只读取 Hub 的 active sink。
+`AgentInputHub` 将输入连接保存为单一 `Option<(token, SessionSink)>`。`register` 在锁内替换槽位并清除属于旧 session 的回复关联，锁外向旧 sink 发关闭信号；新 sink 立即成为唯一投递目标。
 
-Tauri 增加 `agent_session_list` 与 `agent_session_select`，仅允许 Agent 管理窗口调用。摘要包含 Agent ID、当前进程内序号、当前目标及截图/回复能力，不包含 session_id。UI 不缓存路由事实，每次打开和选择后重新读取 Hub。
+`unregister(session_id, token)` 仅在两个标识同时匹配当前槽位时清空，因此旧连接被抢占后的延迟退出不会影响新连接。同一 session ID 重连仍依赖新 token 防止 ABA。
 
-该状态短生命且非任务事实；进程退出即清空。选择失败不影响现有圈选草稿恢复语义。
+Desktop 删除 `agent_session_list`、`agent_session_select`、会话变化事件及所有会话选择 UI。Agent 管理只保留注册授权和本地语音回复设置。该状态短生命且非任务事实，不进入协议或持久化。

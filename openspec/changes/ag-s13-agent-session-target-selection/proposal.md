@@ -1,18 +1,18 @@
-# Proposal：AG-S13 Agent 输入会话目标选择
+# Proposal：AG-S13 Agent 输入会话单活抢占
 
-关联 [AG-S13](../../../docs/specs/epic-AG/story-AG-S13/README.md) 与 Accepted AD-AG-11 增量。Architecture Impact：conforming；扩展 `AgentInputHub` 既有运行时所有权和 Desktop 内部 UI 命令，不改变 Gateway 协议、SQLite、Outbox 或任务状态。
+关联 [AG-S13](../../../docs/specs/epic-AG/story-AG-S13/README.md) 与 Accepted AD-AG-11 的 2026-10-15 增量。Architecture Impact：conforming；收敛 `AgentInputHub` 既有运行时所有权，不改变 Gateway 协议、SQLite、Outbox 或任务状态。
 
 ## Why
 
-多个在线 AgentSession 时，Yonder 正确拒绝猜测输入目标，却没有可完成选择的产品入口，导致圈选、语音和 VI-S3 回复验证被永久阻断。
+允许多个输入会话并要求用户选择目标，暴露了 Codex thread 内部复杂度，也使正常输入多出不可理解的阻断。主人明确本地输入连接应为单活、后连抢占前连。
 
 ## What Changes
 
-- Hub 暴露不含 session/thread ID 的在线会话摘要与显式选择用例。
-- 单会话自动选择；多会话按自动/显式状态稳定处理连接和断连。
-- Agent 管理增加在线输入会话区块、当前目标和稳定错误反馈。
-- 覆盖 Hub、Desktop/UI 与 macOS 正式多会话验证。
+- Hub 从多会话与显式目标收敛为单一当前 AgentSession。
+- 新连接原子替换并关闭旧连接；旧 unregister 不得清除新连接。
+- 删除 Agent 管理会话列表、选择命令及圈选卡选择入口。
+- 覆盖抢占、回复中断、唯一投递和 macOS 正式语音回复验证。
 
 ## Non-goals
 
-不建立会话历史、不持久化选择、不修改 Agent 协议、不自动关闭其他会话、不改变注册授权。
+不建立会话历史或人工切换，不持久化路由，不修改 Agent wire 协议，不改变任务 Gateway 的连接与归属语义。

@@ -1,9 +1,8 @@
 # 任务
 
-- [x] 补齐 AG-S13 Story 三份设计与 AD-AG-11 增量
-- [x] 建立严格 OpenSpec Proposal/Design/Delta
-- [x] 实现 AgentInputHub 会话摘要、自动/显式选择与断连状态机
-- [x] 实现 Desktop Agent 管理会话列表和选择命令
-- [x] 覆盖 Hub、Desktop 与前端合约测试
-- [ ] 构建正式 macOS GUI，完成多会话选择与真实语音回复/停止 Verification Goal
+- [x] 根据 2026-10-15 用户变更修订 AG-S13 Story、AD-AG-11 与 OpenSpec
+- [ ] 将 AgentInputHub 收敛为单一会话并实现后连抢占/旧连接关闭
+- [ ] 删除 Desktop 会话列表、选择命令与圈选选择入口
+- [ ] 覆盖抢占竞态、回复隔离、唯一投递和 UI 移除回归
+- [ ] 构建正式 macOS GUI，完成真实抢占与回复朗读/停止 Verification Goal
 - [ ] Archive 并关闭 AG-S13

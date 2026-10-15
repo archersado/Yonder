@@ -1,15 +1,15 @@
-# AG-S13 Agent 输入会话目标选择
+# AG-S13 Agent 输入会话单活抢占
 
-Story: AG-S13  
-Epic: AG  
-Status: verifying  
+Story: AG-S13
+Epic: AG
+Status: implementing
 OpenSpec: ag-s13-agent-session-target-selection
 
 关联变更：[ag-s13-agent-session-target-selection](../../../../openspec/changes/ag-s13-agent-session-target-selection/proposal.md)。
 
 ## 目标
 
-当同一 Yonder 进程连接多个可接收输入的 AgentSession 时，用户能在 Agent 管理中选择本轮语音/圈选输入的接收会话；单会话仍自动选择，不要求额外操作。
+Yonder 本地输入通道只保留一个 AgentSession。新的已认证会话连接时抢占旧会话，并立即成为圈选、语音和回复回传的唯一目标；产品不要求用户理解或选择 Codex 会话。
 
 ## 设计文档
 
@@ -18,8 +18,8 @@ OpenSpec: ag-s13-agent-session-target-selection
 - [视觉交互设计](visual-interaction-design.md)
 - [Accepted AD-AG-11 增量](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-11-AGENT-REPLY-PRESENTATION.md)
 
-## 来源与当前阻断
+## 来源与修订
 
-2026-10-14 真实 VI-S3 验证中，Yonder 已连接多个 Codex CLI 会话，圈选卡正确拒绝猜测并提示“请选择接收输入的 Agent”，但产品没有任何会话选择入口，导致用户无法解除阻断。本 Story 只补齐该运行时选择闭环，不建立聊天列表、历史会话或持久化路由。
+2026-10-14 首轮方案允许多个在线 AgentSession 并要求用户选择目标；实现后真实验证证明该交互暴露了不应存在的内部连接复杂度。
 
-2026-10-14 已完成 Hub 状态机、Agent 管理会话列表/选择以及圈选卡直达入口并 ff-only 合入 `dev`。独立验证已完成自动化、正式 macOS 构建和真实连接态检查；多会话选择后的真实回复朗读/停止仍待当前客户端重连后复跑，因此保持 `verifying`。
+2026-10-15 主人明确连接应为单活抢占。此前会话列表、显式选择和 `session_ref` UI 方案全部作废；本 Story 返回实施阶段，以后连抢占和旧连接安全退出完成闭环。
