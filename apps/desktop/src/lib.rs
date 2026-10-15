@@ -21,7 +21,8 @@ use yonder_adapters::{
     work_focus::MacWorkFocus,
 };
 use yonder_application::{
-    ActivityState, AuthContext, ControlKind, TaskStore,
+    ActivityState, AuthContext, ControlKind, TaskCoreStore, TaskExecutionStore,
+    TaskPlanFragmentStore,
     agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
     admission::Admission,
     browser_use::BrowserUsePort,
