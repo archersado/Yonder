@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """隔离原生窗口验证正式Rust WorkRef Adapter；不读取或修改任务库。"""
-import json, pathlib, subprocess, sys, threading, time
+import json, pathlib, shutil, subprocess, sys, tempfile, threading, time
 
 root=pathlib.Path(__file__).resolve().parents[3]
-fixture=pathlib.Path("/private/tmp/yonda-work-focus-fixture")
 adapter=root/"target/debug/examples/work_focus_check"
 output=pathlib.Path(sys.argv[1]) if len(sys.argv)==2 else root/"apps/desktop/evidence/work-focus-adapter-20260916"
 output.mkdir(parents=True,exist_ok=True)
 
+temporary=tempfile.TemporaryDirectory(prefix="yonda-work-focus-")
+fixture=pathlib.Path(temporary.name)/"input-fixture-macos"
+cargo=shutil.which("cargo") or str(pathlib.Path.home()/".cargo/bin/cargo")
+subprocess.run(["swiftc",str(root/"apps/desktop/tests/input-fixture-macos.swift"),"-o",str(fixture)],check=True,timeout=120)
+subprocess.run([cargo,"build","-p","yonder-adapters","--example","work_focus_check","--locked"],cwd=root,check=True,timeout=300)
+
 target=subprocess.Popen([str(fixture),"--focus-fixture"],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1)
+process=None
 state={}
 def read_state():
     for line in target.stdout:
@@ -45,5 +51,11 @@ try:
     (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
     print(json.dumps(result,ensure_ascii=False))
 finally:
+    if process is not None and process.poll() is None: process.terminate()
+    if process is not None:
+        try: process.wait(timeout=5)
+        except subprocess.TimeoutExpired: process.kill()
     if target.poll() is None: target.terminate()
-    target.wait(timeout=5)
+    try: target.wait(timeout=5)
+    except subprocess.TimeoutExpired: target.kill()
+    temporary.cleanup()

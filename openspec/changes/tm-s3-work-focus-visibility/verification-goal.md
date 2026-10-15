@@ -14,6 +14,8 @@
 - 隔离原生样本 `python3 scripts/verification/desktop/check-work-focus-macos.py apps/desktop/evidence/tm-s3-work-focus-visibility-macos-20260920` 通过：`visible_on_active_space=true`，最小化恢复、同名重叠拒绝、关闭拒绝、释放后拒绝均通过；未启动 Recording 或附加应用。
 - 结构化证据：[result.json](../../../apps/desktop/evidence/tm-s3-work-focus-visibility-macos-20260920/result.json)。
 
+2026-10-15 归档复核发现验证脚本仍依赖预先放置在 `/private/tmp` 的 fixture，无法从干净 worktree 独立复跑。脚本已改为自行编译仓库内 Swift fixture 与 Rust `work_focus_check` example，并在结束时清理临时进程和目录；当前 macOS 复跑再次取得上述全部断言 `passed=true`。同期 Adapters 87 项、Application 92 项回归全部 PASS，OpenSpec 严格校验通过。
+
 ## 保留边界
 
 该 Goal 仅验证当前 Space 的可见性核验，不能代替真实不同 Space 或多显示器前置样本。Windows 按用户要求暂缓；Recording 与交回 Observe 仍分别受 RC-S1/TM-S4 门禁约束，TM-S3 继续处于 implementing。
