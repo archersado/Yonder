@@ -7,3 +7,5 @@ Desktop 组合根持有 `VoiceReplyRuntime`，把 AG-S9 已通过 Hub 校验的�
 设置值使用 macOS 用户默认设置保存非敏感布尔值。关闭设置、关闭回复卡、连接中断及开始 VI-S1 收音都会先使 generation 失效，再停止原生播放。回调只携带 generation、sequence 和封闭事件枚举；普通日志和 UI 事件不携带朗读正文或声音名称。
 
 UI 在现有回复卡显示“正在准备语音 / 正在朗读 / 已停止朗读 / 本地语音不可用，已保留文字回复”和停止按钮。文字回复生命周期与语音生命周期分离；播放结束不能改变 Agent turn 终态。
+
+Agent 设置的显式“试听”命令仅允许设置窗口调用，使用固定无业务文案复用同一 `VoiceReplyRuntime` 与原生 Adapter。它建立独立短生命 generation，不伪造 AgentSession 通知、不写任务事实或持久化内容；新试听会先停止旧播放。

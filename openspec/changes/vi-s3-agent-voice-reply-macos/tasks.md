@@ -7,5 +7,6 @@
 - [x] 接入 AG-S9 回复 delta/completed/failed/interrupted 与卡片关闭
 - [x] 开始 VI-S1 收音前停止当前语音回复
 - [x] 覆盖 Application、Desktop、前端和原生 Adapter 测试
+- [ ] 增加复用正式 Runtime 的本地语音试听入口并完成真实发声验证
 - [ ] 构建正式 macOS GUI 并完成独立 Verification Goal
 - [ ] Windows Adapter 与同样本验证（Deferred）
