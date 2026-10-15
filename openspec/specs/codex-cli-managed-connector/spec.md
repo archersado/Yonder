@@ -26,6 +26,14 @@ macOS Codex CLI 连接器 MUST 只使用受支持 Hook 提供的当前 session I
 
 连接器 MUST 使用 Codex 公开共享 daemon，并在 `app-server proxy` 原始双向字节流上建立 WebSocket App Server RPC；不得自建/发现私有 endpoint、把 proxy 当作 JSONL，或另起与当前 active writer 冲突的 App Server。
 
+#### Scenario: 已加载会话建立回复订阅
+
+- **WHEN** Hook 提供的 thread 已在共享 daemon 中加载
+- **THEN** 连接器仍通过同一 proxy 调用 `thread/resume(excludeTurns=true)`
+- **AND** 取得同 ID 回执后才声明输入与回复能力
+- **AND** 当前客户端可收到该 thread 的有界回复通知
+- **AND** 不另起 App Server、不读取历史 transcript
+
 #### Scenario: 投递输入
 
 - **WHEN** Gateway 向已绑定 session 发送用户输入或 replan 输入

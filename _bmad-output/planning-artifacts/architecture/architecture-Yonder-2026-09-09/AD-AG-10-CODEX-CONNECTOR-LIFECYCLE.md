@@ -54,3 +54,12 @@ AG-S13 真实验证发现，仅关闭旧 Socket 会被 Codex Connector 按“Yon
 - 若输入已经发送但尚未收到接受回执时发生抢占，结果仍是 `unknown`，不得自动重放；关闭帧不能伪造未送达事实。
 - 把 `codex app-server proxy` 当作逐行 JSON App Server。该命令只转发 daemon 控制 Socket 的原始字节，客户端必须在其上完成 WebSocket 握手与帧协议。
 - 为当前仍由共享 daemon 持有 active writer 的会话另起 `app-server --listen stdio://`；第二个 App Server 会因 writer 冲突拒绝 `thread/resume`。
+
+## 2026-10-15 回复通知订阅语义增量
+
+VI-S3 与 AG-S13 的正式回复朗读样本发现，`thread/loaded/list` 只说明 thread 已由共享 daemon 加载，不代表新建的 Connector App Server 客户端已经订阅该 thread 的 `item/*` 与 `turn/completed` 通知。只“直接附着”会造成输入成功进入当前 Codex 会话，但回复无法回到 Yonder，最终等待超时且 TTS 没有正文。接受以下修订：
+
+- Connector 经同一个公开共享 daemon/proxy 初始化后，必须对 Hook 明确提供的 thread 调用 `thread/resume(excludeTurns=true)`；该调用同时建立当前客户端的通知订阅，并复用已加载 thread，不创建第二个 Agent 或第二个 App Server。
+- `thread/loaded/list` 只用于兼容性诊断，不再作为跳过 `thread/resume` 的依据；已加载与未加载两种状态都必须取得 `thread/resume` 的同 ID 回执后才向 Yonder 注册输入能力。
+- 这里禁止的 writer 冲突仍是“另起独立 `app-server --listen stdio://` 后恢复同一 active thread”；通过共享 daemon 的公开 proxy 增加订阅客户端不属于该拒绝路线。
+- Connector 仍只转发与当前 `session_id`、当前受理 `turn_id` 和已登记回复关联匹配的通知；不读取历史 transcript，不把完整 turn、正文或通知载荷写入日志。
