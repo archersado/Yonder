@@ -10,6 +10,7 @@
 
 - Desktop 阶段判断测试：`Capturing` 不清场，`Selecting` 与 `Reviewing` 清场。
 - Application `region_preview` 测试：截图、确认、提交失败保留与所有终止路径清场不回归。
+- 原生错误分类：未授权请求失败返回 `permission-required`，授权后捕获空结果返回 `capture-failed`。
 
 ## 原生样本
 
