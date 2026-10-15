@@ -1,10 +1,10 @@
 # task-control Delta Specification
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: CUA 控制条必须展示真实执行过程
 
-系统在真实 CUA 执行区间必须展示规划、快脑、当前步骤及最近六轮 Driver 脱敏日志。展示不可用不得阻塞执行，Driver 动作成功不得被解释为用户目标完成。
+系统 MUST 在真实 CUA 执行区间展示规划、快脑、当前步骤及最近六轮 Driver 脱敏日志。展示不可用不得阻塞执行，Driver 动作成功不得被解释为用户目标完成。
 
 #### Scenario: Driver 轮次逐轮更新
 
