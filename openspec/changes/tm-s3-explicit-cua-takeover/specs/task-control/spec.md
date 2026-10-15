@@ -1,6 +1,6 @@
 # task-control Delta Specification
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: CUA 人工接管必须来自显式本机入口
 

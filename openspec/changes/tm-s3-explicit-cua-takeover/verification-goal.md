@@ -28,3 +28,10 @@
 - `check-cua-step-status-macos.py` 经正式 `Yonda.app`、Local Socket 与真实 trycua 运行：confirmed/CAS 推进样本显示可访问绿色 ✓；另一轮 Worker 不可确认时记录 unknown、片段 HandBack 并显示可访问黄色待核实 !，没有伪造成功。两轮验证任务均经正式 `task.cancel` 清理。
 
 证据见 [`成功边界`](../../../apps/desktop/evidence/tm-s3-cua-step-status-macos-20260929/README.md) 与 [`待核实边界`](../../../apps/desktop/evidence/tm-s3-cua-step-unverified-macos-20260929/README.md)。Windows 按既有决定暂缓。
+
+## 2026-10-15 归档复核
+
+- `task-control` 在本 Change 前没有主规格；首个 delta 已由错误的 `MODIFIED` 修正为 `ADDED`，使本 Change 生成基线，后续步骤呈现与 Driver 轮次 Change 才继续修改该基线。需求正文与已验证产品行为未改变。
+- `node scripts/verification/desktop/check-cua-control.mjs` PASS。
+- 当前 `dev` 基线复跑：Adapters 87、Application 92、Desktop lib 39、Desktop bin 12 项全部 PASS；Doc tests 全部通过。
+- `openspec validate tm-s3-explicit-cua-takeover --strict` 与架构门禁 PASS 后方可归档。
