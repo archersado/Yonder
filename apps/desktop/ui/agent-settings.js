@@ -4,6 +4,7 @@ const byId = id => document.getElementById(id);
 const status = byId('agent-status');
 const list = byId('agent-list');
 const voiceReplyEnabled = byId('voice-reply-enabled');
+const voiceReplyPreview = byId('voice-reply-preview');
 const voiceReplyStatus = byId('voice-reply-status');
 const stateText = value => ({ enabled: '已启用', disabled: '已禁用', revoked: '已撤权' })[value] ?? value;
 const timeText = value => value ? new Date(value).toLocaleString() : '未连接';
@@ -70,11 +71,13 @@ async function loadVoiceReply() {
     const config = await invoke('voice_reply_config_get');
     voiceReplyEnabled.checked = config.enabled;
     voiceReplyEnabled.disabled = !config.available;
+    voiceReplyPreview.disabled = !config.available || !config.enabled;
     voiceReplyStatus.textContent = config.available
       ? (config.enabled ? '已开启；只使用本机已安装的中文声音。' : '默认关闭；开启后只使用本机已安装的中文声音。')
       : '本地中文声音不可用；文字回复不受影响。';
   } catch (error) {
     voiceReplyEnabled.disabled = true;
+    voiceReplyPreview.disabled = true;
     voiceReplyStatus.textContent = `语音回复配置读取失败：${error?.message ?? error ?? '请重试'}`;
   }
 }
@@ -84,11 +87,35 @@ voiceReplyEnabled.addEventListener('change', async () => {
   try {
     const config = await invoke('voice_reply_config_save', { enabled: voiceReplyEnabled.checked });
     voiceReplyEnabled.checked = config.enabled;
+    voiceReplyPreview.disabled = !config.available || !config.enabled;
     voiceReplyStatus.textContent = !config.available ? '本地中文声音不可用；文字回复不受影响。' : config.enabled ? '已开启本地语音回复。' : '已关闭并停止语音回复。';
     voiceReplyEnabled.disabled = !config.available;
   } catch (error) {
     voiceReplyStatus.textContent = `语音回复配置保存失败：${error?.message ?? error ?? '请重试'}`;
     await loadVoiceReply();
+  }
+});
+
+voiceReplyPreview.addEventListener('click', async () => {
+  voiceReplyPreview.disabled = true;
+  voiceReplyStatus.textContent = '正在准备试听…';
+  try {
+    await invoke('voice_reply_preview');
+  } catch (error) {
+    const message = error?.message ?? error ?? '';
+    voiceReplyStatus.textContent = String(message).includes('disabled') ? '请先开启语音回复。' : '本地语音不可用。';
+    await loadVoiceReply();
+  }
+});
+
+window.addEventListener('yonda-voice-reply', event => {
+  const phase = event.detail?.phase;
+  if (phase === 'preparing') voiceReplyStatus.textContent = '正在准备试听…';
+  else if (phase === 'speaking') voiceReplyStatus.textContent = '正在试听…';
+  else if (phase === 'completed') voiceReplyStatus.textContent = '试听完成。';
+  else if (phase === 'unavailable') voiceReplyStatus.textContent = '本地语音不可用。';
+  if (phase === 'completed' || phase === 'unavailable' || phase === 'stopped') {
+    voiceReplyPreview.disabled = !voiceReplyEnabled.checked;
   }
 });
 

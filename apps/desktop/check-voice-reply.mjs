@@ -7,8 +7,10 @@ const regionHtml = readFileSync(new URL('./ui/region-preview.html', import.meta.
 const region = readFileSync(new URL('./ui/region-preview.js', import.meta.url), 'utf8');
 
 assert.ok(settingsHtml.includes('id="voice-reply-enabled"'), 'Agent设置必须提供显式语音回复开关');
+assert.ok(settingsHtml.includes('id="voice-reply-preview"'), 'Agent设置必须提供独立试听入口');
 assert.ok(settings.includes("invoke('voice_reply_config_get')"), '设置打开时必须读取正式配置');
 assert.ok(settings.includes("invoke('voice_reply_config_save'"), '设置变化必须保存正式配置');
+assert.ok(settings.includes("invoke('voice_reply_preview')"), '试听必须调用正式语音 Runtime');
 assert.ok(settings.includes('只使用本机已安装的中文声音'), '设置必须明确本地声音边界');
 assert.ok(regionHtml.includes('id="voice-reply-stop"'), '回复卡必须直接提供停止朗读入口');
 assert.ok(region.includes("invoke('voice_reply_stop')"), '停止入口必须调用正式运行时');

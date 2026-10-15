@@ -114,6 +114,14 @@ impl VoiceReplySession {
         Ok(requests)
     }
 
+    pub fn preview(&mut self, text: &str) -> Result<Vec<SpeakRequest>, VoiceReplyError> {
+        const PREVIEW_REPLY_ID: &str = "voice-preview";
+        self.begin(PREVIEW_REPLY_ID)?;
+        let mut requests = self.push_delta(PREVIEW_REPLY_ID, text)?;
+        requests.extend(self.finish(PREVIEW_REPLY_ID)?);
+        Ok(requests)
+    }
+
     pub fn stop(&mut self) -> u64 {
         self.invalidate();
         self.generation
@@ -274,5 +282,18 @@ mod tests {
         assert!(!session.native_idle(generation));
         session.finish("reply-1").unwrap();
         assert!(session.complete_if_idle(generation));
+    }
+
+    #[test]
+    fn preview_uses_a_new_bounded_generation_and_closes_it() {
+        let mut session = VoiceReplySession::new(true);
+        session.begin("reply-1").unwrap();
+        let previous = session.generation();
+        let requests = session.preview("Yonder 本地语音播放正常。").unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_ne!(requests[0].generation, previous);
+        assert_eq!(requests[0].sequence, 0);
+        assert_eq!(requests[0].text, "Yonder 本地语音播放正常。");
+        assert!(session.native_idle(requests[0].generation));
     }
 }

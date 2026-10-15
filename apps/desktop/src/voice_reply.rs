@@ -126,6 +126,31 @@ impl VoiceReplyRuntime {
         }
     }
 
+    pub fn preview(&self) -> Result<(), &'static str> {
+        if !self.port.available() {
+            return Err("voice-reply-unavailable");
+        }
+        let (requests, generation) = self
+            .session
+            .lock()
+            .map_err(|_| "voice-reply-unavailable")
+            .and_then(|mut session| {
+                let requests = session.preview("Yonder 本地语音播放正常。").map_err(
+                    |error| match error {
+                        yonder_application::voice_reply::VoiceReplyError::Disabled => {
+                            "voice-reply-disabled"
+                        }
+                        _ => "voice-reply-unavailable",
+                    },
+                )?;
+                Ok((requests, session.generation()))
+            })?;
+        self.port.stop();
+        publish(&self.app, "preparing", generation, None);
+        self.dispatch(requests);
+        Ok(())
+    }
+
     pub fn handle_reply(&self, params: &AgentReplyParams) {
         let enabled = self
             .session
