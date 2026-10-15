@@ -4,4 +4,4 @@
 - [x] 拆分四个 Application 存储子 trait，以 `TaskStore` supertrait 保持调用接口
 - [x] 按职责拆分 SQLite 实现文件且不修改既有测试断言
 - [x] 运行 Adapter/Application/Workspace、协议生成、schema 与架构门禁
-- [ ] 建立独立 Verification Goal，验证后 Archive 并更新 Story 状态
+- [x] 建立独立 Verification Goal，验证后 Archive 并更新 Story 状态
