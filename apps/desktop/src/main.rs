@@ -263,6 +263,8 @@ struct RegionRect {
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
     fn yonda_region_capture(x: i32, y: i32, width: i32, height: i32) -> *mut c_char;
+    fn yonda_region_screen_capture_authorized() -> i32;
+    fn yonda_region_request_screen_capture_access() -> i32;
     fn yonda_region_source_application() -> *mut c_char;
     fn yonda_region_watch_application_switch(callback: extern "C" fn());
     fn yonda_region_stop_application_switch_watch();
@@ -528,9 +530,14 @@ async fn region_preview_reselect(
 #[cfg(target_os = "macos")]
 fn capture_region_image(x: i32, y: i32, width: i32, height: i32) -> Result<String, String> {
     unsafe {
+        if yonda_region_screen_capture_authorized() == 0
+            && yonda_region_request_screen_capture_access() == 0
+        {
+            return Err("permission-required".into());
+        }
         let raw = yonda_region_capture(x, y, width, height);
         if raw.is_null() {
-            return Err("需要允许 Yonda 录制屏幕后才能预览截图".into());
+            return Err("capture-failed".into());
         }
         let image = CStr::from_ptr(raw).to_string_lossy().into_owned();
         yonda_region_free(raw.cast());
@@ -625,13 +632,13 @@ async fn region_preview_capture(
                 }
                 Err(_) => Err("capture-failed".into()),
             },
-            Err(_) => {
+            Err(error) => {
                 preview
                     .0
                     .lock()
                     .ok()
                     .and_then(|mut session| session.review_without_image().ok());
-                Err("permission-required".into())
+                Err(error)
             }
         }
     }

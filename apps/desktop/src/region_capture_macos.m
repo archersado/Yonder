@@ -50,7 +50,7 @@ void yonda_region_stop_display_change_watch(void) {
 }
 
 char *yonda_region_capture(int x, int y, int width, int height) {
-    if (width < 1 || height < 1 || !CGPreflightScreenCaptureAccess()) return NULL;
+    if (width < 1 || height < 1) return NULL;
     if (@available(macOS 15.2, *)) {} else return NULL;
     __block CGImageRef image = NULL;
     dispatch_semaphore_t completed = dispatch_semaphore_create(0);
@@ -80,6 +80,15 @@ char *yonda_region_capture(int x, int y, int width, int height) {
     if (!written || png.length == 0) return NULL;
     NSString *encoded = [png base64EncodedStringWithOptions:0];
     return encoded ? strdup(encoded.UTF8String) : NULL;
+}
+
+int yonda_region_screen_capture_authorized(void) {
+    return CGPreflightScreenCaptureAccess() ? 1 : 0;
+}
+
+int yonda_region_request_screen_capture_access(void) {
+    if (CGPreflightScreenCaptureAccess()) return 1;
+    return CGRequestScreenCaptureAccess() ? 1 : 0;
 }
 
 void yonda_region_free(void *pointer) { free(pointer); }
