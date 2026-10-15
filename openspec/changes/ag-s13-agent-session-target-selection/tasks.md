@@ -6,6 +6,6 @@
 - [x] 覆盖抢占竞态、回复隔离、唯一投递和 UI 移除回归
 - [x] 增加 `preempted` 关闭协议并确保旧 Connector 终止而非重连
 - [x] 覆盖主动抢占不重连、Yonder 重启仍重连及未确认输入不重放
-- [ ] 修正已加载 Codex thread 的回复通知订阅，覆盖真实文字回传与 TTS
+- [x] 修正已加载 Codex thread 的回复通知订阅，并覆盖已加载/未加载、回复帧顺序及抢占隔离回归；真实文字回传与 TTS 随下一项正式 GUI Goal 验证
 - [ ] 构建正式 macOS GUI，完成真实抢占与回复朗读/停止 Verification Goal
 - [ ] Archive 并关闭 AG-S13
