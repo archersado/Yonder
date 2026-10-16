@@ -345,52 +345,87 @@ function renderArtifacts(container, task, pageResult, current, currentRound) {
   if (page.next_after_ordinal != null) offerArtifactMore(container, list, task.task_id, manifest.version, after, manifest.item_count, current, currentRound);
   else if (list.childElementCount < manifest.item_count) throw new Error('产物清单未完整返回');
 }
+function settled(promise) {
+  return promise.then(value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }));
+}
+function loadingSection(text) {
+  const container = document.createElement('div'); container.className = 'detail-section-loading';
+  const loading = document.createElement('p'); loading.className = 'placeholder'; loading.textContent = text; container.append(loading);
+  return container;
+}
+function updateRecentFields(result, statusReasonField, waitReasonField) {
+  if (result.status === 'rejected' || result.value?.kind !== 'events' || !Array.isArray(result.value.events)) {
+    statusReasonField.textContent = '状态说明读取失败';
+    waitReasonField.textContent = '等待原因读取失败';
+    return;
+  }
+  const events = result.value.events;
+  waitReasonField.textContent = [...events].reverse().find(event => typeof event.wait_reason === 'string' && event.wait_reason)?.wait_reason ?? '未提供';
+  statusReasonField.textContent = [...events].reverse().map(event => event.wait_reason
+    ? `等待用户：${event.wait_reason}`
+    : event.attempt_result?.phase === 'unknown' ? `执行结果未知：${unknownLabels[event.attempt_result.unknown_reason] ?? '原因未提供'}` : null
+  ).find(Boolean) ?? '未提供';
+}
+function updateBrowserField(field, result, task) {
+  field.replaceChildren();
+  if (result.status === 'rejected' || result.value?.kind !== 'browser-state') {
+    field.textContent = '关联状态读取失败'; return;
+  }
+  const reference = result.value.reference;
+  if (!reference) { field.textContent = '未关联'; return; }
+  const ownership = {agent:'Agent控制',agentDelegatedToUser:'用户控制',user:'用户控制'}[reference.ownership] ?? reference.ownership;
+  field.textContent = `${reference.external_task_ref} · ${ownership} · ${reference.managed_pages}个托管页面 · ${reference.finished ? '已结束' : '活动'} · 更新序号 ${reference.updated_sequence}`;
+  if (reference.ownership === 'agent' && !reference.finished) {
+    const open = document.createElement('button'); open.className = 'browser-open'; open.textContent = '打开 ego-lite';
+    open.addEventListener('click', () => openBrowserTaskSpace(task, open)); field.append(document.createElement('br'), open);
+  }
+}
+function renderTimelineSection(container, result, task, current, currentRound) {
+  container.replaceChildren();
+  const heading = document.createElement('h3'); heading.textContent = '时间线'; container.append(heading);
+  if (result.status === 'rejected') {
+    const error = document.createElement('p'); error.className = 'timeline-error'; error.textContent = `时间线读取失败：${result.reason?.message ?? '请重试'}`; container.append(error); return;
+  }
+  const timeline = result.value;
+  if (timeline?.kind !== 'events' || !Array.isArray(timeline.events)) {
+    const error = document.createElement('p'); error.className = 'timeline-error'; error.textContent = '时间线读取失败：响应不可用'; container.append(error); return;
+  }
+  if (!timeline.events.length) {
+    const empty = document.createElement('p'); empty.className = 'timeline-empty'; empty.textContent = '暂无已提交记录'; container.append(empty); return;
+  }
+  const list = document.createElement('ol'); list.className = 'timeline';
+  const after = appendTimeline(list, timeline.events, '0'); container.append(list);
+  offerTimelineMore(container, list, task, after, current, currentRound);
+}
 async function select(task, button, revealSection = null) {
   const current = ++selection, currentRound = round;
   for (const item of tasks.querySelectorAll('button.task')) item.setAttribute('aria-pressed', String(item === button));
   placeholder('正在读取详情…');
   const recentAfter = (BigInt(task.sequence) > 20n ? BigInt(task.sequence) - 20n : 0n).toString();
-  const [detailResult, timelineResult, recentResult, browserResult, grantsResult, approvalsResult] = await Promise.allSettled([
-    query('task.step.get', { task_id: task.task_id }),
-    query('task.events', { task_id: task.task_id, after_sequence: '0', limit: 20 }),
-    query('task.events', { task_id: task.task_id, after_sequence: recentAfter, limit: 20 }),
-    query('task.browser.get', { task_id: task.task_id }),
-    ['completed', 'failed', 'cancelled'].includes(task.status)
-      ? Promise.resolve([])
-      : window.__TAURI_INTERNALS__.invoke('file_grant_list', { taskId: task.task_id }),
-    ['completed', 'failed', 'cancelled'].includes(task.status)
-      ? Promise.resolve([])
-      : loadCommandApprovals(task)
-  ]);
-  if (current !== selection || currentRound !== round) return;
+  const detailPromise = settled(query('task.step.get', { task_id: task.task_id }));
+  const timelinePromise = settled(query('task.events', { task_id: task.task_id, after_sequence: '0', limit: 20 }));
+  const recentPromise = settled(query('task.events', { task_id: task.task_id, after_sequence: recentAfter, limit: 20 }));
+  const browserPromise = settled(query('task.browser.get', { task_id: task.task_id }));
+  const grantsPromise = settled(['completed', 'failed', 'cancelled'].includes(task.status)
+    ? Promise.resolve([])
+    : window.__TAURI_INTERNALS__.invoke('file_grant_list', { taskId: task.task_id }));
+  const approvalsPromise = settled(['completed', 'failed', 'cancelled'].includes(task.status)
+    ? Promise.resolve([])
+    : loadCommandApprovals(task));
+  const detailResult = await detailPromise;
+  const isCurrent = () => current === selection && currentRound === round;
+  if (!isCurrent()) return;
   try {
     if (detailResult.status === 'rejected') throw detailResult.reason;
     const result = detailResult.value;
     if (result.kind !== 'step') throw new Error('任务详情响应不可用');
-    const artifactResult = result.task.artifact_manifest
-      ? await Promise.allSettled([query('task.artifacts', { task_id: result.task.task_id, manifest_version: result.task.artifact_manifest.version, after_ordinal: 0, limit: 20 })]).then(values => values[0])
-      : { status: 'fulfilled', value: null };
-    if (current !== selection || currentRound !== round) return;
     detail.replaceChildren();
     const h2 = document.createElement('h2'); h2.textContent = result.task.name || "未命名历史任务"; detail.append(h2);
     const dl = document.createElement('dl');
-    const events = recentResult.status === 'fulfilled' && recentResult.value.kind === 'events' ? recentResult.value.events : [];
-    const waitReason = [...events].reverse().find(event => typeof event.wait_reason === 'string' && event.wait_reason)?.wait_reason ?? '未提供';
-    const statusReason = [...events].reverse().map(event => event.wait_reason
-      ? `等待用户：${event.wait_reason}`
-      : event.attempt_result?.phase === 'unknown' ? `执行结果未知：${unknownLabels[event.attempt_result.unknown_reason] ?? '原因未提供'}` : null
-    ).find(Boolean) ?? '未提供';
     const step = result.task.current_step ?? result.step;
     const observation = result.task.observation
       ? `${observationLabels[result.task.observation.result] ?? result.task.observation.result} · ${result.task.observation.summary}`
       : '未观察';
-    let browser = '未关联', browserReference = null;
-    if (browserResult.status === 'rejected') browser = '关联状态读取失败';
-    else if (browserResult.value.kind !== 'browser-state') browser = '关联状态读取失败';
-    else if (browserResult.value.reference) {
-      const reference = browserReference = browserResult.value.reference, ownership = {agent:'Agent控制',agentDelegatedToUser:'用户控制',user:'用户控制'}[reference.ownership] ?? reference.ownership;
-      browser = `${reference.external_task_ref} · ${ownership} · ${reference.managed_pages}个托管页面 · ${reference.finished ? '已结束' : '活动'} · 更新序号 ${reference.updated_sequence}`;
-    }
     const terminal = ['completed', 'failed'].includes(result.task.status);
     const confirmation = result.task.user_confirmation;
     const audit = terminal
@@ -405,26 +440,16 @@ async function select(task, button, revealSection = null) {
     const goalVerification = result.task.goal_verification
       ? `${result.task.goal_verification.outcome === 'achieved' ? '目标已核验' : '目标未完成'} · 依据序号 ${result.task.goal_verification.observation_sequence}`
       : '等待慢脑核验最终结果';
-    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', statusReason], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['目标核验', goalVerification], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', waitReason], ['浏览器 Task Space', browser], ['结果确认', audit], ['产物清单', manifest]]) {
+    let statusReasonField, waitReasonField, browserField;
+    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', '正在读取…'], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['目标核验', goalVerification], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', '正在读取…'], ['浏览器 Task Space', '正在读取关联状态…'], ['结果确认', audit], ['产物清单', manifest]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; dl.append(dt, dd);
-      if (name === '浏览器 Task Space' && browserReference?.ownership === 'agent' && !browserReference.finished) {
-        const open = document.createElement('button'); open.className = 'browser-open'; open.textContent = '打开 ego-lite';
-        open.addEventListener('click', () => openBrowserTaskSpace(result.task, open)); dd.append(document.createElement('br'), open);
-      }
+      if (name === '状态说明') statusReasonField = dd;
+      if (name === '等待原因') waitReasonField = dd;
+      if (name === '浏览器 Task Space') browserField = dd;
     }
     detail.append(dl);
-    renderCommandApprovals(detail, result.task, approvalsResult);
-    if (revealSection === 'command-approval') {
-      const card = detail.querySelector('.command-approval-card');
-      if (card) {
-        card.dataset.attention = 'true';
-        card.scrollIntoView({ block: 'start' });
-        message('此任务正在等待你的命令批准');
-      } else {
-        message('命令批准已处理或已过期');
-      }
-    }
-    renderFileGrants(detail, result.task, grantsResult);
+    const approvalsSection = loadingSection('正在读取命令批准…'); detail.append(approvalsSection);
+    const grantsSection = loadingSection('正在读取文件授权…'); detail.append(grantsSection);
     if (terminal && !confirmation) {
       const area = document.createElement('div'); area.className = 'confirm';
       const label = document.createElement('label'); label.textContent = '确认意见（可选）';
@@ -434,28 +459,33 @@ async function select(task, button, revealSection = null) {
       button.addEventListener('click', () => confirmResult(result.task, button, textarea));
       label.append(textarea); area.append(label, button); detail.append(area);
     }
-    try {
-      renderArtifacts(detail, result.task, artifactResult, current, currentRound);
-    } catch (error) {
-      const failure = document.createElement('p'); failure.className = 'artifact-error'; failure.textContent = `产物读取失败：${error.message ?? '请重试'}`; detail.append(failure);
-    }
-    const heading = document.createElement('h3'); heading.textContent = '时间线'; detail.append(heading);
-    if (timelineResult.status === 'rejected') {
-      const error = document.createElement('p'); error.className = 'timeline-error'; error.textContent = `时间线读取失败：${timelineResult.reason?.message ?? '请重试'}`; detail.append(error);
-    } else {
-      const timeline = timelineResult.value;
-      if (timeline.kind !== 'events' || !Array.isArray(timeline.events)) throw new Error('时间线响应不可用');
-      if (!timeline.events.length) {
-        const empty = document.createElement('p'); empty.className = 'timeline-empty'; empty.textContent = '暂无已提交记录'; detail.append(empty);
-      } else {
-        const list = document.createElement('ol'); list.className = 'timeline';
-        const after = appendTimeline(list, timeline.events, '0');
-        detail.append(list);
-        offerTimelineMore(detail, list, result.task, after, current, currentRound);
+    const artifactsSection = loadingSection(result.task.artifact_manifest ? '正在读取产物…' : '正在准备产物信息…'); detail.append(artifactsSection);
+    const timelineSection = loadingSection('正在读取时间线…'); detail.append(timelineSection);
+
+    void recentPromise.then(recentResult => { if (isCurrent()) updateRecentFields(recentResult, statusReasonField, waitReasonField); });
+    void browserPromise.then(browserResult => { if (isCurrent()) updateBrowserField(browserField, browserResult, result.task); });
+    void approvalsPromise.then(approvalsResult => {
+      if (!isCurrent()) return;
+      approvalsSection.replaceChildren(); renderCommandApprovals(approvalsSection, result.task, approvalsResult);
+      if (revealSection === 'command-approval') {
+        const card = approvalsSection.querySelector('.command-approval-card');
+        if (card) { card.dataset.attention = 'true'; card.scrollIntoView({ block: 'start' }); message('此任务正在等待你的命令批准'); }
+        else message('命令批准已处理或已过期');
       }
-    }
+    });
+    void grantsPromise.then(grantsResult => { if (isCurrent()) { grantsSection.replaceChildren(); renderFileGrants(grantsSection, result.task, grantsResult); } });
+    const artifactPromise = result.task.artifact_manifest
+      ? settled(query('task.artifacts', { task_id: result.task.task_id, manifest_version: result.task.artifact_manifest.version, after_ordinal: 0, limit: 20 }))
+      : Promise.resolve({ status: 'fulfilled', value: null });
+    void artifactPromise.then(artifactResult => {
+      if (!isCurrent()) return;
+      artifactsSection.replaceChildren();
+      try { renderArtifacts(artifactsSection, result.task, artifactResult, current, currentRound); }
+      catch (error) { const failure = document.createElement('p'); failure.className = 'artifact-error'; failure.textContent = `产物读取失败：${error.message ?? '请重试'}`; artifactsSection.append(failure); }
+    });
+    void timelinePromise.then(timelineResult => { if (isCurrent()) renderTimelineSection(timelineSection, timelineResult, result.task, current, currentRound); });
   } catch (error) {
-    if (current === selection && currentRound === round) placeholder(`详情读取失败：${error.message ?? '请重试'}`);
+    if (isCurrent()) placeholder(`详情读取失败：${error.message ?? '请重试'}`);
   }
 }
 async function load(reset = true, reveal = null) {

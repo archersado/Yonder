@@ -114,7 +114,7 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.querySelector('link[href*="jev-settings"], script[src*="jev-settings"]')), null);
   assert.equal(await page.evaluate(() => document.querySelector('#jev-form, .jev-capability, [aria-label$="Jev 设置"]')), null);
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureControlRequests=[]; window.fixtureCancelRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureListRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[]; window.fixtureCommandDecisions=[];
+    window.nativeCalls=[]; window.fixtureError = false; window.fixtureTimelineError = false; window.fixtureTimelinePageError = false; window.fixtureArtifactPageError = false; window.fixtureObserveHistory = false; window.fixtureCreationHistory = false; window.fixtureAttemptStartHistory = false; window.fixtureBrowserError = false; window.fixtureListDelay = 0; window.fixtureSecondaryDelay = 0; window.fixtureControlRequests=[]; window.fixtureCancelRequests=[]; window.fixtureBrowserOpenRequests=[]; window.fixtureListRequests=[]; window.fixtureEventRequests=[]; window.fixtureArtifactRequests=[]; window.fixtureArtifactItems={}; window.fixtureConfirmRequests=[]; window.fixtureFileGrantRequests=[]; window.fixtureFileGrants=[]; window.fixtureCommandDecisions=[];
     window.fixtureCommandApprovals=[{taskId:'test-task-20',commandId:'command_fixture_1',state:'awaiting-user',expiresAtMs:Date.now()+60000,preview:{commandId:'command_fixture_1',program:'/usr/bin/printf',args:['%s','hello world'],cwd:'/tmp',env:{LANG:'zh_CN.UTF-8'},timeoutMs:1000,expiresAtMs:0}}];
     window.fixtureCommandApprovals[0].preview.expiresAtMs=window.fixtureCommandApprovals[0].expiresAtMs;
     const tasks = window.fixtureTasks = Array.from({length:21}, (_,i) => ({task_id:'test-task-'+String(i).padStart(2,'0'), name:'test-task-'+String(i).padStart(2,'0'), owner_agent_id:'test-agent', source:'local-agent', status:'running', sequence:'4'}));
@@ -164,6 +164,10 @@ export async function checkTaskSpace(page) {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
       if (method === 'task.events' && window.fixtureTimelineError) throw new Error('测试时间线失败');
+      if ((method === 'task.events' || method === 'task.browser.get') && window.fixtureSecondaryDelay) {
+        const delay = window.fixtureSecondaryDelay;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
       if (method === 'task.events' && params.after_sequence !== '0' && window.fixtureTimelinePageError) throw new Error('任务历史不完整，请刷新后重试');
       if (method === 'task.events') window.fixtureEventRequests.push(params);
       if (method === 'task.list') window.fixtureListRequests.push(params);
@@ -232,8 +236,16 @@ export async function checkTaskSpace(page) {
   await page.click('#next');
   await page.waitForFunction(() => document.querySelectorAll('.task').length === 1);
   assert.equal(await page.evaluate(() => document.querySelector('.task strong').textContent), 'test-task-20');
+  await page.evaluate(() => { window.fixtureSecondaryDelay = 400; });
   await page.click('.task >> nth=0');
   await page.waitForFunction(() => document.querySelector('#detail h2'));
+  assert.deepEqual(await page.evaluate(() => ({
+    title:document.querySelector('#detail h2').textContent,
+    timelineLoading:document.getElementById('detail').textContent.includes('正在读取时间线…'),
+    browserLoading:Object.fromEntries([...document.querySelectorAll('#detail dt')].map(item => [item.textContent,item.nextElementSibling.textContent]))['浏览器 Task Space']
+  })), {title:'test-task-20',timelineLoading:true,browserLoading:'正在读取关联状态…'});
+  await page.waitForFunction(() => document.querySelector('.timeline') && document.querySelector('.command-approval-card') && document.querySelector('.browser-open'));
+  await page.evaluate(() => { window.fixtureSecondaryDelay = 0; });
   const detailText=await page.evaluate(() => document.getElementById('detail').textContent);
   assert.ok(detailText.includes('打开目标文档') && detailText.includes('open-document · 接受序号 2'));
   const details=await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#detail dt')].map(item => [item.textContent,item.nextElementSibling.textContent])));
@@ -374,5 +386,5 @@ export async function checkTaskSpace(page) {
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('任务已取消'));
   assert.deepEqual(await page.evaluate(() => window.fixtureCancelRequests.map(({task_id,expected_sequence})=>({task_id,expected_sequence}))),[{task_id:'test-task-00',expected_sequence:'4'}]);
   assert.equal(await page.evaluate(() => window.fixtureControlRequests.some(request => request.kind === 'cancel')),false);
-  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,presentationMetadata:true,commandApprovalPreview:true,commandApprovalApprove:true,commandApprovalRevoke:true,auditConfirmation:true,auditConfirmedProjection:true,artifactEmpty:true,artifactVersionChange:true,artifactPagination:true,artifactPartialFailure:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
+  return {capabilityUnavailable:true,pendingTakeover:true,pendingSurvivesRefresh:true,paging:true,detail:true,progressiveDetail:true,presentationMetadata:true,commandApprovalPreview:true,commandApprovalApprove:true,commandApprovalRevoke:true,auditConfirmation:true,auditConfirmedProjection:true,artifactEmpty:true,artifactVersionChange:true,artifactPagination:true,artifactPartialFailure:true,timeline:true,timelinePagination:true,timelinePartialFailure:true,historicalObservation:true,historicalCreation:true,historicalAttemptStart:true,browserReference:true,browserOpen:true,browserPartialFailure:true,staleError:true,latestResponseWins:true,filterReset:true,runningOnly:true,otherStatesInAll:true,fixtureOnly:true};
 }
