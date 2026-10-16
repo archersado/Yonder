@@ -1550,6 +1550,12 @@
           ],
           "default": null
         },
+        "expected_output": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "goal_verification": {
           "anyOf": [
             {
@@ -1558,6 +1564,12 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "input_summary": {
+          "type": [
+            "string",
+            "null"
           ]
         },
         "name": {
@@ -1586,6 +1598,12 @@
         },
         "owner_agent_id": {
           "type": "string"
+        },
+        "result_summary": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "sequence": {
           "type": "string"

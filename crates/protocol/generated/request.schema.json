@@ -934,6 +934,12 @@
         "expected_sequence": {
           "type": "string"
         },
+        "result_summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "task_id": {
           "type": "string"
         },
@@ -1096,8 +1102,20 @@
         "description": {
           "type": "string"
         },
+        "expected_output": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "idempotency_key": {
           "type": "string"
+        },
+        "input_summary": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "name": {
           "type": [

@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 1. Rust 协议 1.52、生成 Schema/TypeScript、CLI/MCP 输入输出契约
+- [x] 1. Rust 协议 1.52、生成 Schema/TypeScript、CLI/MCP 输入输出契约
 - [ ] 2. schema 27、创建幂等契约、结果摘要事务与查询投影
 - [ ] 3. Runtime 终态摘要、File/Document 可信产物事件与异步 Projector
 - [ ] 4. Task Space 有界摘要展示及渐进加载回归

@@ -11,7 +11,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: 1,
-    minor: 51,
+    minor: 52,
 };
 pub const MAX_AGENT_REPLY_DELTA_BYTES: usize = 16 * 1024;
 pub const MAX_AGENT_REPLY_BYTES: usize = 64 * 1024;
@@ -471,6 +471,12 @@ pub struct CreateParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub input_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub expected_output: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, TS)]
@@ -833,6 +839,9 @@ pub struct CompleteParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub verification_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub result_summary: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -1133,6 +1142,15 @@ pub struct TaskSnapshot {
     pub source: Option<TaskSource>,
     pub status: TaskStatus,
     pub sequence: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub input_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub expected_output: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub result_summary: Option<String>,
     #[serde(default)]
     #[ts(optional)]
     pub current_step: Option<StepDeclaration>,
@@ -1948,6 +1966,7 @@ impl Request {
             Self::Complete { params, .. } => {
                 if sequence(&params.expected_sequence)? == 0
                     || !params.verification_id.as_deref().is_some_and(valid_id)
+                    || params.result_summary.as_deref().is_some_and(|value| !valid_task_summary(value, 1024))
                 {
                     return Err(RpcError::new(-32602, "非法期望序号"));
                 }
@@ -2031,6 +2050,8 @@ impl Request {
                         .name
                         .as_deref()
                         .is_some_and(|name| !valid_task_name(name))
+                    || params.input_summary.as_deref().is_some_and(|value| !valid_task_summary(value, 512))
+                    || params.expected_output.as_deref().is_some_and(|value| !valid_task_summary(value, 512))
                 {
                     return Err(RpcError::new(-32602, "非法任务登记参数"));
                 }
@@ -2746,6 +2767,9 @@ mod tests {
                     source: None,
                     status: TaskStatus::Interrupted,
                     sequence: "9007199254740993".into(),
+                    input_summary: None,
+                    expected_output: None,
+                    result_summary: None,
                     current_step: None,
                     observation: None,
                     next_intent: None,
@@ -2830,6 +2854,9 @@ mod tests {
             source: Some(TaskSource::LocalAgent),
             status: TaskStatus::Completed,
             sequence: "4".into(),
+            input_summary: Some("处理指定文档".into()),
+            expected_output: Some("生成修改后的文档".into()),
+            result_summary: Some("已生成文档交付物".into()),
             current_step: None,
             observation: None,
             next_intent: None,
@@ -3561,4 +3588,10 @@ pub fn valid_task_name(name: &str) -> bool {
 
 pub fn valid_step_label(label: &str) -> bool {
     !label.trim().is_empty() && label.len() <= 256 && !label.chars().any(char::is_control)
+}
+
+pub fn valid_task_summary(value: &str, max_bytes: usize) -> bool {
+    !value.trim().is_empty()
+        && value.as_bytes().len() <= max_bytes
+        && !value.chars().any(|character| character.is_control() && character != '\n')
 }
