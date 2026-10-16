@@ -5,7 +5,7 @@ Epic: TM
 Status: verifying
 OpenSpec: tm-s10-task-io-contract
 
-变更目录：`openspec/changes/tm-s10-task-io-contract/`
+归档目录：`openspec/changes/archive/2026-10-16-tm-s10-task-io-contract/`
 
 ## 设计文档
 
