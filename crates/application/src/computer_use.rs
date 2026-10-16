@@ -155,6 +155,7 @@ pub fn execute_agent_action_runtime(
             .apply(crate::execution_runtime::RuntimeCommand::Terminate {
                 task_id: task_id.into(),
                 phase: crate::execution_runtime::RuntimePhase::Interrupted,
+                result_summary: None,
             })
             .map_err(runtime_error)?;
         result_task.status = Status::Interrupted;
@@ -247,6 +248,7 @@ pub fn execute_agent_step_runtime(
             .apply(crate::execution_runtime::RuntimeCommand::Terminate {
                 task_id: task_id.into(),
                 phase: crate::execution_runtime::RuntimePhase::Interrupted,
+                result_summary: None,
             })
             .map_err(runtime_error)?;
         admission
@@ -343,7 +345,7 @@ pub fn execute_agent_step(
 }
 
 pub fn complete_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64)->Result<Task,Error>{
-    finish_agent_task(store,admission,auth,task_id,expected,false,None)
+    finish_agent_task(store,admission,auth,task_id,expected,false,None,None)
 }
 
 pub fn verify_agent_goal(
@@ -392,11 +394,15 @@ pub fn verify_agent_goal_for_owner(
 }
 
 pub fn complete_agent_task_verified(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,verification_id:&str)->Result<Task,Error>{
-    finish_agent_task(store,admission,auth,task_id,expected,false,Some(verification_id))
+    finish_agent_task(store,admission,auth,task_id,expected,false,Some(verification_id),None)
+}
+
+pub fn complete_agent_task_verified_with_result(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,verification_id:&str,result_summary:&str)->Result<Task,Error>{
+    finish_agent_task(store,admission,auth,task_id,expected,false,Some(verification_id),Some(result_summary))
 }
 
 pub fn fail_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64)->Result<Task,Error>{
-    finish_agent_task(store,admission,auth,task_id,expected,true,None)
+    finish_agent_task(store,admission,auth,task_id,expected,true,None,None)
 }
 
 pub fn finish_agent_task_runtime(
@@ -408,6 +414,20 @@ pub fn finish_agent_task_runtime(
     expected: u64,
     failed: bool,
     verification_id: Option<&str>,
+) -> Result<Task, Error> {
+    finish_agent_task_runtime_with_result(store,runtime,admission,auth,task_id,expected,failed,verification_id,None)
+}
+
+pub fn finish_agent_task_runtime_with_result(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    failed: bool,
+    verification_id: Option<&str>,
+    result_summary: Option<&str>,
 ) -> Result<Task, Error> {
     let task = crate::get(store, task_id)?;
     if !auth.can_read(&task) {
@@ -435,6 +455,7 @@ pub fn finish_agent_task_runtime(
         .apply(crate::execution_runtime::RuntimeCommand::Terminate {
             task_id: task_id.into(),
             phase,
+            result_summary: result_summary.map(str::to_owned),
         })
         .map_err(runtime_error)?;
     admission
@@ -460,12 +481,26 @@ pub fn finish_agent_task_for_owner_verified(
     failed: bool,
     verification_id: Option<&str>,
 ) -> Result<Task, Error> {
+    finish_agent_task_for_owner_verified_with_result(store,runtime,admission,auth,task_id,expected,failed,verification_id,None)
+}
+
+pub fn finish_agent_task_for_owner_verified_with_result(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    failed: bool,
+    verification_id: Option<&str>,
+    result_summary: Option<&str>,
+) -> Result<Task, Error> {
     match runtime.snapshot(task_id) {
-        Ok(_) => finish_agent_task_runtime(
-            store, runtime, admission, auth, task_id, expected, failed, verification_id,
+        Ok(_) => finish_agent_task_runtime_with_result(
+            store, runtime, admission, auth, task_id, expected, failed, verification_id, result_summary,
         ),
         Err(crate::execution_runtime::RuntimeError::NotFound) => {
-            finish_agent_task(store, admission, auth, task_id, expected, failed, verification_id)
+            finish_agent_task(store, admission, auth, task_id, expected, failed, verification_id, result_summary)
         }
         Err(error) => Err(runtime_error(error)),
     }
@@ -483,7 +518,7 @@ pub fn finish_agent_task_for_owner(
     finish_agent_task_for_owner_verified(store, runtime, admission, auth, task_id, expected, failed, None)
 }
 
-fn finish_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,failed:bool,verification_id:Option<&str>)->Result<Task,Error>{
+fn finish_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthContext<'_>,task_id:&str,expected:u64,failed:bool,verification_id:Option<&str>,result_summary:Option<&str>)->Result<Task,Error>{
     let (task,_)=crate::get_with_step(store,auth,task_id)?;
     if task.sequence!=expected{return Err(Error::Conflict);}
     if task.status!=Status::Running||store.get_control(task_id)?.is_some_and(|value|value.phase==crate::ControlPhase::Pending)||!admission.holds(task_id).map_err(|_|Error::StorageUnavailable)?{return Err(Error::StopRequired);}
@@ -494,7 +529,11 @@ fn finish_agent_task(store:&mut impl TaskStore,admission:&Admission,auth:AuthCon
             && verification.verified_sequence == expected
             && verification.outcome == crate::GoalVerificationOutcome::Achieved
     }) { return Err(Error::StopRequired); }
-    let completed=crate::transition(store,task_id,expected,if failed{crate::Action::Fail}else{crate::Action::Complete})?;
+    if failed && result_summary.is_some() { return Err(Error::InvalidInput); }
+    if result_summary.is_some_and(|value| !crate::valid_task_summary(value,1024)) { return Err(Error::InvalidInput); }
+    let change=task.status.transition(expected,if failed{crate::Action::Fail}else{crate::Action::Complete}).map_err(Error::InvalidTransition)?;
+    store.commit_with_result(task_id,expected,change,result_summary)?;
+    let completed=Task{status:change.next,sequence:change.sequence,..task};
     admission.release_task_after_stop(task_id).map_err(|_|Error::StorageUnavailable)?;
     Ok(completed)
 }

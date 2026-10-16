@@ -437,6 +437,7 @@ pub struct GatewaySession<'a> {
     can_creation_history: bool,
     can_attempt_start_history: bool,
     can_artifact_items: bool,
+    can_task_io: bool,
     can_file_grants: bool,
     can_file_execute: bool,
     can_document_execute: bool,
@@ -619,16 +620,16 @@ mod tests {
 
     #[test]
     fn capability_negotiation_minor_0_through_current_matches_golden() {
-        assert_eq!(PROTOCOL_VERSION.minor, 51, "协议升版后须显式扩展能力协商 golden");
+        assert_eq!(PROTOCOL_VERSION.minor, 52, "协议升版后须显式扩展能力协商 golden");
         let expected_top = [
             0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19,
             20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
-            38, 39, 40, 41, 41, 43, 44, 45, 46, 47, 48, 49, 49, 49,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 47, 48, 49, 49, 49, 52,
         ];
         let expected_read = [
             0, 0, 0, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 13, 15, 16, 17, 18, 19,
             20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 29, 31, 32, 33, 34, 35, 36, 37,
-            38, 39, 40, 41, 41, 43, 44, 45, 46, 46, 46, 49, 49, 49,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 46, 46, 49, 49, 49, 52,
         ];
         for minor in 0..=PROTOCOL_VERSION.minor {
             let QueryResult::Hello { protocol_version, capabilities, .. } = full_capability_hello(minor) else {
@@ -1547,9 +1548,19 @@ impl<'a> GatewaySession<'a> {
                 }
                 let expected = yonder_protocol::sequence(&params.expected_sequence)?;
                 let verification_id = params.verification_id.as_deref().ok_or_else(|| RpcError::new(-32602, "缺少目标核验ID"))?;
+                if self.can_task_io && params.result_summary.is_none() {
+                    return Err(RpcError::new(-32602, "缺少Agent交付摘要"));
+                }
+                if !self.can_task_io && params.result_summary.is_some() {
+                    return Err(RpcError::new(-32010, "Agent交付摘要需要协议1.52"));
+                }
                 let task = if let Some(runtime) = execution_runtime {
-                    crate::computer_use::finish_agent_task_for_owner_verified(
-                        store, runtime, admission, self.auth, &params.task_id, expected, false, Some(verification_id),
+                    crate::computer_use::finish_agent_task_for_owner_verified_with_result(
+                        store, runtime, admission, self.auth, &params.task_id, expected, false, Some(verification_id), params.result_summary.as_deref(),
+                    )
+                } else if let Some(result_summary) = params.result_summary.as_deref() {
+                    crate::computer_use::complete_agent_task_verified_with_result(
+                        store, admission, self.auth, &params.task_id, expected, verification_id, result_summary,
                     )
                 } else {
                     crate::computer_use::complete_agent_task_verified(
@@ -1560,9 +1571,9 @@ impl<'a> GatewaySession<'a> {
                 if let Some(port) = computer {
                     port.end_session();
                 }
-                Ok(QueryResult::Snapshot {
-                    task: snapshot(task),
-                })
+                let mut snapshot = snapshot(task);
+                snapshot.result_summary = params.result_summary.clone();
+                Ok(QueryResult::Snapshot { task: snapshot })
             }
             Request::GoalVerify { params, .. } => {
                 if !self.negotiated { return Err(RpcError::new(-32002, "请先完成Gateway握手")); }
@@ -1663,6 +1674,7 @@ impl<'a> GatewaySession<'a> {
             can_creation_history: false,
             can_attempt_start_history: false,
             can_artifact_items: false,
+            can_task_io: false,
             can_file_grants: false,
             can_file_execute: false,
             can_document_execute: false,
@@ -1725,13 +1737,23 @@ impl<'a> GatewaySession<'a> {
                 Err(RpcError::new(-32010, "任务名称需要协议1.3"))
             } else if self.can_name && params.name.is_none() {
                 Err(RpcError::new(-32602, "Agent须提供任务名称"))
+            } else if self.can_task_io
+                && (params.input_summary.is_none() || params.expected_output.is_none())
+            {
+                Err(RpcError::new(-32602, "Agent须提供任务输入与预期输出"))
+            } else if !self.can_task_io
+                && (params.input_summary.is_some() || params.expected_output.is_some())
+            {
+                Err(RpcError::new(-32010, "任务输入输出契约需要协议1.52"))
             } else {
-                crate::register_with_outcome(
+                crate::register_with_contract_outcome(
                     store,
                     self.auth,
                     &params.idempotency_key,
                     &params.description,
                     params.name.as_deref(),
+                    params.input_summary.as_deref(),
+                    params.expected_output.as_deref(),
                     crate::TaskSource::LocalAgent,
                 )
                 .map_err(query::error)
@@ -1743,6 +1765,10 @@ impl<'a> GatewaySession<'a> {
                     }
                     if !self.can_presentation {
                         snapshot.source = None;
+                    }
+                    if self.can_task_io {
+                        snapshot.input_summary = params.input_summary.clone();
+                        snapshot.expected_output = params.expected_output.clone();
                     }
                     QueryResult::Snapshot { task: snapshot }
                 })
@@ -1844,6 +1870,25 @@ impl<'a> GatewaySession<'a> {
                         QueryResult::Control { task, .. } => task.name = None,
                         QueryResult::Browser { task, .. } => task.name = None,
                         QueryResult::Computer { task, .. } => task.name = None,
+                        _ => {}
+                    }
+                }
+            }
+            if !self.can_task_io {
+                if let Response::Success { result, .. } = &mut response {
+                    let clear = |task: &mut TaskSnapshot| {
+                        task.input_summary = None;
+                        task.expected_output = None;
+                        task.result_summary = None;
+                    };
+                    match result {
+                        QueryResult::Snapshot { task } => clear(task),
+                        QueryResult::Tasks { tasks, .. } => tasks.iter_mut().for_each(clear),
+                        QueryResult::Step { task, .. }
+                        | QueryResult::BrowserState { task, .. }
+                        | QueryResult::Control { task, .. }
+                        | QueryResult::Browser { task, .. }
+                        | QueryResult::Computer { task, .. } => clear(task),
                         _ => {}
                     }
                 }
@@ -1968,6 +2013,7 @@ impl<'a> GatewaySession<'a> {
                 self.can_creation_history = self.can_focus_history && params.protocol_version.minor >= 24;
                 self.can_attempt_start_history = self.can_creation_history && params.protocol_version.minor >= 25;
                 self.can_artifact_items = self.can_audit && params.protocol_version.minor >= 26;
+                self.can_task_io = self.can_create && params.protocol_version.minor >= 52;
                 self.can_file_grants = self.negotiated
                     && params.protocol_version.minor >= 27
                     && self.file_grants_available;
@@ -2021,7 +2067,7 @@ impl<'a> GatewaySession<'a> {
                     (35,self.can_cua_intent_propose),(36,has_composer_focus),(37,has_visual_focus_handoff),
                     (38,has_search_shortcut),(39,has_foreground_coordinates),(40,has_generic_desktop_plan),
                     (41,has_bounded_double_click),(43,has_goal_verification),(observed_elements_version,observed_elements_version>0),
-                    (49,has_driver_error_reasons),
+                    (49,has_driver_error_reasons),(52,self.can_task_io),
                 ]);
                 let offered_input=params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput));
                 let offered_attachment=params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment));
@@ -2038,7 +2084,7 @@ impl<'a> GatewaySession<'a> {
                     (35,self.can_cua_intent_propose),(36,has_composer_focus),(37,has_visual_focus_handoff),
                     (38,has_search_shortcut),(39,has_foreground_coordinates),(40,has_generic_desktop_plan),
                     (41,has_bounded_double_click),(43,has_goal_verification),(observed_elements_version,observed_elements_version>0),
-                    (47,has_driver_observe_facts),(48,has_screenshot_coordinates),(49,has_driver_error_reasons),
+                    (47,has_driver_observe_facts),(48,has_screenshot_coordinates),(49,has_driver_error_reasons),(52,self.can_task_io),
                 ]);
                 let version = ProtocolVersion { major: 1, minor: version_minor };
                 let item=|enabled:bool,name:Capability,minor:u16,availability:Availability,reason:Option<&str>|enabled.then(||CapabilityInfo{name,version:ProtocolVersion{major:1,minor},availability,reason:reason.map(str::to_owned)});
@@ -2270,7 +2316,7 @@ fn overlay_runtime_list(response:&mut Response,runtime:&crate::execution_runtime
 }
 
 fn runtime_tail_events(mut status:yonder_protocol::TaskStatus,pending:&[crate::execution_runtime::RuntimeEvent],after:u64,limit:usize)->Vec<yonder_protocol::TaskEvent>{
-    let mut result=Vec::new();for event in pending{let previous=status;status=match &event.kind{crate::execution_runtime::RuntimeEventKind::ControlStopped{control_kind,..}=>if control_kind=="cancel"{yonder_protocol::TaskStatus::Cancelled}else{yonder_protocol::TaskStatus::Paused},crate::execution_runtime::RuntimeEventKind::Terminal{phase}=>match phase{crate::execution_runtime::RuntimePhase::Completed=>yonder_protocol::TaskStatus::Completed,crate::execution_runtime::RuntimePhase::Failed=>yonder_protocol::TaskStatus::Failed,crate::execution_runtime::RuntimePhase::Cancelled=>yonder_protocol::TaskStatus::Cancelled,crate::execution_runtime::RuntimePhase::Interrupted=>yonder_protocol::TaskStatus::Interrupted,crate::execution_runtime::RuntimePhase::Paused=>yonder_protocol::TaskStatus::Paused,_=>yonder_protocol::TaskStatus::Running},_=>yonder_protocol::TaskStatus::Running};if event.sequence<=after||result.len()>=limit{continue;}
+    let mut result=Vec::new();for event in pending{let previous=status;status=match &event.kind{crate::execution_runtime::RuntimeEventKind::ControlStopped{control_kind,..}=>if control_kind=="cancel"{yonder_protocol::TaskStatus::Cancelled}else{yonder_protocol::TaskStatus::Paused},crate::execution_runtime::RuntimeEventKind::Terminal{phase,..}=>match phase{crate::execution_runtime::RuntimePhase::Completed=>yonder_protocol::TaskStatus::Completed,crate::execution_runtime::RuntimePhase::Failed=>yonder_protocol::TaskStatus::Failed,crate::execution_runtime::RuntimePhase::Cancelled=>yonder_protocol::TaskStatus::Cancelled,crate::execution_runtime::RuntimePhase::Interrupted=>yonder_protocol::TaskStatus::Interrupted,crate::execution_runtime::RuntimePhase::Paused=>yonder_protocol::TaskStatus::Paused,_=>yonder_protocol::TaskStatus::Running},_=>yonder_protocol::TaskStatus::Running};if event.sequence<=after||result.len()>=limit{continue;}
         let (step_declaration,attempt_started)=match &event.kind{crate::execution_runtime::RuntimeEventKind::StepStarted{step_id,label,attempt_id,worker_instance_id,host_session_id}=>(Some(yonder_protocol::StepDeclaration{step_id:step_id.clone(),label:label.clone(),accepted_sequence:event.sequence.to_string()}),Some(yonder_protocol::AttemptStarted{step_id:step_id.clone(),attempt_id:attempt_id.clone(),worker_instance_id:worker_instance_id.clone(),host_session_id:host_session_id.clone()})),_=>(None,None)};
         let control_event=match &event.kind{crate::execution_runtime::RuntimeEventKind::ControlStopped{attempt_id,control_id,control_kind}=>Some(yonder_protocol::ControlEvent{attempt_id:attempt_id.clone(),control_id:control_id.clone(),kind:match control_kind.as_str(){"cancel"=>ProtocolControlKind::Cancel,"takeover"=>ProtocolControlKind::Takeover,_=>ProtocolControlKind::Pause},phase:ProtocolControlPhase::Stopped}),_=>None};
         let wait_reason=match &event.kind{crate::execution_runtime::RuntimeEventKind::HandedBack{reason}=>Some(reason.clone()),_=>None};

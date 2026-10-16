@@ -105,7 +105,10 @@ pub enum RuntimeEventKind {
         observation_sequence: u64,
         outcome: crate::GoalVerificationOutcome,
     },
-    Terminal { phase: RuntimePhase },
+    Terminal {
+        phase: RuntimePhase,
+        result_summary: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -169,6 +172,7 @@ pub enum RuntimeCommand {
     Terminate {
         task_id: String,
         phase: RuntimePhase,
+        result_summary: Option<String>,
     },
     Ack {
         task_id: String,
@@ -899,7 +903,7 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                         },
                     )?;
                 }
-                RuntimeCommand::Terminate { phase, .. } => {
+                RuntimeCommand::Terminate { phase, result_summary, .. } => {
                     if !matches!(
                         phase,
                         RuntimePhase::Completed
@@ -909,8 +913,13 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     ) {
                         return Err(RuntimeError::InvalidInput);
                     }
+                    if result_summary.as_deref().is_some_and(|value| !yonder_protocol::valid_task_summary(value, 1024))
+                        || (result_summary.is_some() && phase != RuntimePhase::Completed)
+                    {
+                        return Err(RuntimeError::InvalidInput);
+                    }
                     task.snapshot.phase = phase.clone();
-                    append(task, RuntimeEventKind::Terminal { phase })?;
+                    append(task, RuntimeEventKind::Terminal { phase, result_summary })?;
                 }
             RuntimeCommand::Activate { .. } | RuntimeCommand::Ack { .. } => unreachable!(),
             }

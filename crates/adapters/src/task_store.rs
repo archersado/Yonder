@@ -37,7 +37,7 @@ use mapping::*;
 pub struct SqliteTaskStore(Connection);
 // 保留已有加密调用与验证名称，共用同一存储实现。
 pub type SqlCipherTaskStore = SqliteTaskStore;
-pub const SQLITE_SCHEMA_VERSION: i64 = 26;
+pub const SQLITE_SCHEMA_VERSION: i64 = 27;
 
 enum ExperienceProjectionCommand{Record(Vec<ExecutionExperience>),Recall(ExperienceQuery,usize,std::sync::mpsc::Sender<Result<Vec<ExecutionExperience>,Error>>),Stop}
 
@@ -310,6 +310,20 @@ impl RuntimeEventProjector for SqliteTaskStore {
                         "INSERT INTO task_goal_verifications(task_id,verification_id,observation_sequence,verified_sequence,outcome) VALUES(?1,?2,?3,?4,?5)",
                         params![event.task_id,verification_id,*observation_sequence as i64,event.sequence as i64,outcome],
                     ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                }
+                RuntimeEventKind::Terminal { phase, result_summary } => {
+                    if result_summary.is_some() && *phase != RuntimePhase::Completed {
+                        return Err(RuntimeProjectionError::Conflict);
+                    }
+                    if let Some(summary) = result_summary {
+                        if !yonder_application::valid_task_summary(summary, 1024) {
+                            return Err(RuntimeProjectionError::Conflict);
+                        }
+                        tx.execute(
+                            "INSERT INTO task_results(task_id,result_sequence,summary) VALUES(?1,?2,?3)",
+                            params![event.task_id,event.sequence as i64,summary],
+                        ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                    }
                 }
                 _ => {}
             }
@@ -1628,6 +1642,104 @@ mod tests {
     }
 
     #[test]
+    fn task_io_contract_is_atomic_idempotent_and_survives_restart() {
+        let directory = std::env::temp_dir().join(format!(
+            "yonder-task-io-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("tasks.db");
+        let task_id = {
+            let mut store = SqliteTaskStore::open_unencrypted(&path).unwrap();
+            let first = yonder_application::register_with_contract_outcome(
+                &mut store,
+                AuthContext::Agent("a1"),
+                "io-contract",
+                "生成报告",
+                Some("生成报告"),
+                Some("读取用户指定的源材料"),
+                Some("交付一份可打开的报告文档"),
+                TaskSource::LocalAgent,
+            )
+            .unwrap();
+            assert!(first.created);
+            let replay = yonder_application::register_with_contract_outcome(
+                &mut store,
+                AuthContext::Agent("a1"),
+                "io-contract",
+                "生成报告",
+                Some("生成报告"),
+                Some("读取用户指定的源材料"),
+                Some("交付一份可打开的报告文档"),
+                TaskSource::LocalAgent,
+            )
+            .unwrap();
+            assert!(!replay.created);
+            assert_eq!(replay.task.id, first.task.id);
+            assert_eq!(
+                yonder_application::register_with_contract_outcome(
+                    &mut store,
+                    AuthContext::Agent("a1"),
+                    "io-contract",
+                    "生成报告",
+                    Some("生成报告"),
+                    Some("读取用户指定的源材料"),
+                    Some("交付其他文件"),
+                    TaskSource::LocalAgent,
+                ),
+                Err(Error::IdempotencyConflict)
+            );
+            first.task.id
+        };
+        let mut reopened = SqliteTaskStore::open_unencrypted(&path).unwrap();
+        let (_, presentation) = reopened.get_presentation(&task_id).unwrap();
+        assert_eq!(presentation.input_summary.as_deref(), Some("读取用户指定的源材料"));
+        assert_eq!(presentation.expected_output.as_deref(), Some("交付一份可打开的报告文档"));
+        assert_eq!(presentation.result_summary, None);
+        let request = |minor: u16, request_id: &str| {
+            format!(
+                r#"{{"jsonrpc":"2.0","id":"{request_id}","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#
+            )
+        };
+        let get = format!(
+            r#"{{"jsonrpc":"2.0","id":"get","method":"task.get","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"task_id":"{task_id}"}}}}"#
+        );
+        let mut session = yonder_application::gateway::GatewaySession::new(
+            AuthContext::Agent("a1"),
+            yonder_application::gateway::Platform::Macos,
+        );
+        session.handle(&mut reopened, request(52, "hello-52").as_bytes(), 1000);
+        let current = String::from_utf8(
+            session
+                .handle_encoded(&mut reopened, get.as_bytes(), 1000)
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(current.contains("input_summary") && current.contains("expected_output"));
+        session.handle(&mut reopened, request(51, "hello-51").as_bytes(), 1000);
+        let legacy = String::from_utf8(
+            session
+                .handle_encoded(&mut reopened, get.as_bytes(), 1000)
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(!legacy.contains("input_summary") && !legacy.contains("expected_output"));
+        assert_eq!(
+            reopened
+                .0
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            SQLITE_SCHEMA_VERSION
+        );
+        drop(reopened);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn name_migration_backs_up_preserves_legacy_and_rolls_back_failed_ddl() {
         let directory = std::env::temp_dir().join(format!(
             "yonder-name-{}-{}",
@@ -2040,6 +2152,9 @@ mod tests {
         assert_eq!(
             legacy_presentation,
             TaskPresentation {
+                input_summary: None,
+                expected_output: None,
+                result_summary: None,
                 current_step: None,
                 observation: None,
                 next_intent: None,
@@ -2111,6 +2226,9 @@ mod tests {
             (
                 task.clone(),
                 TaskPresentation {
+                    input_summary: None,
+                    expected_output: None,
+                    result_summary: None,
                     current_step: Some(step),
                     observation: Some(TaskObservation {
                         step_id: "open-document".into(),
@@ -5827,18 +5945,23 @@ mod tests {
         let (verified,verification)=yonder_application::computer_use::verify_agent_goal(
             &mut store,AuthContext::Agent("a1"),&task.id,advanced.sequence,observation_sequence,"verify-supervisor",GoalVerificationOutcome::Achieved,
         ).unwrap();
-        let completed = yonder_application::computer_use::complete_agent_task_verified(
+        let completed = yonder_application::computer_use::complete_agent_task_verified_with_result(
             &mut store,
             &gate,
             AuthContext::Agent("a1"),
             &task.id,
             verified.sequence,
             &verification.verification_id,
+            "已完成桌面动作",
         )
         .unwrap();
         assert_eq!(
             (completed.status, gate.has_occupancy()),
             (Status::Completed, Ok(false))
+        );
+        assert_eq!(
+            store.get_presentation(&task.id).unwrap().1.result_summary.as_deref(),
+            Some("已完成桌面动作")
         );
         let failed = store
             .register(
@@ -6442,6 +6565,14 @@ mod tests {
                     step_id: "open".into(),
                 },
             },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 7,
+                kind: RuntimeEventKind::Terminal {
+                    phase: RuntimePhase::Completed,
+                    result_summary: Some("已打开目标应用".into()),
+                },
+            },
         ];
         RuntimeEventProjector::project(&mut store, &events).unwrap();
         RuntimeEventProjector::project(&mut store, &events).unwrap();
@@ -6454,7 +6585,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
             )
             .unwrap();
-        assert_eq!(persisted, ("running".into(), 6, 6, 6, 4));
+        assert_eq!(persisted, ("completed".into(), 7, 7, 7, 5));
         assert_eq!(
             store
                 .0
@@ -6465,6 +6596,10 @@ mod tests {
                 )
                 .unwrap(),
             "stopped"
+        );
+        assert_eq!(
+            store.get_presentation(&task.id).unwrap().1.result_summary.as_deref(),
+            Some("已打开目标应用")
         );
     }
 

@@ -383,6 +383,7 @@ pub fn execute_agent_action_runtime(
             .apply(crate::execution_runtime::RuntimeCommand::Terminate {
                 task_id: task_id.into(),
                 phase: crate::execution_runtime::RuntimePhase::Completed,
+                result_summary: None,
             })
             .map_err(runtime_error)?;
         admission

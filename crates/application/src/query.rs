@@ -154,9 +154,9 @@ pub(crate) fn full_with_audit(
         source: Some(source(task.source)),
         status: status(task.status),
         sequence: task.sequence.to_string(),
-        input_summary: None,
-        expected_output: None,
-        result_summary: None,
+        input_summary: presentation.input_summary,
+        expected_output: presentation.expected_output,
+        result_summary: presentation.result_summary,
         current_step: presentation.current_step.map(|step| ProtocolStep {
             step_id: step.step_id,
             label: step.label,

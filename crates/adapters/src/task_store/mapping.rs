@@ -207,7 +207,7 @@ pub(super) fn projected_state(
             Ok("running")
         }
         RuntimeEventKind::ControlStopped{control_kind,..} if current=="running"=>if control_kind=="cancel"{Ok("cancelled")}else{Ok("paused")},
-        RuntimeEventKind::Terminal { phase } => match phase {
+        RuntimeEventKind::Terminal { phase, .. } => match phase {
             RuntimePhase::Completed => Ok("completed"),
             RuntimePhase::Failed => Ok("failed"),
             RuntimePhase::Cancelled => Ok("cancelled"),

@@ -168,9 +168,9 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
 
     fn get_presentation(&mut self, id: &str) -> Result<(Task, TaskPresentation), Error> {
         let tx = self.0.transaction().map_err(storage)?;
-        let row: Option<(String,i64,String,Option<String>,String,Option<String>,Option<String>,Option<String>,Option<String>)> = tx.query_row(
-            "SELECT state,sequence,owner_agent_id,name,source,observation_step_id,observation_result,observation_summary,next_intent FROM tasks WHERE id=?1", [id],
-            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?)),
+        let row: Option<(String,i64,String,Option<String>,String,Option<String>,Option<String>,Option<String>,Option<String>,Option<String>,Option<String>,Option<String>)> = tx.query_row(
+            "SELECT t.state,t.sequence,t.owner_agent_id,t.name,t.source,t.observation_step_id,t.observation_result,t.observation_summary,t.next_intent,i.input_summary,i.expected_output,r.summary FROM tasks t LEFT JOIN task_io_contracts i ON i.task_id=t.id LEFT JOIN task_results r ON r.task_id=t.id WHERE t.id=?1", [id],
+            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?,r.get(9)?,r.get(10)?,r.get(11)?)),
         ).optional().map_err(storage)?;
         let (
             state,
@@ -182,6 +182,9 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
             observation_result_value,
             observation_summary,
             next_intent,
+            input_summary,
+            expected_output,
+            result_summary,
         ) = row.ok_or(Error::NotFound)?;
         let step: Option<(String,String,i64)> = tx.query_row("SELECT step_id,label,accepted_sequence FROM task_steps WHERE task_id=?1 ORDER BY accepted_sequence DESC LIMIT 1", [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(storage)?;
         tx.commit().map_err(storage)?;
@@ -217,6 +220,9 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
                 sequence: u64::try_from(sequence).map_err(|_| Error::StorageUnavailable)?,
             },
             TaskPresentation {
+                input_summary,
+                expected_output,
+                result_summary,
                 current_step,
                 observation,
                 next_intent,
@@ -578,6 +584,21 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
         task_name: Option<&str>,
         source: TaskSource,
     ) -> Result<yonder_application::RegistrationOutcome, Error> {
+        self.register_with_contract_outcome(
+            owner, key, description, task_name, None, None, source,
+        )
+    }
+
+    fn register_with_contract_outcome(
+        &mut self,
+        owner: &str,
+        key: &str,
+        description: &str,
+        task_name: Option<&str>,
+        input_summary: Option<&str>,
+        expected_output: Option<&str>,
+        source: TaskSource,
+    ) -> Result<yonder_application::RegistrationOutcome, Error> {
         if [owner, key].iter().any(|id| {
             id.is_empty()
                 || id.len() > 128
@@ -587,6 +608,9 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
         }) || description.trim().is_empty()
             || description.len() > 4096
             || task_name.is_some_and(|name| !yonder_application::valid_task_name(name))
+            || input_summary.is_some() != expected_output.is_some()
+            || input_summary.is_some_and(|value| !yonder_application::valid_task_summary(value, 512))
+            || expected_output.is_some_and(|value| !yonder_application::valid_task_summary(value, 512))
         {
             return Err(Error::InvalidInput);
         }
@@ -594,9 +618,9 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(storage)?;
-        let existing: Option<(String,String,String,i64,Option<String>,Option<String>,String)> = tx.query_row(
-            "SELECT c.task_id,c.description,t.state,t.sequence,c.name,t.name,t.source FROM task_creations c JOIN tasks t ON t.id=c.task_id WHERE c.owner_agent_id=?1 AND c.idempotency_key=?2",
-            params![owner,key], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?)),
+        let existing: Option<(String,String,String,i64,Option<String>,Option<String>,String,Option<String>,Option<String>)> = tx.query_row(
+            "SELECT c.task_id,c.description,t.state,t.sequence,c.name,t.name,t.source,i.input_summary,i.expected_output FROM task_creations c JOIN tasks t ON t.id=c.task_id LEFT JOIN task_io_contracts i ON i.task_id=t.id WHERE c.owner_agent_id=?1 AND c.idempotency_key=?2",
+            params![owner,key], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?)),
         ).optional().map_err(storage)?;
         let (task, created) = if let Some((
             id,
@@ -606,11 +630,15 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
             original_name,
             current_name,
             current_source,
+            original_input_summary,
+            original_expected_output,
         )) = existing
         {
             if original != description
                 || original_name.as_deref() != task_name
                 || current_source != source_name(source)
+                || original_input_summary.as_deref() != input_summary
+                || original_expected_output.as_deref() != expected_output
             {
                 return Err(Error::IdempotencyConflict);
             }
@@ -639,6 +667,12 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
                 .map_err(storage)?;
             tx.execute("INSERT INTO task_presentation_events(task_id,sequence,kind,payload) VALUES (?1,1,'source',?2)", params![id,format!(r#"{{"source":"{}"}}"#, source_name(source))]).map_err(storage)?;
             tx.execute("INSERT INTO task_creations(owner_agent_id,idempotency_key,task_id,description,name) VALUES (?1,?2,?3,?4,?5)", params![owner,key,id,description,task_name]).map_err(storage)?;
+            if let (Some(input_summary), Some(expected_output)) = (input_summary, expected_output) {
+                tx.execute(
+                    "INSERT INTO task_io_contracts(task_id,input_summary,expected_output) VALUES (?1,?2,?3)",
+                    params![id,input_summary,expected_output],
+                ).map_err(storage)?;
+            }
             (
                 Task {
                     id,
@@ -930,7 +964,22 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
     }
 
     fn commit(&mut self, id: &str, expected: u64, change: Transition) -> Result<(), Error> {
+        self.commit_with_result(id, expected, change, None)
+    }
+
+    fn commit_with_result(
+        &mut self,
+        id: &str,
+        expected: u64,
+        change: Transition,
+        result_summary: Option<&str>,
+    ) -> Result<(), Error> {
         if expected == 0 || expected >= i64::MAX as u64 || change.sequence != expected + 1 {
+            return Err(Error::InvalidInput);
+        }
+        if result_summary.is_some_and(|value| !yonder_application::valid_task_summary(value, 1024))
+            || (result_summary.is_some() && change.next != Status::Completed)
+        {
             return Err(Error::InvalidInput);
         }
         let legal = [
@@ -982,6 +1031,13 @@ impl yonder_application::TaskCoreStore for SqliteTaskStore {
             params![id, change.sequence as i64],
         )
         .map_err(storage)?;
+        if let Some(summary) = result_summary {
+            tx.execute(
+                "INSERT INTO task_results(task_id,result_sequence,summary) VALUES (?1,?2,?3)",
+                params![id, change.sequence as i64, summary],
+            )
+            .map_err(storage)?;
+        }
         tx.commit().map_err(storage)
     }
 

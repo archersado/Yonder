@@ -67,6 +67,9 @@ pub struct TaskObservation {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TaskPresentation {
+    pub input_summary: Option<String>,
+    pub expected_output: Option<String>,
+    pub result_summary: Option<String>,
     pub current_step: Option<StepDeclaration>,
     pub observation: Option<TaskObservation>,
     pub next_intent: Option<String>,
@@ -378,6 +381,21 @@ pub trait TaskCoreStore {
                 created: true,
             })
     }
+    fn register_with_contract_outcome(
+        &mut self,
+        owner: &str,
+        key: &str,
+        description: &str,
+        task_name: Option<&str>,
+        input_summary: Option<&str>,
+        expected_output: Option<&str>,
+        source: TaskSource,
+    ) -> Result<RegistrationOutcome, Error> {
+        if input_summary.is_some() || expected_output.is_some() {
+            return Err(Error::StorageUnavailable);
+        }
+        self.register_with_outcome(owner, key, description, task_name, source)
+    }
     fn supports_step_declarations(&self) -> bool {
         false
     }
@@ -428,6 +446,9 @@ pub trait TaskCoreStore {
             (
                 task,
                 TaskPresentation {
+                    input_summary: None,
+                    expected_output: None,
+                    result_summary: None,
                     current_step: None,
                     observation: None,
                     next_intent: None,
@@ -483,6 +504,18 @@ pub trait TaskCoreStore {
     /// 返回成功时持久化已完成，不得仅排入内存队列。
     fn commit(&mut self, id: &str, expected_sequence: u64, change: Transition)
     -> Result<(), Error>;
+    fn commit_with_result(
+        &mut self,
+        id: &str,
+        expected_sequence: u64,
+        change: Transition,
+        result_summary: Option<&str>,
+    ) -> Result<(), Error> {
+        if result_summary.is_some() {
+            return Err(Error::StorageUnavailable);
+        }
+        self.commit(id, expected_sequence, change)
+    }
 }
 
 pub trait TaskExecutionStore {
@@ -846,6 +879,39 @@ pub fn register_with_outcome(
         return Err(Error::InvalidInput);
     }
     store.register_with_outcome(auth.agent_id(), key, description, name, source)
+}
+
+/// 已握手 Gateway 使用；在登记任务时原子写入有界输入与预期输出契约。
+pub fn register_with_contract_outcome(
+    store: &mut impl TaskStore,
+    auth: AuthContext<'_>,
+    key: &str,
+    description: &str,
+    name: Option<&str>,
+    input_summary: Option<&str>,
+    expected_output: Option<&str>,
+    source: TaskSource,
+) -> Result<RegistrationOutcome, Error> {
+    if input_summary.is_some() != expected_output.is_some()
+        || input_summary.is_some_and(|value| !yonder_protocol::valid_task_summary(value, 512))
+        || expected_output.is_some_and(|value| !yonder_protocol::valid_task_summary(value, 512))
+    {
+        return Err(Error::InvalidInput);
+    }
+    if !matches!(auth, AuthContext::Agent(_)) {
+        return Err(Error::PermissionDenied);
+    }
+    validate_id(auth.agent_id())?;
+    validate_id(key)?;
+    if description.trim().is_empty()
+        || description.len() > 4096
+        || name.is_some_and(|name| !valid_task_name(name))
+    {
+        return Err(Error::InvalidInput);
+    }
+    store.register_with_contract_outcome(
+        auth.agent_id(), key, description, name, input_summary, expected_output, source,
+    )
 }
 
 pub fn record_observation(
@@ -1558,4 +1624,4 @@ mod tests {
     }
 }
 
-pub use yonder_protocol::{valid_step_label, valid_task_name};
+pub use yonder_protocol::{valid_step_label, valid_task_name, valid_task_summary};

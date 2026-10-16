@@ -28,7 +28,7 @@ impl SqliteTaskStore {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(storage)?;
         if ![
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
         ]
         .contains(&schema)
         {
@@ -74,7 +74,7 @@ impl SqliteTaskStore {
             tx.execute_batch(include_str!("../task_schema.sql"))
                 .map_err(storage)?;
         } else if ![
-            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
         ]
         .contains(&schema)
         {
@@ -178,6 +178,10 @@ impl SqliteTaskStore {
         }
         if schema < 26 {
             tx.execute_batch(include_str!("../task_runtime_control_stop_schema.sql"))
+                .map_err(storage)?;
+        }
+        if schema < 27 {
+            tx.execute_batch(include_str!("../task_io_contract_schema.sql"))
                 .map_err(storage)?;
         }
         // AD-TM-21：曾有中断构建把版本号推进到 v20，却完整遗漏 schema 18
