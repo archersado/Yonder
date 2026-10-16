@@ -41,6 +41,12 @@ MVP 按 Accepted AD-ST-01 使用未加密 SQLite 保持任务当前事实源，S
 本增量复用 TaskHost 已有 `accepted_create → listening_pending` 短生命周期派生事实；Local Socket 在成功请求后的 `presentation()` 返回 `listening` 时，调用 Desktop 共享的“在 pet 旁展示 task-space”函数。该函数只定位、显示窗口并发出已有 `yonda-tasks-open` 事件，任务列表仍由 task-space 经固定本机身份重新查询 SQLite/Gateway 快照。
 
 不新增事件表、协议字段、进程间通道或 UI 状态所有者。显示失败被吞为本机呈现失败，绝不回滚已提交的 `task.create`；同一 listening 周期消费一次展示信号。CUA 控制条位于屏幕顶部且代表另一任务仍在执行，不得阻止新任务空间在 pet 旁无焦点展开与刷新；语音和圈选窗口仍阻止自动展开，避免覆盖用户正在提交的输入。
+
+## 任务详情渐进读取（2026-10-16）
+
+详情读取拆为核心与附属支路。`task.step.get` 是首屏核心，只要其返回即可建立标题、定义列表及各附属区块的加载占位；`task.events`、`task.browser.get`、文件授权、命令批准及 `task.artifacts` 并行完成后只替换各自容器。命令批准的逐项预览仍为既有本机受控接口，但其 N+1 延迟不再位于核心渲染关键路径。
+
+所有异步回写复用选择序号与列表轮次双重校验；迟到结果不得写入新任务。附属支路错误只写本区块，核心读取失败才替换整个详情。前端不新增缓存、协议模型或任务状态所有权，也不放宽有界字段；Agent 完整正文/Payload 不进入详情请求或 DOM。Architecture Impact：conforming，无协议、持久化或依赖方向变化。
 失败不得隐式重试未知副作用。验证覆盖正常、拒绝和中断路径；沿用架构依赖与关联检查。
 
 ## 架构影响
