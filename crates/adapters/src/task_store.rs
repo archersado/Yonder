@@ -311,6 +311,42 @@ impl RuntimeEventProjector for SqliteTaskStore {
                         params![event.task_id,verification_id,*observation_sequence as i64,event.sequence as i64,outcome],
                     ).map_err(|_|RuntimeProjectionError::Unavailable)?;
                 }
+                RuntimeEventKind::ArtifactProduced { reference_id } => {
+                    if !yonder_application::valid_id(reference_id) {
+                        return Err(RuntimeProjectionError::Conflict);
+                    }
+                    Self::ensure_audit_capacity(&tx)
+                        .map_err(|_| RuntimeProjectionError::Unavailable)?;
+                    let (previous_version, item_count): (i64, i64) = tx.query_row(
+                        "SELECT COALESCE(MAX(version),0),COALESCE((SELECT item_count FROM task_artifact_manifests WHERE task_id=?1 ORDER BY version DESC LIMIT 1),0) FROM task_artifact_manifests WHERE task_id=?1",
+                        [&event.task_id],
+                        |row| Ok((row.get(0)?,row.get(1)?)),
+                    ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                    if item_count < 0 || item_count >= MAX_ARTIFACT_MANIFEST_ITEMS as i64 {
+                        return Err(RuntimeProjectionError::Conflict);
+                    }
+                    let duplicate: bool = tx.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM task_artifact_manifest_items WHERE task_id=?1 AND reference_id=?2)",
+                        params![event.task_id,reference_id],
+                        |row| row.get(0),
+                    ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                    if duplicate { return Err(RuntimeProjectionError::Conflict); }
+                    let version = previous_version.checked_add(1).ok_or(RuntimeProjectionError::Conflict)?;
+                    tx.execute(
+                        "INSERT INTO task_artifact_manifests(task_id,version,created_sequence,item_count) VALUES(?1,?2,?3,?4)",
+                        params![event.task_id,version,event.sequence as i64,item_count+1],
+                    ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                    if previous_version > 0 {
+                        tx.execute(
+                            "INSERT INTO task_artifact_manifest_items(task_id,version,ordinal,reference_id,availability) SELECT task_id,?2,ordinal,reference_id,availability FROM task_artifact_manifest_items WHERE task_id=?1 AND version=?3 ORDER BY ordinal",
+                            params![event.task_id,version,previous_version],
+                        ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                    }
+                    tx.execute(
+                        "INSERT INTO task_artifact_manifest_items(task_id,version,ordinal,reference_id,availability) VALUES(?1,?2,?3,?4,'available')",
+                        params![event.task_id,version,item_count+1,reference_id],
+                    ).map_err(|_|RuntimeProjectionError::Unavailable)?;
+                }
                 RuntimeEventKind::Terminal { phase, result_summary } => {
                     if result_summary.is_some() && *phase != RuntimePhase::Completed {
                         return Err(RuntimeProjectionError::Conflict);
@@ -1700,6 +1736,18 @@ mod tests {
         assert_eq!(presentation.input_summary.as_deref(), Some("读取用户指定的源材料"));
         assert_eq!(presentation.expected_output.as_deref(), Some("交付一份可打开的报告文档"));
         assert_eq!(presentation.result_summary, None);
+        let running = yonder_application::transition(&mut reopened, &task_id, 1, Action::Start).unwrap();
+        let (with_artifact, manifest) = yonder_application::append_artifact_manifest(
+            &mut reopened,
+            &task_id,
+            running.sequence,
+            "artifact_attempt_3",
+        ).unwrap();
+        assert_eq!((with_artifact.sequence, manifest.version, manifest.item_count), (3, 1, 1));
+        assert_eq!(
+            reopened.artifact_manifest_items(&task_id, manifest.version, 0, 10).unwrap()[0].reference_id,
+            "artifact_attempt_3"
+        );
         let request = |minor: u16, request_id: &str| {
             format!(
                 r#"{{"jsonrpc":"2.0","id":"{request_id}","method":"gateway.hello","params":{{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":{minor}}}}}}}"#
@@ -6568,6 +6616,13 @@ mod tests {
             RuntimeEvent {
                 task_id: task.id.clone(),
                 sequence: 7,
+                kind: RuntimeEventKind::ArtifactProduced {
+                    reference_id: "artifact_attempt_open".into(),
+                },
+            },
+            RuntimeEvent {
+                task_id: task.id.clone(),
+                sequence: 8,
                 kind: RuntimeEventKind::Terminal {
                     phase: RuntimePhase::Completed,
                     result_summary: Some("已打开目标应用".into()),
@@ -6585,7 +6640,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
             )
             .unwrap();
-        assert_eq!(persisted, ("completed".into(), 7, 7, 7, 5));
+        assert_eq!(persisted, ("completed".into(), 8, 8, 8, 6));
         assert_eq!(
             store
                 .0
@@ -6601,6 +6656,7 @@ mod tests {
             store.get_presentation(&task.id).unwrap().1.result_summary.as_deref(),
             Some("已打开目标应用")
         );
+        assert_eq!(store.get_audit(&task.id).unwrap().manifest.unwrap().item_count, 1);
     }
 
     #[test]

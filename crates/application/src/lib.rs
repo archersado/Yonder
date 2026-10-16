@@ -794,6 +794,43 @@ pub fn publish_artifact_manifest(
     store.publish_artifact_manifest(task_id, expected_sequence, &items)
 }
 
+/// 可信执行链追加一个不含路径的任务产物引用；以任务 sequence 作为 CAS，
+/// 并发布新的不可变完整清单快照。Agent/UI 不得自行提供该引用。
+pub fn append_artifact_manifest(
+    store: &mut impl TaskStore,
+    task_id: &str,
+    expected_sequence: u64,
+    reference_id: &str,
+) -> Result<(Task, TaskArtifactManifest), Error> {
+    validate_id(task_id)?;
+    validate_id(reference_id)?;
+    let audit = store.get_audit(task_id)?;
+    let mut entries = Vec::new();
+    if let Some(manifest) = audit.manifest {
+        let items = store.artifact_manifest_items(
+            task_id,
+            manifest.version,
+            0,
+            MAX_ARTIFACT_MANIFEST_ITEMS + 1,
+        )?;
+        if items.len() >= MAX_ARTIFACT_MANIFEST_ITEMS {
+            return Err(Error::InvalidInput);
+        }
+        entries.extend(items.into_iter().map(|item| ArtifactManifestEntry {
+            reference_id: item.reference_id,
+            availability: item.availability,
+        }));
+    }
+    if entries.iter().any(|item| item.reference_id == reference_id) {
+        return Err(Error::InvalidInput);
+    }
+    entries.push(ArtifactManifestEntry {
+        reference_id: reference_id.to_owned(),
+        availability: ArtifactAvailability::Available,
+    });
+    publish_artifact_manifest(store, task_id, expected_sequence, &entries)
+}
+
 /// 读取固定清单版本；先按当前身份验证任务可见性，再读取受控引用元信息。
 pub fn artifact_manifest_page(
     store: &mut impl TaskStore,

@@ -200,6 +200,7 @@ pub(super) fn projected_state(
         | RuntimeEventKind::StepBoundaryAdvanced { .. }
         | RuntimeEventKind::PlanSlotAdvanced { .. }
         | RuntimeEventKind::BrowserReferenceUpdated { .. }
+        | RuntimeEventKind::ArtifactProduced { .. }
         | RuntimeEventKind::HandedBack { .. }
         | RuntimeEventKind::GoalVerified { .. }
             if current == "running" =>

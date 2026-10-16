@@ -1303,11 +1303,27 @@ impl<'a> GatewaySession<'a> {
                 let grants=file_grants.ok_or_else(|| RpcError::new(-32020, "本机文件授权入口不可用"))?;
                 let files=file_port.ok_or_else(|| RpcError::new(-32020, "macOS文件运行时不可用"))?;
                 let expected=yonder_protocol::sequence(&params.expected_sequence)?;
-                let result = if let Some(runtime)=execution_runtime {
+                let mut result = if let Some(runtime)=execution_runtime {
                     file_execution::execute_agent_file_runtime(store,runtime,admission,grants,files,self.auth,&params.task_id,expected,&params.grant_id,operation,body.as_deref(),host_session_id,now_ms)
                 } else {
                     file_execution::execute_agent_file(store,admission,grants,files,self.auth,&params.task_id,expected,&params.grant_id,operation,body.as_deref(),host_session_id,now_ms)
                 }.map_err(query::error)?;
+                if matches!(operation, FileOperation::CreateNew | FileOperation::Replace)
+                    && matches!(result.attempt_result.conclusion, crate::AttemptConclusion::Observed { action_succeeded: true })
+                {
+                    let reference_id = format!("artifact_{}", result.attempt_result.attempt_id);
+                    if let Some(runtime) = execution_runtime {
+                        let projected = runtime.apply(crate::execution_runtime::RuntimeCommand::RecordArtifact {
+                            task_id: params.task_id.clone(),
+                            reference_id,
+                        }).map_err(runtime_error).map_err(query::error)?;
+                        result.task.sequence = projected.sequence;
+                    } else {
+                        result.task = crate::append_artifact_manifest(
+                            store, &params.task_id, result.task.sequence, &reference_id,
+                        ).map_err(query::error)?.0;
+                    }
+                }
                 let data_base64 = result.read_bytes.as_deref().map(|value| STANDARD.encode(value));
                 Ok(QueryResult::FileExecution { execution: ProtocolFileExecutionResult {
                     task: snapshot(result.task), attempt_result: attempt_result(result.attempt_result),
@@ -1321,11 +1337,25 @@ impl<'a> GatewaySession<'a> {
                 let files=file_port.ok_or_else(|| RpcError::new(-32020, "macOS文件运行时不可用"))?;
                 let document_port=documents.ok_or_else(|| RpcError::new(-32020, "macOS文档运行时不可用"))?;
                 let expected=yonder_protocol::sequence(&params.expected_sequence)?;
-                let result = if let Some(runtime)=execution_runtime {
+                let mut result = if let Some(runtime)=execution_runtime {
                     document_execution::execute_agent_save_as_runtime(store,runtime,admission,grants,files,document_port,self.auth,&params.task_id,expected,&params.source_grant_id,&params.output_grant_id,&params.expected_hash,&params.before,&params.after,host_session_id,now_ms)
                 } else {
                     document_execution::execute_agent_save_as(store,admission,grants,files,document_port,self.auth,&params.task_id,expected,&params.source_grant_id,&params.output_grant_id,&params.expected_hash,&params.before,&params.after,host_session_id,now_ms)
                 }.map_err(query::error)?;
+                if result.receipt.is_some() {
+                    let reference_id = format!("artifact_{}", result.attempt_result.attempt_id);
+                    if let Some(runtime) = execution_runtime {
+                        let projected = runtime.apply(crate::execution_runtime::RuntimeCommand::RecordArtifact {
+                            task_id: params.task_id.clone(),
+                            reference_id,
+                        }).map_err(runtime_error).map_err(query::error)?;
+                        result.task.sequence = projected.sequence;
+                    } else {
+                        result.task = crate::append_artifact_manifest(
+                            store, &params.task_id, result.task.sequence, &reference_id,
+                        ).map_err(query::error)?.0;
+                    }
+                }
                 let (format, sha256, bytes_written) = match result.receipt {
                     Some(receipt) => (Some(match receipt.format { crate::document::DocumentFormat::Docx=>ProtocolDocumentFormat::Docx,crate::document::DocumentFormat::Xlsx=>ProtocolDocumentFormat::Xlsx,crate::document::DocumentFormat::Pptx=>ProtocolDocumentFormat::Pptx }),Some(receipt.sha256),Some(receipt.bytes_written)),
                     None => (None,None,None),

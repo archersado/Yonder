@@ -99,6 +99,7 @@ pub enum RuntimeEventKind {
     PlanSlotAdvanced { plan_id:String, plan_version:u64, from_slot:u16, step_id:String },
     ControlStopped { attempt_id:String, control_id:String, control_kind:String },
     BrowserReferenceUpdated { reference: RuntimeBrowserReference },
+    ArtifactProduced { reference_id: String },
     HandedBack { reason: String },
     GoalVerified {
         verification_id: String,
@@ -158,6 +159,10 @@ pub enum RuntimeCommand {
     UpdateBrowserReference {
         task_id: String,
         reference: RuntimeBrowserReference,
+    },
+    RecordArtifact {
+        task_id: String,
+        reference_id: String,
     },
     HandBack {
         task_id: String,
@@ -921,6 +926,12 @@ fn apply(state: &mut State, command: RuntimeCommand) -> Result<RuntimeSnapshot, 
                     task.snapshot.phase = phase.clone();
                     append(task, RuntimeEventKind::Terminal { phase, result_summary })?;
                 }
+                RuntimeCommand::RecordArtifact { reference_id, .. } => {
+                    if !crate::valid_id(&reference_id) || task.snapshot.phase != RuntimePhase::Running {
+                        return Err(RuntimeError::InvalidInput);
+                    }
+                    append(task, RuntimeEventKind::ArtifactProduced { reference_id })?;
+                }
             RuntimeCommand::Activate { .. } | RuntimeCommand::Ack { .. } => unreachable!(),
             }
             Ok(task.snapshot.clone())
@@ -980,6 +991,7 @@ fn command_task_id(command: &RuntimeCommand) -> &str {
         | RuntimeCommand::HandBack { task_id, .. }
         | RuntimeCommand::VerifyGoal { task_id, .. }
         | RuntimeCommand::Terminate { task_id, .. }
+        | RuntimeCommand::RecordArtifact { task_id, .. }
         | RuntimeCommand::Ack { task_id, .. } => task_id,
     }
 }
