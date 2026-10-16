@@ -17,6 +17,7 @@ Epic: TM
 - [TM-S7 统一执行启动状态](story-TM-S7/README.md)：CUA、BUA、Document 与 Command 首次副作用统一进入 `running`。
 - [TM-S8 统一产品执行闭环](story-TM-S8/README.md)：用真实 Codex MCP 和正式 Yonder GUI 验收四类能力的完整产品链路。
 - [TM-S9 事件驱动执行运行时](story-TM-S9/README.md)：活动任务由内存事件循环推进，SQLite 仅作异步事后投影与恢复检查点。
+- [TM-S10 任务输入输出与交付契约](story-TM-S10/README.md)：创建时冻结有界 I/O 摘要，完成时提交交付摘要，并把可信 File/Document 输出登记为不可变产物。
 
 ## 验收与依赖
 

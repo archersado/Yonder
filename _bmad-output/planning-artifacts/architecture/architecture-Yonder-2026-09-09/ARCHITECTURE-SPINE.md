@@ -46,6 +46,8 @@ CLI/MCP ──Local IPC──> Agent Gateway <──WSS── 外部云端平台
 
 ## 任务、状态与恢复
 
+2026-10-16 按 Accepted [AD-TM-25](AD-TM-25-TASK-IO-AND-DELIVERY-CONTRACT.md)，协议 1.52 为新任务增加有界输入摘要、预期输出与完成交付摘要；摘要不替代 Observe、目标核验或用户确认。File/Document 只有在可信能力动作成功并 Observe 有效后，才由 Application 生成任务绑定 opaque 引用并进入不可变产物清单；Agent、UI 与 Driver 不得自报路径或完整输出。
+
 2026-09-29 按 Accepted [AD-TM-23](AD-TM-23-EVENT-DRIVEN-EXECUTION-RUNTIME.md)，正式废除“SQLite 是当前状态唯一事实源、每步同步事务后推进”。活动任务由 Application 单一有界 `ExecutionRuntime` 事件循环拥有并推进；SQLite、事件表与 Outbox 是异步事后投影和重启检查点，落盘批次内部仍保持原子一致。迁移期间同一任务只允许一个可写状态所有者。
 
 2026-10-07 按 Accepted [AD-TM-24](AD-TM-24-GOAL-VERIFICATION-GATE.md)，动作回执、步骤效果已 Observe 与用户目标达成是三个独立事实。计划片段耗尽后只进入等待目标核验；归属慢脑必须基于最新 Observation 经同一 Gateway 提交序号绑定的 achieved/not-achieved 核验，`task.complete` 仅接受最新且未被后续事件失效的 achieved 核验。活动核验由 ExecutionRuntime 持有并异步投影，不能以 SQLite 同步写入阻塞执行链。
