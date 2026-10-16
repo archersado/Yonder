@@ -32,3 +32,10 @@ Windows：依主人决定暂缓，不纳入本次 macOS 结论。
 ## 结论
 
 macOS Verification Goal 达成。任务显示来自 SQLite/Gateway 权威快照，最新任务进入第一页顶部；协议兼容、迁移、稳定分页和 GUI 自动展开均有独立证据。Windows 证据继续暂缓，因此 DS-S2 完整跨平台 Story 仍保持 `verifying`，本增量不 Archive 为跨平台 Done。
+
+## 2026-10-16 归档复核
+
+- 将需求正文的中文强制语义同步为 OpenSpec 严格模式可识别的 RFC 2119 `MUST`，不改变协议、排序或 UI 行为。
+- `node scripts/verification/desktop/check-task-space.mjs` PASS。
+- 当前 `dev` 精确复跑稳定倒序分页与协议分页合约均 PASS；Rust 协议生成物检查 PASS。
+- `openspec validate ds-s2-agent-create-visibility --strict` 与架构门禁 PASS 后方可归档。
