@@ -1467,6 +1467,7 @@ mod tests {
             .apply(RuntimeCommand::Terminate {
                 task_id: task.id,
                 phase: RuntimePhase::Completed,
+                result_summary: None,
             })
             .unwrap();
         assert_eq!(host.presentation().unwrap(), (false, "idle", None));
@@ -1580,6 +1581,7 @@ mod tests {
             .apply(RuntimeCommand::Terminate {
                 task_id: task.id.clone(),
                 phase: RuntimePhase::Completed,
+                result_summary: None,
             })
             .unwrap();
         assert_eq!(terminal.sequence, boundary.sequence + 1);

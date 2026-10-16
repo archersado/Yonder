@@ -122,6 +122,9 @@ export async function checkTaskSpace(page) {
     tasks[20].current_step={step_id:'open-document',label:'打开目标文档',accepted_sequence:'2'};
     tasks[20].observation={step_id:'open-document',result:'matched',summary:'文档已打开'};
     tasks[20].next_intent='编辑目标文档';
+    tasks[20].input_summary='读取用户指定的源材料';
+    tasks[20].expected_output='生成一份可打开的报告文档';
+    tasks[20].result_summary='Agent 输出摘要 '+('长'.repeat(300));
     tasks.splice(18,0,{task_id:'test-task--1',name:'test-task--1',owner_agent_id:'test-agent',source:'local-agent',status:'running',sequence:'4'});
     tasks.find(task=>task.task_id==='test-task-18').status='completed';
     window.__TAURI_INTERNALS__ = {invoke:async (command,input) => {
@@ -250,6 +253,10 @@ export async function checkTaskSpace(page) {
   assert.ok(detailText.includes('打开目标文档') && detailText.includes('open-document · 接受序号 2'));
   const details=await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#detail dt')].map(item => [item.textContent,item.nextElementSibling.textContent])));
   assert.equal(details['来源'],'本地 Agent');
+  assert.equal(details['任务输入'],'读取用户指定的源材料');
+  assert.equal(details['预期输出'],'生成一份可打开的报告文档');
+  assert.ok(details['Agent 交付摘要'].endsWith('…') && details['Agent 交付摘要'].length === 241);
+  assert.equal(detailText.includes('长'.repeat(300)),false);
   assert.equal(details['当前步骤'],'打开目标文档');
   assert.equal(details['观察摘要'],'已匹配 · 文档已打开');
   assert.equal(details['下一步意图'],'编辑目标文档');
@@ -309,7 +316,7 @@ export async function checkTaskSpace(page) {
   await page.waitForTimeout(100);
   await page.click('.task:has-text("test-task-18")');
   await page.waitForFunction(() => document.getElementById('detail').textContent.includes('结果待确认'));
-  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('确认后生成首个清单')));
+  assert.ok(await page.evaluate(() => document.getElementById('detail').textContent.includes('暂无可信产物')));
   await page.fill('[aria-label="结果确认意见"]', '原生验证：结果可用');
   await page.evaluate(() => document.querySelector('.confirm button')?.scrollIntoView({block: 'center'}));
   await page.click('.confirm button');

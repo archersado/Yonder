@@ -26,6 +26,11 @@ async function query(method, params) {
   return response.result;
 }
 function message(text, error = false) { notice.textContent = text; notice.dataset.error = String(error); }
+function boundedSummary(value, fallback) {
+  if (typeof value !== 'string' || !value.trim()) return fallback;
+  const normalized = value.trim().replace(/\s+/g, ' '), characters = Array.from(normalized);
+  return characters.length > 240 ? `${characters.slice(0, 240).join('')}…` : normalized;
+}
 function placeholder(text) {
   detail.replaceChildren();
   const p = document.createElement('p'); p.className = 'placeholder'; p.textContent = text; detail.append(p);
@@ -436,12 +441,12 @@ async function select(task, button, revealSection = null) {
     const manifestChanged = result.task.artifact_manifest && confirmation && BigInt(result.task.artifact_manifest.version) > BigInt(confirmation.manifest_version);
     const manifest = result.task.artifact_manifest
       ? `版本 ${result.task.artifact_manifest.version} · ${result.task.artifact_manifest.item_count} 项${manifestChanged ? ' · 产物已变化，需重新检查' : ''}`
-      : terminal ? '确认后生成首个清单' : '不适用';
+      : terminal ? '暂无可信产物' : '尚未产生可信产物';
     const goalVerification = result.task.goal_verification
       ? `${result.task.goal_verification.outcome === 'achieved' ? '目标已核验' : '目标未完成'} · 依据序号 ${result.task.goal_verification.observation_sequence}`
       : '等待慢脑核验最终结果';
     let statusReasonField, waitReasonField, browserField;
-    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', '正在读取…'], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['目标核验', goalVerification], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', '正在读取…'], ['浏览器 Task Space', '正在读取关联状态…'], ['结果确认', audit], ['产物清单', manifest]]) {
+    for (const [name, value] of [['任务 ID', result.task.task_id], ['Agent', result.task.owner_agent_id], ['任务输入', boundedSummary(result.task.input_summary, '旧任务未声明')], ['预期输出', boundedSummary(result.task.expected_output, '旧任务未声明')], ['Agent 交付摘要', boundedSummary(result.task.result_summary, '尚未提交')], ['状态', labels[result.task.status] ?? result.task.status], ['状态说明', '正在读取…'], ['序号', result.task.sequence], ['来源', sourceLabels[result.task.source] ?? '来源未知'], ['当前步骤', step?.label ?? '未声明步骤'], ['步骤标识', step ? `${step.step_id} · 接受序号 ${step.accepted_sequence}` : '未提供'], ['观察摘要', observation], ['目标核验', goalVerification], ['下一步意图', result.task.next_intent ?? '未声明意图'], ['等待原因', '正在读取…'], ['浏览器 Task Space', '正在读取关联状态…'], ['结果确认', audit], ['产物清单', manifest]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; dl.append(dt, dd);
       if (name === '状态说明') statusReasonField = dd;
       if (name === '等待原因') waitReasonField = dd;
