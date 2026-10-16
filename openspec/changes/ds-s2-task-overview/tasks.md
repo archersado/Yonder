@@ -25,4 +25,4 @@
 - [x] TaskHost 从当前执行任务事实投影步骤，并在执行前后发布安全事件
 - [x] 小龙形象实现步骤状态条、状态清理、单行省略与无障碍文本
 - [x] 覆盖 Rust/前端回归并建立 macOS 独立 Verification Goal；Windows 证据继续暂缓
-- [ ] DETAIL-PERF-01～04：核心详情先于附属支路渐进展示，限制 Agent 内容并覆盖迟到响应回归
+- [x] DETAIL-PERF-01～04：核心详情先于附属支路渐进展示，限制 Agent 内容并覆盖迟到响应回归（verification-detail-progressive-macos.md）

@@ -21,6 +21,8 @@ OpenSpec: ds-s2-task-overview
 
 2026-09-28 后续修订：用户明确第一页应按创建时间倒序。Accepted AD-DS-05、协议 1.32 与 schema 21 已实施；正式打包 MCP→Local Socket→Gateway→SQLite→原生 Task Space 验证 PASS，新任务位于“全部”第一页首项。2026-10-16完成当前基线复核并归档，见[macOS 独立 Verification Goal](../../../../openspec/changes/archive/2026-10-16-ds-s2-agent-create-visibility/verification-goal-macos.md)。Windows继续暂缓，完整 Story 保持 verifying。
 
+2026-10-16 用户反馈点击任务详情卡顿。已将核心 `task.step.get` 与时间线、浏览器关联、授权、审批、产物等附属读取解耦；隔离夹具证明附属查询延迟 400ms 时核心标题和字段先显示，既有详情回归通过，见[渐进详情独立验证](../../../../openspec/changes/ds-s2-task-overview/verification-detail-progressive-macos.md)。任务输入/预期输出/交付物提交契约仍是跨 AG/TM/能力 Adapter 的架构缺口，不在 DS 中从 Agent 文本伪造。
+
 2026-09-18：首批任务总览的 macOS 实施与独立验证已 PASS，覆盖可信本机宿主、真实两任务、轻量菜单、分页/详情/错误保留及并发刷新。详见 [汇总 Verification Goal](../../../../openspec/changes/ds-s2-task-overview/verification-goal.md)。卡片操作由增量 Change `ds-s2-task-card-actions` 承接。浏览器任务的外部 ego-lite 引用读取与用户交接已由 [BU-S2 独立验证](../../../../openspec/changes/bu-s2-browser-reference-read/verification-goal.md)完成。接管停止与定位已在 macOS 当前 Space 增量中通过 [TM-S3 独立验证](../../../../openspec/changes/tm-s3-takeover-work-focus/verification-goal.md)，且未启动 Recording；Windows、跨 Space/多显示器、Recording 与交回 Observe 仍保留门禁，Story 保持 verifying。
 
 2026-09-22：人工接管/Recording设计已按 AD-RC-01 的“受控会话输入”契约回写。Recording继续默认关闭，DS不得宣称物理用户来源或启用录制入口；产品Recording协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。
