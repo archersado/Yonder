@@ -4,6 +4,8 @@ use std::{fs, io::{BufRead, BufReader, Write}, path::{Path, PathBuf}, process::{
 use std::ffi::CString;
 use yonder_application::{ExecutionAttempt, ObservedElement, computer_use::{ComputerAction, ComputerObservation, ComputerUsePort, DispatchOutcome, UnknownReason, WorkTarget, WorkTargetPort}};
 
+const SKY_PACKAGE_VERSION: &str = "0.7.4";
+
 #[cfg(target_os="macos")]
 unsafe extern "C" { fn yonda_frontmost_work_target(self_pid:i32,pid:*mut u32,window_id:*mut u32)->i32; fn yonda_accessibility_trusted()->i32; fn yonda_activate_window_for_app(bundle_id:*const std::ffi::c_char)->i32; }
 
@@ -120,7 +122,7 @@ impl CuaWorker {
         let identity = fs::read_to_string(&package).ok().and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok());
         let name = identity.as_ref().and_then(|value| value.get("name")).and_then(|value| value.as_str());
         let version = identity.as_ref().and_then(|value| value.get("version")).and_then(|value| value.as_str());
-        if name != Some("@oai/sky") || version != Some("0.7.1") { return Err(UnknownReason::DependencyUnavailable); }
+        if name != Some("@oai/sky") || version != Some(SKY_PACKAGE_VERSION) { return Err(UnknownReason::DependencyUnavailable); }
         let package_root=package.parent().ok_or(UnknownReason::DependencyUnavailable)?;
         let runtime_root=package_root.ancestors().nth(4).ok_or(UnknownReason::DependencyUnavailable)?;
         let node=runtime_root.join("bin/node");
@@ -391,7 +393,7 @@ mod tests {
         std::fs::create_dir_all(runtime.join("bin")).unwrap();
         let node=runtime.join("bin/node");std::fs::write(&node,b"#!/bin/sh\nexec /bin/sh \"$@\"\n").unwrap();
         use std::os::unix::fs::PermissionsExt;std::fs::set_permissions(&node,std::fs::Permissions::from_mode(0o700)).unwrap();
-        std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
+        std::fs::write(package.join("package.json"),format!(r#"{{"name":"@oai/sky","version":"{SKY_PACKAGE_VERSION}"}}"#)).unwrap();
         let sdk=package.join("dist/index.js");std::fs::write(&sdk,b"").unwrap();
         let bridge=package.join("Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS");std::fs::create_dir_all(&bridge).unwrap();std::fs::write(bridge.join("SkyComputerUseClient"),b"").unwrap();
         let script=root.join("worker.sh");
@@ -420,10 +422,12 @@ mod tests {
         let bridge=package.join("Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS");std::fs::create_dir_all(&bridge).unwrap();std::fs::write(bridge.join("SkyComputerUseClient"),b"").unwrap();
         let script=root.join("worker.mjs");std::fs::write(&script,b"").unwrap();
         let evidence=root.join("evidence");std::fs::create_dir(&evidence).unwrap();
-        std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.7.1"}"#).unwrap();
+        std::fs::write(package.join("package.json"),format!(r#"{{"name":"@oai/sky","version":"{SKY_PACKAGE_VERSION}"}}"#)).unwrap();
         let worker=CuaWorker::new(&script,&sdk,&evidence,Duration::from_secs(2)).unwrap();drop(worker);
-        std::fs::write(package.join("package.json"),r#"{"name":"@oai/sky","version":"0.8.0"}"#).unwrap();
-        assert!(matches!(CuaWorker::new(&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
+        for version in ["0.7.1", "^0.7.4", "latest", "0.8.0"] {
+            std::fs::write(package.join("package.json"),format!(r#"{{"name":"@oai/sky","version":"{version}"}}"#)).unwrap();
+            assert!(matches!(CuaWorker::new(&script,&sdk,&evidence,Duration::from_secs(2)),Err(UnknownReason::DependencyUnavailable)));
+        }
         std::fs::remove_dir_all(root).unwrap();
     }
 

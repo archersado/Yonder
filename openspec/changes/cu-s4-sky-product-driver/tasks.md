@@ -12,7 +12,7 @@
 - [x] 将官方Sky MCP Client首次XPC/MCP握手预算从5秒校正为15秒，并覆盖慢启动回归
 - [x] 补齐Yonder Automation用途声明并完成系统授权后的正式Gateway首步回归
 - [x] 修订 AD-CU-09、CU-S4 三份设计与 OpenSpec，将唯一固定发行物升级为 `@oai/sky@0.7.4`
-- [ ] 更新 Adapter 精确版本门禁与包审计，并覆盖旧版/浮动版本拒绝
+- [x] 更新 Adapter 精确版本门禁与包审计，并覆盖旧版/浮动版本拒绝
 - [ ] 重建正式 macOS Yonder，复跑 Gateway CUA 与 EX-S2 QQ音乐步骤核验
 - [ ] Windows对等验证（依用户决定暂缓）
 

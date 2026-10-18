@@ -27,7 +27,7 @@ with (root / "target/debug/Yonda.app/Contents/Info.plist").open("rb") as stream:
     import plistlib
     yonder_info = plistlib.load(stream)
 result = {
-    "cua_driver": "sky-external-0.7.1",
+    "cua_driver": "sky-external-0.7.4",
     "jev_sdk_version": jev_package.get("version"),
     "node_present": (cua / "node").is_file(),
     "sky_worker_matches": (cua / "sky_cua_worker.mjs").read_bytes() == (root / "crates/adapters/src/sky_cua_worker.mjs").read_bytes(),
@@ -42,7 +42,7 @@ result = {
     "sky_bridge_identifier_valid": bool(sky_identity and "Identifier=com.openai.sky.CUAService.cli" in sky_identity.stderr),
     "sky_bridge_app_group_valid": bool(sky_entitlements and "2DC432GLL2.com.openai.sky.CUAService" in (sky_entitlements.stdout + sky_entitlements.stderr)),
 }
-result["passed"] = result["jev_sdk_version"] == "0.6.0" and result["sky_bridge_version"] == "0.7.1" and all(result[key] for key in ("node_present", "sky_worker_matches", "jev_worker_matches", "trycua_absent", "qwen_absent", "sky_node_team", "sky_node_identifier_valid", "apple_events_usage_declared", "sky_bridge_team", "sky_bridge_identifier_valid", "sky_bridge_app_group_valid"))
+result["passed"] = result["jev_sdk_version"] == "0.6.0" and result["sky_bridge_version"] == "0.7.4" and all(result[key] for key in ("node_present", "sky_worker_matches", "jev_worker_matches", "trycua_absent", "qwen_absent", "sky_node_team", "sky_node_identifier_valid", "apple_events_usage_declared", "sky_bridge_team", "sky_bridge_identifier_valid", "sky_bridge_app_group_valid"))
 evidence = root / "apps/desktop/evidence/cu-s4-sky-package-20260930/result.json"
 evidence.parent.mkdir(parents=True, exist_ok=True)
 evidence.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
