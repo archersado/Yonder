@@ -904,7 +904,7 @@ mod tests {
                 JevModelStepVerification, JevStepOutcome, JevStepVerificationRequest,
             },
             plan_fragment::{execute_available,execute_available_runtime,CandidateAction,PlanSlot},
-            execution_runtime::{ExecutionRuntime,RuntimeCommand,RuntimeEventProjector},
+            execution_runtime::{ExecutionRuntime,RuntimeCommand,RuntimeEventProjector,RuntimePhase},
         };
 
         struct Target;
@@ -1304,6 +1304,17 @@ mod tests {
         );
         assert_eq!(budget_result.status, Status::Running);
 
+        let expired_task=create(&mut store,"expired-plan").unwrap();
+        let expired_fragment=PlanFragment{task_id:expired_task.id.clone(),plan_id:"expired-plan-v1".into(),expected_sequence:expired_task.sequence,deadline_ms:1_500,..fragment.clone()};
+        let expired_submitted=store.submit_plan_fragment("a1",&expired_fragment).unwrap();
+        let expired_runtime=ExecutionRuntime::with_defaults().unwrap();
+        let expired_port=Port(Mutex::new(Vec::new()));
+        let (expired_result,expired_disposition,_)=execute_available_runtime(&mut store,&expired_runtime.handle(),&Admission::new(1).unwrap(),&expired_port,&Target,&config,&MustNotChoose,None,AuthContext::Agent("a1"),&expired_task.id,&expired_fragment.plan_id,1,expired_submitted.sequence,2_000,"host").unwrap();
+        assert_eq!(expired_disposition,"handback");
+        assert!(expired_port.0.lock().unwrap().is_empty());
+        assert_eq!(expired_runtime.handle().snapshot(&expired_task.id).unwrap().phase,RuntimePhase::HandBack);
+        assert_eq!(expired_result.sequence,expired_submitted.sequence+2,"激活与过期交回都必须成为连续运行时事实");
+
         let failed_task = create(&mut store, "failed-plan").unwrap();
         let failed_fragment = PlanFragment {
             task_id: failed_task.id.clone(),
@@ -1545,11 +1556,37 @@ mod tests {
         assert_eq!(dispatched.len(),1);assert!(dispatched[0].contains("hi")&&dispatched[0].contains("draft-message-ref"));drop(dispatched);
         let stored=store.get_plan_fragment(&intent_task.id,&protected_fragment.plan_id,1).unwrap().unwrap();
         assert!(stored.fragment.slots.iter().all(|slot|slot.candidates.iter().all(|candidate|candidate.arguments_json=="{}")));
+        let persisted_fragment:String=store.0.query_row(
+            "SELECT fragment_json FROM task_plan_fragments WHERE task_id=?1 AND plan_id=?2 AND plan_version=1",
+            params![intent_task.id,protected_fragment.plan_id],
+            |row|row.get(0),
+        ).unwrap();
+        assert!(!persisted_fragment.contains("宫健的分身"));
+        assert!(!persisted_fragment.contains("\"hi\""));
         let preview=intents.preview_for_local(AuthContext::LocalUser("desktop"),&awaiting,&intent.intent_ref,1_001).unwrap();assert_eq!(preview.target,"宫健的分身");
         intents.approve(AuthContext::LocalUser("desktop"),&awaiting,&intent.intent_ref,1_002).unwrap();
         let (_,disposition,_)=execute_available(&mut store,&intent_admission,&intent_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&intent_task.id,&protected_fragment.plan_id,1,awaiting.sequence,1_003,"host").unwrap();
         assert_eq!(disposition,"awaiting-goal-verification");assert_eq!(intent_port.0.lock().unwrap().len(),2);
         assert_eq!(intents.consume_send(AuthContext::Agent("a1"),&store.get(&intent_task.id).unwrap(),&intent.intent_ref,&intent.confirmation_ref,1_004),Err(yonder_application::cua_intent::CuaIntentError::NotFound));
+
+        // 前一步的真实Observe不满足发送前置条件时，必须在解析正文和开放
+        // 本机确认之前交回。引用仍保持Prepared，可由慢脑读取新鲜事实后在
+        // 新片段中使用；Driver不能看到发送动作，UI也不能预览敏感内容。
+        let deviated_task=create(&mut store,"protected-intent-precondition-deviation").unwrap();
+        let deviated_intent=intents.propose(AuthContext::Agent("a1"),&deviated_task,"测试会话".into(),"不应派发".into(),2_000).unwrap();
+        let observe=candidate("observe","bring_to_front",yonder_protocol::CuaActionKind::BringToFront);
+        let mut guarded_send=candidate("guarded-send","press_key",yonder_protocol::CuaActionKind::SendMessage);
+        guarded_send.target_ref=deviated_intent.intent_ref.clone();
+        guarded_send.confirmation_ref=Some(deviated_intent.confirmation_ref.clone());
+        guarded_send.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::TargetVisible,expected:true}];
+        let deviated_fragment=PlanFragment{task_id:deviated_task.id.clone(),plan_id:"protected-intent-precondition-deviation-v1".into(),plan_version:1,expected_sequence:deviated_task.sequence,deadline_ms:3_000,token_budget:100,slots:vec![PlanSlot{step_id:"observe".into(),label:"观察目标".into(),candidates:vec![observe]},PlanSlot{step_id:"guarded-send".into(),label:"仅在目标可见时发送".into(),candidates:vec![guarded_send]}]};
+        let deviated_submitted=store.submit_plan_fragment("a1",&deviated_fragment).unwrap();
+        let deviated_port=IntentPort(Mutex::new(Vec::new()));
+        let (deviated_result,deviated_disposition,_)=execute_available(&mut store,&Admission::new(1).unwrap(),&deviated_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&deviated_task.id,&deviated_fragment.plan_id,1,deviated_submitted.sequence,2_001,"host").unwrap();
+        assert_eq!(deviated_disposition,"handback");
+        assert_eq!(deviated_port.0.lock().unwrap().len(),1);
+        assert_eq!(intents.preview_for_local(AuthContext::LocalUser("desktop"),&deviated_result,&deviated_intent.intent_ref,2_002),Err(yonder_application::cua_intent::CuaIntentError::PermissionDenied));
+        assert_eq!(intents.resolve_text(AuthContext::Agent("a1"),&deviated_result,&deviated_intent.intent_ref,yonder_application::cua_intent::CuaIntentText::Message,2_003).unwrap(),"不应派发");
 
         let playback_fragment = |task: &Task, plan_id: &str| {
             let mut activate = candidate(

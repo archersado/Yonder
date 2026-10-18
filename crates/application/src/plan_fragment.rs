@@ -279,10 +279,13 @@ pub fn execute_available(
 ) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
     let initial = store.get_plan_fragment(task_id, plan_id, plan_version)?.ok_or(crate::Error::NotFound)?;
     if initial.owner_agent_id != auth.agent_id()
-        || initial.fragment.deadline_ms <= now_ms
         || expected != store.get(task_id)?.sequence
     {
         return Err(crate::Error::Conflict);
+    }
+    if initial.fragment.deadline_ms <= now_ms {
+        let task=store.hand_back_plan_fragment(task_id,plan_id,plan_version,expected,"计划片段已过期，需要慢脑重新规划")?;
+        return Ok((task,"handback",None));
     }
     let remaining = initial.fragment.slots.len().saturating_sub(usize::from(initial.current_slot));
     if remaining == 0 {
@@ -325,7 +328,7 @@ pub fn execute_available_runtime(
     auth:crate::AuthContext<'_>,task_id:&str,plan_id:&str,plan_version:u64,expected:u64,now_ms:u64,host_session_id:&str,
 )->Result<(crate::Task,&'static str,Option<crate::computer_use::ComputerObservation>),crate::Error>{
     let stored=store.get_plan_fragment(task_id,plan_id,plan_version)?.ok_or(crate::Error::NotFound)?;let persisted=store.get(task_id)?;
-    if stored.owner_agent_id!=auth.agent_id()||stored.fragment.deadline_ms<=now_ms{return Err(crate::Error::Conflict);}
+    if stored.owner_agent_id!=auth.agent_id(){return Err(crate::Error::Conflict);}
     let (initial,newly_activated)=match runtime.snapshot(task_id){Ok(snapshot)=>(snapshot,false),Err(crate::execution_runtime::RuntimeError::NotFound)=>(runtime.apply(crate::execution_runtime::RuntimeCommand::Activate{task_id:task_id.into(),checkpoint:expected}).map_err(runtime_error)?,true),Err(error)=>return Err(runtime_error(error))};
     match initial.active_plan.as_ref(){
         Some(cursor) if cursor.plan_id==plan_id&&cursor.plan_version==plan_version=>if initial.sequence!=expected{return Err(crate::Error::Conflict)},
@@ -335,6 +338,10 @@ pub fn execute_available_runtime(
     }
     let bound=runtime.apply(crate::execution_runtime::RuntimeCommand::BindPlan{task_id:task_id.into(),plan_id:plan_id.into(),plan_version,current_slot:stored.current_slot,source_sequence:stored.accepted_sequence}).map_err(runtime_error)?;
     let mut task=crate::Task{status:runtime_status(&bound.phase),sequence:bound.sequence,..persisted};
+    if stored.fragment.deadline_ms<=now_ms {
+        task=hand_back(store,Some(runtime),&task,task_id,plan_id,plan_version,task.sequence,"计划片段已过期，需要慢脑重新规划")?;
+        return Ok((task,"handback",None));
+    }
     let remaining=stored.fragment.slots.len().saturating_sub(usize::from(bound.active_plan.as_ref().ok_or(crate::Error::Conflict)?.current_slot));if remaining==0{return Ok((task,"awaiting-goal-verification",None));}
     let allowed=remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));let mut observed_context=None;let mut last_observation=None;
     for _ in 0..allowed{
