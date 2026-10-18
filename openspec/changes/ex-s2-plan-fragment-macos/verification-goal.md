@@ -22,6 +22,17 @@
 - 2026-10-08 MCP重新连接后，以正式产品任务 `task_b9e7241c78d7880acf822d6b9c7c2d56` 完成三版受限片段复验。`launch_app`与搜索入口聚焦分别在序号5/9得到`observed(action_succeeded=true, observe_valid=true)`；随后文本输入、绑定新鲜Observation的元素点击及封闭`SPACE`激活分别在序号13/17/21得到`unknown(driver-action-unconfirmed, observe_valid=false)`。每次均先交回慢脑、使用新plan/step/attempt身份且未自动重试旧副作用，任务最终在安全边界取消于序号23。
 - 因三个候选都在Driver结构事实成立前停止，正式样本尚未进入Jev三值步骤核验，不能把自动化通过外推为产品PASS。阻断点已收敛为CU-S4的Sky动作确认能力；结构化证据见 `apps/desktop/evidence/ex-s2-qqmusic-step-verification-20261008/result.json`。修复CU-S4并重建正式产品后重跑，本节继续保持BLOCKED。
 
+## 2026-10-18 动作后步骤核验终局增量
+
+状态：PASS（动作后步骤核验子范围）。
+
+- Application 不再在 Driver Observe 成功后立即推进并投影步骤完成；计划片段路径先保留已观察事实，调用 Jev `verify-step`，只有高置信 `complete` 才推进游标并发布成功图标。`incomplete`、`unknown`、低置信或核验不可用均保留当前槽位并交回慢脑。
+- Adapter集成测试验证事件顺序必须是`verify-step`先于`completed`；`incomplete`交回时`current_slot=0`，顶部投影保持“待核验/交回”，且不会出现`completed`。
+- 固定Sky 0.7.4正式产品任务`task_5f4967b174b1c3b9587f68cd5d4703af`经安装包MCP/Gateway执行QQ音乐片段。`ENTER`动作在序号41形成`observed(action_succeeded=true, observe_valid=true)`；随后Jev判定当前步骤未完成，Yonder在序号43交回慢脑，未发布步骤成功或推进到下一槽位。该真实负向样本证明Driver成功回执不会再被误当作步骤完成。
+- 回归结果：Adapter 88/88、Application 92/92、Desktop 39/39；架构检查、OpenSpec strict及`git diff --check`通过。结构化证据见`apps/desktop/evidence/ex-s2-step-verdict-20261018/result.json`。
+
+本节只关闭“动作后步骤三值核验与展示一致性”子范围，不声称QQ音乐“搜索并播放One Last Kiss”的完整业务目标已完成，也不替代仍待补齐的企业微信敏感确认样本与Windows证据。
+
 状态：macOS 同步连续执行验证通过（2026-09-28）；Windows 按用户决定暂缓。
 
 ## 目标

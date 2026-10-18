@@ -1,0 +1,17 @@
+{
+  "platform": "macos",
+  "entry": "bundled-yonder-mcp",
+  "task_id": "task_5f4967b174b1c3b9587f68cd5d4703af",
+  "sky_version": "0.7.4",
+  "driver_observed_sequence": 41,
+  "driver_action_succeeded": true,
+  "driver_observe_valid": true,
+  "step_verdict": "incomplete",
+  "handback_sequence": 43,
+  "slot_advanced": false,
+  "premature_success_projected": false,
+  "application_tests_passed": 92,
+  "adapter_tests_passed": 88,
+  "desktop_tests_passed": 39,
+  "passed": true
+}
