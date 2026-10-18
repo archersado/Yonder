@@ -181,7 +181,7 @@ fn execute_one(
         registry.consume_send(auth,&current_task,&action.target_ref,confirmation,now_ms).map_err(cua_intent_error)?;
     }
     let runtime_arguments=serde_json::to_string(&arguments).map_err(|_|crate::Error::InvalidInput)?;
-    let (task,result,observation)=if let Some(runtime)=runtime{crate::computer_use::execute_agent_step_runtime(store,runtime,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?}else{crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?};
+    let (task,result,observation)=if let Some(runtime)=runtime{crate::computer_use::execute_plan_step_runtime(store,runtime,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?}else{crate::computer_use::execute_agent_step(store,admission,computer,targets,auth,task_id,expected,&slot.step_id,&slot.label,&action.tool_name,&runtime_arguments,host_session_id)?};
     if !matches!(result.conclusion,crate::AttemptConclusion::Observed { action_succeeded:true }) {
         computer.project_step_unverified(task_id,&slot.step_id);
         // user-input 会把任务原子地转为 interrupted，并已写入事件/Outbox；此时

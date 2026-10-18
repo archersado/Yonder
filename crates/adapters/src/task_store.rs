@@ -891,7 +891,7 @@ mod tests {
 
     #[test]
     fn plan_fragment_continuously_executes_verified_slots_in_one_call() {
-        use std::sync::Mutex;
+        use std::sync::{Arc, Mutex};
         use yonder_application::{
             admission::Admission,
             computer_use::{
@@ -899,7 +899,10 @@ mod tests {
                 WorkTargetPort,
             },
             jev_config::{JevCapability, JevServiceMode, JEV_REMOTE_ENDPOINT},
-            jev_runtime::{JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice},
+            jev_runtime::{
+                JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice,
+                JevModelStepVerification, JevStepOutcome, JevStepVerificationRequest,
+            },
             plan_fragment::{execute_available,execute_available_runtime,CandidateAction,PlanSlot},
             execution_runtime::{ExecutionRuntime,RuntimeCommand,RuntimeEventProjector},
         };
@@ -1007,6 +1010,81 @@ mod tests {
                 _: &JevDecisionRequest,
             ) -> Result<JevModelChoice, JevDecisionError> {
                 panic!("单一已验证候选不得调用Jev")
+            }
+        }
+        struct StepVerificationPort {
+            events: Arc<Mutex<Vec<String>>>,
+            outcome: JevStepOutcome,
+        }
+        impl JevDecisionPort for StepVerificationPort {
+            fn choose(
+                &self,
+                _: &JevConfig,
+                _: &JevDecisionRequest,
+            ) -> Result<JevModelChoice, JevDecisionError> {
+                panic!("单一已验证候选不得调用Jev选择动作")
+            }
+
+            fn verify_step(
+                &self,
+                _: &JevConfig,
+                request: &JevStepVerificationRequest,
+            ) -> Result<JevModelStepVerification, JevDecisionError> {
+                assert_eq!(request.step_label, "播放 One Last Kiss");
+                assert!(request
+                    .observation_summary
+                    .iter()
+                    .any(|line| line.contains("One Last Kiss")));
+                self.events.lock().unwrap().push("verify-step".into());
+                Ok(JevModelStepVerification {
+                    outcome: self.outcome,
+                    confidence: 0.99,
+                })
+            }
+        }
+        struct StepVerificationComputerPort {
+            events: Arc<Mutex<Vec<String>>>,
+        }
+        impl ComputerUsePort for StepVerificationComputerPort {
+            fn dispatch(
+                &self,
+                _: &ExecutionAttempt,
+                _: &WorkTarget,
+                _: &ComputerAction,
+            ) -> DispatchOutcome {
+                self.events.lock().unwrap().push("dispatch".into());
+                DispatchOutcome::Known {
+                    action_succeeded: true,
+                    observation: Some(ComputerObservation {
+                        element_count: 2,
+                        screenshot_path: None,
+                        screenshot_mime: None,
+                        screenshot_width_px: None,
+                        screenshot_height_px: None,
+                        target_visible: Some(true),
+                        observation_ref: Some("observation-playback".into()),
+                        transcript: Some(
+                            "1 文本 歌曲名：One Last Kiss - 歌手名：宇多田光\n2 按钮 暂停播放"
+                                .into(),
+                        ),
+                        elements: Vec::new(),
+                    }),
+                }
+            }
+
+            fn project_decision(&self, _: &str, _: &str, _: &str, summary: &str) {
+                self.events
+                    .lock()
+                    .unwrap()
+                    .push(format!("decision:{summary}"));
+            }
+
+            fn project_step_completed(&self, _: &str, _: &str) {
+                self.events.lock().unwrap().push("completed".into());
+            }
+
+            fn project_step_unverified(&self, _: &str, _: &str) {
+                self.events.lock().unwrap().push("unverified".into());
             }
         }
         fn candidate(
@@ -1472,6 +1550,126 @@ mod tests {
         let (_,disposition,_)=execute_available(&mut store,&intent_admission,&intent_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&intent_task.id,&protected_fragment.plan_id,1,awaiting.sequence,1_003,"host").unwrap();
         assert_eq!(disposition,"awaiting-goal-verification");assert_eq!(intent_port.0.lock().unwrap().len(),2);
         assert_eq!(intents.consume_send(AuthContext::Agent("a1"),&store.get(&intent_task.id).unwrap(),&intent.intent_ref,&intent.confirmation_ref,1_004),Err(yonder_application::cua_intent::CuaIntentError::NotFound));
+
+        let playback_fragment = |task: &Task, plan_id: &str| {
+            let mut activate = candidate(
+                "activate-song",
+                "press_key",
+                yonder_protocol::CuaActionKind::ActivateControl,
+            );
+            activate.arguments_json = r#"{"key":"SPACE"}"#.into();
+            PlanFragment {
+                task_id: task.id.clone(),
+                plan_id: plan_id.into(),
+                plan_version: 1,
+                expected_sequence: task.sequence,
+                deadline_ms: 2_000,
+                token_budget: 100,
+                slots: vec![PlanSlot {
+                    step_id: "play-song".into(),
+                    label: "播放 One Last Kiss".into(),
+                    candidates: vec![activate],
+                }],
+            }
+        };
+
+        let completed_step_task = create(&mut store, "verified-playback-complete").unwrap();
+        let completed_step_fragment =
+            playback_fragment(&completed_step_task, "verified-playback-complete-v1");
+        let completed_step_submitted = store
+            .submit_plan_fragment("a1", &completed_step_fragment)
+            .unwrap();
+        let completed_step_runtime = ExecutionRuntime::with_defaults().unwrap();
+        let completed_step_events = Arc::new(Mutex::new(Vec::new()));
+        let (_, completed_step_disposition, _) = execute_available_runtime(
+            &mut store,
+            &completed_step_runtime.handle(),
+            &Admission::new(1).unwrap(),
+            &StepVerificationComputerPort {
+                events: Arc::clone(&completed_step_events),
+            },
+            &Target,
+            &config,
+            &StepVerificationPort {
+                events: Arc::clone(&completed_step_events),
+                outcome: JevStepOutcome::Complete,
+            },
+            None,
+            AuthContext::Agent("a1"),
+            &completed_step_task.id,
+            &completed_step_fragment.plan_id,
+            1,
+            completed_step_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
+        assert_eq!(completed_step_disposition, "awaiting-goal-verification");
+        let completed_step_events = completed_step_events.lock().unwrap();
+        let verification_index = completed_step_events
+            .iter()
+            .position(|event| event == "verify-step")
+            .unwrap();
+        let completed_index = completed_step_events
+            .iter()
+            .position(|event| event == "completed")
+            .unwrap();
+        assert!(verification_index < completed_index);
+        assert_eq!(
+            completed_step_events
+                .iter()
+                .filter(|event| event.as_str() == "completed")
+                .count(),
+            1
+        );
+        drop(completed_step_events);
+
+        let incomplete_step_task = create(&mut store, "verified-playback-incomplete").unwrap();
+        let incomplete_step_fragment =
+            playback_fragment(&incomplete_step_task, "verified-playback-incomplete-v1");
+        let incomplete_step_submitted = store
+            .submit_plan_fragment("a1", &incomplete_step_fragment)
+            .unwrap();
+        let incomplete_step_runtime = ExecutionRuntime::with_defaults().unwrap();
+        let incomplete_step_events = Arc::new(Mutex::new(Vec::new()));
+        let (_, incomplete_step_disposition, _) = execute_available_runtime(
+            &mut store,
+            &incomplete_step_runtime.handle(),
+            &Admission::new(1).unwrap(),
+            &StepVerificationComputerPort {
+                events: Arc::clone(&incomplete_step_events),
+            },
+            &Target,
+            &config,
+            &StepVerificationPort {
+                events: Arc::clone(&incomplete_step_events),
+                outcome: JevStepOutcome::Incomplete,
+            },
+            None,
+            AuthContext::Agent("a1"),
+            &incomplete_step_task.id,
+            &incomplete_step_fragment.plan_id,
+            1,
+            incomplete_step_submitted.sequence,
+            1_000,
+            "host",
+        )
+        .unwrap();
+        assert_eq!(incomplete_step_disposition, "handback");
+        assert_eq!(
+            incomplete_step_runtime
+                .handle()
+                .snapshot(&incomplete_step_task.id)
+                .unwrap()
+                .active_plan
+                .unwrap()
+                .current_slot,
+            0
+        );
+        let incomplete_step_events = incomplete_step_events.lock().unwrap();
+        assert!(incomplete_step_events.iter().any(|event| event == "verify-step"));
+        assert!(incomplete_step_events.iter().any(|event| event == "unverified"));
+        assert!(!incomplete_step_events.iter().any(|event| event == "completed"));
     }
 
     #[test]

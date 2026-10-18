@@ -182,6 +182,76 @@ pub fn execute_agent_step_runtime(
     arguments_json: &str,
     host_session_id: &str,
 ) -> Result<(Task, AttemptResultRecord, Option<ComputerObservation>), Error> {
+    execute_agent_step_runtime_with_projection(
+        store,
+        runtime,
+        admission,
+        port,
+        targets,
+        auth,
+        task_id,
+        expected,
+        step_id,
+        label,
+        tool_name,
+        arguments_json,
+        host_session_id,
+        true,
+    )
+}
+
+/// 计划片段必须等 Jev 完成动作后语义核验，才能把步骤投影为成功。
+/// Driver/Runtime 仍记录结构结果和步骤边界，但把最终展示决定留给片段编排器。
+pub(crate) fn execute_plan_step_runtime(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    port: &(impl ComputerUsePort + ?Sized),
+    targets: &(impl WorkTargetPort + ?Sized),
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    step_id: &str,
+    label: &str,
+    tool_name: &str,
+    arguments_json: &str,
+    host_session_id: &str,
+) -> Result<(Task, AttemptResultRecord, Option<ComputerObservation>), Error> {
+    execute_agent_step_runtime_with_projection(
+        store,
+        runtime,
+        admission,
+        port,
+        targets,
+        auth,
+        task_id,
+        expected,
+        step_id,
+        label,
+        tool_name,
+        arguments_json,
+        host_session_id,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_agent_step_runtime_with_projection(
+    store: &mut impl TaskStore,
+    runtime: &crate::execution_runtime::ExecutionRuntimeHandle,
+    admission: &Admission,
+    port: &(impl ComputerUsePort + ?Sized),
+    targets: &(impl WorkTargetPort + ?Sized),
+    auth: AuthContext<'_>,
+    task_id: &str,
+    expected: u64,
+    step_id: &str,
+    label: &str,
+    tool_name: &str,
+    arguments_json: &str,
+    host_session_id: &str,
+    project_observed_result: bool,
+) -> Result<(Task, AttemptResultRecord, Option<ComputerObservation>), Error> {
     if !crate::valid_id(step_id)
         || label.is_empty()
         || label.len() > 120
@@ -256,10 +326,12 @@ pub fn execute_agent_step_runtime(
             .map_err(|_| Error::StorageUnavailable)?;
         (Status::Interrupted, stopped.sequence)
     } else if let crate::AttemptConclusion::Observed { action_succeeded } = result.conclusion {
-        if action_succeeded {
-            port.project_step_completed(task_id, step_id);
-        } else {
-            port.project_step_unverified(task_id, step_id);
+        if project_observed_result {
+            if action_succeeded {
+                port.project_step_completed(task_id, step_id);
+            } else {
+                port.project_step_unverified(task_id, step_id);
+            }
         }
         let boundary = runtime
             .apply(crate::execution_runtime::RuntimeCommand::AdvanceStepBoundary {
