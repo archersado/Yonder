@@ -72,6 +72,14 @@ Desktop MUST 在TaskHost成功初始化后才创建本地Gateway Socket。持有
 - **AND** Driver、Desktop与Jev都不得直接把动作成功写成任务完成；浮窗保持到Gateway终态到达后才关闭
 - **AND** Agent未连接或投递失败时任务保持运行中并展示等待状态，不丢失任务、不自动重发副作用
 
+#### Scenario: Connector重连恢复待核验任务
+
+- **GIVEN** 计划片段已完成且任务仍在等待终局核验
+- **AND** 首次核验唤醒因Connector不兼容或断开而未送达
+- **WHEN** 支持协议1.53的同一归属Agent Connector注册成功
+- **THEN** Yonder依据Store与Execution Runtime的新鲜事实重投一次有界核验输入
+- **AND** 不自动完成任务、不重放发送动作，也不以UI投影作为判断依据
+
 #### Scenario: 批准反馈不被轮询旧投影覆盖
 
 - **WHEN** 用户已批准或拒绝发送，但服务端执行投影仍暂时返回“等待用户确认”
