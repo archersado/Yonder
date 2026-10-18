@@ -57,6 +57,8 @@ Application在每个槽位派发前按任务归属和期限解析引用，把目
 
 等待本机确认期间，外部计划片段仍可能超过既有期限。再次执行过期片段时，Application必须在任何引用消费或Driver派发前把活动Runtime原子交回慢脑，发布有界“计划片段已过期”原因并允许新片段接管；不得只返回CAS冲突而把旧活动片段永久留在`running`。确认已批准但尚未消费时继续只驻内存，过期交回不把它写入SQLite、事件或Outbox。
 
+顶部浮窗的批准事件是`awaiting-confirmation`边界唯一允许的可信内部续跑触发器。Desktop组合根从当前Runtime读取原任务、活动`plan_id/version`、游标和序号，以独立于Agent会话的`BoundPlan`权限调用Application；该权限只能消费既有活动片段，不能提交/replan/完成任务。人工等待可跨越原Gateway请求deadline，但本地确认的独立期限、当前Runtime身份、控制冻结与一次性引用仍须按真实时间复核。批准命令须在后台线程执行Driver，UI立即显示“已确认发送，正在执行”，不得等慢脑二次调用。
+
 2026-09-28 用户变更将 CUA 候选从“工具名与参数”扩展为受限语义声明：`action_kind`、不含敏感值的 `target_ref`、`preconditions`、`expected_observe` 与可选 `confirmation_ref`。Rust 协议仍是唯一来源；Jev 请求只获得动作语义、当前 Observe 的有界摘要及预期条件，不获得接收人、正文、截图或 Driver 参数。Application 在选择前复核前置条件，在选择后解析一次性本地确认并交给既有 CUA Driver；确认不存在、过期、取消或 Observe 不符均交回归属 Agent。发送等敏感副作用不得把确认值、接收人或正文写入片段 JSON、任务事件、Outbox、日志或模型请求。
 
 执行时以有界内存日志承载交回原因、慢脑唤醒和展示投影，后台按序写 SQLite/Outbox；这些异步写入不阻塞 CUA 槽位或慢脑消费。SQLite 已投影状态仍是重启后唯一可恢复事实；未投影记录在重启后按 `unknown`/`interrupted` 处理，禁止重放副作用。快脑持有的 Observe/目标引用只在当前执行身份和有效期内使用。派发前复核最小持久化检查点、授权、租约、目标新鲜度及用户控制标记。动作结束强制 Observe；目标达成须独立验证，不能只信 Jev `DONE`。偏离、低置信、无候选、参数不足、预算耗尽转为「待慢脑 replan」的内存交回事实，具体状态映射复用 TM，不增第二状态机。

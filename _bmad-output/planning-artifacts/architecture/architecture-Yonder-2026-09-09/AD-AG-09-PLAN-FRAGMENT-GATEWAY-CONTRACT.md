@@ -33,6 +33,8 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 2026-10-08 AX 动作空间修订（用户变更，已接受）：快脑不得为了“启用 Jev”而在人为构造的应用恢复路径中选择。慢脑仍只声明语义步骤、允许动作类型与成功条件；Application 将同一轮新鲜 AX/UIA Observe 中符合该动作类型的临时元素句柄展开为有界动作空间。唯一元素由 Application 直接派发；多个元素时，Jev 只接收步骤标签、封闭角色、最多 128 字符的脱敏短标签及既有条件摘要，返回已提交的不透明候选 ID。Application 把所选句柄与同次 `observation_ref` 仅注入当次 Driver 请求，Driver 在副作用前重新 Observe 并校验句柄。完整 transcript、截图、坐标、PID、窗口身份、正文和联系人仍不得进入 Jev；候选为空、低置信或句柄失效立即交回慢脑。
 
+2026-10-18 本机确认续跑修订（用户变更，已接受）：计划片段在发送槽位返回`awaiting-confirmation`后，顶部浮窗的本机批准事件必须自动唤醒并继续同一活动Runtime，不要求归属慢脑再次调用`task.plan.execute`。该续跑不是新的Agent请求或语义replan：组合根只能使用绑定原任务归属、原`plan_id/version`、当前Runtime游标与本次一次性确认的可信内部执行来源；不得提交新片段、改变候选或伪造Agent会话。人工等待期间原Gateway调用的截止时间不再阻止已批准发送，但确认自身期限、任务状态、控制冻结、活动游标、引用绑定、Driver Observe和`unknown`不重试仍必须在派发前复核。批准后若这些条件任一失效则交回慢脑，不派发副作用；任务完成/失败仍只由归属Agent经Gateway提交。
+
 ## 待决问题
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。
@@ -78,7 +80,7 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 - `deadline`
 - `fallback_candidates`
 
-其中 `operations` 是封闭的声明式步骤集合，每个步骤只允许引用已验证的 CUA 能力和预校验参数。`observe_policy` 固定要求每动作后 Observe。执行请求在调用生命周期内同步消费槽位，并在每个 Observe 边界重新检查 Gateway 控制、用户输入及停止确认；无需慢脑逐槽位续调，也不得在响应返回后留下后台执行。`budget` 至少包含步数、时间、token 和单步动作数。
+其中 `operations` 是封闭的声明式步骤集合，每个步骤只允许引用已验证的 CUA 能力和预校验参数。`observe_policy` 固定要求每动作后 Observe。执行请求通常在调用生命周期内同步消费槽位，并在每个 Observe 边界重新检查 Gateway 控制、用户输入及停止确认；无需慢脑逐槽位续调。唯一允许的跨请求续跑是发送槽位明确返回`awaiting-confirmation`后，由本机用户批准事件唤醒原活动Runtime；它不接受新计划或新参数，并继续受原片段预算、当前游标与一次性确认约束。`budget` 至少包含步数、时间、token 和单步动作数。
 
 ## 安全与恢复
 
