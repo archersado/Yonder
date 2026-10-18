@@ -15,6 +15,7 @@
 - TARGET-ACTION-03：Application只在派发前解析敏感文本并交给CUA Driver；元素唯一时优先执行，元素缺失/不唯一时不执行原动作并返回视觉证据。
 - TARGET-ACTION-04：发送确认只有在执行到发送槽位时才出现在顶部执行浮窗；本机用户批准后一次消费，Agent不能自报确认，拒绝/过期/unknown不重试。
 - TARGET-ACTION-04A：用户在顶部浮窗批准后，Yonder必须自动唤醒同一活动计划片段并继续发送槽位，不要求慢脑再次调用执行。该可信内部续跑只继承原任务归属、片段版本和当前游标，不得形成新计划、改变候选或绕过确认自身期限；结果仍须Observe，异常交回慢脑。
+- TARGET-ACTION-04B：确认续跑完成片段后，Yonder必须经AG-S5当前归属会话自动唤醒慢脑执行最终目标核验；Driver成功不得直接完成任务。顶部浮窗保持到慢脑经Gateway提交终态，终态后立即消失。
 - TARGET-ACTION-05：企业微信搜索入口可使用封闭`⌘F`快捷键候选；不得接收任意组合键。动作仍绑定精确窗口并强制Observe，`unverifiable`直接交回且不得建立搜索焦点凭据。
 - TARGET-ACTION-06：协议1.39允许目标查询和草稿引用文本携带有限窗口坐标；Yonder必须从引用展开正文并强制精确窗口foreground原子输入。Agent不得提交正文或delivery mode，未确认或Observe失败不得推进。
 

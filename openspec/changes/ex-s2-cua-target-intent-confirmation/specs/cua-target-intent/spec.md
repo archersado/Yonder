@@ -65,6 +65,13 @@ Desktop MUST 在TaskHost成功初始化后才创建本地Gateway Socket。持有
 - **AND** 不要求慢脑再次调用执行，不创建Agent会话、不改变候选、不提交新计划或任务终态
 - **AND** 人工等待跨越原Gateway deadline时仍可续跑，但确认自身期限、控制状态、活动游标与引用绑定任一失效都必须在副作用前交回
 
+#### Scenario: 自动续跑完成后唤醒终局核验
+
+- **WHEN** 本机批准触发的可信续跑完成最后一个槽位且最新Observe有效
+- **THEN** Desktop通过当前唯一归属Agent会话投递有界`goal_verification`输入，要求慢脑读取Gateway新鲜事实后提交目标核验与终态
+- **AND** Driver、Desktop与Jev都不得直接把动作成功写成任务完成；浮窗保持到Gateway终态到达后才关闭
+- **AND** Agent未连接或投递失败时任务保持运行中并展示等待状态，不丢失任务、不自动重发副作用
+
 #### Scenario: 批准反馈不被轮询旧投影覆盖
 
 - **WHEN** 用户已批准或拒绝发送，但服务端执行投影仍暂时返回“等待用户确认”

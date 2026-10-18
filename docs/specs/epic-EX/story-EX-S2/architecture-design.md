@@ -59,6 +59,8 @@ Application在每个槽位派发前按任务归属和期限解析引用，把目
 
 顶部浮窗的批准事件是`awaiting-confirmation`边界唯一允许的可信内部续跑触发器。Desktop组合根从当前Runtime读取原任务、活动`plan_id/version`、游标和序号，以独立于Agent会话的`BoundPlan`权限调用Application；该权限只能消费既有活动片段，不能提交/replan/完成任务。人工等待可跨越原Gateway请求deadline，但本地确认的独立期限、当前Runtime身份、控制冻结与一次性引用仍须按真实时间复核。批准命令须在后台线程执行Driver，UI立即显示“已确认发送，正在执行”，不得等慢脑二次调用。
 
+当可信续跑返回`awaiting-goal-verification`时，Desktop通过AG-S5当前唯一归属会话发送协议1.53 `goal_verification`输入。消息只包含任务ID、Runtime最新序号和固定核验要求；慢脑仍须读取Gateway新鲜事实并调用`task.goal.verify`与`task.complete/task.fail`。无连接或投递失败时任务保持运行中并明确等待Agent，浮窗不提前隐藏；不得由Desktop、Jev或Driver推断终态。
+
 2026-09-28 用户变更将 CUA 候选从“工具名与参数”扩展为受限语义声明：`action_kind`、不含敏感值的 `target_ref`、`preconditions`、`expected_observe` 与可选 `confirmation_ref`。Rust 协议仍是唯一来源；Jev 请求只获得动作语义、当前 Observe 的有界摘要及预期条件，不获得接收人、正文、截图或 Driver 参数。Application 在选择前复核前置条件，在选择后解析一次性本地确认并交给既有 CUA Driver；确认不存在、过期、取消或 Observe 不符均交回归属 Agent。发送等敏感副作用不得把确认值、接收人或正文写入片段 JSON、任务事件、Outbox、日志或模型请求。
 
 执行时以有界内存日志承载交回原因、慢脑唤醒和展示投影，后台按序写 SQLite/Outbox；这些异步写入不阻塞 CUA 槽位或慢脑消费。SQLite 已投影状态仍是重启后唯一可恢复事实；未投影记录在重启后按 `unknown`/`interrupted` 处理，禁止重放副作用。快脑持有的 Observe/目标引用只在当前执行身份和有效期内使用。派发前复核最小持久化检查点、授权、租约、目标新鲜度及用户控制标记。动作结束强制 Observe；目标达成须独立验证，不能只信 Jev `DONE`。偏离、低置信、无候选、参数不足、预算耗尽转为「待慢脑 replan」的内存交回事实，具体状态映射复用 TM，不增第二状态机。

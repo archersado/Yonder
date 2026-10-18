@@ -35,6 +35,8 @@ Architecture Impact：architecture-change（Gateway 协议扩展、Application �
 
 2026-10-18 本机确认续跑修订（用户变更，已接受）：计划片段在发送槽位返回`awaiting-confirmation`后，顶部浮窗的本机批准事件必须自动唤醒并继续同一活动Runtime，不要求归属慢脑再次调用`task.plan.execute`。该续跑不是新的Agent请求或语义replan：组合根只能使用绑定原任务归属、原`plan_id/version`、当前Runtime游标与本次一次性确认的可信内部执行来源；不得提交新片段、改变候选或伪造Agent会话。人工等待期间原Gateway调用的截止时间不再阻止已批准发送，但确认自身期限、任务状态、控制冻结、活动游标、引用绑定、Driver Observe和`unknown`不重试仍必须在派发前复核。批准后若这些条件任一失效则交回慢脑，不派发副作用；任务完成/失败仍只由归属Agent经Gateway提交。
 
+2026-10-18 终局核验唤醒修订（用户变更，已接受）：可信内部续跑完成最后一个槽位并形成有效Observe后，Desktop必须通过AG-S5当前唯一归属Agent会话投递有界`goal_verification`输入，要求慢脑读取`task.get/task.events`后提交目标核验与终态。该通知只携带任务ID、当前序号和“片段已执行，等待终局核验”的固定指令，不携带正文、联系人、截图或Driver Payload；不直接完成任务，也不在无连接时伪造终态。顶部浮窗继续保持到归属Agent经Gateway提交`completed/failed`，终态响应到达后立即关闭。
+
 ## 待决问题
 
 当前“每一步都由慢脑决策”的架构已经可用，但在进入具体 CUA/BUA 场景后会产生大量交互：Driver 每次动作都要回到慢脑生成下一步。这个模式安全、可审计，但对短计划片段的时延和 token 成本偏高。需要一个不破坏安全边界、也不替代当前逐步决策架构的可选方案，用于观察是否值得引入“一次性下发计划片段 + Driver 本地执行 + Observe 异常时再决策”的模式。
