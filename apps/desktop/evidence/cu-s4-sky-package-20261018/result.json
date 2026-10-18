@@ -1,0 +1,17 @@
+{
+  "cua_driver": "sky-external-0.7.4",
+  "jev_sdk_version": "0.6.0",
+  "node_present": true,
+  "sky_worker_matches": true,
+  "jev_worker_matches": true,
+  "trycua_absent": true,
+  "qwen_absent": true,
+  "sky_bridge_version": "0.7.4",
+  "sky_node_team": "2DC432GLL2",
+  "sky_node_identifier_valid": true,
+  "apple_events_usage_declared": true,
+  "sky_bridge_team": "2DC432GLL2",
+  "sky_bridge_identifier_valid": true,
+  "sky_bridge_app_group_valid": true,
+  "passed": true
+}

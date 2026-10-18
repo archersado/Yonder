@@ -13,7 +13,7 @@
 - [x] 补齐Yonder Automation用途声明并完成系统授权后的正式Gateway首步回归
 - [x] 修订 AD-CU-09、CU-S4 三份设计与 OpenSpec，将唯一固定发行物升级为 `@oai/sky@0.7.4`
 - [x] 更新 Adapter 精确版本门禁与包审计，并覆盖旧版/浮动版本拒绝
-- [ ] 重建正式 macOS Yonder，复跑 Gateway CUA 与 EX-S2 QQ音乐步骤核验
+- [x] 重建正式 macOS Yonder，复跑 Gateway CUA 与 EX-S2 QQ音乐步骤核验
 - [ ] Windows对等验证（依用户决定暂缓）
 
 2026-10-01正式验证返回Apply：包边界与隔离Worker通过，但正式Yonder在`list_apps`前的Sky native-pipe握手被服务关闭，阶段为`transport-closed`。2026-10-04进一步确认固定Sky发行物提供官方签名MCP Client，且Client要求OpenAI Team ID父进程；同发行物签名Node派生Client的`list_apps/get_app_state`已通过隔离探针。产品实现改走该签名MCP桥，仍须完成正式Gateway与独立Goal后才能合入dev。
@@ -27,3 +27,5 @@
 2026-10-07参考Codex Computer Use循环完成增量回归：坐标动作保留同一Client并只派发一次，超时或窗口代次变化后先Observe、不重放。Codex对照证明同一坐标路径也不可用，而AX元素18可打开左下角账号/企业入口。正式Gateway任务`task_83ab460064455b4f0fc0bb49b5cfc2bb`以新鲜`observed_element_index=18`执行后为`fragment-complete@22 → completed@23`，动作后Observe由260个主窗口元素变为68个面板元素。
 
 2026-10-08 Automation用途声明修复后，包审计确认`NSAppleEventsUsageDescription`存在，固定Sky签名Node/Client身份继续通过。正式安装包内`yonder mcp → Gateway → Application → Sky`任务`task_553f2563d4cbc2db40b24168379fb7ba`在首槽位启动QQ音乐，序号5形成`observed(action_succeeded=true, observe_valid=true)`并返回258个有界AX元素；系统日志同步记录`SkCu/XpcN = accepted`。Goal核验后任务为`completed@9`。
+
+2026-10-18 固定发行物升级为`@oai/sky@0.7.4`后，独立worktree重新构建正式`Yonda.app`；包审计确认Sky版本、OpenAI签名Node/Client、App Group、Automation用途声明及单栈边界全部通过。正式Gateway任务`task_5f4967b174b1c3b9587f68cd5d4703af`完成QQ音乐启动、搜索框聚焦及一次可确认的`ENTER`动作；该动作在序号41形成`observed(action_succeeded=true, observe_valid=true)`，随后EX-S2步骤核验判定目标未完成并于序号43交回慢脑，没有把Driver回执误投影为步骤成功。由此关闭0.7.4产品接线与正式链路复跑项；QQ音乐完整业务目标不在本条版本兼容验收中外推为完成。

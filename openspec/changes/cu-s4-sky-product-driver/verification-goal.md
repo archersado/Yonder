@@ -4,6 +4,13 @@
 - 日期：2026-10-12（汇总；原始失败证据保留）
 - 平台：macOS；Windows按主人决定暂缓
 
+## 2026-10-18 Sky 0.7.4 固定发行物复核
+
+- 独立worktree重新构建正式`Yonda.app`，包审计结果为`sky-external-0.7.4`、Jev SDK `0.6.0`，签名Node、签名Client、App Group、Automation用途声明、Worker一致性以及trycua/Qwen缺失检查全部通过。证据见[结构化结果](../../../apps/desktop/evidence/cu-s4-sky-package-20261018/result.json)。
+- 正式产品任务`task_5f4967b174b1c3b9587f68cd5d4703af`经安装包MCP/Gateway进入QQ音乐：启动与搜索框聚焦均形成有效Observe；后续`ENTER`在序号41形成`observed(action_succeeded=true, observe_valid=true)`，证明0.7.4签名Client的动作与Observe链路可用。
+- 同次动作随后由EX-S2步骤核验判定当前目标未完成并在序号43交回。该结果是正确的负向业务判定，不是CU-S4 transport/版本失败；未把Driver成功回执提升为任务完成。
+- 回归结果：Adapter 88/88、Application 92/92、Desktop 39/39；`scripts/check_architecture.py`、OpenSpec strict与`git diff --check`通过。
+
 独立复核正式包不含trycua且没有Driver开关/回退；固定Sky身份校验、应用绑定、transcript元素计数、语义动作映射、动作后Observe、unknown交回和清理测试全部通过。正式Yonder Gateway 已完成QQ音乐多步骤正向样本和后续回归；不保存transcript、正文或完整Payload。早期FAIL/Apply章节作为技术路线演进证据保留，不再覆盖2026-10-06及之后的macOS PASS结论。Windows暂缓，因此Story仍不Archive。
 
 ## 2026-10-12 当前 dev 复核
