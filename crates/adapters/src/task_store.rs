@@ -903,7 +903,7 @@ mod tests {
                 JevDecisionError, JevDecisionPort, JevDecisionRequest, JevModelChoice,
                 JevModelStepVerification, JevStepOutcome, JevStepVerificationRequest,
             },
-            plan_fragment::{execute_available,execute_available_runtime,CandidateAction,PlanSlot},
+            plan_fragment::{execute_available,execute_available_runtime,resume_after_local_confirmation_runtime,CandidateAction,PlanSlot},
             execution_runtime::{ExecutionRuntime,RuntimeCommand,RuntimeEventProjector,RuntimePhase},
         };
 
@@ -1568,6 +1568,27 @@ mod tests {
         let (_,disposition,_)=execute_available(&mut store,&intent_admission,&intent_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&intent_task.id,&protected_fragment.plan_id,1,awaiting.sequence,1_003,"host").unwrap();
         assert_eq!(disposition,"awaiting-goal-verification");assert_eq!(intent_port.0.lock().unwrap().len(),2);
         assert_eq!(intents.consume_send(AuthContext::Agent("a1"),&store.get(&intent_task.id).unwrap(),&intent.intent_ref,&intent.confirmation_ref,1_004),Err(yonder_application::cua_intent::CuaIntentError::NotFound));
+
+        // 本机批准是活动片段的可信续跑触发器：即使原Gateway deadline已过，
+        // 也只恢复此前已选择并开放确认的同一发送候选，且只派发一次。
+        let auto_task=create(&mut store,"protected-intent-auto-resume").unwrap();
+        let auto_intent=intents.propose(AuthContext::Agent("a1"),&auto_task,"自动续跑会话".into(),"只发送一次".into(),3_000).unwrap();
+        let mut auto_send=candidate("auto-send","press_key",yonder_protocol::CuaActionKind::SendMessage);
+        auto_send.target_ref=auto_intent.intent_ref.clone();
+        auto_send.confirmation_ref=Some(auto_intent.confirmation_ref.clone());
+        auto_send.preconditions=vec![yonder_protocol::CuaObserveConditionParams{fact:yonder_protocol::CuaObserveFact::ObserveValid,expected:false}];
+        let auto_fragment=PlanFragment{task_id:auto_task.id.clone(),plan_id:"protected-intent-auto-resume-v1".into(),plan_version:1,expected_sequence:auto_task.sequence,deadline_ms:3_010,token_budget:100,slots:vec![PlanSlot{step_id:"auto-send".into(),label:"确认后自动发送".into(),candidates:vec![auto_send]}]};
+        let auto_submitted=store.submit_plan_fragment("a1",&auto_fragment).unwrap();
+        let auto_runtime=ExecutionRuntime::with_defaults().unwrap();
+        let auto_port=IntentPort(Mutex::new(Vec::new()));
+        let (auto_waiting,auto_disposition,_)=execute_available_runtime(&mut store,&auto_runtime.handle(),&Admission::new(1).unwrap(),&auto_port,&Target,&config,&MustNotChoose,Some(&intents),AuthContext::Agent("a1"),&auto_task.id,&auto_fragment.plan_id,1,auto_submitted.sequence,3_005,"host").unwrap();
+        assert_eq!(auto_disposition,"awaiting-confirmation");
+        assert!(auto_port.0.lock().unwrap().is_empty());
+        intents.approve(AuthContext::LocalUser("desktop"),&auto_waiting,&auto_intent.intent_ref,3_020).unwrap();
+        let (_,auto_resumed,_)=resume_after_local_confirmation_runtime(&mut store,&auto_runtime.handle(),&Admission::new(1).unwrap(),&auto_port,&Target,&config,&MustNotChoose,&intents,AuthContext::LocalUser("desktop"),&auto_task.id,&auto_intent.intent_ref,3_020,"host").unwrap();
+        assert_eq!(auto_resumed,"awaiting-goal-verification");
+        assert_eq!(auto_port.0.lock().unwrap().len(),1);
+        assert_eq!(intents.consume_send(AuthContext::Agent("a1"),&store.get(&auto_task.id).unwrap(),&auto_intent.intent_ref,&auto_intent.confirmation_ref,3_021),Err(yonder_application::cua_intent::CuaIntentError::NotFound));
 
         // 前一步的真实Observe不满足发送前置条件时，必须在解析正文和开放
         // 本机确认之前交回。引用仍保持Prepared，可由慢脑读取新鲜事实后在

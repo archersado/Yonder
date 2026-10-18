@@ -103,28 +103,37 @@ fn execute_one(
     computer: &(impl crate::computer_use::ComputerUsePort + ?Sized), targets: &(impl crate::computer_use::WorkTargetPort + ?Sized),
     config: &crate::jev_config::JevConfig, jev: &(impl JevDecisionPort + ?Sized), intents: Option<&crate::cua_intent::CuaIntentRegistry>,
     auth: crate::AuthContext<'_>, task_id: &str, plan_id: &str, plan_version: u64, expected: u64, now_ms: u64, host_session_id: &str, observed_context:&mut Option<ObservedContext>,
+    confirmation_resume:Option<&crate::cua_intent::CuaIntentPlanBinding>,
 ) -> Result<(crate::Task, &'static str, Option<crate::computer_use::ComputerObservation>), crate::Error> {
-    if !matches!(auth, crate::AuthContext::Agent(_)) { return Err(crate::Error::PermissionDenied); }
+    let trusted_confirmation_resume=matches!(auth,crate::AuthContext::BoundPlan(_))&&confirmation_resume.is_some();
+    if !matches!(auth, crate::AuthContext::Agent(_))&&!trusted_confirmation_resume { return Err(crate::Error::PermissionDenied); }
     let stored=runtime_plan.cloned().map_or_else(||store.get_plan_fragment(task_id,plan_id,plan_version),|value|Ok(Some(value)))?.ok_or(crate::Error::NotFound)?;
     let persisted_task=store.get(task_id)?;
     let current_task=if let Some(runtime)=runtime{let snapshot=runtime.snapshot(task_id).map_err(runtime_error)?;let cursor=snapshot.active_plan.as_ref().ok_or(crate::Error::Conflict)?;if cursor.plan_id!=plan_id||cursor.plan_version!=plan_version{return Err(crate::Error::Conflict);}crate::Task{status:runtime_status(&snapshot.phase),sequence:snapshot.sequence,..persisted_task}}else{persisted_task};
     if computer.explicit_takeover_requested(task_id) { return Ok((current_task, "takeover-requested", None)); }
-    if stored.owner_agent_id != auth.agent_id() || stored.fragment.deadline_ms <= now_ms || expected != current_task.sequence { return Err(crate::Error::Conflict); }
+    if stored.owner_agent_id != auth.agent_id() || (!trusted_confirmation_resume&&stored.fragment.deadline_ms <= now_ms) || expected != current_task.sequence { return Err(crate::Error::Conflict); }
     let current_slot=runtime.and_then(|runtime|runtime.snapshot(task_id).ok()).and_then(|snapshot|snapshot.active_plan.map(|cursor|cursor.current_slot)).unwrap_or(stored.current_slot);
     let index=usize::from(current_slot);
     if index >= stored.fragment.slots.len() { return Ok((store.get(task_id)?, "awaiting-goal-verification", None)); }
     let slot=&stored.fragment.slots[index];
     let observed_element_count=if slot.candidates.len()==1&&is_observed_element_template(&slot.candidates[0]){observed_context.as_ref().map(|value|value.elements.iter().filter(|element|actionable_element(element.role)).take(jev_runtime::MAX_CANDIDATES).count())}else{None};
     let choice_count=observed_element_count.unwrap_or(slot.candidates.len());
-    let evaluating=observed_element_count.map_or_else(||format!("正在评估 {choice_count} 个受支持候选"),|_|format!("正在依据最新 Observe 评估 {choice_count} 个控件候选"));
-    computer.project_decision(task_id,&slot.step_id,&slot.label,&evaluating);
-    let task_goal=current_task.name.as_deref();
-    let choice=match select(config,jev,&stored.fragment,index,observed_context.as_ref(),task_goal){
-        Ok(choice)=>choice,
-        Err(_)=>{
-            computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑决策不可用，已交回慢脑");
-            let task=hand_back(store,runtime,&current_task,task_id,plan_id,plan_version,expected,"快脑决策不可用，需要慢脑重新 Observe 或规划")?;
-            return Ok((task,"handback",None));
+    let choice=if let Some(binding)=confirmation_resume {
+        if binding.plan_id!=plan_id||binding.plan_version!=plan_version||usize::from(binding.slot_index)!=index||binding.step_id!=slot.step_id||binding.task_sequence!=current_task.sequence{return Err(crate::Error::Conflict);}
+        let action=slot.candidates.iter().find(|candidate|candidate.candidate_id==binding.candidate_id&&matches!(candidate.action_kind,yonder_protocol::CuaActionKind::SendMessage)).cloned().ok_or(crate::Error::Conflict)?;
+        computer.project_decision(task_id,&slot.step_id,&slot.label,"本机确认已批准，正在继续既有发送步骤");
+        Selection::Dispatch{action,via_jev:false}
+    }else{
+        let evaluating=observed_element_count.map_or_else(||format!("正在评估 {choice_count} 个受支持候选"),|_|format!("正在依据最新 Observe 评估 {choice_count} 个控件候选"));
+        computer.project_decision(task_id,&slot.step_id,&slot.label,&evaluating);
+        let task_goal=current_task.name.as_deref();
+        match select(config,jev,&stored.fragment,index,observed_context.as_ref(),task_goal){
+            Ok(choice)=>choice,
+            Err(_)=>{
+                computer.project_decision(task_id,&slot.step_id,&slot.label,"快脑决策不可用，已交回慢脑");
+                let task=hand_back(store,runtime,&current_task,task_id,plan_id,plan_version,expected,"快脑决策不可用，需要慢脑重新 Observe 或规划")?;
+                return Ok((task,"handback",None));
+            }
         }
     };
     let Selection::Dispatch { action,via_jev }=choice else {
@@ -138,7 +147,9 @@ fn execute_one(
         let task=hand_back(store,runtime,&current_task,task_id,plan_id,plan_version,expected,handoff)?;
         return Ok((task, "handback", None));
     };
-    let decision = if via_jev {
+    let decision = if confirmation_resume.is_some(){
+        "本机确认已批准，继续执行原发送候选".into()
+    }else if via_jev {
         format!("Jev 已从 {choice_count} 个候选中选择：{}",action_kind_label(action.action_kind))
     } else {
         format!("唯一可执行候选直接授权：{}",action_kind_label(action.action_kind))
@@ -173,7 +184,8 @@ fn execute_one(
         let target=registry.resolve_text(auth,&current_task,&action.target_ref,crate::cua_intent::CuaIntentText::Target,now_ms).map_err(cua_intent_error)?;
         fields.insert("_yonder_private_target".into(),serde_json::Value::String(target));
         let confirmation=action.confirmation_ref.as_deref().ok_or(crate::Error::InvalidInput)?;
-        let state=registry.arm(auth,&current_task,&action.target_ref,confirmation,now_ms).map_err(cua_intent_error)?.state;
+        let binding=crate::cua_intent::CuaIntentPlanBinding{plan_id:plan_id.into(),plan_version,slot_index:u16::try_from(index).map_err(|_|crate::Error::InvalidInput)?,step_id:slot.step_id.clone(),candidate_id:action.candidate_id.clone(),task_sequence:current_task.sequence};
+        let state=registry.arm_for_plan(auth,&current_task,&action.target_ref,confirmation,now_ms,Some(binding)).map_err(cua_intent_error)?.state;
         if state != crate::cua_intent::CuaIntentState::Approved {
             computer.project_decision(task_id,&slot.step_id,&slot.label,"等待用户在顶部浮窗确认发送");
             return Ok((current_task,"awaiting-confirmation",None));
@@ -300,7 +312,7 @@ pub fn execute_available(
         }
         let (task, disposition, observation) = execute_one(
             store, admission, None, None, computer, targets, config, jev, intents, auth, task_id, plan_id,
-            plan_version, sequence, now_ms, host_session_id,&mut observed_context,
+            plan_version, sequence, now_ms, host_session_id,&mut observed_context,None,
         )?;
         sequence = task.sequence;
         if disposition != "advanced" {
@@ -346,11 +358,40 @@ pub fn execute_available_runtime(
     let allowed=remaining.min(usize::try_from(config.step_limit).unwrap_or(usize::MAX));let mut observed_context=None;let mut last_observation=None;
     for _ in 0..allowed{
         if computer.explicit_takeover_requested(task_id){return Ok((task,"takeover-requested",None));}
-        let (next,disposition,observation)=execute_one(store,admission,Some(runtime),Some(&stored),computer,targets,config,jev,intents,auth,task_id,plan_id,plan_version,task.sequence,now_ms,host_session_id,&mut observed_context)?;task=next;last_observation=observation;
+        let (next,disposition,observation)=execute_one(store,admission,Some(runtime),Some(&stored),computer,targets,config,jev,intents,auth,task_id,plan_id,plan_version,task.sequence,now_ms,host_session_id,&mut observed_context,None)?;task=next;last_observation=observation;
         if disposition!="advanced"{return Ok((task,disposition,last_observation));}
         let cursor=runtime.snapshot(task_id).map_err(runtime_error)?.active_plan.ok_or(crate::Error::Conflict)?;if usize::from(cursor.current_slot)>=stored.fragment.slots.len(){return Ok((task,"awaiting-goal-verification",last_observation));}
     }
     let sequence=task.sequence;task=hand_back(store,Some(runtime),&task,task_id,plan_id,plan_version,sequence,"计划片段步数预算已耗尽")?;Ok((task,"handback",last_observation))
+}
+
+/// 顶部浮窗本机批准后的唯一可信续跑入口。它只恢复已经在相同Runtime游标
+/// 完成候选选择并开放确认的发送槽位；不接受新计划、参数或Agent身份。
+pub fn resume_after_local_confirmation_runtime(
+    store:&mut impl crate::TaskStore,runtime:&crate::execution_runtime::ExecutionRuntimeHandle,admission:&crate::admission::Admission,
+    computer:&(impl crate::computer_use::ComputerUsePort+?Sized),targets:&(impl crate::computer_use::WorkTargetPort+?Sized),config:&crate::jev_config::JevConfig,jev:&(impl JevDecisionPort+?Sized),intents:&crate::cua_intent::CuaIntentRegistry,
+    local_auth:crate::AuthContext<'_>,task_id:&str,intent_ref:&str,now_ms:u64,host_session_id:&str,
+)->Result<(crate::Task,&'static str,Option<crate::computer_use::ComputerObservation>),crate::Error>{
+    if !matches!(local_auth,crate::AuthContext::LocalUser(_)){return Err(crate::Error::PermissionDenied);}
+    let persisted=store.get(task_id)?;
+    let binding=intents.approved_plan_binding(local_auth,&persisted,intent_ref,now_ms).map_err(cua_intent_error)?;
+    let active=runtime.snapshot(task_id).map_err(runtime_error)?;
+    let cursor=active.active_plan.as_ref().ok_or(crate::Error::Conflict)?;
+    if active.sequence!=binding.task_sequence||cursor.plan_id!=binding.plan_id||cursor.plan_version!=binding.plan_version||cursor.current_slot!=binding.slot_index{return Err(crate::Error::Conflict);}
+    let stored=store.get_plan_fragment(task_id,&binding.plan_id,binding.plan_version)?.ok_or(crate::Error::NotFound)?;
+    let slot=stored.fragment.slots.get(usize::from(binding.slot_index)).ok_or(crate::Error::Conflict)?;
+    let candidate=slot.candidates.iter().find(|candidate|candidate.candidate_id==binding.candidate_id).ok_or(crate::Error::Conflict)?;
+    if !matches!(candidate.action_kind,yonder_protocol::CuaActionKind::SendMessage)||candidate.target_ref!=intent_ref{return Err(crate::Error::Conflict);}
+    let owner=persisted.owner_agent_id.clone();
+    let mut observed_context=None;
+    let (task,disposition,observation)=execute_one(store,admission,Some(runtime),Some(&stored),computer,targets,config,jev,Some(intents),crate::AuthContext::BoundPlan(&owner),task_id,&binding.plan_id,binding.plan_version,active.sequence,now_ms,host_session_id,&mut observed_context,Some(&binding))?;
+    if disposition!="advanced"{return Ok((task,disposition,observation));}
+    let current=runtime.snapshot(task_id).map_err(runtime_error)?;
+    let cursor=current.active_plan.as_ref().ok_or(crate::Error::Conflict)?;
+    if usize::from(cursor.current_slot)>=stored.fragment.slots.len(){return Ok((task,"awaiting-goal-verification",observation));}
+    let sequence=task.sequence;
+    let task=hand_back(store,Some(runtime),&task,task_id,&binding.plan_id,binding.plan_version,sequence,"本机确认续跑已完成发送槽位，需要慢脑继续规划")?;
+    Ok((task,"handback",observation))
 }
 
 fn cua_intent_error(error:crate::cua_intent::CuaIntentError)->crate::Error{match error{

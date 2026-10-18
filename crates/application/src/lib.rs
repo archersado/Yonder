@@ -292,18 +292,21 @@ pub struct FocusEventRecord {
 #[derive(Clone, Copy)]
 pub enum AuthContext<'a> {
     Agent(&'a str),
+    /// 组合根从活动Runtime与本机一次性确认共同派生的可信续跑身份。
+    /// 不能从Gateway请求反序列化，也不能提交计划或任务终态。
+    BoundPlan(&'a str),
     LocalUser(&'a str),
 }
 
 impl AuthContext<'_> {
     pub fn agent_id(&self) -> &str {
         match self {
-            Self::Agent(id) | Self::LocalUser(id) => id,
+            Self::Agent(id) | Self::BoundPlan(id) | Self::LocalUser(id) => id,
         }
     }
     pub fn owner_filter(&self) -> Option<&str> {
         match self {
-            Self::Agent(id) => Some(id),
+            Self::Agent(id) | Self::BoundPlan(id) => Some(id),
             Self::LocalUser(_) => None,
         }
     }

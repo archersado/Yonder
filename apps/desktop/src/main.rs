@@ -1250,11 +1250,13 @@ async fn cua_intent_approve(
     tauri::async_runtime::spawn_blocking(move || {
         let now = unix_now_ms()?;
         let mut host = host.lock().map_err(|_| "任务存储不可用")?;
-        host.as_mut()
-            .ok_or("任务存储未就绪")?
+        let host=host.as_mut().ok_or("任务存储未就绪")?;
+        host
             .approve_cua_intent(&task_id, &intent_ref, now)
+            .map_err(|_| "发送批准失败".to_owned())?;
+        host.resume_approved_cua_intent(&task_id,&intent_ref,now)
             .map(|_| ())
-            .map_err(|_| "发送批准失败".to_owned())
+            .map_err(|_| "发送批准后自动执行失败".to_owned())
     })
     .await
     .map_err(|_| "发送批准中断".to_owned())?

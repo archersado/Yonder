@@ -68,6 +68,17 @@ struct Intent {
     message: String,
     expires_at_ms: u64,
     state: CuaIntentState,
+    plan_binding: Option<CuaIntentPlanBinding>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CuaIntentPlanBinding {
+    pub plan_id: String,
+    pub plan_version: u64,
+    pub slot_index: u16,
+    pub step_id: String,
+    pub candidate_id: String,
+    pub task_sequence: u64,
 }
 
 #[derive(Default)]
@@ -114,6 +125,7 @@ impl CuaIntentRegistry {
                 message,
                 expires_at_ms,
                 state: CuaIntentState::Prepared,
+                plan_binding: None,
             },
         );
         Ok(CuaIntentSummary {
@@ -154,6 +166,18 @@ impl CuaIntentRegistry {
         confirmation_ref: &str,
         now_ms: u64,
     ) -> Result<CuaIntentSummary, CuaIntentError> {
+        self.arm_for_plan(auth, task, intent_ref, confirmation_ref, now_ms, None)
+    }
+
+    pub fn arm_for_plan(
+        &self,
+        auth: AuthContext<'_>,
+        task: &Task,
+        intent_ref: &str,
+        confirmation_ref: &str,
+        now_ms: u64,
+        plan_binding: Option<CuaIntentPlanBinding>,
+    ) -> Result<CuaIntentSummary, CuaIntentError> {
         require_owner(auth, task)?;
         let mut intents = self
             .intents
@@ -163,8 +187,12 @@ impl CuaIntentRegistry {
         if intent.confirmation_ref != confirmation_ref {
             return Err(CuaIntentError::PermissionDenied);
         }
+        if intent.plan_binding.as_ref().is_some_and(|bound| Some(bound) != plan_binding.as_ref()) {
+            return Err(CuaIntentError::PermissionDenied);
+        }
         if intent.state == CuaIntentState::Prepared {
             intent.state = CuaIntentState::AwaitingUser;
+            intent.plan_binding = plan_binding;
         }
         let summary = summary(intent_ref, &intent);
         intents.insert(intent_ref.into(), intent);
@@ -242,6 +270,22 @@ impl CuaIntentRegistry {
         let result = summary(intent_ref, &intent);
         intents.insert(intent_ref.into(), intent);
         Ok(result)
+    }
+
+    pub fn approved_plan_binding(
+        &self,
+        auth: AuthContext<'_>,
+        task: &Task,
+        intent_ref: &str,
+        now_ms: u64,
+    ) -> Result<CuaIntentPlanBinding, CuaIntentError> {
+        require_local(auth)?;
+        let mut intents = self.intents.lock().map_err(|_| CuaIntentError::Unavailable)?;
+        let intent = fetch(&mut intents, task, intent_ref, now_ms)?;
+        if intent.state != CuaIntentState::Approved {
+            return Err(CuaIntentError::Rejected);
+        }
+        intent.plan_binding.ok_or(CuaIntentError::PermissionDenied)
     }
 
     pub fn reject(
@@ -327,7 +371,9 @@ fn summary(intent_ref: &str, intent: &Intent) -> CuaIntentSummary {
     }
 }
 fn require_owner(auth: AuthContext<'_>, task: &Task) -> Result<(), CuaIntentError> {
-    if matches!(auth, AuthContext::Agent(_)) && auth.agent_id() == task.owner_agent_id {
+    if matches!(auth, AuthContext::Agent(_) | AuthContext::BoundPlan(_))
+        && auth.agent_id() == task.owner_agent_id
+    {
         Ok(())
     } else {
         Err(CuaIntentError::PermissionDenied)

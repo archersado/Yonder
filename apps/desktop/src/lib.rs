@@ -1008,6 +1008,29 @@ impl TaskHost {
         self.cua_intents.approve(AuthContext::LocalUser("desktop"),&task,intent_ref,now_ms).map_err(Into::into)
     }
 
+    /// 本机批准只唤醒当前活动片段的已绑定发送槽位；不构造Gateway Agent会话，
+    /// 不提交新计划，也不替归属Agent判定任务终态。
+    pub fn resume_approved_cua_intent(&mut self,task_id:&str,intent_ref:&str,now_ms:u64)->Result<&'static str,HostError>{
+        #[cfg(target_os = "macos")]
+        {
+            let config=self.store.get_jev_config().map_err(|_|HostError::StorageUnavailable)?.unwrap_or_default();
+            let computer=self.computer.as_ref().ok_or(HostError::BrowserUnavailable)?;
+            let jev=self.jev.as_ref().ok_or(HostError::BrowserUnavailable)?;
+            let controlled=CuaControlPort{inner:computer,hub:self.cua_control.as_ref()};
+            let runtime=self.runtime.handle();
+            let (_,disposition,_)=yonder_application::plan_fragment::resume_after_local_confirmation_runtime(
+                &mut self.store,&runtime,&self.admission,&controlled,&self.targets,&config,jev,&self.cua_intents,
+                AuthContext::LocalUser("desktop"),task_id,intent_ref,now_ms,&self.host_session_id,
+            ).map_err(|_|HostError::StorageUnavailable)?;
+            Ok(disposition)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _=(task_id,intent_ref,now_ms);
+            Err(HostError::BrowserUnavailable)
+        }
+    }
+
     pub fn reject_cua_intent(&mut self, task_id:&str, intent_ref:&str, now_ms:u64)->Result<(),CuaIntentHostError>{
         let task=self.store.get(task_id).map_err(|_|CuaIntentHostError::NotFound)?;
         self.cua_intents.reject(AuthContext::LocalUser("desktop"),&task,intent_ref,now_ms).map_err(Into::into)
