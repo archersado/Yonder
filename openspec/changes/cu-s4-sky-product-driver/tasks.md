@@ -11,6 +11,9 @@
 - [x] 修复Sky坐标点击超时误报、接入新鲜AX元素激活并完成企业微信入口回归
 - [x] 将官方Sky MCP Client首次XPC/MCP握手预算从5秒校正为15秒，并覆盖慢启动回归
 - [x] 补齐Yonder Automation用途声明并完成系统授权后的正式Gateway首步回归
+- [x] 修订 AD-CU-09、CU-S4 三份设计与 OpenSpec，将唯一固定发行物升级为 `@oai/sky@0.7.4`
+- [ ] 更新 Adapter 精确版本门禁与包审计，并覆盖旧版/浮动版本拒绝
+- [ ] 重建正式 macOS Yonder，复跑 Gateway CUA 与 EX-S2 QQ音乐步骤核验
 - [ ] Windows对等验证（依用户决定暂缓）
 
 2026-10-01正式验证返回Apply：包边界与隔离Worker通过，但正式Yonder在`list_apps`前的Sky native-pipe握手被服务关闭，阶段为`transport-closed`。2026-10-04进一步确认固定Sky发行物提供官方签名MCP Client，且Client要求OpenAI Team ID父进程；同发行物签名Node派生Client的`list_apps/get_app_state`已通过隔离探针。产品实现改走该签名MCP桥，仍须完成正式Gateway与独立Goal后才能合入dev。

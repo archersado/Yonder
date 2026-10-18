@@ -30,7 +30,7 @@ Worker 在任务运行态只持有最近一次对外 Observation 的引用与可
 
 Sky Worker 从 PNG/JPEG/WebP 字节头读取尺寸，将 `task_id + application_id + observation_ref + width + height` 作为最新临时视觉引用。坐标动作前重新 Observe 并读取当前截图尺寸；引用不匹配、坐标越界或尺寸变化时不调用 Sky。通过门禁后，Worker 把 `x/y` 原始截图像素原样传给 Sky；macOS Adapter 不读取显示器 backing scale，也不进行像素到逻辑点换算。
 
-macOS Sky 0.7.1 不公开截图 ID，Worker 不添加未受支持字段，而是在同一临时引用中保存 transcript 指纹。动作前 Observe 的 transcript 与引用代次不一致时，即便宽高相同也拒绝旧坐标；单纯视觉像素差异不参与此门禁。元素导出同时折叠装饰性 image：若 image 位于可操作祖先内，只保留祖先句柄；disabled 节点不进入集合；没有可操作祖先的 image 不做相邻代理推断，仍以自身索引执行并等待后置事实。
+macOS Sky 0.7.4 不公开截图 ID，Worker 不添加未受支持字段，而是在同一临时引用中保存 transcript 指纹。动作前 Observe 的 transcript 与引用代次不一致时，即便宽高相同也拒绝旧坐标；单纯视觉像素差异不参与此门禁。元素导出同时折叠装饰性 image：若 image 位于可操作祖先内，只保留祖先句柄；disabled 节点不进入集合；没有可操作祖先的 image 不做相邻代理推断，仍以自身索引执行并等待后置事实。
 
 Gateway 只返回尺寸与引用，不持久化几何状态。调用方若查看了缩放后的图片，必须按响应的原始宽高换算；无法证明换算来源时不得生成坐标动作。动作后 Observe 与 unknown 不重试规则保持不变。
 

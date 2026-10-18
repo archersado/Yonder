@@ -12,7 +12,7 @@
 ## 决定
 
 1. macOS 产品 CUA 只使用 Codex Computer Use 的 `@oai/sky` Driver；移除 trycua 的生产依赖、环境选择、打包资源和运行时回退。历史证据保留，不作为当前产品接线。
-2. Sky 作为外部已安装的受信任能力，Yonder 固定校验 `@oai/sky@0.7.1`，通过受监管按需 Node Worker 调用；不复制或重新签名 Sky 包及 Computer Use App，不开放 HTTP/TCP。
+2. Sky 作为外部已安装的受信任能力，Yonder 固定校验 `@oai/sky@0.7.4`，通过受监管按需 Node Worker 调用；不复制或重新签名 Sky 包及 Computer Use App，不开放 HTTP/TCP。
 3. Worker 以应用 bundle id 或由可信 PID 解析的唯一 App bundle 绑定目标。计划启动应用后，同一任务后续步骤复用该绑定，不改投当前前台或模糊同名应用。
 4. 每一步先读取新鲜应用级 AX transcript，优先使用 `element_index` 动作；只有 AX 缺失、多义或不可操作时才使用同一应用截图。动作后必须再次 `get_app_state`，不得复用旧 index。
 5. AX transcript 仅用于 Worker 内定位和本次 Gateway 运行时 Observation；不得写入 SQLite、事件、Outbox、日志或顶部浮窗。对外只返回有界元素数量与既有临时截图引用。本次不新增持久化或第二状态源。
@@ -24,6 +24,7 @@
 11. 2026-10-06企业微信入口修订：坐标`click`在签名Sky Client中超时且后置截图只有无关变化时，不得据截图指纹变化确认动作成功；停止旧Client后只允许单次Observe并交回慢脑，点击绝不重放。协议1.42为通用`activate-control + click`增加唯一受限参数`observed_element_index`：索引必须来自当前新鲜Sky AX transcript、为`1..=65535`整数，Worker在动作前重新Observe并确认索引仍存在，再转换为Sky内部`element_index`；字段不得用于焦点、输入、发送或其他动作，也不得持久化。元素激活仍必须由动作后transcript变化证明，否则带截图交回。
 12. 2026-10-07 Codex Computer Use循环修订：第11项“停止旧Client”被后续真实样本推翻。坐标动作必须在同一执行环境中按原始截图像素只派发一次；调用超时或菜单导致旧窗口失效时不得提前销毁Client、不得重放，应先对同一可信bundle id只读Observe。只有Observe发现窗口代次变化时才可在Observe内部重建Client并重新解析唯一窗口；结果仍不可核实时携带Observation交回慢脑。该修订不改变Gateway、Application与Driver边界。
 13. 2026-10-08 Automation权限声明修订：正式Gateway系统日志证明，官方Client向Sky服务发送`SkCu/XpcN` Apple Event时，macOS会把负责进程追溯为`com.yonder.desktop`；当重建后的Yonder代码身份没有匹配的既有Automation授权，且包内缺少`NSAppleEventsUsageDescription`时，TCC明确拒绝事件，Client在5秒后以XPC assertion退出，最终被错误收敛为`worker-failed`。Yonder包必须提供面向用户的Apple Events用途说明，包审计必须验证该键存在；仍由固定发行物OpenAI签名Node运行Worker并派生官方签名Client。用户授权只能由macOS系统界面取得，不得修改TCC数据库、伪造签名或把拒绝当作动作失败重试。
+14. 2026-10-18 固定发行物升级修订：已安装官方 ChatGPT 发行物把 `@oai/sky` 与签名 Client 同步升级为 `0.7.4`，旧 `0.7.1` 已不再存在，使 Yonder 按正确的失败关闭规则把 CUA 标为 unavailable。产品允许版本改为精确 `0.7.4`，不得接受版本范围、浮动 latest 或同时兼容两版；升级后仍须复核相同 Team ID、Client identifier、App Group、工具 Schema、动作后 Observe 与正式 Gateway 样本，通过前不能把能力标为 available。
 
 ## 取代关系
 
@@ -45,6 +46,6 @@
 
 因此本决定禁止Yonder直接连接native-pipe。随后在同一固定Sky包内发现官方签名的`SkyComputerUseClient ... mcp`桥接程序：它公开标准MCP stdio的`list_apps/get_app_state/click/set_value/press_key/...`工具，并持有服务要求的OpenAI Team ID与App Group entitlement。产品接线改为“Yonder受监管Worker → 固定身份的签名MCP Client → Sky服务”，Yonder本身无需也不得伪造OpenAI签名；桥接仍是同一Sky Driver的transport，不是第二Agent或第二执行栈。
 
-组合根必须从已验证`@oai/sky@0.7.1`包相对定位该Client及同发行物的OpenAI签名Node，校验普通文件、包版本、Team ID、Client identifier与App Group。Sky Client要求直接父进程的固定OpenAI Team ID，因此只能由该签名Node运行受监管Worker并派生Client；Yonder不得用自身、通用Node或shell直接派生Client。Yonder自身作为Apple Event负责进程必须在`Info.plist`声明用途并接受系统TCC裁决。Worker只通过stdio MCP调用并监管其生命周期，不直连Socket、不依赖ChatGPT GUI父进程、不复制签名/entitlement。
+组合根必须从已验证`@oai/sky@0.7.4`包相对定位该Client及同发行物的OpenAI签名Node，校验普通文件、包版本、Team ID、Client identifier与App Group。Sky Client要求直接父进程的固定OpenAI Team ID，因此只能由该签名Node运行受监管Worker并派生Client；Yonder不得用自身、通用Node或shell直接派生Client。Yonder自身作为Apple Event负责进程必须在`Info.plist`声明用途并接受系统TCC裁决。Worker只通过stdio MCP调用并监管其生命周期，不直连Socket、不依赖ChatGPT GUI父进程、不复制签名/entitlement。
 
 Client发出的应用使用elicitation只允许由同一任务已校验`launch_app`的唯一规范bundle id与路径收敛：Worker仅在该目标的单个串行MCP调用尚未返回时接受固定空对象Schema，且只返回会话级accept；调用范围外或Schema不同的server request一律decline。不能依赖本地化显示名或提示文案作身份。该授权不替代Yonder对发送、删除等副作用的确认。该桥接通过独立Goal前，`cu-s4-sky-product-driver`仍处于Apply。

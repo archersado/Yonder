@@ -58,3 +58,5 @@ FGD-28初次Gateway样本随后由正式Yonder Observation推翻：`task_080739e
 同日修复包正式回归PASS：系统记录`SkCu/XpcN = accepted`，任务`task_553f2563d4cbc2db40b24168379fb7ba`启动QQ音乐并在序号5取得`action_succeeded=true, observe_valid=true`及258个有界AX元素，独立Goal后`completed@9`。Windows对等验证仍按主人决定暂缓，因此Story保持verifying且不Archive。
 
 2026-10-12 队列复核确认：当前产品关联仍唯一为 `cu-s4-sky-product-driver`，其 macOS 独立 Goal 已 PASS；`cu-s4-trycua-foreground-delivery-spike`、`cu-s4-foreground-text-apply` 与 `cu-s4-ax-visual-fallback` 只保留历史决策和负样本，未完成项已按 Accepted AD-CU-09 标为 Superseded，不再代表待开发产品工作。最新正式 `Yonda.app` 任务 `task_78ac5b1e03f22dfec3356b8aafeae3b9` 继续经 Sky 单栈返回应用级 AX 句柄和有界 `driver-action-unconfirmed` 交回，未出现 trycua/Qwen 回退。Windows仍暂缓，Story继续保持 verifying、不Archive。
+
+2026-10-18 EX-S2 正式回归发现当前官方 ChatGPT 发行物已只提供 `@oai/sky@0.7.4`，旧精确版本门禁使 Yonder 正确地不公布 CUA 能力。AD-CU-09、三份设计与当前 OpenSpec 已修订为唯一固定 `0.7.4`；在 Adapter、包审计和正式 Gateway 样本通过前，CU-S4 保持 verifying 且 CUA 不得通过放宽版本范围临时启用。

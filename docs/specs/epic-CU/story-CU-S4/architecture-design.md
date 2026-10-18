@@ -2,7 +2,7 @@
 
 ## 边界与依赖
 
-CU-S4只改变macOS CUA Adapter及其受监管Sky Worker，不改变Application/Domain依赖方向、Agent Gateway外部协议或SQLite。Rust Adapter拥有同任务可信应用绑定，Node Worker与签名MCP Client是可重建执行资源；依赖固定`@oai/sky@0.7.1`与同发行物签名Client。Windows路线继续暂缓。
+CU-S4只改变macOS CUA Adapter及其受监管Sky Worker，不改变Application/Domain依赖方向、Agent Gateway外部协议或SQLite。Rust Adapter拥有同任务可信应用绑定，Node Worker与签名MCP Client是可重建执行资源；依赖固定`@oai/sky@0.7.4`与同发行物签名Client。Windows路线继续暂缓。
 
 ## 状态与契约
 
@@ -58,7 +58,7 @@ Worker首次Observe仍以`include_screenshot=false`读取已绑定窗口的AX元
 
 ## Sky产品单栈补充（AD-CU-09）
 
-macOS组合根只构造固定`@oai/sky@0.7.1` Worker，删除`YONDER_CUA_DRIVER`选择、trycua生产依赖和包内旧Worker。Sky包与Computer Use App由已安装的Codex/ChatGPT产品提供，Yonder从固定包相对定位官方签名Node与`SkyComputerUseClient mcp`，校验Team ID、Client identifier及App Group后，由签名Node运行受监管Worker并派生Client；不复制、不重新签名、不直连Computer Use Socket、不长期维护双栈。Yonder包声明Apple Events用途，使负责进程的Automation授权可由macOS稳定裁决；代码不读取或修改TCC数据库。
+macOS组合根只构造固定`@oai/sky@0.7.4` Worker，删除`YONDER_CUA_DRIVER`选择、trycua生产依赖和包内旧Worker。Sky包与Computer Use App由已安装的Codex/ChatGPT产品提供，Yonder从固定包相对定位官方签名Node与`SkyComputerUseClient mcp`，校验精确包版本、Team ID、Client identifier及App Group后，由签名Node运行受监管Worker并派生Client；不复制、不重新签名、不直连Computer Use Socket、不长期维护双栈。Yonder包声明Apple Events用途，使负责进程的Automation授权可由macOS稳定裁决；代码不读取或修改TCC数据库。
 
 签名Client首次启动可能包含服务拉起、XPC身份校验和MCP工具目录读取。初始化与`tools/list`各使用15秒有界预算，且二者仍共同受Rust Worker单步60秒总上限控制；超时只关闭本次Worker/Client并安全交回。不得用短于已观测正常启动耗时的门限把合法握手误判为`worker-failed`，也不得为等待启动取消总体执行上限或自动重试动作。
 
@@ -66,7 +66,7 @@ Rust Adapter持有`task_id + bundle_id`的唯一CUA目标绑定；Node Worker与
 
 每步经签名MCP Client调用`get_app_state`取得新鲜完整transcript，从行首元素index解析可操作元素。封闭语义优先映射到MCP `click(element_index)`、`set_value(element_index,value)`和`press_key`；元素缺失或多义时才返回同应用截图供慢脑重规划。transcript不跨进程返回、不持久化、不记录日志，动作后再次Observe并只回传元素数量、截图引用和可见性等有界事实。
 
-Worker在MCP握手后读取固定工具Schema；只有Schema公开`disableDiff`或`disable_diff`时才请求关闭差异状态，正式Sky 0.7.1未公开时不得发送额外字段。transcript可来自结构结果、带说明前缀的包装JSON、普通文本块或标准嵌入文本资源；解析后仍须取得带索引的AX元素，不得把状态摘要或空AX增量解释为“应用没有元素”。
+Worker在MCP握手后读取固定工具Schema；只有Schema公开`disableDiff`或`disable_diff`时才请求关闭差异状态，正式Sky 0.7.4未公开时不得发送额外字段。transcript可来自结构结果、带说明前缀的包装JSON、普通文本块或标准嵌入文本资源；解析后仍须取得带索引的AX元素，不得把状态摘要或空AX增量解释为“应用没有元素”。
 
 官方`list_apps`只保证运行中或近期应用，不是完整安装目录。`launch_app`收到合法bundle id且该目录零命中时，Worker可只枚举`/Applications`、`/System/Applications`及其`Utilities`一级应用包，读取`Info.plist`并在唯一命中后使用规范完整路径；不递归全盘、不读取用户提供目录、不接受环境覆盖、不以本地化显示名兜底。多命中、路径逃逸、符号链接或损坏包均安全交回。
 

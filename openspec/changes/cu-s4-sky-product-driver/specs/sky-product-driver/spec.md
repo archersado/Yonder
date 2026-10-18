@@ -6,10 +6,18 @@
 
 系统 MUST 在macOS产品组合根只构造固定版本Sky Worker；不得携带或回退trycua。
 
+固定版本 SHALL 为当前经架构决定接受的精确 `@oai/sky@0.7.4`；系统 MUST NOT 接受版本范围、浮动版本或同时保留旧 `0.7.1`。
+
 #### Scenario: Sky依赖不可用
 
 - **WHEN** 固定Sky入口或包身份校验失败
 - **THEN** CUA capability为unavailable，且不启动其他CUA Driver
+
+#### Scenario: 官方发行物升级后精确通过门禁
+
+- **WHEN** 外部安装恰为 `@oai/sky@0.7.4`，且同发行物 Node、Client Team ID、identifier、App Group 与工具 Schema 均通过校验
+- **THEN** 组合根可公布 macOS CUA capability available
+- **AND** 不复制 Sky、不恢复 trycua，也不接受其他版本
 
 ### Requirement: 使用官方签名MCP桥接
 
