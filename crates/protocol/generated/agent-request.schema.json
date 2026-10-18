@@ -264,7 +264,8 @@
       "enum": [
         "voice",
         "selection",
-        "replan"
+        "replan",
+        "goal_verification"
       ]
     },
     "AgentReplyMode": {

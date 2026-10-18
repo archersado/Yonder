@@ -10,6 +10,9 @@ pub const MAX_AGENT_ATTACHMENT_BYTES: usize = yonder_protocol::MAX_AGENT_ATTACHM
 pub fn registration(bytes: &[u8]) -> Option<(String, String, bool, bool, bool)> {
     yonder_protocol::input_registration(bytes)
 }
+pub fn goal_verification_input_supported(bytes: &[u8]) -> bool {
+    yonder_protocol::goal_verification_input_supported(bytes)
+}
 pub fn hello_accepted(bytes: &[u8]) -> bool {
     matches!(
         yonder_protocol::decode_response(bytes),

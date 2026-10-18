@@ -620,16 +620,16 @@ mod tests {
 
     #[test]
     fn capability_negotiation_minor_0_through_current_matches_golden() {
-        assert_eq!(PROTOCOL_VERSION.minor, 52, "协议升版后须显式扩展能力协商 golden");
+        assert_eq!(PROTOCOL_VERSION.minor, 53, "协议升版后须显式扩展能力协商 golden");
         let expected_top = [
             0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19,
             20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
-            38, 39, 40, 41, 41, 43, 44, 45, 46, 47, 48, 49, 49, 49, 52,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 47, 48, 49, 49, 49, 52, 53,
         ];
         let expected_read = [
             0, 0, 0, 3, 4, 5, 6, 7, 8, 8, 8, 11, 12, 13, 13, 15, 16, 17, 18, 19,
             20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 29, 31, 32, 33, 34, 35, 36, 37,
-            38, 39, 40, 41, 41, 43, 44, 45, 46, 46, 46, 49, 49, 49, 52,
+            38, 39, 40, 41, 41, 43, 44, 45, 46, 46, 46, 49, 49, 49, 52, 52,
         ];
         for minor in 0..=PROTOCOL_VERSION.minor {
             let QueryResult::Hello { protocol_version, capabilities, .. } = full_capability_hello(minor) else {
@@ -2084,6 +2084,7 @@ impl<'a> GatewaySession<'a> {
                 let has_driver_observe_facts=self.can_plan_execute&&params.protocol_version.minor>=47;
                 let has_screenshot_coordinates=self.can_plan_screenshot_coordinates;
                 let has_driver_error_reasons=self.can_driver_error_reasons;
+                let has_goal_verification_input=can_replan_input&&params.protocol_version.minor>=53;
                 let observed_elements_version=if has_image_handles{46}else if has_selectable_rows{45}else if has_element_handles{44}else{0};
                 let read_minor = highest_enabled_minor(&[
                     (3,self.can_name),(4,self.can_steps),(5,self.can_attempt_results),(6,self.can_controls),
@@ -2114,7 +2115,7 @@ impl<'a> GatewaySession<'a> {
                     (35,self.can_cua_intent_propose),(36,has_composer_focus),(37,has_visual_focus_handoff),
                     (38,has_search_shortcut),(39,has_foreground_coordinates),(40,has_generic_desktop_plan),
                     (41,has_bounded_double_click),(43,has_goal_verification),(observed_elements_version,observed_elements_version>0),
-                    (47,has_driver_observe_facts),(48,has_screenshot_coordinates),(49,has_driver_error_reasons),(52,self.can_task_io),
+                    (47,has_driver_observe_facts),(48,has_screenshot_coordinates),(49,has_driver_error_reasons),(52,self.can_task_io),(53,has_goal_verification_input),
                 ]);
                 let version = ProtocolVersion { major: 1, minor: version_minor };
                 let item=|enabled:bool,name:Capability,minor:u16,availability:Availability,reason:Option<&str>|enabled.then(||CapabilityInfo{name,version:ProtocolVersion{major:1,minor},availability,reason:reason.map(str::to_owned)});

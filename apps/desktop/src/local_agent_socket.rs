@@ -25,7 +25,8 @@ use yonder_application::{
         AgentAttachmentBeginParams, AgentAttachmentChunkParams, AgentAttachmentFinishParams,
         AgentNotification, AgentReplyParams, AgentRequest, AgentResponse, AgentSessionCloseParams,
         AgentSessionCloseReason, DeliveryOutcome, Version,
-        decode_notification, decode_response, encode_request, hello_accepted, registration,
+        decode_notification, decode_response, encode_request, goal_verification_input_supported,
+        hello_accepted, registration,
     },
     gateway::{GatewaySession, Platform, local_hello_agent_id},
 };
@@ -374,6 +375,7 @@ async fn exchange(
             }
         };
         let registration = registration(&frame);
+        let supports_goal_verification = goal_verification_input_supported(&frame);
         let presentation_update =
             yonder_application::gateway::is_presentation_update_request(&frame);
         let now = u64::try_from(
@@ -602,6 +604,9 @@ async fn exchange(
                 tx,
                 close_tx,
             );
+            if supports_goal_verification {
+                hub.enable_goal_verification(&session_id, token);
+            }
             let _ = connected;
             if let Some(params) = interrupted {
                 voice_reply.handle_reply(&params);

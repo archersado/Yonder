@@ -11,7 +11,7 @@ pub const MAX_TASK_EVENTS_RESPONSE_BYTES: usize = 256 * 1024;
 /// 组合根与 CLI 须引用此常量，不得各写一份 minor 字面量。
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: 1,
-    minor: 52,
+    minor: 53,
 };
 pub const MAX_AGENT_REPLY_DELTA_BYTES: usize = 16 * 1024;
 pub const MAX_AGENT_REPLY_BYTES: usize = 64 * 1024;
@@ -139,6 +139,7 @@ pub enum AgentInputSource {
     Voice,
     Selection,
     Replan,
+    GoalVerification,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -2247,6 +2248,20 @@ pub fn input_registration(bytes: &[u8]) -> Option<(String, String, bool, bool, b
     }
 }
 
+/// 终局核验使用新的输入来源枚举；只有声明 1.53 且已协商 replan 输入的
+/// Connector 才能安全接收，避免旧 Connector 因未知枚举断开。
+pub fn goal_verification_input_supported(bytes: &[u8]) -> bool {
+    matches!(
+        decode(bytes),
+        Ok(Request::Hello { params, .. })
+            if params.protocol_version.minor >= 53
+                && params.offered_capabilities.as_deref().is_some_and(|value| {
+                    value.contains(&OfferedCapability::UserInput)
+                        && value.contains(&OfferedCapability::ReplanInput)
+                })
+    )
+}
+
 /// CUA 动作名的封闭校验，供 Application 的受限计划片段复用；协议请求和
 /// 内部片段必须遵循同一白名单，不能各自实现一份规则。
 pub fn valid_sdk_tool_name(value: &str) -> bool {
@@ -3090,6 +3105,10 @@ mod tests {
             input_registration(&hello),
             Some(("a1".into(), "s1".into(), false, true, false))
         );
+        assert!(!goal_verification_input_supported(&hello));
+
+        let current = serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":53},"session_id":"s1","offered_capabilities":["user_input","replan_input"]}});
+        assert!(goal_verification_input_supported(&serde_json::to_vec(&current).unwrap()));
 
         for value in [
             serde_json::json!({"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":32},"session_id":"s1","offered_capabilities":["user_input","replan_input"]}}),

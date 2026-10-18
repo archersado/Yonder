@@ -2,7 +2,7 @@
 export type Version = "2.0";
 export type Capability = "task.read" | "task.create" | "task.cancel" | "task.complete" | "task.goal.verify" | "task.fail" | "task.control" | "task.wait-for-user" | "task.step.declare" | "task.step.advance" | "browser.execute" | "computer.execute" | "task.plan.submit" | "task.plan.execute" | "cua.intent.propose" | "file.grant.read" | "file.execute" | "document.execute" | "command.propose" | "command.execute";
 export type OfferedCapability = "user_input" | "user_input_attachment" | "replan_input" | "user_input_reply";
-export type AgentInputSource = "voice" | "selection" | "replan";
+export type AgentInputSource = "voice" | "selection" | "replan" | "goal_verification";
 export type AgentReplyMode = "stream";
 export type AgentAttachmentMime = "image/png" | "image/jpeg" | "image/webp";
 export type AgentAttachmentBeginParams = { attachment_id: string, session_id: string, mime: AgentAttachmentMime, byte_length: number, sha256: string, deadline: number, };

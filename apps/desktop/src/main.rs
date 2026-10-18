@@ -1240,6 +1240,8 @@ async fn cua_intent_confirmation(
 async fn cua_intent_approve(
     window: WebviewWindow,
     state: State<'_, TaskState>,
+    input_hub: State<'_, yonder_desktop::agent_input::AgentInputHub>,
+    cua_hub: State<'_, yonder_desktop::CuaControlHub>,
     task_id: String,
     intent_ref: String,
 ) -> Result<(), String> {
@@ -1247,7 +1249,7 @@ async fn cua_intent_approve(
         return Err("不允许的窗口".into());
     }
     let host = Arc::clone(&state.0);
-    tauri::async_runtime::spawn_blocking(move || {
+    let outcome=tauri::async_runtime::spawn_blocking(move || {
         let now = unix_now_ms()?;
         let mut host = host.lock().map_err(|_| "任务存储不可用")?;
         let host=host.as_mut().ok_or("任务存储未就绪")?;
@@ -1255,11 +1257,19 @@ async fn cua_intent_approve(
             .approve_cua_intent(&task_id, &intent_ref, now)
             .map_err(|_| "发送批准失败".to_owned())?;
         host.resume_approved_cua_intent(&task_id,&intent_ref,now)
-            .map(|_| ())
             .map_err(|_| "发送批准后自动执行失败".to_owned())
     })
     .await
-    .map_err(|_| "发送批准中断".to_owned())?
+    .map_err(|_| "发送批准中断".to_owned())??;
+    if outcome.disposition=="awaiting-goal-verification"{
+        let state=match input_hub.deliver_goal_verification(&outcome.owner_agent_id,&outcome.task_id,&outcome.sequence){
+            Ok(yonder_application::agent_input::DeliveryOutcome::Accepted)=>"accepted",
+            Err("任务归属Agent未连接")=>"missing",
+            _=>"failed",
+        };
+        cua_hub.mark_goal_verification_delivery(&outcome.task_id,state);
+    }
+    Ok(())
 }
 
 #[tauri::command]

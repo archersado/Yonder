@@ -65,6 +65,13 @@ pub struct CuaControlPresentation {
     pub driver_rounds: Vec<CuaDriverRoundPresentation>,
 }
 
+pub struct CuaIntentResumeOutcome {
+    pub task_id:String,
+    pub owner_agent_id:String,
+    pub sequence:String,
+    pub disposition:&'static str,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct CuaControlState {
     task_id: String,
@@ -198,6 +205,12 @@ impl CuaControlHub {
         let summary=if active.recalled_experience{format!("已召回执行经验，{delivery}")}else{delivery.into()};
         active.presentation.current_step=summary.clone();
         active.presentation.slow_brain_summary=summary;
+    }
+
+    pub fn mark_goal_verification_delivery(&self,task_id:&str,state_name:&str){
+        let Ok(mut state)=self.0.lock() else{return};let Some(active)=state.as_mut().filter(|active|active.task_id==task_id&&active.presentation.plan_status=="awaiting-goal-verification") else{return};
+        let summary=match state_name{"accepted"=>"慢脑正在核验最终结果","missing"=>"等待慢脑连接后核验最终结果",_=>"慢脑核验唤醒失败，可从任务继续"};
+        active.presentation.current_step=summary.into();active.presentation.slow_brain_summary=summary.into();
     }
 
     pub fn presentation(&self) -> Option<CuaControlPresentation> {
@@ -1010,7 +1023,7 @@ impl TaskHost {
 
     /// 本机批准只唤醒当前活动片段的已绑定发送槽位；不构造Gateway Agent会话，
     /// 不提交新计划，也不替归属Agent判定任务终态。
-    pub fn resume_approved_cua_intent(&mut self,task_id:&str,intent_ref:&str,now_ms:u64)->Result<&'static str,HostError>{
+    pub fn resume_approved_cua_intent(&mut self,task_id:&str,intent_ref:&str,now_ms:u64)->Result<CuaIntentResumeOutcome,HostError>{
         #[cfg(target_os = "macos")]
         {
             let config=self.store.get_jev_config().map_err(|_|HostError::StorageUnavailable)?.unwrap_or_default();
@@ -1018,11 +1031,11 @@ impl TaskHost {
             let jev=self.jev.as_ref().ok_or(HostError::BrowserUnavailable)?;
             let controlled=CuaControlPort{inner:computer,hub:self.cua_control.as_ref()};
             let runtime=self.runtime.handle();
-            let (_,disposition,_)=yonder_application::plan_fragment::resume_after_local_confirmation_runtime(
+            let (task,disposition,_)=yonder_application::plan_fragment::resume_after_local_confirmation_runtime(
                 &mut self.store,&runtime,&self.admission,&controlled,&self.targets,&config,jev,&self.cua_intents,
                 AuthContext::LocalUser("desktop"),task_id,intent_ref,now_ms,&self.host_session_id,
             ).map_err(|_|HostError::StorageUnavailable)?;
-            Ok(disposition)
+            Ok(CuaIntentResumeOutcome{task_id:task.id,owner_agent_id:task.owner_agent_id,sequence:task.sequence.to_string(),disposition})
         }
         #[cfg(not(target_os = "macos"))]
         {
@@ -1863,6 +1876,8 @@ mod tests {
         let presentation=hub.presentation().unwrap();
         assert_eq!(presentation.current_step,"等待慢脑核验最终结果");
         assert_eq!(presentation.plan_status,"awaiting-goal-verification");
+        hub.mark_goal_verification_delivery("task-a","accepted");
+        assert_eq!(hub.presentation().unwrap().current_step,"慢脑正在核验最终结果");
     }
 
     #[test]

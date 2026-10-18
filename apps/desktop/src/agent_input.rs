@@ -33,6 +33,7 @@ struct SessionSink {
     session_id: String,
     supports_attachment: bool,
     supports_replan: bool,
+    supports_goal_verification: bool,
     supports_reply: bool,
     tx: tokio_mpsc::UnboundedSender<Delivery>,
     close: tokio_mpsc::UnboundedSender<()>,
@@ -136,6 +137,7 @@ impl AgentInputHub {
                         session_id: session_id.clone(),
                         supports_attachment,
                         supports_replan,
+                        supports_goal_verification: false,
                         supports_reply,
                         tx,
                         close,
@@ -156,6 +158,17 @@ impl AgentInputHub {
             let _ = sink.close.send(());
         }
         (token, connected, interrupted)
+    }
+
+    pub(crate) fn enable_goal_verification(&self, session_id: &str, token: u64) {
+        if let Ok(mut state) = self.inner.lock() {
+            if let Some((current, sink)) = state.session.as_mut()
+                && *current == token
+                && sink.session_id == session_id
+            {
+                sink.supports_goal_verification = true;
+            }
+        }
     }
 
     pub(crate) fn unregister(&self, session_id: &str, token: u64) -> bool {
@@ -453,6 +466,28 @@ impl AgentInputHub {
         reason: &str,
     ) -> Result<DeliveryOutcome, &'static str> {
         self.deliver_replan_with_experiences(agent_id, task_id, sequence, reason, &[])
+    }
+
+    pub fn deliver_goal_verification(
+        &self,
+        agent_id: &str,
+        task_id: &str,
+        sequence: &str,
+    ) -> Result<DeliveryOutcome, &'static str> {
+        if !yonder_application::valid_id(task_id) || sequence.parse::<u64>().is_err() {
+            return Err("终局核验唤醒内容无效");
+        }
+        let sink = {
+            let state = self.inner.lock().map_err(|_| "Agent输入通道不可用")?;
+            state.session.as_ref()
+                .filter(|(_, sink)| sink.agent_id == agent_id && sink.supports_goal_verification)
+                .map(|(_, sink)| sink.clone())
+                .ok_or("任务归属Agent未连接")?
+        };
+        let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "系统时间不可用")?.as_millis()).map_err(|_| "系统时间不可用")?;
+        let id = format!("goal_verify_{}_{}",std::process::id(),self.next_input.fetch_add(1, Ordering::Relaxed)+1);
+        let content=format!("Yonder任务 {task_id} 已完成计划片段并在序号 {sequence} 等待终局核验。请通过现有Gateway读取task.get与task.events取得新鲜事实；仅在最新Observation证明目标达成时提交task.goal.verify并task.complete，否则按事实提交not-achieved并重新规划。不要把Driver回执直接视为目标完成，也不要重试结果待核实的副作用。");
+        Ok(submit(&sink,&id,&sink.session_id,AgentInputSource::GoalVerification,&content,now))
     }
 
     pub fn deliver_replan_with_experiences(
@@ -877,6 +912,18 @@ mod tests {
             hub.deliver_replan("agent-b", "task_1", "8", "需要慢脑重新 Observe 或规划"),
             Err("任务归属Agent未连接")
         );
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn goal_verification_wake_uses_the_owner_session_without_claiming_completion() {
+        let hub=AgentInputHub::default();
+        let (tx,mut rx)=tokio_mpsc::unbounded_channel();let (close_tx,_)=tokio_mpsc::unbounded_channel();
+        let (token,_,_)=hub.register("agent-a".into(),"session-a".into(),false,true,false,tx,close_tx);
+        hub.enable_goal_verification("session-a",token);
+        let worker=std::thread::spawn(move||{let delivery=rx.blocking_recv().unwrap();assert_eq!(delivery.input.source,AgentInputSource::GoalVerification);assert!(delivery.input.content.contains("task_1")&&delivery.input.content.contains("序号 29")&&delivery.input.content.contains("task.goal.verify"));assert!(!delivery.input.content.contains("目标已完成"));delivery.reply.send(DeliveryOutcome::Accepted).unwrap();});
+        assert_eq!(hub.deliver_goal_verification("agent-a","task_1","29"),Ok(DeliveryOutcome::Accepted));
+        assert_eq!(hub.deliver_goal_verification("agent-b","task_1","29"),Err("任务归属Agent未连接"));
         worker.join().unwrap();
     }
 
