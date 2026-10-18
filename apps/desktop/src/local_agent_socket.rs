@@ -596,7 +596,7 @@ async fn exchange(
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
             let (close_tx, mut close_rx) = tokio::sync::mpsc::unbounded_channel();
             let (token, connected, interrupted) = hub.register(
-                agent_id,
+                agent_id.clone(),
                 session_id.clone(),
                 supports_attachment,
                 supports_replan,
@@ -607,6 +607,9 @@ async fn exchange(
             if supports_goal_verification {
                 hub.enable_goal_verification(&session_id, token);
             }
+            let recovery_wake=if supports_goal_verification{
+                host.lock().ok().and_then(|mut host|host.as_mut()?.pending_goal_verification(&agent_id).ok().flatten())
+            }else{None};
             let _ = connected;
             if let Some(params) = interrupted {
                 voice_reply.handle_reply(&params);
@@ -615,6 +618,16 @@ async fn exchange(
                 }
             }
             emit_pet_agent_connection(&pet, hub.presence());
+            if let Some(wake)=recovery_wake{
+                let wake_hub=hub.clone();let wake_cua_hub=cua_hub.clone();let wake_control=cua_control.clone();let wake_pet=pet.clone();
+                tokio::spawn(async move{
+                    let task_id=wake.task_id.clone();
+                    let delivered=tokio::task::spawn_blocking(move||wake_hub.deliver_goal_verification(&wake.owner_agent_id,&wake.task_id,&wake.sequence)).await;
+                    let state=match delivered{Ok(Ok(DeliveryOutcome::Accepted))=>"accepted",Ok(Err("任务归属Agent未连接"))=>"missing",_=>"failed"};
+                    wake_cua_hub.mark_goal_verification_delivery(&task_id,state);
+                    if let Some(presentation)=wake_cua_hub.presentation(){let _=show_cua_control(&wake_pet,&wake_control,&presentation);}
+                });
+            }
             let result = async {
                 loop {
                     let delivery = tokio::select! {

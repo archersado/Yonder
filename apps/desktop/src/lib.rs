@@ -73,6 +73,25 @@ pub struct CuaIntentResumeOutcome {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GoalVerificationWake {
+    pub task_id:String,
+    pub owner_agent_id:String,
+    pub sequence:String,
+}
+
+fn recoverable_goal_verification(
+    task:&yonder_application::Task,
+    snapshot:&yonder_application::execution_runtime::RuntimeSnapshot,
+    slot_count:usize,
+)->bool{
+    task.status==yonder_application::Status::Running
+        &&snapshot.phase==yonder_application::execution_runtime::RuntimePhase::Running
+        &&snapshot.goal_verification.is_none()
+        &&snapshot.last_observation_sequence.is_some()
+        &&snapshot.active_plan.as_ref().is_some_and(|cursor|usize::from(cursor.current_slot)>=slot_count)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct CuaControlState {
     task_id: String,
     takeover_requested: bool,
@@ -744,6 +763,20 @@ impl TaskHost {
     /// 供 Gateway 执行入口注入同一个进程内 Runtime；不得据此复制第二个状态所有者。
     pub fn execution_runtime(&self) -> yonder_application::execution_runtime::ExecutionRuntimeHandle {
         self.runtime.handle()
+    }
+
+    /// Connector 重连时只以 Store 定位归属任务，再由内存 Runtime 复核片段确已
+    /// 消费完、存在新鲜 Observe 且尚未核验；UI 投影不参与恢复判断。
+    pub fn pending_goal_verification(&mut self,agent_id:&str)->Result<Option<GoalVerificationWake>,HostError>{
+        let tasks=self.store.running(100).map_err(|_|HostError::StorageUnavailable)?;
+        for task in tasks.into_iter().filter(|task|task.owner_agent_id==agent_id){
+            let Ok(snapshot)=self.runtime.handle().snapshot(&task.id) else{continue};
+            let Some(cursor)=snapshot.active_plan.as_ref() else{continue};
+            let Some(stored)=self.store.get_plan_fragment(&task.id,&cursor.plan_id,cursor.plan_version).map_err(|_|HostError::StorageUnavailable)? else{continue};
+            if !recoverable_goal_verification(&task,&snapshot,stored.fragment.slots.len()){continue;}
+            return Ok(Some(GoalVerificationWake{task_id:task.id,owner_agent_id:task.owner_agent_id,sequence:snapshot.sequence.to_string()}));
+        }
+        Ok(None)
     }
 
     #[cfg(target_os = "macos")]
@@ -1878,6 +1911,15 @@ mod tests {
         assert_eq!(presentation.plan_status,"awaiting-goal-verification");
         hub.mark_goal_verification_delivery("task-a","accepted");
         assert_eq!(hub.presentation().unwrap().current_step,"慢脑正在核验最终结果");
+    }
+
+    #[test]
+    fn connector_recovery_requires_completed_observed_unverified_plan(){
+        let task=yonder_application::Task{id:"task-a".into(),owner_agent_id:"agent-a".into(),name:Some("核验恢复".into()),source:yonder_application::TaskSource::LocalAgent,status:yonder_application::Status::Running,sequence:31};
+        let mut snapshot=yonder_application::execution_runtime::RuntimeSnapshot{task_id:task.id.clone(),sequence:31,checkpoint:27,phase:yonder_application::execution_runtime::RuntimePhase::Running,current_step:None,last_step:None,last_step_succeeded:Some(true),last_observation_sequence:Some(29),goal_verification:None,browser_reference:None,active_plan:Some(yonder_application::execution_runtime::RuntimePlanCursor{plan_id:"plan-a".into(),plan_version:1,current_slot:7}),active_control:None,pending_events:4};
+        assert!(recoverable_goal_verification(&task,&snapshot,7));
+        snapshot.active_plan.as_mut().unwrap().current_slot=6;assert!(!recoverable_goal_verification(&task,&snapshot,7));
+        snapshot.active_plan.as_mut().unwrap().current_slot=7;snapshot.goal_verification=Some(yonder_application::GoalVerificationRecord{task_id:task.id.clone(),verification_id:"verify-a".into(),observation_sequence:29,verified_sequence:32,outcome:yonder_application::GoalVerificationOutcome::Achieved});assert!(!recoverable_goal_verification(&task,&snapshot,7));
     }
 
     #[test]
