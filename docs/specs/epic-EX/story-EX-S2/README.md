@@ -2,7 +2,7 @@
 
 Story: EX-S2  
 Epic: EX  
-Status: implementing
+Status: verifying
 OpenSpec: ex-s2-plan-fragment-macos
 
 实施 Change：[openspec/changes/ex-s2-plan-fragment-macos/](../../../../openspec/changes/ex-s2-plan-fragment-macos/proposal.md)
@@ -41,4 +41,6 @@ OpenSpec: ex-s2-plan-fragment-macos
 
 同日用户进一步要求置信度字段与阈值可配置。AD-EX-03 与本 Change 已扩展为可填写的响应顶层字段名和 `0..1` 阈值；字段名未填写时使用 `confidence`，旧 `confidence_metric` JSON 兼容迁移，已配置字段缺失时安全交回且不得探测其他属性。结构回归已通过，待重建正式 macOS GUI 后补面板保存与真实 Gateway 样本。
 
-同日正式 Gateway 终局复验 PASS：任务 `task_7ab0958017947f67f79283cfd8ae09c3` 在更新弹窗交回后按新鲜事实递增计划版本，本地 Jev 从 QQ 音乐 252 个元素的主窗口 Observation 中完成自然候选决策，搜索框动作在序号 19 得到 `action_succeeded=true / observe_valid=true`，经目标核验后 `completed@23`。该结果关闭可配置置信度字段的 macOS 产品验证；Windows 继续暂缓，EX-S2 整体仍按计划片段 Change 的剩余项保持 implementing。
+同日正式 Gateway 终局复验 PASS：任务 `task_7ab0958017947f67f79283cfd8ae09c3` 在更新弹窗交回后按新鲜事实递增计划版本，本地 Jev 从 QQ 音乐 252 个元素的主窗口 Observation 中完成自然候选决策，搜索框动作在序号 19 得到 `action_succeeded=true / observe_valid=true`，经目标核验后 `completed@23`。该结果关闭可配置置信度字段的 macOS 产品验证；当时仍待计划片段 Change 的终局唤醒收尾，Windows继续暂缓。
+
+2026-10-19 macOS收尾PASS：正式企业微信七槽位样本完成一次性发送确认与可信自动续跑；修复Codex Agent Bridge仍钉在协议1.51、无法接收1.53终局核验输入的漏接线后，无副作用Finder样本在Connector重连时自动唤醒唯一归属Codex会话，并按新鲜Gateway事实完成`goal.verify@8 → completed@9`。证据见[终局核验唤醒记录](../../../../apps/desktop/evidence/ex-s2-goal-verification-wake-macos-20261019/README.md)。macOS产品范围已闭环；Story进入verifying，仅保留用户明确暂缓的Windows原生对等证据。

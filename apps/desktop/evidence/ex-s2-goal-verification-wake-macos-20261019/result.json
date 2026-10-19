@@ -1,0 +1,21 @@
+{
+  "platform": "macos",
+  "passed": true,
+  "product_entry": "bundled-yonder-mcp",
+  "sensitive_sample": {
+    "task_id": "task_43de32dede4e13cadcc5083f03b4a21f",
+    "observed_sequence": 29,
+    "awaiting_verification_sequence": 31,
+    "completed_sequence": 33,
+    "recipient_or_body_recorded": false
+  },
+  "wake_regression": {
+    "task_id": "task_6b80801d7fb243675082c16a02564fc5",
+    "observed_sequence": 5,
+    "wake_sequence": 7,
+    "verified_sequence": 8,
+    "completed_sequence": 9,
+    "owner_session_received_input": true,
+    "external_side_effect": false
+  }
+}

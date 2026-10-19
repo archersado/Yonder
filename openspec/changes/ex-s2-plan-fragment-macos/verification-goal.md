@@ -1,5 +1,16 @@
 # EX-S2 macOS 计划片段执行 Verification Goal
 
+## 2026-10-19 企业微信确认与终局核验收尾
+
+状态：PASS（macOS）。
+
+- 正式产品任务`task_43de32dede4e13cadcc5083f03b4a21f`通过安装包内MCP、Gateway、七槽位不可变片段与真实Sky CUA Worker执行；六个前置动作及一次本机确认后的发送动作均形成有效Observe，最后动作位于序号29，片段在序号31等待终局核验。
+- 回归发现Codex Agent Bridge握手仍钉在1.51，未声明协议1.53终局核验输入。提交`9bb3e66`改为使用同发布包Rust协议版本，并补充1.53及输入能力握手合约；Bridge 18/18、协议与Desktop终局投递测试通过。
+- 无副作用正式任务`task_6b80801d7fb243675082c16a02564fc5`在`awaiting-goal-verification@7`后重连Connector，Yonder自动把核验输入投到唯一归属Codex活动会话。慢脑按要求读取新鲜事实，于序号8核验达成、序号9完成；任务终态和顶部浮窗同步收口。
+- 证据见`apps/desktop/evidence/ex-s2-goal-verification-wake-macos-20261019/`；不包含联系人、消息正文、截图或完整Agent Payload。
+
+结论：macOS范围的计划提交、单槽位连续执行、真实语义候选、一次性确认、异常交回、主动慢脑唤醒、目标核验和终态展示已经闭环。Windows对等证据继续按用户决定保留为Story级Deferred项。
+
 ## 2026-10-08 事件驱动交回边界复核
 
 状态：PASS。

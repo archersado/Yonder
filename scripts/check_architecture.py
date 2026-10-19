@@ -80,12 +80,13 @@ def check_protocol_single_source(root):
 
     bridge = (root / "apps/yonder-cli/src/codex_agent_bridge.rs").read_text(encoding="utf-8")
     if (
-        "有意钉定 1.51" not in bridge
-        or not re.search(r"minor:\s*51\b", bridge)
+        "minor: PROTOCOL_VERSION.minor" not in bridge
+        or re.search(r"minor:\s*51\b", bridge)
+        or "OfferedCapability::UserInput" not in bridge
+        or "OfferedCapability::ReplanInput" not in bridge
         or "OfferedCapability::UserInputReply" not in bridge
-        or "minor: PROTOCOL_VERSION.minor" in bridge
     ):
-        raise ValueError("Codex bridge 必须显式钉定抢占关闭所需的协议 1.51")
+        raise ValueError("Codex bridge 必须使用Rust当前协议版本并声明输入、replan与抢占关闭能力")
 
 
 def check_frontend_single_source(root):
