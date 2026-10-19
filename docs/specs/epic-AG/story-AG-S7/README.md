@@ -2,7 +2,7 @@
 
 Story: AG-S7  
 Epic: AG  
-Status: implementing
+Status: done
 OpenSpec: ag-s7-codex-connector-lifecycle-spike  
 Timebox: 2026-10-10 ～ 2026-10-16
 
@@ -24,8 +24,10 @@ Timebox: 2026-10-10 ～ 2026-10-16
 - 已知可行基线：Codex CLI 0.156.1 共享 App Server、显式 `thread_id` 与 WebSocket-over-UDS，已由 AG-S5 验证。
 - 已知缺口：Yonder 重启后薄桥退出且无人重新拉起；普通 MCP 只能恢复任务方向，不能恢复慢脑回注。
 - 未验证：ChatGPT Desktop 私有 `stdio://` App Server 是否存在受支持的当前会话连接器或生命周期 hook；不得从进程、最近会话或本地数据库猜测。
-- Windows 对照样本按既有决定保持待办；缺少 Windows 证据时 Spike 不得宣称跨平台完成，AD-AG-10 不得转 Accepted。
+- Windows 对照样本按既有决定保持Deferred；缺少Windows证据时不得宣称跨平台完成。后续用户范围决定允许AD-AG-10仅对macOS Codex CLI子范围转Accepted。
 
 2026-10-10 首个 macOS 能力探针通过；随后公开 Hook 文档与 Codex CLI 0.162.1 进一步确认 `SessionStart` 提供当前 `session_id`，共享 daemon/proxy 可避免手填 endpoint。主人接受 macOS Codex CLI 子范围先行实施，AD-AG-10 对该子范围转 Accepted，并生成 AG-S8；ChatGPT Desktop 保持 Unsupported/Deferred，Windows 与完整跨平台终局仍挂起。
+
+2026-10-19 Spike终局审阅完成：后续产品Story AG-S8已经用正式macOS Codex CLI完成Hook冷启动、Yonder重启、Connector/Hook退出恢复、新旧会话失败关闭与新会话重建、同thread replan回注；本轮Codex CLI 0.163.0能力探针及21项Connector合约再次通过。独立[Verification Goal](../../../../openspec/changes/ag-s7-codex-connector-lifecycle-spike/verification-goal.md)确认macOS路线Accepted，Windows按用户决定记录为Deferred，ChatGPT Desktop记录为Unsupported/Deferred；两者不由macOS证据外推。Spike完成并进入Archive。
 
 关联变更：[ag-s7-codex-connector-lifecycle-spike](../../../../openspec/changes/ag-s7-codex-connector-lifecycle-spike/proposal.md)。
