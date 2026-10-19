@@ -13,6 +13,7 @@ const artifactAvailabilityLabels = { available:'可用', missing:'缺失', chang
 const fileGrantPurposeLabels = { read:'读取', 'create-new':'新建', replace:'替换', trash:'移至回收站' };
 let includeFinished = false, cursor = null, nextCursor = null, pageNumber = 1;
 let round = 0, selection = 0;
+let automaticallyVisible = false;
 const pendingControls = new Map();
 const confirmationIds = new Map();
 
@@ -550,16 +551,19 @@ async function close() {
 }
 byId('close').addEventListener('click', close);
 document.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
-window.addEventListener('blur', close);
+window.addEventListener('focus', () => { automaticallyVisible = false; });
+window.addEventListener('blur', () => { if (!automaticallyVisible) close(); });
 window.addEventListener('yonda-tasks-open', event => {
   // Agent 创建后的自动透出不能夺走当前输入焦点，否则本窗口的 blur 收起策略会立刻把它关闭。
   if (event.detail?.automatic) {
+    automaticallyVisible = true;
     // 新建任务在首次执行前是 created；若沿用“进行中”筛选，面板虽已展开但
     // 新任务仍不可见。自动透出切到全部，手动打开继续保留用户当前筛选。
     includeFinished = true;
     byId('ongoing').setAttribute('aria-pressed', 'false');
     byId('all').setAttribute('aria-pressed', 'true');
   } else {
+    automaticallyVisible = false;
     byId('refresh').focus();
   }
   load(true, event.detail?.taskId ? { taskId: event.detail.taskId, section: event.detail.section } : null);

@@ -318,7 +318,8 @@ pub fn position_window_in_pet_work_area(
 fn show_task_space_near_pet_inner(
     pet: &WebviewWindow,
     focus: bool,
-    command_approval_task_id: Option<&str>,
+    reveal_task_id: Option<&str>,
+    reveal_section: Option<&str>,
 ) -> Result<(), String> {
     let app = pet.app_handle();
     let menu = app.get_webview_window("task-space").ok_or("任务菜单不可用")?;
@@ -336,13 +337,11 @@ fn show_task_space_near_pet_inner(
     let max_x = area.position.x.saturating_add(area.size.width.saturating_sub(size.width) as i32);
     let max_y = area.position.y.saturating_add(area.size.height.saturating_sub(size.height) as i32);
     let target = tauri::PhysicalPosition::new(position.x.clamp(area.position.x, max_x), y.clamp(area.position.y, max_y));
-    menu.set_position(target).and_then(|_| menu.show()).map_err(|_| "任务菜单打开失败")?;
-    if focus { menu.set_focus().map_err(|_| "任务菜单打开失败")?; }
-    let event = if let Some(task_id) = command_approval_task_id {
+    let event = if let Some(task_id) = reveal_task_id {
         let detail = serde_json::json!({
             "automatic": true,
             "taskId": task_id,
-            "section": "command-approval",
+            "section": reveal_section,
         });
         format!(
             "window.dispatchEvent(new CustomEvent('yonda-tasks-open',{{detail:{detail}}}))"
@@ -352,12 +351,17 @@ fn show_task_space_near_pet_inner(
     } else {
         "window.dispatchEvent(new CustomEvent('yonda-tasks-open',{detail:{automatic:true}}))".to_owned()
     };
-    menu.eval(&event).map_err(|_| "任务菜单打开失败".into())
+    // 先让 Webview 进入自动展示态，再显示窗口；否则未聚焦窗口可能先收到 blur 并立即收起。
+    menu.set_position(target).map_err(|_| "任务菜单打开失败")?;
+    menu.eval(&event).map_err(|_| "任务菜单打开失败")?;
+    menu.show().map_err(|_| "任务菜单打开失败")?;
+    if focus { menu.set_focus().map_err(|_| "任务菜单打开失败")?; }
+    Ok(())
 }
 
 /// 用户显式打开时保持既有焦点行为。
 pub fn show_task_space_near_pet(pet: &WebviewWindow) -> Result<(), String> {
-    show_task_space_near_pet_inner(pet, true, None)
+    show_task_space_near_pet_inner(pet, true, None, None)
 }
 
 fn blocks_task_space_auto_show(label: &str) -> bool {
@@ -366,7 +370,13 @@ fn blocks_task_space_auto_show(label: &str) -> bool {
 
 /// 自动展示不应覆盖用户正使用的语音或圈选输入。CUA 控制卡位于屏幕顶部，
 /// 必须允许任务空间同时展示并刷新，否则另一任务执行中创建的新任务不可见。
-pub fn show_task_space_after_agent_create(pet: &WebviewWindow) -> Result<bool, String> {
+pub fn show_task_space_after_agent_create(
+    pet: &WebviewWindow,
+    task_id: &str,
+) -> Result<bool, String> {
+    if !yonder_application::valid_id(task_id) {
+        return Err("任务引用无效".into());
+    }
     let app = pet.app_handle();
     for label in ["cua-control", "voice-input", "region-preview"] {
         if blocks_task_space_auto_show(label)
@@ -378,7 +388,7 @@ pub fn show_task_space_after_agent_create(pet: &WebviewWindow) -> Result<bool, S
         }
     }
     // 自动透出不抢走用户当前焦点，否则 task-space 的 blur 收起规则会立刻关闭它。
-    show_task_space_near_pet_inner(pet, false, None)?;
+    show_task_space_near_pet_inner(pet, false, Some(task_id), None)?;
     Ok(true)
 }
 
@@ -399,7 +409,7 @@ pub fn show_command_approval_after_propose(
             }
         }
     }
-    show_task_space_near_pet_inner(pet, false, Some(task_id))?;
+    show_task_space_near_pet_inner(pet, false, Some(task_id), Some("command-approval"))?;
     Ok(true)
 }
 
@@ -615,7 +625,7 @@ pub struct TaskHost {
     cua_intents: CuaIntentRegistry,
     listening_pending: bool,
     listening_until: Option<Instant>,
-    task_space_open_pending: bool,
+    task_space_open_pending: Option<String>,
     command_approval_open_pending: Option<String>,
     #[cfg(target_os = "macos")]
     browser: Option<EgoLiteBridge>,
@@ -733,7 +743,7 @@ impl TaskHost {
             cua_intents: CuaIntentRegistry::default(),
             listening_pending: false,
             listening_until: None,
-            task_space_open_pending: false,
+            task_space_open_pending: None,
             command_approval_open_pending: None,
             #[cfg(target_os = "macos")]
             browser,
@@ -1232,7 +1242,8 @@ impl TaskHost {
         if accepted_create {
             self.listening_pending = true;
             self.listening_until = None;
-            self.task_space_open_pending = true;
+            self.task_space_open_pending =
+                yonder_application::gateway::created_task_id(&response);
         }
         if command_approval_task.is_some()
             && yonder_application::gateway::response_succeeded(&response)
@@ -1267,8 +1278,8 @@ impl TaskHost {
     }
 
     /// 仅供已认证 Local Socket 在成功新建后消费一次展示请求。
-    pub fn take_task_space_open_pending(&mut self) -> bool {
-        std::mem::take(&mut self.task_space_open_pending)
+    pub fn take_task_space_open_pending(&mut self) -> Option<String> {
+        self.task_space_open_pending.take()
     }
 
     /// 只供当前用户私有 Local Socket 消费一次；不含命令正文。
@@ -2398,11 +2409,11 @@ mod tests {
         assert_eq!(reopened.presentation().unwrap(), (false, "idle", None));
         let hello = br#"{"jsonrpc":"2.0","id":"h","method":"gateway.hello","params":{"agent_id":"agent-c","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":3}}}"#;
         reopened.query_session(&mut session, hello, 1000).unwrap();
-        assert!(
-            String::from_utf8(reopened.query_session(&mut session, create, 1000).unwrap())
-                .unwrap()
-                .contains("created")
-        );
+        let response = reopened.query_session(&mut session, create, 1000).unwrap();
+        assert!(String::from_utf8(response.clone()).unwrap().contains("created"));
+        let created_task_id = yonder_application::gateway::created_task_id(&response).unwrap();
+        assert_eq!(reopened.take_task_space_open_pending(), Some(created_task_id));
+        assert_eq!(reopened.take_task_space_open_pending(), None, "新任务展示请求只能消费一次");
         assert_eq!(reopened.presentation().unwrap(), (true, "listening", None));
         std::thread::sleep(Duration::from_millis(1650));
         assert_ne!(reopened.presentation().unwrap().1, "listening");

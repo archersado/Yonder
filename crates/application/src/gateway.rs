@@ -75,6 +75,19 @@ pub fn response_succeeded(bytes: &[u8]) -> bool {
     matches!(yonder_protocol::decode_response(bytes), Ok(Response::Success { .. }))
 }
 
+/// 成功创建后只向桌面表现层暴露生成的任务引用；输入、输出和正文仍留在任务事实中。
+pub fn created_task_id(bytes: &[u8]) -> Option<String> {
+    match yonder_protocol::decode_response(bytes).ok()? {
+        Response::Success {
+            result: QueryResult::Snapshot { task },
+            ..
+        } if task.status == yonder_protocol::TaskStatus::Created && task.sequence == "1" => {
+            Some(task.task_id)
+        }
+        _ => None,
+    }
+}
+
 /// 桌宠状态由写入事实驱动；读取不得把异步持久化检查点重新发布为当前状态。
 pub fn is_presentation_update_request(bytes: &[u8]) -> bool {
     let Ok(request) = yonder_protocol::decode(bytes) else {
@@ -832,6 +845,10 @@ mod tests {
         assert!(!is_presentation_update_request(br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":31}}}"#));
         assert!(response_succeeded(br#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"hello","protocol_version":{"major":1,"minor":31},"platform":"macos","capabilities":[]}}"#));
         assert!(!response_succeeded(br#"{"jsonrpc":"2.0","id":"r1","error":{"code":-32011,"message":"conflict"}}"#));
+        let created = br#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"snapshot","task":{"task_id":"task_1","owner_agent_id":"agent","name":"test","status":"created","sequence":"1"}}}"#;
+        assert_eq!(created_task_id(created).as_deref(), Some("task_1"));
+        let later = br#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"snapshot","task":{"task_id":"task_1","owner_agent_id":"agent","name":"test","status":"created","sequence":"2"}}}"#;
+        assert_eq!(created_task_id(later), None);
     }
 
     #[test]

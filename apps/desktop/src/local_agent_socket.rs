@@ -440,7 +440,10 @@ async fn exchange(
                     )
                 })
                 .and_then(|hint| host_ref.execution_control_presentation(&agent_id, &hint, true));
-            let open_task_space = response.is_ok() && host_ref.take_task_space_open_pending();
+            let open_task_space = response
+                .as_ref()
+                .ok()
+                .and_then(|_| host_ref.take_task_space_open_pending());
             let command_approval_task = response
                 .as_ref()
                 .ok()
@@ -468,7 +471,7 @@ async fn exchange(
                 replan_experiences,
             )
         };
-        if open_task_space || command_approval_task.is_some() {
+        if open_task_space.is_some() || command_approval_task.is_some() {
             // Local Socket 在 Tokio worker 中处理；窗口操作须回到 Cocoa 主线程，
             // 否则创建虽成功但任务窗口不会被真正展示。
             let app = pet.app_handle().clone();
@@ -477,8 +480,10 @@ async fn exchange(
                     if let Some(pet) = app.get_webview_window("pet") {
                         let result = if let Some(task_id) = command_approval_task.as_deref() {
                             show_command_approval_after_propose(&pet, task_id).map(|_| ())
+                        } else if let Some(task_id) = open_task_space.as_deref() {
+                            crate::show_task_space_after_agent_create(&pet, task_id).map(|_| ())
                         } else {
-                            crate::show_task_space_after_agent_create(&pet).map(|_| ())
+                            Ok(())
                         };
                         if let Err(error) = result {
                             eprintln!("Yonder 任务窗口自动展示失败: {error}");

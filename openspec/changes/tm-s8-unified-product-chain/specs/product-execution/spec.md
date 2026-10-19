@@ -53,6 +53,13 @@
 
 系统 MUST 在 CUA、BUA、Office/Document、Command 及后续统一 Gateway 执行请求开始时显示顶部执行浮窗。浮窗 MUST 展示可信当前步骤与可用规划步骤；不存在计划片段时 MUST 明确标记未提供，不得伪造。只有 CUA 可以显示并接受“接管电脑”。
 
+#### Scenario: 新任务直接显示本机授权触点
+
+- **WHEN** 真实外部慢脑经产品 MCP 成功创建任务
+- **THEN** Yonder Task Space 自动展开并选中新任务
+- **AND** 自动展开在用户尚未点击前不得因窗口未取得焦点而立即收起
+- **AND** Office 文件授权与 Command 一次性批准触点在该任务详情中直接可见
+
 #### Scenario: BUA 执行显示步骤但不提供桌面接管
 
 - **WHEN** 归属 Agent 调用 `browser.execute` 开始或继续 Browser Task Space
