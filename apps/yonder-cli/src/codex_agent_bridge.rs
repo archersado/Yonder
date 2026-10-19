@@ -750,8 +750,9 @@ async fn connect_yonder(
             deadline: now_ms()?.saturating_add(10_000),
             protocol_version: ProtocolVersion {
                 major: PROTOCOL_VERSION.major,
-                // 有意钉定 1.51：声明输入、附件、replan、回复与抢占关闭面。
-                minor: 51,
+                // Bridge 与同一发布包内的 Desktop 共享协议版本；终局核验输入自
+                // 1.53 起可用，不能继续钉在旧版本，否则片段执行完只会留在等待态。
+                minor: PROTOCOL_VERSION.minor,
             },
             session_id: Some(thread_id.into()),
             offered_capabilities: Some(vec![
@@ -1452,13 +1453,17 @@ printf '%s\n' 'server-pong'
                     request,
                     Request::Hello {
                         params: HelloParams {
+                            protocol_version: ProtocolVersion { major: 1, minor: 53 },
                             session_id: Some(ref session),
                             offered_capabilities: Some(ref capabilities),
                             ..
                         },
                         ..
                     } if session == "thread-1"
+                        && capabilities.contains(&OfferedCapability::UserInput)
                         && capabilities.contains(&OfferedCapability::UserInputAttachment)
+                        && capabilities.contains(&OfferedCapability::ReplanInput)
+                        && capabilities.contains(&OfferedCapability::UserInputReply)
                 ));
                 (&stream)
                     .write_all(
