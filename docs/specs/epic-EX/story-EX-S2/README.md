@@ -5,9 +5,9 @@ Epic: EX
 Status: verifying
 OpenSpec: ex-s2-plan-fragment-macos
 
-实施 Change：[openspec/changes/ex-s2-plan-fragment-macos/](../../../../openspec/changes/ex-s2-plan-fragment-macos/proposal.md)
+实施 Change：[已归档的计划片段 Change](../../../../openspec/changes/archive/2026-10-19-ex-s2-plan-fragment-macos/proposal.md)
 
-目标动作与发送确认增量：[ex-s2-cua-target-intent-confirmation](../../../../openspec/changes/ex-s2-cua-target-intent-confirmation/proposal.md)。
+目标动作与发送确认增量：[已归档的目标意图与确认 Change](../../../../openspec/changes/archive/2026-10-19-ex-s2-cua-target-intent-confirmation/proposal.md)。
 
 本轮实施 Accepted AD-AG-09 的受限 macOS CUA 计划片段基线；macOS-only 有界 Jev 决策接线已经完成并归档。Windows 原生验证及跨 Driver 的 Recipe/DSL 仍不在本轮范围。
 
@@ -33,7 +33,7 @@ OpenSpec: ex-s2-plan-fragment-macos
 
 2026-09-24 用户变更：先实施 macOS-only Jev 决策接线，Windows 后补；API Key 只从 macOS 系统凭据入口读取，不进入配置、任务数据或日志。该子范围的真实 Keychain/远端调用、离线回归和独立 Verification Goal 已通过，见[已归档 macOS-only 接线 OpenSpec](../../../../openspec/changes/archive/2026-09-24-ex-s2-macos-only-jev-wiring/proposal.md)。Story 整体仍为 implementing；计划片段执行、Windows 与费用证据须先满足各自门禁并另建 Change。
 
-2026-10-08 用户修订：Jev 快脑改为从同次新鲜 AX Observe 自然形成的多控件动作空间中选择，不再为触发快脑构造应用恢复分支。正式安装包 MCP/Gateway macOS 样本已完成“语义模板→AX 多候选→Jev 选择→临时句柄复核→点击→动作后 Observe→Goal Verification→completed”，证据见[计划片段 Verification Goal](../../../../openspec/changes/ex-s2-plan-fragment-macos/verification-goal.md)。Windows 证据仍按决定暂缓，Story 保持 implementing。
+2026-10-08 用户修订：Jev 快脑改为从同次新鲜 AX Observe 自然形成的多控件动作空间中选择，不再为触发快脑构造应用恢复分支。正式安装包 MCP/Gateway macOS 样本已完成“语义模板→AX 多候选→Jev 选择→临时句柄复核→点击→动作后 Observe→Goal Verification→completed”，证据见[已归档的计划片段 Verification Goal](../../../../openspec/changes/archive/2026-10-19-ex-s2-plan-fragment-macos/verification-goal.md)。Windows 证据仍按决定暂缓，当时Story保持implementing。
 
 2026-10-08 收尾复核确认事件驱动交回已由TM-S9运行时完整承接并通过当前回归；正式QQ音乐AD-EX-05样本仍被CU-S4动作确认阻断。产品任务成功完成启动和搜索入口聚焦，但文本输入、临时元素句柄点击与封闭`SPACE`激活均在进入Jev步骤核验前返回`unknown(driver-action-unconfirmed)`；系统逐次安全交回且未自动重试，测试任务最终取消。修复CU-S4并重建产品前，EX-S2不得Archive。
 
