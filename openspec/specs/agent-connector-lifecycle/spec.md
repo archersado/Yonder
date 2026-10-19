@@ -1,6 +1,9 @@
-# Agent Connector Lifecycle Spike Delta
+# agent-connector-lifecycle Specification
 
-## ADDED Requirements
+## Purpose
+定义 Agent 客户端当前会话的显式绑定、连接器进程所有权、断线恢复与平台能力判定门禁，确保 Yonder 不猜测会话、不启动第二规划 Agent，也不重放未确认输入或任务副作用。
+
+## Requirements
 
 ### Requirement: 当前会话显式绑定证据
 
@@ -44,8 +47,8 @@ Spike MUST 分别验证 Codex CLI 与 ChatGPT Desktop，不把一种客户端的
 
 Spike MUST 在产品实现前产出终局 ADR 与后续 Story 验收映射。
 
-#### Scenario: 证据完成
+#### Scenario: 平台证据完成或明确延期
 
-- **WHEN** macOS 与 Windows 统一样本证据完成
-- **THEN** AD-AG-10 明确 Accepted、Rejected 或 Deferred
-- **AND** 只有 Accepted 路线可以进入后续产品 Story 实施
+- **WHEN** 某个平台的统一样本证据完成，或该平台由用户明确决定延期
+- **THEN** AD-AG-10 必须分别标记该平台路线为 Accepted、Rejected 或 Deferred
+- **AND** 只有对应平台的 Accepted 路线可以进入后续产品 Story 实施，其他平台不得由其结果外推
