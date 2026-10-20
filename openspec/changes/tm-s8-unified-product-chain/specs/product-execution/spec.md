@@ -59,6 +59,7 @@
 - **THEN** Yonder Task Space 自动展开并选中新任务
 - **AND** 自动展开在用户尚未点击前不得因窗口未取得焦点而立即收起
 - **AND** Office 文件授权与 Command 一次性批准触点在该任务详情中直接可见
+- **AND** Command 等待本机批准时 Task Space 获得焦点，不被当前应用或旧执行浮窗遮挡
 
 #### Scenario: BUA 执行显示步骤但不提供桌面接管
 

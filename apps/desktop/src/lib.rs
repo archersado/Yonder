@@ -409,7 +409,10 @@ pub fn show_command_approval_after_propose(
             }
         }
     }
-    show_task_space_near_pet_inner(pet, false, Some(task_id), Some("command-approval"))?;
+    // 命令不会在批准前执行，因此这里不是普通的后台状态通知，而是当前流程唯一的
+    // LocalUser 交互触点。窗口若只 show 而不聚焦，可能仍被当前应用或旧执行浮窗
+    // 遮住，用户只会看到“等待批准”却找不到批准入口。
+    show_task_space_near_pet_inner(pet, true, Some(task_id), Some("command-approval"))?;
     Ok(true)
 }
 
