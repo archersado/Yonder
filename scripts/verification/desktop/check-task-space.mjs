@@ -220,6 +220,11 @@ export async function checkTaskSpace(page) {
   assert.equal(await page.evaluate(() => document.getElementById('all').getAttribute('aria-pressed')), 'true');
   assert.ok((await page.evaluate(() => document.getElementById('notice').textContent)).includes('等待你的命令批准'));
   assert.ok(await page.evaluate(() => document.querySelector('.command-approval-card').getBoundingClientRect().top < document.getElementById('detail').getBoundingClientRect().bottom));
+  const closesBeforeProgrammaticFocus=await page.evaluate(() => window.nativeCalls.filter(command => command === 'task_menu_close').length);
+  await page.evaluate(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('blur')); });
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(command => command === 'task_menu_close').length),closesBeforeProgrammaticFocus);
+  await page.evaluate(() => { document.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); window.dispatchEvent(new Event('blur')); });
+  assert.equal(await page.evaluate(() => window.nativeCalls.filter(command => command === 'task_menu_close').length),closesBeforeProgrammaticFocus+1);
   await page.evaluate(() => { window.fixtureCommandApprovals[0].taskId='test-task-20'; });
   await page.evaluate(() => {
     window.fixtureTasks.unshift({task_id:'new-created-task',name:'新建任务即时可见',owner_agent_id:'test-agent',source:'local-agent',status:'created',sequence:'1'});

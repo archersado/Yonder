@@ -550,8 +550,11 @@ async function close() {
   catch { message('关闭失败，请使用窗口关闭按钮重试', true); }
 }
 byId('close').addEventListener('click', close);
-document.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
-window.addEventListener('focus', () => { automaticallyVisible = false; });
+document.addEventListener('pointerdown', () => { automaticallyVisible = false; }, { capture: true });
+document.addEventListener('keydown', event => {
+  automaticallyVisible = false;
+  if (event.key === 'Escape') { event.preventDefault(); close(); }
+});
 window.addEventListener('blur', () => { if (!automaticallyVisible) close(); });
 window.addEventListener('yonda-tasks-open', event => {
   // Agent 创建后的自动透出不能夺走当前输入焦点，否则本窗口的 blur 收起策略会立刻把它关闭。
