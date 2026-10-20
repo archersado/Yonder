@@ -33,6 +33,11 @@
       "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
       "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true, "backgroundThrottling": "disabled"
     }, {
+      "label": "command-approval", "url": "command-approval.html", "title": "Yonda · 命令授权", "width": 560, "height": 230,
+      "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
+      "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
+      "maximizable": false, "fullscreen": false, "visibleOnAllWorkspaces": true
+    }, {
       "label": "jev-settings", "url": "jev-settings.html", "title": "Yonda · Jev 快脑设置", "width": 340, "height": 520,
       "acceptFirstMouse": true, "center": true, "visible": false, "resizable": false,
       "transparent": true, "decorations": false, "shadow": false, "alwaysOnTop": true,
@@ -56,6 +61,9 @@
       }, {
         "identifier": "cua-control-local", "description": "统一执行浮窗只允许 CUA 调用本机显式接管命令",
         "local": true, "windows": ["cua-control"], "permissions": []
+      }, {
+        "identifier": "command-approval-local", "description": "命令授权卡只允许当前用户审阅并决定一次性命令引用",
+        "local": true, "windows": ["command-approval"], "permissions": ["core:window:allow-hide"]
       }],
       "csp": "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'"
     }

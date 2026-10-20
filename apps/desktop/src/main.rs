@@ -99,6 +99,10 @@ fn command_approval_preview_view(
     }
 }
 
+fn is_command_approval_window(label: &str) -> bool {
+    matches!(label, "task-space" | "command-approval")
+}
+
 fn file_grant_purpose(
     value: &str,
 ) -> Result<yonder_application::file_authorization::FileGrantPurpose, String> {
@@ -1343,7 +1347,7 @@ async fn command_approval_list(
     state: State<'_, TaskState>,
     task_id: String,
 ) -> Result<Vec<CommandApprovalSummaryView>, String> {
-    if window.label() != "task-space" {
+    if !is_command_approval_window(window.label()) {
         return Err("不允许的窗口".into());
     }
     let host = Arc::clone(&state.0);
@@ -1372,7 +1376,7 @@ async fn command_approval_preview(
     task_id: String,
     command_id: String,
 ) -> Result<CommandApprovalPreviewView, String> {
-    if window.label() != "task-space" {
+    if !is_command_approval_window(window.label()) {
         return Err("不允许的窗口".into());
     }
     let host = Arc::clone(&state.0);
@@ -1396,7 +1400,7 @@ async fn command_approval_approve(
     task_id: String,
     command_id: String,
 ) -> Result<CommandApprovalSummaryView, String> {
-    if window.label() != "task-space" {
+    if !is_command_approval_window(window.label()) {
         return Err("不允许的窗口".into());
     }
     let host = Arc::clone(&state.0);
@@ -1420,7 +1424,7 @@ async fn command_approval_reject(
     task_id: String,
     command_id: String,
 ) -> Result<(), String> {
-    if window.label() != "task-space" {
+    if !is_command_approval_window(window.label()) {
         return Err("不允许的窗口".into());
     }
     let host = Arc::clone(&state.0);
@@ -1434,6 +1438,14 @@ async fn command_approval_reject(
     })
     .await
     .map_err(|_| "命令拒绝中断".to_owned())?
+}
+
+#[tauri::command]
+fn command_approval_close(window: WebviewWindow) -> Result<(), String> {
+    if window.label() != "command-approval" {
+        return Err("不允许的窗口".into());
+    }
+    window.hide().map_err(|_| "命令授权卡关闭失败".to_owned())
 }
 
 #[tauri::command]
@@ -1759,7 +1771,7 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(pet_window::PetWindowState::default())
-        .invoke_handler(tauri::generate_handler![task_query, user_takeover, cua_control_takeover, cua_control_presentation, cua_intent_confirmation, cua_intent_approve, cua_intent_reject, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, voice_reply_config_get, voice_reply_config_save, voice_reply_preview, voice_reply_stop, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_reply_dismiss, region_preview_close, region_preview_reselect])
+        .invoke_handler(tauri::generate_handler![task_query, user_takeover, cua_control_takeover, cua_control_presentation, cua_intent_confirmation, cua_intent_approve, cua_intent_reject, task_confirm, command_approval_list, command_approval_preview, command_approval_approve, command_approval_reject, command_approval_close, file_grant_choose, file_grant_list, file_grant_revoke, browser_task_space_open, jev_config_get, jev_config_save, jev_credential_status, jev_credential_save, jev_settings_close, agent_registry_list, agent_registry_register, agent_registry_set_status, agent_settings_close, voice_reply_config_get, voice_reply_config_save, voice_reply_preview, voice_reply_stop, task_menu_show, task_menu_hide, task_menu_close, pet_is_visible, pet_task_state, pet_agent_connected, pet_pack_assets, pet_window::pet_dock, pet_window::pet_wake, voice_input_open, voice_input_start, voice_input_stop, voice_input_close, voice_input_phase, region_voice_start, region_voice_stop, region_preview_open, region_preview_hide_for_capture, region_preview_capture, region_preview_show_review, region_preview_text_only, region_preview_submit, region_reply_dismiss, region_preview_close, region_preview_reselect])
         .setup(|app| {
             release_contract::validate()?;
             #[cfg(target_os = "macos")]
@@ -1770,13 +1782,15 @@ fn main() {
             app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?.hide()?;
             let cua_control=app.get_webview_window("cua-control").ok_or("CUA 控制卡未创建")?;
             cua_control.hide()?;
+            let command_approval=app.get_webview_window("command-approval").ok_or("命令授权卡未创建")?;
+            command_approval.hide()?;
             app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?.hide()?;
             app.get_webview_window("agent-settings").ok_or("Agent管理窗口未创建")?.hide()?;
             #[cfg(target_os = "macos")]
             {
                 use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior as Behavior};
                 // 小龙与任务菜单采用相同Space/全屏辅助行为。
-                for window in [pet.clone(), app.get_webview_window("task-space").ok_or("任务菜单未创建")?, app.get_webview_window("voice-input").ok_or("语音卡未创建")?, app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?, cua_control.clone(), app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?, app.get_webview_window("agent-settings").ok_or("Agent管理窗口未创建")?] {
+                for window in [pet.clone(), app.get_webview_window("task-space").ok_or("任务菜单未创建")?, app.get_webview_window("voice-input").ok_or("语音卡未创建")?, app.get_webview_window("region-preview").ok_or("圈选窗口未创建")?, cua_control.clone(), command_approval.clone(), app.get_webview_window("jev-settings").ok_or("Jev 设置窗口未创建")?, app.get_webview_window("agent-settings").ok_or("Agent管理窗口未创建")?] {
                 let native = unsafe { &*window.ns_window()?.cast::<NSWindow>() };
                 let mut behavior = native.collectionBehavior();
                 if objc2::available!(macos = 13.0) {
@@ -1857,7 +1871,7 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() == "task-space" || window.label() == "voice-input" || window.label() == "region-preview" || window.label() == "cua-control" || window.label() == "jev-settings" || window.label() == "agent-settings" {
+            if window.label() == "task-space" || window.label() == "voice-input" || window.label() == "region-preview" || window.label() == "cua-control" || window.label() == "command-approval" || window.label() == "jev-settings" || window.label() == "agent-settings" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     if window.label() == "voice-input" { window.app_handle().state::<voice_input::VoiceRuntime>().cancel(voice_input::VoiceTarget::Direct); }

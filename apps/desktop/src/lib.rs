@@ -79,6 +79,12 @@ pub struct GoalVerificationWake {
     pub sequence:String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommandApprovalPresentationRef {
+    pub task_id: String,
+    pub command_id: String,
+}
+
 fn recoverable_goal_verification(
     task:&yonder_application::Task,
     snapshot:&yonder_application::execution_runtime::RuntimeSnapshot,
@@ -392,30 +398,6 @@ pub fn show_task_space_after_agent_create(
     Ok(true)
 }
 
-/// 命令提议已经由 Gateway 接受；只把任务引用投到本机受信 Task Space，
-/// 完整命令仍由窗口通过 LocalUser-only Registry 读取。
-pub fn show_command_approval_after_propose(
-    pet: &WebviewWindow,
-    task_id: &str,
-) -> Result<bool, String> {
-    if !yonder_application::valid_id(task_id) {
-        return Err("任务引用无效".into());
-    }
-    let app = pet.app_handle();
-    for label in ["voice-input", "region-input"] {
-        if let Some(window) = app.get_webview_window(label) {
-            if window.is_visible().unwrap_or(false) && blocks_task_space_auto_show(label) {
-                return Ok(false);
-            }
-        }
-    }
-    // 命令不会在批准前执行，因此这里不是普通的后台状态通知，而是当前流程唯一的
-    // LocalUser 交互触点。窗口若只 show 而不聚焦，可能仍被当前应用或旧执行浮窗
-    // 遮住，用户只会看到“等待批准”却找不到批准入口。
-    show_task_space_near_pet_inner(pet, true, Some(task_id), Some("command-approval"))?;
-    Ok(true)
-}
-
 #[cfg(target_os = "macos")]
 fn macos_cua_resource_dir() -> Option<PathBuf> {
     if cfg!(debug_assertions) {
@@ -629,7 +611,7 @@ pub struct TaskHost {
     listening_pending: bool,
     listening_until: Option<Instant>,
     task_space_open_pending: Option<String>,
-    command_approval_open_pending: Option<String>,
+    command_approval_open_pending: Option<CommandApprovalPresentationRef>,
     #[cfg(target_os = "macos")]
     browser: Option<EgoLiteBridge>,
     #[cfg(target_os = "macos")]
@@ -1248,10 +1230,14 @@ impl TaskHost {
             self.task_space_open_pending =
                 yonder_application::gateway::created_task_id(&response);
         }
-        if command_approval_task.is_some()
-            && yonder_application::gateway::response_succeeded(&response)
-        {
-            self.command_approval_open_pending = command_approval_task;
+        if let (Some(task_id), Some(command_id)) = (
+            command_approval_task,
+            yonder_application::gateway::command_approval_id(&response),
+        ) {
+            self.command_approval_open_pending = Some(CommandApprovalPresentationRef {
+                task_id,
+                command_id,
+            });
         }
         Ok(response)
     }
@@ -1286,7 +1272,7 @@ impl TaskHost {
     }
 
     /// 只供当前用户私有 Local Socket 消费一次；不含命令正文。
-    pub fn take_command_approval_open_pending(&mut self) -> Option<String> {
+    pub fn take_command_approval_open_pending(&mut self) -> Option<CommandApprovalPresentationRef> {
         self.command_approval_open_pending.take()
     }
 
@@ -2213,7 +2199,7 @@ mod tests {
         let propose=format!(r#"{{"jsonrpc":"2.0","id":"propose","method":"task.command.propose","params":{{"agent_id":"agent-a","capability":"command.propose","deadline":{},"task_id":"{}","program":"/usr/bin/printf","args":["%s","gateway-ok"],"cwd":"{}","env":{{}},"timeout_ms":1000}}}}"#,now+2_000,task.id,directory.to_str().unwrap());
         let response:serde_json::Value=serde_json::from_slice(&host.query_session(&mut session,propose.as_bytes(),now+11).unwrap()).unwrap();
         let command_id=response["result"]["approval"]["command_id"].as_str().expect("命令提议响应").to_owned();
-        assert_eq!(host.take_command_approval_open_pending(),Some(task.id.clone()));
+        assert_eq!(host.take_command_approval_open_pending(),Some(CommandApprovalPresentationRef{task_id:task.id.clone(),command_id:command_id.clone()}));
         assert_eq!(host.take_command_approval_open_pending(),None,"展示请求只能消费一次");
         let rejected_propose=format!(r#"{{"jsonrpc":"2.0","id":"bad-propose","method":"task.command.propose","params":{{"agent_id":"agent-a","capability":"command.propose","deadline":{},"task_id":"{}","program":"relative","args":[],"cwd":"{}","env":{{}},"timeout_ms":1000}}}}"#,now+2_000,task.id,directory.to_str().unwrap());
         let rejected=host.query_session(&mut session,rejected_propose.as_bytes(),now+12).unwrap();

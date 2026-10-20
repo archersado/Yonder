@@ -75,6 +75,17 @@ pub fn response_succeeded(bytes: &[u8]) -> bool {
     matches!(yonder_protocol::decode_response(bytes), Ok(Response::Success { .. }))
 }
 
+/// 成功命令提议只向桌面表现层暴露一次性引用；结构化命令仍留在内存批准 Registry。
+pub fn command_approval_id(bytes: &[u8]) -> Option<String> {
+    match yonder_protocol::decode_response(bytes).ok()? {
+        Response::Success {
+            result: QueryResult::CommandApproval { approval },
+            ..
+        } if approval.state == "awaiting_user" => Some(approval.command_id),
+        _ => None,
+    }
+}
+
 /// 成功创建后只向桌面表现层暴露生成的任务引用；输入、输出和正文仍留在任务事实中。
 pub fn created_task_id(bytes: &[u8]) -> Option<String> {
     match yonder_protocol::decode_response(bytes).ok()? {
@@ -849,6 +860,8 @@ mod tests {
         assert_eq!(created_task_id(created).as_deref(), Some("task_1"));
         let later = br#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"snapshot","task":{"task_id":"task_1","owner_agent_id":"agent","name":"test","status":"created","sequence":"2"}}}"#;
         assert_eq!(created_task_id(later), None);
+        let approval = br#"{"jsonrpc":"2.0","id":"r1","result":{"kind":"command-approval","approval":{"command_id":"command_7","state":"awaiting_user","expires_at_ms":123}}}"#;
+        assert_eq!(command_approval_id(approval).as_deref(), Some("command_7"));
     }
 
     #[test]

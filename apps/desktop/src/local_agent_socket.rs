@@ -1,8 +1,8 @@
 //! AD-AG-05：macOS当前用户私有Gateway UDS。
 use crate::{
-    CuaControlHub, TaskHost, agent_input::AgentInputHub, emit_pet_agent_connection,
+    CommandApprovalPresentationRef, CuaControlHub, TaskHost, agent_input::AgentInputHub, emit_pet_agent_connection,
     emit_pet_presentation, emit_pet_terminal_presentation, position_window_in_pet_work_area,
-    show_command_approval_after_propose, voice_reply::VoiceReplyRuntime,
+    voice_reply::VoiceReplyRuntime,
 };
 use base64::Engine;
 use interprocess::local_socket::{
@@ -317,6 +317,25 @@ fn show_cua_control(
         .map_err(io::Error::other)
 }
 
+fn show_command_approval(
+    pet: &WebviewWindow,
+    window: &WebviewWindow,
+    reference: &CommandApprovalPresentationRef,
+) -> io::Result<()> {
+    position_window_in_pet_work_area(pet, window, 560.0, 230.0).map_err(io::Error::other)?;
+    let detail = serde_json::json!({
+        "taskId": reference.task_id,
+        "commandId": reference.command_id,
+    });
+    window
+        .eval(&format!(
+            "window.dispatchEvent(new CustomEvent('yonda-command-approval-start',{{detail:{detail}}}))"
+        ))
+        .and_then(|_| window.show())
+        .and_then(|_| window.set_focus())
+        .map_err(io::Error::other)
+}
+
 async fn exchange(
     stream: Stream,
     host: Arc<Mutex<Option<TaskHost>>>,
@@ -478,8 +497,10 @@ async fn exchange(
             app.clone()
                 .run_on_main_thread(move || {
                     if let Some(pet) = app.get_webview_window("pet") {
-                        let result = if let Some(task_id) = command_approval_task.as_deref() {
-                            show_command_approval_after_propose(&pet, task_id).map(|_| ())
+                        let result = if let Some(reference) = command_approval_task.as_ref() {
+                            app.get_webview_window("command-approval")
+                                .ok_or_else(|| "命令授权卡不可用".to_owned())
+                                .and_then(|window| show_command_approval(&pet, &window, reference).map_err(|error| error.to_string()))
                         } else if let Some(task_id) = open_task_space.as_deref() {
                             crate::show_task_space_after_agent_create(&pet, task_id).map(|_| ())
                         } else {
