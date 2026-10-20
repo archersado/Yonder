@@ -332,8 +332,14 @@ fn show_command_approval(
             "window.dispatchEvent(new CustomEvent('yonda-command-approval-start',{{detail:{detail}}}))"
         ))
         .and_then(|_| window.show())
-        .and_then(|_| window.set_focus())
-        .map_err(io::Error::other)
+        .map_err(io::Error::other)?;
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::NSWindow;
+        let native = unsafe { &*window.ns_window().map_err(io::Error::other)?.cast::<NSWindow>() };
+        native.orderFrontRegardless();
+    }
+    window.set_focus().map_err(io::Error::other)
 }
 
 async fn exchange(
