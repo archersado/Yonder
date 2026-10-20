@@ -27,3 +27,5 @@ Jev 只能看受限候选语义、有界 Observe 摘要与预期条件，不能�
 2026-09-28 用户明确将顶部步骤浮窗从 CUA 扩展到所有任务执行能力。Gateway 已有 `execution_presentation_hint` 覆盖 `browser.execute`、`computer.execute/step`、`plan.execute`、`file.execute`、`document.execute` 与 `command.execute`；桌面组合根必须以该可信提示建立只读展示，而不是只消费 CUA 子集。SQLite 任务/步骤/计划片段仍是权威事实，浮窗只持有短生命周期投影，不新增任务状态。
 
 同一视觉外壳按执行种类区分交互：CUA 标题为“Yonder 正在控制您的电脑”并保留显式“接管电脑”；BUA、Office、Command 和其他非桌面执行标题为“Yonder 正在执行任务”，不提供接管电脑入口。CUA 的接管请求仍只由 `cua_execution_presentation_hint` 授权，非 CUA 即使伪造 UI 调用也必须被宿主拒绝。新的执行请求可刷新当前浮窗投影；终态响应清除对应任务，单次 RPC 返回不伪造终态。
+
+Command 的 `awaiting_user` 发生在执行启动之前，不得复用“正在执行”投影。Desktop 从成功 `command.propose` 回执中只提取 `task_id + command_id`，在同一顶部锚点打开独立的 LocalUser-only 授权卡；卡片再从内存 `CommandApprovalRegistry` 读取结构化预览并提交批准或拒绝。命令正文、参数和环境变量不进入任务事件、Outbox 或执行浮窗，授权卡也不拥有任务状态。批准引用仍只能由归属 Agent 经 Gateway 消费一次。

@@ -58,9 +58,15 @@
 - **WHEN** 真实外部慢脑经产品 MCP 成功创建任务
 - **THEN** Yonder Task Space 自动展开并选中新任务
 - **AND** 自动展开在用户尚未点击前不得因窗口未取得焦点而立即收起
-- **AND** Office 文件授权与 Command 一次性批准触点在该任务详情中直接可见
-- **AND** Command 等待本机批准时 Task Space 获得焦点，不被当前应用或旧执行浮窗遮挡
-- **AND** 程序聚焦及其后的失焦不视为用户交互，授权卡保持可见直至用户真实操作
+- **AND** Office 文件授权触点在该任务详情中直接可见
+
+#### Scenario: Command 一次性审批直接透出到桌面
+
+- **WHEN** 真实外部慢脑的 `command.propose` 被 Gateway 接受并进入 `awaiting_user`
+- **THEN** Yonder 在屏幕顶部直接显示标题为“等待你的授权”的本机授权卡
+- **AND** 卡片展示结构化程序、参数、工作目录、环境变量键名、超时以及“拒绝”“批准执行一次”
+- **AND** 用户无需打开 Task Space 或进入任务详情
+- **AND** 批准前不得显示“正在执行”或启动任务，批准引用仍只允许归属 Agent 经 Gateway 消费一次
 
 #### Scenario: BUA 执行显示步骤但不提供桌面接管
 
