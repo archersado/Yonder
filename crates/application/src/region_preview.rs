@@ -6,9 +6,9 @@ pub enum Phase { Idle, Selecting, Capturing, Reviewing, Submitting }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error { Busy, InvalidPhase, ImageTooLarge }
 
-pub struct Session { phase: Phase, image: Option<String>, source_application: Option<String> }
+pub struct Session { phase: Phase, image: Option<String>, source_application: Option<String>, generation: u64 }
 
-impl Default for Session { fn default() -> Self { Self { phase: Phase::Idle, image: None, source_application: None } } }
+impl Default for Session { fn default() -> Self { Self { phase: Phase::Idle, image: None, source_application: None, generation: 0 } } }
 
 impl Session {
     pub fn begin(&mut self, source_application: Option<String>) -> Result<(), Error> {
@@ -16,11 +16,12 @@ impl Session {
         self.image = None;
         self.source_application = source_application.map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty() && value.chars().count() <= 128 && !value.chars().any(char::is_control));
+        self.generation = self.generation.wrapping_add(1);
         self.phase = Phase::Selecting; Ok(())
     }
     pub fn reselect(&mut self) -> Result<(), Error> {
         if self.phase != Phase::Reviewing { return Err(Error::InvalidPhase); }
-        self.image = None; self.phase = Phase::Selecting; Ok(())
+        self.image = None; self.generation = self.generation.wrapping_add(1); self.phase = Phase::Selecting; Ok(())
     }
     pub fn capture(&mut self) -> Result<(), Error> {
         if self.phase != Phase::Selecting { return Err(Error::InvalidPhase); }
@@ -29,12 +30,14 @@ impl Session {
     /// Base64 仅在本进程的临时会话内保留，限制为约 16 MiB PNG。
     pub fn review(&mut self, image: String) -> Result<String, Error> {
         if self.phase != Phase::Capturing { return Err(Error::InvalidPhase); }
-        if image.is_empty() || image.len() > 22_400_000 { self.clear(); return Err(Error::ImageTooLarge); }
+        if image.is_empty() || image.len() > 22_400_000 {
+            self.image = None; self.phase = Phase::Reviewing; return Err(Error::ImageTooLarge);
+        }
         self.image = Some(image); self.phase = Phase::Reviewing;
         Ok(self.image.as_ref().expect("刚写入的预览").clone())
     }
     pub fn review_without_image(&mut self) -> Result<(), Error> {
-        if !matches!(self.phase, Phase::Selecting | Phase::Capturing) { return Err(Error::InvalidPhase); }
+        if !matches!(self.phase, Phase::Selecting | Phase::Capturing | Phase::Reviewing) { return Err(Error::InvalidPhase); }
         self.image = None; self.phase = Phase::Reviewing; Ok(())
     }
     pub fn begin_submission(&mut self) -> Result<Option<String>, Error> {
@@ -44,6 +47,7 @@ impl Session {
     }
     pub fn clear(&mut self) { self.image = None; self.source_application = None; self.phase = Phase::Idle; }
     pub fn snapshot(&self) -> (Phase, usize) { (self.phase, self.image.as_ref().map_or(0, String::len)) }
+    pub fn generation(&self) -> u64 { self.generation }
     pub fn source_application(&self) -> Option<&str> { self.source_application.as_deref() }
 }
 
@@ -62,11 +66,12 @@ mod tests {
     }
 
     #[test]
-    fn rejected_capture_also_returns_to_idle() {
+    fn rejected_capture_enters_text_only_review() {
         let mut session = Session::default();
         session.begin(None).unwrap(); session.capture().unwrap();
         assert_eq!(session.review("x".repeat(22_400_001)), Err(Error::ImageTooLarge));
-        assert_eq!(session.snapshot(), (Phase::Idle, 0));
+        assert_eq!(session.snapshot(), (Phase::Reviewing, 0));
+        assert_eq!(session.begin_submission(), Ok(None));
     }
 
     #[test]
@@ -90,5 +95,17 @@ mod tests {
         assert_eq!(session.source_application(), None);
         session.clear(); session.begin(Some("bad\nname".into())).unwrap();
         assert_eq!(session.source_application(), None);
+    }
+
+    #[test]
+    fn reselect_changes_generation_and_review_can_drop_an_image() {
+        let mut session = Session::default();
+        session.begin(None).unwrap();
+        let first = session.generation();
+        session.capture().unwrap(); session.review("image".into()).unwrap();
+        session.review_without_image().unwrap();
+        assert_eq!(session.snapshot(), (Phase::Reviewing, 0));
+        session.reselect().unwrap();
+        assert_ne!(session.generation(), first);
     }
 }

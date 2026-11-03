@@ -3,7 +3,7 @@
 Story: CX-S2  
 Epic: CX  
 Status: verifying
-OpenSpec: cx-s2-display-change-cleanup
+OpenSpec: cx-s2-windows-region-capture
 
 ## 设计文档
 
@@ -13,11 +13,11 @@ OpenSpec: cx-s2-display-change-cleanup
 
 ## 当前状态与前置条件
 
-用户可理解名称确定为“圈选提问”，不再使用“指针模式”。macOS当前已完成单显示器显式选择、临时截图、确认卡、同会话附件提交、无截图文字/语音提交及CUA占用时先暂停；均不持久化正文或截图。多显示器、云端WSS与Windows仍是后续门禁。
+用户可理解名称确定为“圈选提问”，不再使用“指针模式”。macOS既有子范围不变。Windows WGC Spike已在100%缩放负坐标副屏连续三次通过；按2026-11-03用户决定，首批仅接线100%缩放Preview，其他DPI安全降级为无图确认。Windows会话期间显示器拓扑变化会统一清场；应用切换、来源应用、物理断开原生证据及高DPI扩围仍是后续门禁。
 
 ## OpenSpec 与验证
 
-已创建 [cx-s2-region-capture-spike](../../../../openspec/changes/cx-s2-region-capture-spike/proposal.md)。不得直接复制参考插件的全屏常驻覆盖层、全局输入监听或云端会话实现。Windows依用户决定暂缓，不视为通过。
+已创建 [cx-s2-region-capture-spike](../../../../openspec/changes/cx-s2-region-capture-spike/proposal.md)。不得直接复制参考插件的全屏常驻覆盖层、全局输入监听或云端会话实现。[Windows 100% DPI受限产品接线](../../../../openspec/changes/archive/2026-11-03-cx-s2-windows-region-capture/proposal.md)已由非实现者复核PASS并归档；完整CX-S2仍保持`verifying`。
 
 [macOS Preview Change](../../../../openspec/changes/archive/2026-09-20-cx-s2-macos-preview/proposal.md)已归档。跨显示器和 Windows 保留后续门禁。
 

@@ -1,10 +1,18 @@
-use std::{ffi::{c_char, CStr}, sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
+use std::{sync::{Arc, Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
+#[cfg(target_os = "macos")]
+use std::ffi::{c_char, CStr};
+#[cfg(target_os = "windows")]
+use std::sync::atomic::{AtomicU64, Ordering};
 use serde::Deserialize;
+#[cfg(target_os = "windows")]
+use base64::Engine as _;
 use tauri::{Manager, WebviewWindow, State, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
 use yonder_desktop::TaskHost;
 use yonder_adapters::pet_pack;
 mod pet_window;
 mod voice_input;
+#[cfg(target_os = "windows")]
+mod region_capture_windows;
 
 struct TaskState(Arc<Mutex<Option<TaskHost>>>);
 struct PreviewState(Mutex<yonder_application::region_preview::Session>);
@@ -13,7 +21,7 @@ const REGION_PREVIEW_TITLE: &str = "Yonda · 圈选提问";
 fn region_preview_clean_title(reason: Option<&str>, event_at_ms: Option<u64>) -> String {
     let reason = match reason {
         Some("escape") => "escape", Some("toolbar-cancel") => "toolbar-cancel", Some("review-cancel") => "review-cancel",
-        Some("timeout") => "timeout", Some("close-button") => "close-button", Some("app-switch") => "app-switch", Some("reselect-error") => "reselect-error",
+        Some("timeout") => "timeout", Some("close-button") => "close-button", Some("app-switch") => "app-switch", Some("display-change") => "display-change", Some("reselect-error") => "reselect-error",
         Some("review-error") => "review-error", Some("submitted") => "submitted", _ => "close",
     };
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |value| value.as_millis() as u64);
@@ -28,6 +36,35 @@ mod preview_title_tests {
         assert!(region_preview_clean_title(Some("escape"), None).contains("reason=escape"));
         assert!(region_preview_clean_title(Some("app-switch"), None).contains("reason=app-switch"));
         assert!(region_preview_clean_title(Some("untrusted"), None).contains("reason=close"));
+    }
+
+    #[test]
+    fn capture_failure_enters_text_only_review() {
+        let state = PreviewState(Mutex::new(yonder_application::region_preview::Session::default()));
+        {
+            let mut session = state.0.lock().unwrap();
+            session.begin(None).unwrap();
+            session.capture().unwrap();
+        }
+        let generation = state.0.lock().unwrap().generation();
+        assert_eq!(capture_failure(&state, generation, "capture-failed"), Err("capture-failed".into()));
+        let mut session = state.0.lock().unwrap();
+        assert_eq!(session.snapshot(), (yonder_application::region_preview::Phase::Reviewing, 0));
+        assert_eq!(session.begin_submission(), Ok(None));
+    }
+
+    #[test]
+    fn frontend_capture_errors_use_existing_text_only_transition() {
+        let script = include_str!("../ui/region-preview.js");
+        assert!(script.contains("await showTextOnly(rect,captureFeedback(message),true)"));
+    }
+
+    #[test]
+    fn viewport_rect_maps_to_negative_monitor_coordinates_without_clamping() {
+        let rect = RegionRect { x: 100.0, y: 50.0, width: 240.0, height: 160.0, viewport_width: 1920.0, viewport_height: 1040.0 };
+        assert_eq!(physical_region(&rect, tauri::PhysicalPosition::new(487, -1040), tauri::PhysicalSize::new(1920, 1040)), Some((587, -990, 240, 160)));
+        let invalid = RegionRect { x: -1.0, ..rect };
+        assert_eq!(physical_region(&invalid, tauri::PhysicalPosition::new(0, 0), tauri::PhysicalSize::new(1920, 1040)), None);
     }
 }
 
@@ -46,6 +83,24 @@ fn pet_pack_assets(window: WebviewWindow) -> Result<pet_pack::ActivePetPack, Str
 #[serde(rename_all = "camelCase")]
 struct RegionRect { x: f64, y: f64, width: f64, height: f64, viewport_width: f64, viewport_height: f64 }
 
+fn physical_region(rect: &RegionRect, position: tauri::PhysicalPosition<i32>, size: tauri::PhysicalSize<u32>) -> Option<(i32, i32, u32, u32)> {
+    if !(rect.viewport_width.is_finite() && rect.viewport_height.is_finite() && rect.x.is_finite() && rect.y.is_finite() && rect.width.is_finite() && rect.height.is_finite())
+        || rect.viewport_width <= 0.0 || rect.viewport_height <= 0.0 || rect.x < 0.0 || rect.y < 0.0
+        || rect.width < 12.0 || rect.height < 12.0 || rect.x + rect.width > rect.viewport_width || rect.y + rect.height > rect.viewport_height {
+        return None;
+    }
+    let scale_x = f64::from(size.width) / rect.viewport_width;
+    let scale_y = f64::from(size.height) / rect.viewport_height;
+    let left = (f64::from(position.x) + rect.x * scale_x).floor();
+    let top = (f64::from(position.y) + rect.y * scale_y).floor();
+    let right = (f64::from(position.x) + (rect.x + rect.width) * scale_x).ceil();
+    let bottom = (f64::from(position.y) + (rect.y + rect.height) * scale_y).ceil();
+    let width = right - left;
+    let height = bottom - top;
+    if width <= 0.0 || height <= 0.0 || width * height > 16_777_216.0 { return None; }
+    Some((left as i32, top as i32, width as u32, height as u32))
+}
+
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
     fn yonda_region_capture(x: i32, y: i32, width: i32, height: i32) -> *mut c_char;
@@ -56,8 +111,10 @@ unsafe extern "C" {
     fn yonda_region_stop_display_change_watch();
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 static REGION_PREVIEW_APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+#[cfg(target_os = "windows")]
+static REGION_DISPLAY_WATCH_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(target_os = "macos")]
 extern "C" fn clear_region_preview_after_application_switch() {
@@ -93,13 +150,53 @@ fn watch_region_application_switch() {}
 #[cfg(not(target_os = "macos"))]
 fn stop_region_application_switch_watch() {}
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn windows_display_signature(app: &tauri::AppHandle) -> Option<Vec<(i32, i32, u32, u32, u64)>> {
+    let window = app.get_webview_window("region-preview")?;
+    let mut signature = window.available_monitors().ok()?.into_iter().map(|monitor| {
+        let position = monitor.position();
+        let size = monitor.size();
+        (position.x, position.y, size.width, size.height, monitor.scale_factor().to_bits())
+    }).collect::<Vec<_>>();
+    signature.sort_unstable();
+    Some(signature)
+}
+
+#[cfg(target_os = "windows")]
+fn watch_region_display_change() {
+    let generation = REGION_DISPLAY_WATCH_GENERATION.fetch_add(1, Ordering::SeqCst).wrapping_add(1);
+    let Some(app) = REGION_PREVIEW_APP.get().cloned() else { return; };
+    let Some(initial) = windows_display_signature(&app) else { return; };
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        if REGION_DISPLAY_WATCH_GENERATION.load(Ordering::SeqCst) != generation { return; }
+        if windows_display_signature(&app).as_ref() != Some(&initial) {
+            REGION_DISPLAY_WATCH_GENERATION.fetch_add(1, Ordering::SeqCst);
+            let _ = clear_region_preview(&app, Some("display-change"), None);
+            return;
+        }
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn stop_region_display_change_watch() { REGION_DISPLAY_WATCH_GENERATION.fetch_add(1, Ordering::SeqCst); }
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn watch_region_display_change() {}
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn stop_region_display_change_watch() {}
 
 fn preview_error(error: &str) -> String { error.into() }
+
+fn capture_failure(preview: &PreviewState, generation: u64, error: &str) -> Result<String, String> {
+    let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
+    if session.generation() != generation || session.snapshot().0 != yonder_application::region_preview::Phase::Capturing {
+        return Err("capture-stale".into());
+    }
+    session.review_without_image().map_err(|_| "preview-invalid-state")?;
+    Err(error.into())
+}
 
 #[cfg(target_os = "macos")]
 fn current_source_application() -> Option<String> {
@@ -213,35 +310,58 @@ fn capture_region_image(x: i32, y: i32, width: i32, height: i32) -> Result<Strin
 #[tauri::command]
 async fn region_preview_capture(window: WebviewWindow, rect: RegionRect, preview: State<'_, PreviewState>) -> Result<String, String> {
     if window.label() != "region-preview" { return Err("不允许的窗口".into()); }
-    if !(rect.viewport_width.is_finite() && rect.viewport_height.is_finite() && rect.x.is_finite() && rect.y.is_finite() && rect.width.is_finite() && rect.height.is_finite())
-        || rect.viewport_width <= 0.0 || rect.viewport_height <= 0.0 || rect.width < 12.0 || rect.height < 12.0 { preview.0.lock().ok().map(|mut session| session.clear()); return Err("capture-failed".into()); }
-    let monitor = window.current_monitor().map_err(|_| "屏幕不可用")?
-        .or(window.primary_monitor().map_err(|_| "屏幕不可用")?).ok_or("屏幕不可用")?;
+    let generation = {
+        let session = preview.0.lock().map_err(|_| "preview-unavailable")?;
+        if session.snapshot().0 != yonder_application::region_preview::Phase::Capturing { return Err("preview-invalid-state".into()); }
+        session.generation()
+    };
+    let monitor = match window.current_monitor().ok().flatten() {
+        Some(monitor) => monitor,
+        None => return capture_failure(&preview, generation, "capture-failed"),
+    };
     let area = monitor.work_area();
-    let x = f64::from(area.position.x) + rect.x.max(0.0) * f64::from(area.size.width) / rect.viewport_width;
-    let y = f64::from(area.position.y) + rect.y.max(0.0) * f64::from(area.size.height) / rect.viewport_height;
-    let width = (rect.width * f64::from(area.size.width) / rect.viewport_width).ceil();
-    let height = (rect.height * f64::from(area.size.height) / rect.viewport_height).ceil();
-    if x + width > f64::from(area.position.x + area.size.width as i32) || y + height > f64::from(area.position.y + area.size.height as i32)
-        || width * height > 16_777_216.0 { preview.0.lock().ok().map(|mut session| session.clear()); return Err("capture-failed".into()); }
-    if preview.0.lock().map_err(|_| "preview-unavailable")?.snapshot().0 != yonder_application::region_preview::Phase::Capturing { return Err("preview-invalid-state".into()); }
+    let Some((x, y, width, height)) = physical_region(&rect, area.position, area.size) else {
+        return capture_failure(&preview, generation, "capture-failed");
+    };
     #[cfg(target_os = "macos")]
     { let scale = monitor.scale_factor();
-      let captured = match tokio::task::spawn_blocking(move || capture_region_image((x / scale).round() as i32, (y / scale).round() as i32, (width / scale).round() as i32, (height / scale).round() as i32)).await {
+      let captured = match tokio::task::spawn_blocking(move || capture_region_image((f64::from(x) / scale).round() as i32, (f64::from(y) / scale).round() as i32, (f64::from(width) / scale).round() as i32, (f64::from(height) / scale).round() as i32)).await {
         Ok(captured) => captured,
-        Err(_) => { preview.0.lock().ok().map(|mut session| session.clear()); return Err("capture-failed".into()); }
+        Err(_) => return capture_failure(&preview, generation, "capture-failed"),
       };
       match captured {
-        Ok(image) => match preview.0.lock().map_err(|_| "preview-unavailable")?.review(image) {
+        Ok(image) => { let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
+        if session.generation() != generation { return Err("capture-stale".into()); }
+        match session.review(image) {
           Ok(image) => Ok(image),
           Err(yonder_application::region_preview::Error::ImageTooLarge) => Err("capture-too-large".into()),
           Err(_) => Err("capture-failed".into()),
-        },
-        Err(_) => { preview.0.lock().ok().and_then(|mut session| session.review_without_image().ok()); Err("permission-required".into()) }
+        }},
+        Err(_) => capture_failure(&preview, generation, "permission-required")
       }
     }
-    #[cfg(not(target_os = "macos"))]
-    { let _ = (x, y, width, height); Err("Windows 圈选预览仍在验证中".into()) }
+    #[cfg(target_os = "windows")]
+    {
+      let captured = tokio::task::spawn_blocking(move || {
+          let capture = region_capture_windows::capture_region(x, y, width, height)?;
+          let png = region_capture_windows::encode_png(&capture)?;
+          Ok::<_, region_capture_windows::CaptureError>(base64::engine::general_purpose::STANDARD.encode(png))
+      }).await;
+      let image = match captured {
+          Ok(Ok(image)) => image,
+          Ok(Err(error)) => return capture_failure(&preview, generation, error.code()),
+          Err(_) => return capture_failure(&preview, generation, "capture-failed"),
+      };
+      let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
+      if session.generation() != generation { return Err("capture-stale".into()); }
+      match session.review(image) {
+          Ok(image) => Ok(image),
+          Err(yonder_application::region_preview::Error::ImageTooLarge) => Err("capture-too-large".into()),
+          Err(_) => Err("capture-failed".into()),
+      }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    { let _ = (x, y, width, height); capture_failure(&preview, generation, "capture-unsupported") }
 }
 
 #[tauri::command]
@@ -680,7 +800,7 @@ fn main() {
             let host = Arc::new(Mutex::new(host));
             app.manage(TaskState(Arc::clone(&host)));
             app.manage(PreviewState(Mutex::new(yonder_application::region_preview::Session::default())));
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             let _ = REGION_PREVIEW_APP.set(app.handle().clone());
             let input_hub = yonder_desktop::agent_input::AgentInputHub::default();
             app.manage(voice_input::VoiceRuntime::new(app.handle().clone(), input_hub.clone()));

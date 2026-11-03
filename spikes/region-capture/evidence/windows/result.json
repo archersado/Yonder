@@ -1,0 +1,126 @@
+{
+    "passed":  true,
+    "generated_at_utc":  "2026-11-03T07:07:10.4665853Z",
+    "command":  "powershell -File spikes/region-capture/run-windows.ps1",
+    "source_revision":  "aa378f6b314c8ff8361f68ee99003b6b79053a42",
+    "source_state":  "working-tree",
+    "windows":  {
+                    "caption":  "Microsoft Windows 11 专业版",
+                    "version":  "10.0.26200",
+                    "build":  "26200"
+                },
+    "graphics":  [
+                     {
+                         "name":  "OrayIddDriver Device",
+                         "driver_version":  "17.50.19.949"
+                     },
+                     {
+                         "name":  "Intel(R) Arc(TM) 140T GPU (16GB)",
+                         "driver_version":  "32.0.101.9033"
+                     }
+                 ],
+    "route":  "Windows Graphics Capture CreateForMonitor",
+    "display_count":  2,
+    "negative_origin_available":  true,
+    "negative_origin_tested":  true,
+    "results":  [
+                    {
+                        "passed":  true,
+                        "unsupported_scale":  true,
+                        "error":  "capture-unsupported-scale",
+                        "display_bounds":  {
+                                               "x":  0,
+                                               "y":  0,
+                                               "width":  2880,
+                                               "height":  1800
+                                           },
+                        "dpi_x":  192,
+                        "dpi_y":  192,
+                        "capture_returned":  false
+                    },
+                    {
+                        "passed":  true,
+                        "display_bounds":  {
+                                               "x":  487,
+                                               "y":  -1080,
+                                               "width":  1920,
+                                               "height":  1080
+                                           },
+                        "dpi_x":  96,
+                        "dpi_y":  96,
+                        "runs":  [
+                                     {
+                                         "capture":  {
+                                                         "pixels_height":  160,
+                                                         "pixels_width":  240
+                                                     },
+                                         "color_checks":  [
+                                                              true,
+                                                              true,
+                                                              true,
+                                                              true
+                                                          ],
+                                         "negative_origin":  true,
+                                         "passed":  true,
+                                         "pixels_released_after_check":  true,
+                                         "request":  {
+                                                         "height":  160,
+                                                         "width":  240,
+                                                         "x":  1327,
+                                                         "y":  -644
+                                                     },
+                                         "screenshot_persisted":  false,
+                                         "attempt":  1
+                                     },
+                                     {
+                                         "capture":  {
+                                                         "pixels_height":  160,
+                                                         "pixels_width":  240
+                                                     },
+                                         "color_checks":  [
+                                                              true,
+                                                              true,
+                                                              true,
+                                                              true
+                                                          ],
+                                         "negative_origin":  true,
+                                         "passed":  true,
+                                         "pixels_released_after_check":  true,
+                                         "request":  {
+                                                         "height":  160,
+                                                         "width":  240,
+                                                         "x":  1327,
+                                                         "y":  -644
+                                                     },
+                                         "screenshot_persisted":  false,
+                                         "attempt":  2
+                                     },
+                                     {
+                                         "capture":  {
+                                                         "pixels_height":  160,
+                                                         "pixels_width":  240
+                                                     },
+                                         "color_checks":  [
+                                                              true,
+                                                              true,
+                                                              true,
+                                                              true
+                                                          ],
+                                         "negative_origin":  true,
+                                         "passed":  true,
+                                         "pixels_released_after_check":  true,
+                                         "request":  {
+                                                         "height":  160,
+                                                         "width":  240,
+                                                         "x":  1327,
+                                                         "y":  -644
+                                                     },
+                                         "screenshot_persisted":  false,
+                                         "attempt":  3
+                                     }
+                                 ]
+                    }
+                ],
+    "screenshot_persisted":  false,
+    "probe_process_remaining":  false
+}
