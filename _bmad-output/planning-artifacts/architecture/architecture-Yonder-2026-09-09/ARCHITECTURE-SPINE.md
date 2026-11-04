@@ -112,7 +112,7 @@ Recording 仅手动开始，每设备最多一个。原始时间线不可变，�
 - 文档：只处理明确授权或任务选择的文件，由实际活动触发；不全盘扫描。OOXML 复用 Document Adapter，文本/PDF 使用只读 Extractor；MVP 无 OCR。
 - 操作序列：仅手动 Recording 采集。密码框、安全界面与排除应用始终忽略。
 
-2026-09-18显式区域捕获候选见[AD-CX-01](AD-CX-01-EXPLICIT-REGION-CAPTURE.md)（Accepted仅限macOS Preview，Windows仍未授权）：只在用户启动“圈选提问”后建立短生命选择层与临时截图，未启动时不监听全局输入或截图。截图与问题不入日志、任务事件、Outbox或普通索引；Windows统一样本和Windows扩展决定通过前不形成Windows产品能力。
+显式区域捕获见[AD-CX-01](AD-CX-01-EXPLICIT-REGION-CAPTURE.md)：只在用户启动“圈选提问”后建立短生命选择层与临时截图，未启动时不监听全局输入或截图。截图与问题不入日志、任务事件、Outbox或普通索引。Windows仅开放已有真实证据的96/192 DPI单显示器Preview；其他缩放、跨屏及未验证失败路径安全降级为无图确认。
 
 2026-09-20圈选提交附件见Accepted [AD-CX-02](AD-CX-02-SESSION-INPUT-ATTACHMENT.md)：在同一已认证`AgentSession`内以有界分块暂存附件，`agent.input`只引用会话内附件标识；不发送本机路径、不扩大单帧、不持久化截图。隔离Spike与独立复核已通过，产品协议与确认卡发送仍须独立Change验证。
 

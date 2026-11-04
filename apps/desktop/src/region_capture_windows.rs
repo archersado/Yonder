@@ -134,7 +134,9 @@ fn monitor_selection(x: i32, y: i32, width: u32, height: u32) -> Result<MonitorS
     })
 }
 
-fn supported_dpi(dpi_x: u32, dpi_y: u32) -> bool { dpi_x == 96 && dpi_y == 96 }
+fn supported_dpi(dpi_x: u32, dpi_y: u32) -> bool {
+    dpi_x == dpi_y && matches!(dpi_x, 96 | 192)
+}
 
 fn capture_monitor_region(selection: MonitorSelection) -> Result<CapturedRegion, CaptureError> {
     unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.map_err(|_| CaptureError::Unavailable)?;
@@ -302,10 +304,18 @@ mod tests {
     }
 
     #[test]
-    fn only_one_hundred_percent_dpi_is_enabled() {
+    fn only_verified_dpi_values_are_enabled() {
         assert!(supported_dpi(96, 96));
+        assert!(supported_dpi(192, 192));
         assert!(!supported_dpi(120, 120));
-        assert!(!supported_dpi(192, 192));
+        assert!(!supported_dpi(144, 144));
+        assert!(!supported_dpi(168, 168));
+        assert!(!supported_dpi(192, 96));
+    }
+
+    #[test]
+    fn oversized_region_is_rejected_before_capture() {
+        assert!(matches!(capture_region(0, 0, 4097, 4097), Err(CaptureError::TooLarge)));
     }
 
     #[test]

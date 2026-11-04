@@ -5,7 +5,7 @@ import { applyTextOnlyPresentation, captureFeedback, transitionToTextOnly } from
 
 test('捕获错误映射为可继续提交的无图反馈', () => {
   assert.match(captureFeedback('permission-required'), /允许屏幕录制/);
-  assert.match(captureFeedback('capture-unsupported-scale'), /缩放暂不支持/);
+  assert.match(captureFeedback('capture-unsupported-scale'), /缩放尚未验证/);
   assert.match(captureFeedback('capture-too-large'), /选区过大/);
   assert.match(captureFeedback('capture-timeout'), /截图不可用/);
   for (const error of ['permission-required', 'capture-unsupported-scale', 'capture-too-large', 'capture-timeout']) {

@@ -6,3 +6,6 @@
 - source_plan: `_bmad-output/plan-cx-s2-windows-region-capture.md`
   summary: 增加完整Tauri鼠标圈选自动化与证据内容哈希
   evidence: 当前由产品接线/换算单测、共享WGC真实双屏探针和前端行为测试组成分层证据；独立复核认为批准范围充分，但浏览器级鼠标流程以及源码/探针二进制哈希仍可增强证据绑定。
+- source_plan: none
+  summary: 调研并提案企业Agent/Skill资产导入WorkBuddy等用户Agent工具
+  evidence: 该目标只需基于`/mnt/d/workspace/rea`既有Codex会话结论产出方案提案，与当前CX-S2 Windows高DPI截图扩围可独立评审和交付。

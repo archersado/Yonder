@@ -32,10 +32,12 @@ macOS ScreenCaptureKit/CoreGraphics候选与Windows Graphics Capture候选必须
 
 2026-11-03接受Windows受限路线：Desktop Windows Adapter使用`CreateForMonitor`捕获目标显示器首个稳定BGRA帧，以`rcMonitor`物理原点裁剪并在内存编码PNG。只有有效DPI为96时启用；其他DPI、跨屏、超时或失败返回稳定错误，Desktop将既有`capturing`会话转为无附件`reviewing`。该增量不新增Application Port、协议、存储或默认权限请求。
 
+2026-11-04按真实192 DPI三连样本扩围：Adapter只接受同轴96/96或192/192 DPI。Desktop将CSS viewport矩形按窗口物理work area换算一次；WGC、`rcMonitor`和D3D纹理均使用物理像素，不再次乘DPI。其他DPI、异轴DPI、跨屏、超限或失败仍返回稳定错误并进入无图`reviewing`。
+
 ## 失败与验证
 
 系统安全界面、密码管理器、用户排除应用和受保护内容拒绝捕获。屏幕权限撤销、显示器断开或覆盖层崩溃必须fail closed并恢复输入。外部发送需要用户确认，unknown不自动重试。
 
 ## 架构影响
 
-该Story新增显式屏幕区域上下文和用户向Agent发起请求的边界。AD-CX-01已接受macOS既有子范围及Windows 100%缩放Preview，AD-CX-02已接受临时附件提交；均不改变持久化、依赖方向或状态所有者。高DPI、Windows原生清场和完整跨显示器范围仍须后续Change。
+该Story新增显式屏幕区域上下文和用户向Agent发起请求的边界。AD-CX-01已接受macOS既有子范围及Windows 96/192 DPI Preview，AD-CX-02已接受临时附件提交；均不改变持久化、依赖方向或状态所有者。其他高DPI、Windows原生清场和完整跨显示器范围仍须后续Change。

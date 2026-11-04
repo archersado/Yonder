@@ -1,9 +1,29 @@
 {
     "passed":  true,
-    "generated_at_utc":  "2026-11-03T07:07:10.4665853Z",
-    "command":  "powershell -File spikes/region-capture/run-windows.ps1",
-    "source_revision":  "aa378f6b314c8ff8361f68ee99003b6b79053a42",
+    "generated_at_utc":  "2026-11-04T04:11:10.9264036Z",
+    "command":  "powershell -ExecutionPolicy Bypass -File .\\spikes\\region-capture\\run-windows.ps1",
+    "source_revision":  "5fa0651af04a0cfd0890057c849ddc8a4fcd2548",
     "source_state":  "working-tree",
+    "source_sha256":  [
+                          {
+                              "path":  "apps/desktop/src/region_capture_windows.rs",
+                              "sha256":  "1c2ff13bab4f30c4fbb8d23b54bcc4ff57b2684a5f52763b7b8e7cab5bcd6865"
+                          },
+                          {
+                              "path":  "spikes/region-capture/windows-probe/Cargo.toml",
+                              "sha256":  "6ade923a09e8623027c7976e8f8c3b41df3b6b25d51a700deb082b2fa48ee631"
+                          },
+                          {
+                              "path":  "spikes/region-capture/windows-probe/src/main.rs",
+                              "sha256":  "b99045c6417a92dd1d5affcba824626c6dd66f2125071f3d51047d664f74e2a6"
+                          },
+                          {
+                              "path":  "spikes/region-capture/run-windows.ps1",
+                              "sha256":  "04d682656864ad991a8519137dce585cf13e9449aec9a07fa92af9a97cc867b7"
+                          }
+                      ],
+    "executable":  "spikes/region-capture/windows-probe/target/debug/yonder-region-capture-windows-probe.exe",
+    "executable_sha256":  "b67dfbd344e1db6948f92833f62a458bbf06db13e42ec0d9a6e6ddd99d94a3a5",
     "windows":  {
                     "caption":  "Microsoft Windows 11 专业版",
                     "version":  "10.0.26200",
@@ -23,11 +43,13 @@
     "display_count":  2,
     "negative_origin_available":  true,
     "negative_origin_tested":  true,
+    "verified_dpi":  [
+                         96,
+                         192
+                     ],
     "results":  [
                     {
                         "passed":  true,
-                        "unsupported_scale":  true,
-                        "error":  "capture-unsupported-scale",
                         "display_bounds":  {
                                                "x":  0,
                                                "y":  0,
@@ -36,7 +58,85 @@
                                            },
                         "dpi_x":  192,
                         "dpi_y":  192,
-                        "capture_returned":  false
+                        "logical_size":  {
+                                             "width":  240,
+                                             "height":  160
+                                         },
+                        "expected_physical_size":  {
+                                                       "width":  480,
+                                                       "height":  320
+                                                   },
+                        "runs":  [
+                                     {
+                                         "capture":  {
+                                                         "pixels_height":  320,
+                                                         "pixels_width":  480
+                                                     },
+                                         "color_checks":  [
+                                                              true,
+                                                              true,
+                                                              true,
+                                                              true
+                                                          ],
+                                         "negative_origin":  false,
+                                         "passed":  true,
+                                         "pixels_released_after_check":  true,
+                                         "request":  {
+                                                         "height":  320,
+                                                         "width":  480,
+                                                         "x":  1200,
+                                                         "y":  692
+                                                     },
+                                         "screenshot_persisted":  false,
+                                         "attempt":  1
+                                     },
+                                     {
+                                         "capture":  {
+                                                         "pixels_height":  320,
+                                                         "pixels_width":  480
+                                                     },
+                                         "color_checks":  [
+                                                              true,
+                                                              true,
+                                                              true,
+                                                              true
+                                                          ],
+                                         "negative_origin":  false,
+                                         "passed":  true,
+                                         "pixels_released_after_check":  true,
+                                         "request":  {
+                                                         "height":  320,
+                                                         "width":  480,
+                                                         "x":  1200,
+                                                         "y":  692
+                                                     },
+                                         "screenshot_persisted":  false,
+                                         "attempt":  2
+                                     },
+                                     {
+                                         "capture":  {
+                                                         "pixels_height":  320,
+                                                         "pixels_width":  480
+                                                     },
+                                         "color_checks":  [
+                                                              true,
+                                                              true,
+                                                              true,
+                                                              true
+                                                          ],
+                                         "negative_origin":  false,
+                                         "passed":  true,
+                                         "pixels_released_after_check":  true,
+                                         "request":  {
+                                                         "height":  320,
+                                                         "width":  480,
+                                                         "x":  1200,
+                                                         "y":  692
+                                                     },
+                                         "screenshot_persisted":  false,
+                                         "attempt":  3
+                                     }
+                                 ]
                     },
                     {
                         "passed":  true,
@@ -48,6 +148,14 @@
                                            },
                         "dpi_x":  96,
                         "dpi_y":  96,
+                        "logical_size":  {
+                                             "width":  240,
+                                             "height":  160
+                                         },
+                        "expected_physical_size":  {
+                                                       "width":  240,
+                                                       "height":  160
+                                                   },
                         "runs":  [
                                      {
                                          "capture":  {

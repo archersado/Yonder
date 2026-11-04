@@ -99,6 +99,7 @@ impl Session {
     pub fn clear(&mut self) {
         self.image = None;
         self.source_application = None;
+        self.generation = self.generation.wrapping_add(1);
         self.phase = Phase::Idle;
     }
     pub fn snapshot(&self) -> (Phase, usize) {
@@ -183,5 +184,16 @@ mod tests {
         assert_eq!(session.snapshot(), (Phase::Reviewing, 0));
         session.reselect().unwrap();
         assert_ne!(session.generation(), first);
+    }
+
+    #[test]
+    fn clear_invalidates_an_in_flight_capture_generation() {
+        let mut session = Session::default();
+        session.begin(None).unwrap();
+        session.capture().unwrap();
+        let capturing = session.generation();
+        session.clear();
+        assert_ne!(session.generation(), capturing);
+        assert_eq!(session.snapshot(), (Phase::Idle, 0));
     }
 }

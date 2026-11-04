@@ -203,6 +203,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-11-03 CX-S2 Windows 100% DPI受限Preview经非实现者独立复核PASS并归档：96 DPI负坐标副屏WGC尺寸与四色连续三次通过，192 DPI由产品同一模块失败关闭为无图确认；高DPI扩围、隐私保护专用样本、完整Tauri鼠标自动化、应用切换和物理断开仍保留后续门禁，完整CX-S2不Done。
 
+2026-11-04 CX-S2 Windows 200% DPI扩围经独立复核PASS并归档：真实192 DPI主屏共享Rust WGC连续三次完成480×320物理像素、四色、释放与不落盘校验，用户在当前200%主屏确认真实圈选后图片可见且重选/取消可用；Preview仅扩至96/192 DPI，其他缩放及完整CX-S2门禁不变。
+
 2026-09-22 EX-S2最小Jev配置窗口已合入`dev`并保持独立设置入口；配置校验、SQLite迁移和macOS验证通过，执行接线继续受AD-EX-02双平台门禁约束。
 
 2026-09-22 当前`dev`完成活跃OpenSpec零警告治理：62项Change通过`openspec validate --all`，补齐RFC关键字、历史CUA场景与归档Purpose；Windows分支仍按用户决定暂缓。

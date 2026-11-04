@@ -13,11 +13,13 @@ OpenSpec: cx-s2-windows-region-capture
 
 ## 当前状态与前置条件
 
-用户可理解名称确定为“圈选提问”，不再使用“指针模式”。macOS既有子范围不变。Windows WGC Spike已在100%缩放负坐标副屏连续三次通过；按2026-11-03用户决定，首批仅接线100%缩放Preview，其他DPI安全降级为无图确认。Windows会话期间显示器拓扑变化会统一清场；应用切换、来源应用、物理断开原生证据及高DPI扩围仍是后续门禁。
+用户可理解名称确定为“圈选提问”，不再使用“指针模式”。macOS既有子范围不变。Windows 96 DPI负坐标副屏及192 DPI主屏WGC统一样本均连续三次通过；按2026-11-04用户要求，Preview扩围至已验证的96/192 DPI，其他DPI安全降级为无图确认。应用切换、来源应用、物理断开及其他高DPI仍是后续门禁。
 
 ## OpenSpec 与验证
 
 已创建 [cx-s2-region-capture-spike](../../../../openspec/changes/cx-s2-region-capture-spike/proposal.md)。不得直接复制参考插件的全屏常驻覆盖层、全局输入监听或云端会话实现。[Windows 100% DPI受限产品接线](../../../../openspec/changes/archive/2026-11-03-cx-s2-windows-region-capture/proposal.md)已由非实现者复核PASS并归档；完整CX-S2仍保持`verifying`。
+
+[Windows 200% DPI扩围Change](../../../../openspec/changes/archive/2026-11-04-cx-s2-windows-high-dpi/proposal.md)已完成192 DPI真实样本、产品共享Rust模块和确认卡验证，并由非实现者复核PASS；不扩大到其他缩放或完整Story。
 
 [macOS Preview Change](../../../../openspec/changes/archive/2026-09-20-cx-s2-macos-preview/proposal.md)已归档。跨显示器和 Windows 保留后续门禁。
 

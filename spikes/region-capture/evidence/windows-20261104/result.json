@@ -1,0 +1,99 @@
+{
+    "platform":  "Windows",
+    "generated_at_utc":  "2026-11-04T04:10:22.9074453Z",
+    "command":  "powershell -ExecutionPolicy Bypass -File .\\spikes\\region-capture\\run-windows-core.ps1",
+    "source_revision":  "5fa0651af04a0cfd0890057c849ddc8a4fcd2548",
+    "source_state":  "working-tree",
+    "source_sha256":  [
+                          {
+                              "path":  "spikes/region-capture/windows-probe.cpp",
+                              "sha256":  "bf386e20bf9455cf2a1583729cac7f2655d7aad46f288854a3d5c482997f8bc3"
+                          },
+                          {
+                              "path":  "spikes/region-capture/build-windows.ps1",
+                              "sha256":  "000df4104b86254c24c3f4f3b1cb1052084807d8faf8e6a29ec03da490e14830"
+                          },
+                          {
+                              "path":  "spikes/region-capture/run-windows-core.ps1",
+                              "sha256":  "84ec73bd959df208ab4823358e6b1d2905d32ca82bbdc2dc743b81619db6e182"
+                          }
+                      ],
+    "executable":  "C:\\Users\\JIAN~1.GON\\AppData\\Local\\Temp\\yonder-region-capture-spike\\windows-probe.exe",
+    "executable_sha256":  "0ebc5d943fa1b019454be65442060e8497abf5919db05606bafc51d145e3e4fd",
+    "capture_api":  "Windows.Graphics.Capture",
+    "display_config_available":  true,
+    "display_count":  2,
+    "negative_origin_available":  true,
+    "dpi":  192,
+    "scale":  2,
+    "logical_width":  240,
+    "logical_height":  160,
+    "pixels_width":  480,
+    "pixels_height":  320,
+    "runs":  [
+                 {
+                     "platform":  "Windows",
+                     "passed":  true,
+                     "capture_api":  "Windows.Graphics.Capture",
+                     "display_config_available":  true,
+                     "display_count":  2,
+                     "negative_origin_available":  true,
+                     "logical_width":  240,
+                     "logical_height":  160,
+                     "pixels_width":  480,
+                     "pixels_height":  320,
+                     "scale":  2,
+                     "color_checks":  true,
+                     "scale_check":  true,
+                     "pixels_released_after_check":  true,
+                     "screenshot_persisted":  false,
+                     "input_listeners_installed":  false,
+                     "error_code":  0,
+                     "attempt":  1
+                 },
+                 {
+                     "platform":  "Windows",
+                     "passed":  true,
+                     "capture_api":  "Windows.Graphics.Capture",
+                     "display_config_available":  true,
+                     "display_count":  2,
+                     "negative_origin_available":  true,
+                     "logical_width":  240,
+                     "logical_height":  160,
+                     "pixels_width":  480,
+                     "pixels_height":  320,
+                     "scale":  2,
+                     "color_checks":  true,
+                     "scale_check":  true,
+                     "pixels_released_after_check":  true,
+                     "screenshot_persisted":  false,
+                     "input_listeners_installed":  false,
+                     "error_code":  0,
+                     "attempt":  2
+                 },
+                 {
+                     "platform":  "Windows",
+                     "passed":  true,
+                     "capture_api":  "Windows.Graphics.Capture",
+                     "display_config_available":  true,
+                     "display_count":  2,
+                     "negative_origin_available":  true,
+                     "logical_width":  240,
+                     "logical_height":  160,
+                     "pixels_width":  480,
+                     "pixels_height":  320,
+                     "scale":  2,
+                     "color_checks":  true,
+                     "scale_check":  true,
+                     "pixels_released_after_check":  true,
+                     "screenshot_persisted":  false,
+                     "input_listeners_installed":  false,
+                     "error_code":  0,
+                     "attempt":  3
+                 }
+             ],
+    "screenshot_persisted":  false,
+    "input_listeners_installed":  false,
+    "probe_process_remaining":  false,
+    "passed":  true
+}

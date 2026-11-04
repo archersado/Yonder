@@ -78,6 +78,48 @@ mod preview_title_tests {
     }
 
     #[test]
+    fn stale_capture_failure_does_not_change_the_new_generation() {
+        let state = PreviewState(Mutex::new(yonder_application::region_preview::Session::default()));
+        let old_generation = {
+            let mut session = state.0.lock().unwrap();
+            session.begin(None).unwrap();
+            session.capture().unwrap();
+            let generation = session.generation();
+            session.clear();
+            session.begin(None).unwrap();
+            session.capture().unwrap();
+            generation
+        };
+        assert_eq!(capture_failure(&state, old_generation, "capture-failed"), Err("capture-stale".into()));
+        assert_eq!(state.0.lock().unwrap().snapshot().0, yonder_application::region_preview::Phase::Capturing);
+    }
+
+    #[test]
+    fn late_capture_success_does_not_populate_cancelled_or_new_session() {
+        let state = PreviewState(Mutex::new(yonder_application::region_preview::Session::default()));
+        let cancelled_generation = {
+            let mut session = state.0.lock().unwrap();
+            session.begin(None).unwrap();
+            session.capture().unwrap();
+            let generation = session.generation();
+            session.clear();
+            generation
+        };
+        assert_eq!(capture_success(&state, cancelled_generation, "iVBORw0KGgo=".into()), Err("capture-stale".into()));
+        assert_eq!(state.0.lock().unwrap().snapshot(), (yonder_application::region_preview::Phase::Idle, 0));
+
+        let new_generation = {
+            let mut session = state.0.lock().unwrap();
+            session.begin(None).unwrap();
+            session.capture().unwrap();
+            session.generation()
+        };
+        assert_ne!(new_generation, cancelled_generation);
+        assert_eq!(capture_success(&state, cancelled_generation, "iVBORw0KGgo=".into()), Err("capture-stale".into()));
+        assert_eq!(state.0.lock().unwrap().snapshot(), (yonder_application::region_preview::Phase::Capturing, 0));
+    }
+
+    #[test]
     fn frontend_capture_errors_use_existing_text_only_transition() {
         let script = include_str!("../ui/region-preview.js");
         assert!(script.contains("await showTextOnly(rect,captureFeedback(message),true)"));
@@ -89,6 +131,18 @@ mod preview_title_tests {
         assert_eq!(physical_region(&rect, tauri::PhysicalPosition::new(487, -1040), tauri::PhysicalSize::new(1920, 1040)), Some((587, -990, 240, 160)));
         let invalid = RegionRect { x: -1.0, ..rect };
         assert_eq!(physical_region(&invalid, tauri::PhysicalPosition::new(0, 0), tauri::PhysicalSize::new(1920, 1040)), None);
+    }
+
+    #[test]
+    fn viewport_rect_maps_once_to_two_hundred_percent_physical_pixels() {
+        let rect = RegionRect { x: 100.0, y: 50.0, width: 240.0, height: 160.0, viewport_width: 1440.0, viewport_height: 850.0 };
+        assert_eq!(physical_region(&rect, tauri::PhysicalPosition::new(0, 0), tauri::PhysicalSize::new(2880, 1700)), Some((200, 100, 480, 320)));
+    }
+
+    #[test]
+    fn viewport_rect_at_two_hundred_percent_uses_origin_and_outward_rounding() {
+        let rect = RegionRect { x: 10.25, y: 20.25, width: 240.5, height: 160.25, viewport_width: 1440.0, viewport_height: 850.0 };
+        assert_eq!(physical_region(&rect, tauri::PhysicalPosition::new(-1001, 37), tauri::PhysicalSize::new(2880, 1700)), Some((-981, 77, 482, 321)));
     }
 }
 
@@ -235,6 +289,23 @@ fn capture_failure(preview: &PreviewState, generation: u64, error: &str) -> Resu
     }
     session.review_without_image().map_err(|_| "preview-invalid-state")?;
     Err(error.into())
+}
+
+
+fn capture_success(preview: &PreviewState, generation: u64, image: String) -> Result<String, String> {
+    let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
+    if session.generation() != generation
+        || session.snapshot().0 != yonder_application::region_preview::Phase::Capturing
+    {
+        return Err("capture-stale".into());
+    }
+    match session.review(image) {
+        Ok(image) => Ok(image),
+        Err(yonder_application::region_preview::Error::ImageTooLarge) => {
+            Err("capture-too-large".into())
+        }
+        Err(_) => Err("capture-failed".into()),
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -453,13 +524,7 @@ async fn region_preview_capture(window: WebviewWindow, rect: RegionRect, preview
         Err(_) => return capture_failure(&preview, generation, "capture-failed"),
       };
       match captured {
-        Ok(image) => { let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
-        if session.generation() != generation { return Err("capture-stale".into()); }
-        match session.review(image) {
-          Ok(image) => Ok(image),
-          Err(yonder_application::region_preview::Error::ImageTooLarge) => Err("capture-too-large".into()),
-          Err(_) => Err("capture-failed".into()),
-        }},
+        Ok(image) => capture_success(&preview, generation, image),
         Err(_) => capture_failure(&preview, generation, "permission-required")
       }
     }
@@ -475,13 +540,7 @@ async fn region_preview_capture(window: WebviewWindow, rect: RegionRect, preview
           Ok(Err(error)) => return capture_failure(&preview, generation, error.code()),
           Err(_) => return capture_failure(&preview, generation, "capture-failed"),
       };
-      let mut session = preview.0.lock().map_err(|_| "preview-unavailable")?;
-      if session.generation() != generation { return Err("capture-stale".into()); }
-      match session.review(image) {
-          Ok(image) => Ok(image),
-          Err(yonder_application::region_preview::Error::ImageTooLarge) => Err("capture-too-large".into()),
-          Err(_) => Err("capture-failed".into()),
-      }
+      capture_success(&preview, generation, image)
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     { let _ = (x, y, width, height); capture_failure(&preview, generation, "capture-unsupported") }

@@ -1,6 +1,6 @@
 # AD-CX-01 显式屏幕区域捕获
 
-状态：Accepted（macOS既有子范围；Windows仅100%缩放Preview）
+状态：Accepted（macOS既有子范围；Windows 96/192 DPI Preview）
 日期：2026-09-18  
 关联：CX-S2、VI-S1、AG-S5、CU-S2、AD-VI-02
 
@@ -33,6 +33,14 @@ Windows统一样本采用`GraphicsCaptureItem`的`CreateForMonitor`、free-threa
 据用户2026-11-03确认，接受受限Windows Preview：仅目标显示器有效DPI为96（100%缩放）、选区完全位于该显示器且像素数不超过既有限额时启用截图。其他缩放、跨屏、受保护内容、设备失败或超时必须进入无图`reviewing`，允许文字/语音提问，不得返回错位或伪截图。125%/150%/200%须取得真实统一样本后另行扩围。
 
 该决定复用现有PreviewSession、AD-CX-02临时附件与Agent输入路径，不新增协议、持久化、默认权限请求、全局监听或第二状态所有者。Windows应用切换、显示器变化、来源应用和物理断开证据仍是后续门禁，完整CX-S2保持`verifying`。
+
+## 2026-11-04 Windows 200%缩放Preview扩围决定
+
+用户要求解决192 DPI（200%）主屏圈选后无图片。独立C++ WGC统一样本在该真实主屏连续三次把240×160逻辑检查窗口捕获为480×320物理像素，四色、DisplayConfig、资源释放与不落盘均通过。该证据解除192 DPI技术门禁，不替代产品共享Rust模块和确认卡验证。
+
+Windows Preview扩围为仅接受同轴96/96或192/192 DPI。Desktop仍把CSS viewport选区按窗口物理work area换算一次，再以`rcMonitor`物理原点裁剪；不得再次乘缩放因子。120/144/168 DPI、异轴DPI、跨屏、超限或捕获失败继续进入无图`reviewing`，不返回旧图或伪图。像素/附件上限、临时内存、失败清场、协议和状态所有者均不变。
+
+本决定不宣称完整高DPI、多显示器、应用切换、来源应用、受保护内容、权限撤销、真实显示模式变化或物理断开通过；完整CX-S2继续保持`verifying`。
 
 ## macOS子范围证据
 
