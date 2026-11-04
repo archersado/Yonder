@@ -1,6 +1,6 @@
 # AG-S6 本地 Agent 注册与撤权 Verification Goal
 
-状态：macOS PASS（2026-09-23）；Windows 按用户决定暂缓，完整 Story 不 Archive。
+状态：macOS PASS（2026-09-23）；Windows PASS（2026-11-01）。完整 Story 的当前注册/撤权子范围双平台通过。
 
 ## 验证范围
 
@@ -38,4 +38,4 @@
 
 普通连接退出使用`unregister`仅移除会话；禁用或撤权才通过`disconnect_agent`发送关闭信号。路由测试已按该边界修正，不把自然断开伪装为强制关闭。
 
-Windows 证据缺失时，不宣称完整 AG-S6 双平台通过，也不 Archive。
+Windows 原生证据见 `verification-windows-20261101.md` 与 `apps/desktop/evidence/ag-s6-agent-registration-windows-20261101/`。正式安装签名、跨用户 ACL 与生产认证仍属于 AG-S1 门禁，不由本 Goal 关闭。

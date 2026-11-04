@@ -7,4 +7,6 @@
 - [x] 详情取消交互
 - [x] macOS原生验证与独立Verification Goal
 - [ ] Windows及执行中停止确认
+  - [x] Windows created 卡片取消与历史保留（`verification-windows-20261101.md`）
+  - [ ] Windows 执行中停止确认
 - [ ] 完整Story/PR通过后Archive

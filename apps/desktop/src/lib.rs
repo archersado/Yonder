@@ -1,33 +1,41 @@
 //! 正式桌面组合根核心；只供可信本机调用，不开放Agent或外部传输。
 pub mod agent_input;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub mod local_agent_socket;
 pub mod local_agent_stdio;
+#[cfg(target_os = "macos")]
+use std::collections::HashMap;
 use std::{
-    collections::HashMap,
     fs::{File, OpenOptions},
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 use tauri::WebviewWindow;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use yonder_adapters::ego_lite::EgoLiteBridge;
 use yonder_adapters::task_store::SqliteTaskStore;
 #[cfg(target_os = "macos")]
 use yonder_adapters::{
     cua::{CuaWorker, MacosFrontmostTarget},
-    ego_lite::EgoLiteBridge,
     work_focus::MacWorkFocus,
 };
 use yonder_application::{
     ActivityState, AuthContext, ControlKind, TaskStore,
-    agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
     admission::Admission,
+    agent_registry::{AgentRegistration, AgentRegistrationStatus, AgentRegistry},
     browser_use::BrowserUsePort,
-    computer_use::{ComputerUsePort, WorkTarget, WorkTargetPort},
+    computer_use::{ComputerUsePort, WorkTargetPort},
     jev_config::JevConfig,
+};
+#[cfg(target_os = "macos")]
+use yonder_application::{
+    computer_use::WorkTarget,
     work_focus::{FocusFailure, WorkFocusPort, WorkRef, capture_after_observe, focus_takeover},
 };
 
+#[cfg(target_os = "macos")]
 struct FixedTarget(WorkTarget);
+#[cfg(target_os = "macos")]
 impl WorkTargetPort for FixedTarget {
     fn frontmost(&self) -> Result<WorkTarget, yonder_application::computer_use::UnknownReason> {
         Ok(self.0.clone())
@@ -87,12 +95,71 @@ pub fn emit_pet_agent_connection(window: &WebviewWindow, connected: bool) {
     let _ = window.eval(&format!("window.dispatchEvent(new CustomEvent('yonda-agent-connection',{{detail:{{connected:{connected}}}}}))"));
 }
 
+#[cfg(target_os = "macos")]
+fn ego_browser_path() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|home| home.join(".local/bin/ego-browser"))
+        .filter(|path| path.is_file())
+}
+
+#[cfg(target_os = "windows")]
+fn ego_browser_path() -> Option<PathBuf> {
+    let root = Path::new(r"C:\Program Files\Citro Labs\ego lite\Application");
+    let canonical_root = std::fs::canonicalize(root).ok()?;
+    if let Some(active) = std::env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .map(|profile| profile.join(".local/share/ego/active_version_dir/ego-browser.exe"))
+        .and_then(|candidate| trusted_ego_runtime(&candidate, &canonical_root))
+    {
+        return Some(active);
+    }
+    std::fs::read_dir(root)
+        .ok()?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let version = entry.file_name().to_string_lossy().into_owned();
+            let key = ego_version_key(&version)?;
+            trusted_ego_runtime(&entry.path().join("ego-browser.exe"), &canonical_root)
+                .map(|cli| (key, cli))
+        })
+        .max_by(|left, right| left.0.cmp(&right.0))
+        .map(|(_, path)| path)
+}
+
+#[cfg(target_os = "windows")]
+fn ego_version_key(value: &str) -> Option<Vec<u32>> {
+    let parts: Option<Vec<_>> = value.split('.').map(|part| part.parse().ok()).collect();
+    parts.filter(|parts| parts.len() >= 3)
+}
+
+#[cfg(target_os = "windows")]
+fn trusted_ego_runtime(candidate: &Path, canonical_root: &Path) -> Option<PathBuf> {
+    let resolved = std::fs::canonicalize(candidate).ok()?;
+    (resolved.is_file() && trusted_ego_runtime_location(&resolved, canonical_root))
+        .then_some(resolved)
+}
+
+#[cfg(target_os = "windows")]
+fn trusted_ego_runtime_location(resolved: &Path, canonical_root: &Path) -> bool {
+    resolved.starts_with(canonical_root)
+        && resolved
+            .file_name()
+            .is_some_and(|name| name == "ego-browser.exe")
+        && resolved
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str())
+            .and_then(ego_version_key)
+            .is_some()
+}
+
 pub struct TaskHost {
     store: SqliteTaskStore,
     admission: Admission,
     listening_pending: bool,
     listening_until: Option<Instant>,
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     browser: Option<EgoLiteBridge>,
     #[cfg(target_os = "macos")]
     computer: Option<CuaWorker>,
@@ -139,14 +206,9 @@ impl TaskHost {
         {}
         // 当前只读宿主尚无执行器；后续执行必须共用此实例。
         let admission = Admission::new(4).map_err(|_| HostError::StorageUnavailable)?;
-        #[cfg(target_os = "macos")]
-        let browser = std::env::var_os("HOME").and_then(|home| {
-            EgoLiteBridge::new(
-                &Path::new(&home).join(".local/bin/ego-browser"),
-                Duration::from_secs(30),
-            )
-            .ok()
-        });
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        let browser = ego_browser_path()
+            .and_then(|path| EgoLiteBridge::new(&path, Duration::from_secs(30)).ok());
         #[cfg(target_os = "macos")]
         let computer = {
             use std::os::unix::fs::PermissionsExt;
@@ -171,7 +233,7 @@ impl TaskHost {
             admission,
             listening_pending: false,
             listening_until: None,
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             browser,
             #[cfg(target_os = "macos")]
             computer,
@@ -216,14 +278,42 @@ impl TaskHost {
     }
 
     pub fn pause_desktop_for_user(&mut self) -> Result<bool, HostError> {
-        let Some(task_id) = self.admission.task_holding(yonder_application::admission::Resource::Desktop).map_err(|_| HostError::StorageUnavailable)? else { return Ok(false); };
-        let task = self.store.get(&task_id).map_err(|_| HostError::StorageUnavailable)?;
-        let (_, control) = yonder_application::request_control(&mut self.store, AuthContext::LocalUser("desktop"), &task_id, task.sequence, ControlKind::Pause).map_err(|_| HostError::StorageUnavailable)?;
+        let Some(task_id) = self
+            .admission
+            .task_holding(yonder_application::admission::Resource::Desktop)
+            .map_err(|_| HostError::StorageUnavailable)?
+        else {
+            return Ok(false);
+        };
+        let task = self
+            .store
+            .get(&task_id)
+            .map_err(|_| HostError::StorageUnavailable)?;
+        let (_, control) = yonder_application::request_control(
+            &mut self.store,
+            AuthContext::LocalUser("desktop"),
+            &task_id,
+            task.sequence,
+            ControlKind::Pause,
+        )
+        .map_err(|_| HostError::StorageUnavailable)?;
         if control.phase == yonder_application::ControlPhase::Pending {
-            let attempt = self.store.get_attempt(&task_id).map_err(|_| HostError::StorageUnavailable)?.ok_or(HostError::StorageUnavailable)?;
-            yonder_application::stop_at_boundary(&mut self.store, &task_id, &attempt.attempt_id, ControlKind::Pause).map_err(|_| HostError::StorageUnavailable)?;
+            let attempt = self
+                .store
+                .get_attempt(&task_id)
+                .map_err(|_| HostError::StorageUnavailable)?
+                .ok_or(HostError::StorageUnavailable)?;
+            yonder_application::stop_at_boundary(
+                &mut self.store,
+                &task_id,
+                &attempt.attempt_id,
+                ControlKind::Pause,
+            )
+            .map_err(|_| HostError::StorageUnavailable)?;
         }
-        self.admission.release_task_after_stop(&task_id).map_err(|_| HostError::StorageUnavailable)?;
+        self.admission
+            .release_task_after_stop(&task_id)
+            .map_err(|_| HostError::StorageUnavailable)?;
         Ok(true)
     }
 
@@ -311,7 +401,7 @@ impl TaskHost {
         if reference.finished || reference.ownership != "agent" {
             return Err(HostError::BrowserUnavailable);
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         {
             let browser = self.browser.as_ref().ok_or(HostError::BrowserUnavailable)?;
             yonder_application::browser_use::execute_agent_action(
@@ -327,7 +417,7 @@ impl TaskHost {
             .map_err(|_| HostError::BrowserUnavailable)?;
             Ok(())
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         {
             let _ = expected;
             Err(HostError::BrowserUnavailable)
@@ -341,7 +431,7 @@ impl TaskHost {
         request: &[u8],
         now_ms: u64,
     ) -> Result<Vec<u8>, HostError> {
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         let browser = self
             .browser
             .as_ref()
@@ -368,7 +458,7 @@ impl TaskHost {
             .or(Some(&self.targets as &dyn WorkTargetPort));
         #[cfg(target_os = "macos")]
         let computer_permission_required = !self.targets.available();
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         let browser: Option<&dyn BrowserUsePort> = None;
         #[cfg(not(target_os = "macos"))]
         let computer: Option<&dyn ComputerUsePort> = None;
@@ -462,9 +552,7 @@ impl TaskHost {
     }
 
     pub fn save_jev_config(&mut self, config: JevConfig) -> Result<JevConfig, HostError> {
-        config
-            .validate()
-            .map_err(|_| HostError::InvalidConfig)?;
+        config.validate().map_err(|_| HostError::InvalidConfig)?;
         self.store
             .save_jev_config(&config)
             .map_err(|_| HostError::StorageUnavailable)
@@ -475,6 +563,44 @@ impl TaskHost {
 mod tests {
     use super::*;
     use yonder_application::{Action, create, transition};
+
+    fn remove_optional_observations(directory: &Path) {
+        let observations = directory.join("observations");
+        if observations.exists() {
+            std::fs::remove_dir(observations).unwrap();
+        }
+    }
+
+    fn current_platform() -> yonder_application::gateway::Platform {
+        if cfg!(target_os = "windows") {
+            yonder_application::gateway::Platform::Windows
+        } else {
+            yonder_application::gateway::Platform::Macos
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn ego_versions_are_ordered_numerically() {
+        assert!(ego_version_key("0.6.0.22") > ego_version_key("0.6.0.9"));
+        assert_eq!(ego_version_key("current"), None);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn ego_runtime_must_resolve_inside_numeric_install_directory() {
+        let root = Path::new(r"C:\Program Files\Citro Labs\ego lite\Application");
+        let valid = root.join(r"0.6.1.13\ego-browser.exe");
+        let outside = Path::new(r"C:\Users\agent\ego-browser.exe");
+        let non_version = root.join(r"current\ego-browser.exe");
+        assert!(trusted_ego_runtime_location(&valid, root));
+        assert!(!trusted_ego_runtime_location(outside, root));
+        assert!(!trusted_ego_runtime_location(&non_version, root));
+        assert!(!trusted_ego_runtime_location(
+            &root.join(r"0.6.1.13\other.exe"),
+            root
+        ));
+    }
 
     #[test]
     fn lock_child_probe() {
@@ -510,34 +636,128 @@ mod tests {
         for name in ["tasks.db", "host.lock"] {
             std::fs::remove_file(directory.join(name)).unwrap();
         }
-        std::fs::remove_dir(directory.join("observations")).unwrap();
+        remove_optional_observations(&directory);
         std::fs::remove_dir(directory).unwrap();
     }
 
     #[test]
     fn region_entry_pauses_only_confirmed_desktop_boundaries() {
-        use yonder_application::{AttemptPhase, ExecutionAttempt, admission::{Resource,start_attempt}, computer_use::{DispatchOutcome,UnknownReason,record_dispatch_outcome}};
-        for (id,outcome,advance,expected) in [
-            ("stopped",Some(DispatchOutcome::Known{action_succeeded:true,observation:None}),true,Ok(true)),
-            ("observed",Some(DispatchOutcome::Known{action_succeeded:true,observation:None}),false,Ok(true)),
-            ("prepared",None,false,Err(HostError::StorageUnavailable)),
-            ("unknown",Some(DispatchOutcome::Unknown(UnknownReason::ObserveFailed)),false,Err(HostError::StorageUnavailable)),
-        ]{
-            let directory = std::env::temp_dir().join(format!("yonda-region-pause-{}-{}-{}",id,std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        use yonder_application::{
+            AttemptPhase, ExecutionAttempt,
+            admission::{Resource, start_attempt},
+            computer_use::{DispatchOutcome, UnknownReason, record_dispatch_outcome},
+        };
+        for (id, outcome, advance, expected) in [
+            (
+                "stopped",
+                Some(DispatchOutcome::Known {
+                    action_succeeded: true,
+                    observation: None,
+                }),
+                true,
+                Ok(true),
+            ),
+            (
+                "observed",
+                Some(DispatchOutcome::Known {
+                    action_succeeded: true,
+                    observation: None,
+                }),
+                false,
+                Ok(true),
+            ),
+            ("prepared", None, false, Err(HostError::StorageUnavailable)),
+            (
+                "unknown",
+                Some(DispatchOutcome::Unknown(UnknownReason::ObserveFailed)),
+                false,
+                Err(HostError::StorageUnavailable),
+            ),
+        ] {
+            let directory = std::env::temp_dir().join(format!(
+                "yonda-region-pause-{}-{}-{}",
+                id,
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
             std::fs::create_dir(&directory).unwrap();
-            let mut host=TaskHost::open(&directory).unwrap();
-            let task=host.store.register("agent",id,"test",Some(id),yonder_application::TaskSource::LocalAgent).unwrap();
-            let (task,step)=host.store.declare_step("agent",&task.id,task.sequence,"step","test").unwrap();
-            let attempt=ExecutionAttempt{task_id:task.id.clone(),step_id:step.step_id,attempt_id:format!("attempt_{}",task.sequence+1),worker_instance_id:"worker".into(),host_session_id:"host".into(),phase:AttemptPhase::Prepared,accepted_sequence:0};
-            let (_,attempt,permit)=start_attempt(&mut host.store,&host.admission,&attempt,task.sequence,&[Resource::Desktop]).unwrap(); drop(permit);
-            let task=if let Some(outcome)=outcome{record_dispatch_outcome(&mut host.store,&attempt.task_id,&attempt.attempt_id,outcome).unwrap().0}else{host.store.get(&task.id).unwrap()};
-            if advance { yonder_application::advance_after_observe(&mut host.store,&task.id,&attempt.attempt_id).unwrap(); }
-            assert_eq!(host.pause_desktop_for_user(),expected);
-            assert_eq!(host.admission.holds_resource(&task.id,Resource::Desktop).unwrap(),expected.is_err());
-            assert_eq!(host.store.get(&task.id).unwrap().status,if expected.is_err(){yonder_application::Status::Running}else{yonder_application::Status::Paused});
+            let mut host = TaskHost::open(&directory).unwrap();
+            let task = host
+                .store
+                .register(
+                    "agent",
+                    id,
+                    "test",
+                    Some(id),
+                    yonder_application::TaskSource::LocalAgent,
+                )
+                .unwrap();
+            let (task, step) = host
+                .store
+                .declare_step("agent", &task.id, task.sequence, "step", "test")
+                .unwrap();
+            let attempt = ExecutionAttempt {
+                task_id: task.id.clone(),
+                step_id: step.step_id,
+                attempt_id: format!("attempt_{}", task.sequence + 1),
+                worker_instance_id: "worker".into(),
+                host_session_id: "host".into(),
+                phase: AttemptPhase::Prepared,
+                accepted_sequence: 0,
+            };
+            let (_, attempt, permit) = start_attempt(
+                &mut host.store,
+                &host.admission,
+                &attempt,
+                task.sequence,
+                &[Resource::Desktop],
+            )
+            .unwrap();
+            drop(permit);
+            let task = if let Some(outcome) = outcome {
+                record_dispatch_outcome(
+                    &mut host.store,
+                    &attempt.task_id,
+                    &attempt.attempt_id,
+                    outcome,
+                )
+                .unwrap()
+                .0
+            } else {
+                host.store.get(&task.id).unwrap()
+            };
+            if advance {
+                yonder_application::advance_after_observe(
+                    &mut host.store,
+                    &task.id,
+                    &attempt.attempt_id,
+                )
+                .unwrap();
+            }
+            assert_eq!(host.pause_desktop_for_user(), expected);
+            assert_eq!(
+                host.admission
+                    .holds_resource(&task.id, Resource::Desktop)
+                    .unwrap(),
+                expected.is_err()
+            );
+            assert_eq!(
+                host.store.get(&task.id).unwrap().status,
+                if expected.is_err() {
+                    yonder_application::Status::Running
+                } else {
+                    yonder_application::Status::Paused
+                }
+            );
             drop(host);
-            for name in ["tasks.db","host.lock"]{std::fs::remove_file(directory.join(name)).unwrap();}
-            std::fs::remove_dir(directory.join("observations")).unwrap();std::fs::remove_dir(directory).unwrap();
+            for name in ["tasks.db", "host.lock"] {
+                std::fs::remove_file(directory.join(name)).unwrap();
+            }
+            remove_optional_observations(&directory);
+            std::fs::remove_dir(directory).unwrap();
         }
     }
 
@@ -614,7 +834,7 @@ mod tests {
         let events = String::from_utf8(host.query(events.as_bytes(), 1000).unwrap()).unwrap();
         assert!(events.contains("step_declaration") && events.contains("检查时间线"));
         transition(&mut host.store, &timeline.id, 2, Action::Cancel).unwrap();
-        use yonder_application::gateway::{GatewaySession, Platform};
+        use yonder_application::gateway::GatewaySession;
         for agent in ["agent-a", "agent-b"] {
             AgentRegistry::register_agent(&mut host.store, agent, 1_000_000_000_000).unwrap();
         }
@@ -622,7 +842,7 @@ mod tests {
             ("agent-a", "task-a", "task-b"),
             ("agent-b", "task-b", "task-a"),
         ] {
-            let mut session = GatewaySession::new(AuthContext::Agent(agent), Platform::Macos);
+            let mut session = GatewaySession::new(AuthContext::Agent(agent), current_platform());
             let query = String::from_utf8(request.to_vec())
                 .unwrap()
                 .replace("desktop", agent);
@@ -641,7 +861,7 @@ mod tests {
                 r#"{{"jsonrpc":"2.0","id":"g","method":"task.get","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"task_id":"{other}"}}}}"#
             );
             assert!(read(&mut host, &mut session, get.as_bytes()).contains("-32004"));
-            let mut fresh = GatewaySession::new(AuthContext::Agent(agent), Platform::Macos);
+            let mut fresh = GatewaySession::new(AuthContext::Agent(agent), current_platform());
             assert!(read(&mut host, &mut fresh, query.as_bytes()).contains("-32002"));
         }
         assert_eq!(host.activity(), ActivityState::NoKnownWork);
@@ -667,7 +887,7 @@ mod tests {
         drop(host);
         let mut reopened = TaskHost::open(&directory).unwrap();
         assert_eq!(reopened.presentation().unwrap(), (false, "idle"));
-        let mut session = GatewaySession::new(AuthContext::Agent("agent-c"), Platform::Macos);
+        let mut session = GatewaySession::new(AuthContext::Agent("agent-c"), current_platform());
         let create = br#"{"jsonrpc":"2.0","id":"c0","method":"task.create","params":{"agent_id":"agent-c","capability":"task.create","deadline":2000,"idempotency_key":"listen","description":"request","name":"request test"}}"#;
         assert!(
             String::from_utf8(reopened.query_session(&mut session, create, 1000).unwrap())
@@ -711,7 +931,7 @@ mod tests {
         for name in ["tasks.db", "host.lock"] {
             std::fs::remove_file(directory.join(name)).unwrap();
         }
-        std::fs::remove_dir(directory.join("observations")).unwrap();
+        remove_optional_observations(&directory);
         std::fs::remove_dir(directory).unwrap();
     }
 }

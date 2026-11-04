@@ -1,0 +1,44 @@
+{
+  "story": "DS-S1",
+  "platform": "windows",
+  "date": "2026-10-25",
+  "browser_order_check": {
+    "task_space_id": 7,
+    "presentation_queried_before_frames_ready": false,
+    "presentation_query_count": 1,
+    "task_state": "idle",
+    "passed": true
+  },
+  "native_samples": [
+    {
+      "initial": { "x": 1180, "y": 596, "width": 200, "height": 200 },
+      "docked": { "x": 1224, "y": 1336, "width": 112, "height": 56 },
+      "edge": "bottom",
+      "dock_attempt_elapsed_ms": 180008,
+      "dock_elapsed_seconds": 181.401,
+      "task_state": "idle",
+      "passed": true
+    },
+    {
+      "initial": { "x": 0, "y": 0, "width": 200, "height": 200 },
+      "docked": { "x": 0, "y": 44, "width": 56, "height": 112 },
+      "edge": "left",
+      "dock_attempt_elapsed_ms": 180014,
+      "dock_elapsed_seconds": 181.21,
+      "task_state": "idle",
+      "passed": true
+    }
+  ],
+  "excluded_sample": {
+    "reason": "测试期间发生真实拖动，窗口位置由 (1180,596) 变为 (2305,853)，多次交互正确重置空闲计时",
+    "counted_as_failure": false
+  },
+  "checks": {
+    "windows_desktop_tests": "12 passed; 0 failed",
+    "architecture_tests": "17 passed; 0 failed",
+    "openspec_strict": "valid",
+    "diff_check": "clean"
+  },
+  "cua_executed": false,
+  "result": "PASS"
+}

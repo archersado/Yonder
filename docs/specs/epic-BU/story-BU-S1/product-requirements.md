@@ -6,19 +6,20 @@ BUA 复用外部 Task Space，未提供 Runtime 的平台明确不可用。
 
 ## 范围与非目标
 
-本 Story 负责 macOS ego-lite Task Space Bridge 与平台能力。Windows Runtime 延期，不能宣称双平台 BUA 可用。
+本 Story 负责 macOS/Windows ego-lite Task Space Bridge 与平台能力。2026-10-24 用户确认 Windows Runtime 已安装可启动，恢复 Windows 实施与验证。
 
 ## 验收条件
 
 - 目标行为有可复现成功样本，失败不得伪报成功。
 - BUA 复用外部 Task Space，未提供 Runtime 的平台明确不可用。
-- macOS 支持创建/复用、观察、交给用户、用户接管和完成外部 Task Space，并返回稳定外部引用、所有权与托管页数量。
+- macOS/Windows 支持创建/复用、观察、交给用户、用户接管和完成外部 Task Space，并返回稳定外部引用、所有权与托管页数量。
 - Bridge 失败明确分类，不以 CUA 回退，不自动重试未知副作用。
+- Windows 同时存在多个安装版本时，优先使用当前用户 ego active-version 指针所指向且真实路径仍位于固定 Citro Labs 数字版本目录内的 Runtime；不得仅因目录版本号更大就绕过已激活版本，也不得接受调用方或 PATH 注入路径。
 - 平台限制与未实现项明确；涉及 UI/Driver/权限时分别提交 Windows/macOS 原生证据。
 
 ## 待决事项
 
-外部引用进入 SQLite 当前事实源依赖 TM-S1 字段定案；本增量先交付 Bridge 和同一执行尝试的调用契约。Windows Runtime 延期，不能宣称双平台 BUA 可用。
+外部引用进入 SQLite 当前事实源依赖 TM-S1 字段定案；本增量交付 Bridge 和同一执行尝试的调用契约。Windows 必须提供独立原生证据，不以 macOS 结果替代。
 
 ## 需求来源
 

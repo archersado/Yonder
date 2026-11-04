@@ -1,0 +1,44 @@
+﻿{
+    "platform":  "windows",
+    "input":  "Win32 primary-button drag",
+    "delta":  {
+                  "x":  180,
+                  "y":  120
+              },
+    "process_id":  54288,
+    "before":  {
+                   "x":  640,
+                   "y":  400,
+                   "width":  200,
+                   "height":  200
+               },
+    "after_release":  {
+                          "x":  808,
+                          "y":  512,
+                          "width":  200,
+                          "height":  200
+                      },
+    "observed_delta":  {
+                           "x":  168,
+                           "y":  112
+                       },
+    "position_changed":  true,
+    "size_preserved":  true,
+    "after_free_cursor_move":  {
+                                   "x":  808,
+                                   "y":  512,
+                                   "width":  200,
+                                   "height":  200
+                               },
+    "stopped_after_release":  true,
+    "drag_duration_seconds":  3.097,
+    "passed":  true,
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=479",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0"
+                       ]
+}

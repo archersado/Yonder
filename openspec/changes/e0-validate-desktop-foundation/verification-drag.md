@@ -15,7 +15,8 @@
 
 - 配置回归检查通过；此检查不能证明原生拖动已生效。
 - Windows 构建与启动：`cargo build --release --offline --locked` 退出 0，耗时 44.47 秒；启动 PID 14132，`HasExited=False`、`Responding=True`、`MainWindowHandle=857886`。使用现有 Windows E0 构建目录，源码与仓库一致。
-- Windows 原生拖动：待人工验证。
+- Windows 原生合成输入拖动技术链路于2026-10-29通过：窗口从`(640,400)`移动到`(808,512)`，尺寸保持200×200；释放后继续移动光标，窗口不再跟随。详见`verification-windows-drag-20261029.md`。该证据不冒充用户亲手操作。
+- Windows 用户人工拖动：待确认。
 - macOS：暂缓，无证据。
 
 结论：未通过完整 Goal，不归档、不标记 E0-S1 完成。验证失败回到实施阶段。

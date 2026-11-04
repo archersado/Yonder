@@ -1,0 +1,83 @@
+﻿{
+    "platform":  "windows",
+    "executable":  "F:\\workspace\\yonder\\target\\debug\\yonder-desktop.exe",
+    "interaction_delay_seconds":  20,
+    "pre_dock_check_seconds":  170,
+    "dock_timeout_seconds":  190,
+    "process_id":  32076,
+    "work_area":  {
+                      "left":  0,
+                      "top":  0,
+                      "right":  2560,
+                      "bottom":  1392
+                  },
+    "interaction_reset":  {
+                              "interaction":  "native primary click",
+                              "checked_after_seconds":  170.013,
+                              "rect":  {
+                                           "x":  1182,
+                                           "y":  0,
+                                           "width":  200,
+                                           "height":  200
+                                       },
+                              "remained_expanded":  true
+                          },
+    "top_dock":  {
+                     "rect":  {
+                                  "x":  1226,
+                                  "y":  0,
+                                  "width":  112,
+                                  "height":  56
+                              },
+                     "elapsed_since_interaction_seconds":  180.355,
+                     "passed":  true
+                 },
+    "click_wake":  {
+                       "rect":  {
+                                    "x":  1182,
+                                    "y":  0,
+                                    "width":  200,
+                                    "height":  200
+                                },
+                       "elapsed_seconds":  0.001,
+                       "passed":  true
+                   },
+    "right_dock":  {
+                       "rect":  {
+                                    "x":  2504,
+                                    "y":  640,
+                                    "width":  56,
+                                    "height":  112
+                                },
+                       "elapsed_seconds":  179.839,
+                       "passed":  true
+                   },
+    "keyboard_wake":  {
+                          "key":  "Enter",
+                          "rect":  {
+                                       "x":  2360,
+                                       "y":  596,
+                                       "width":  200,
+                                       "height":  200
+                                   },
+                          "elapsed_seconds":  0.001,
+                          "passed":  true
+                      },
+    "passed":  true,
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=460",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=30780",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=60783",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=90783",
+                           "桌宠停靠：edge=top, position=PhysicalPosition { x: 1839, y: 0 }, size=PhysicalSize { width: 168, height: 84 }",
+                           "桌宠唤醒：position=PhysicalPosition { x: 1773, y: 0 }, size=PhysicalSize { width: 300, height: 300 }",
+                           "桌宠停靠：edge=right, position=PhysicalPosition { x: 3756, y: 960 }, size=PhysicalSize { width: 84, height: 168 }",
+                           "桌宠唤醒：position=PhysicalPosition { x: 3540, y: 894 }, size=PhysicalSize { width: 300, height: 300 }"
+                       ]
+}

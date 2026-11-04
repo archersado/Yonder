@@ -5,4 +5,4 @@
 - [x] ego-browser 回归
 - [x] Application/SQLite 序号分页回归
 - [x] 独立 Verification Goal
-- [ ] Windows 原生证据（按用户要求暂缓）
+- [x] Windows 原生证据（`verification-windows-20261101.md`）

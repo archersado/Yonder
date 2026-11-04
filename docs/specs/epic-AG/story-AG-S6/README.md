@@ -14,4 +14,6 @@ OpenSpec: ag-s6-local-agent-registration
 
 关联实施目录：[ag-s6-local-agent-registration](../../../../openspec/changes/ag-s6-local-agent-registration/proposal.md)，路径`openspec/changes/ag-s6-local-agent-registration/`。
 
-2026-09-23：macOS Verification Goal 已通过，覆盖真实 SQLite 17 迁移、Agent 管理 UI、UDS权限拒绝、活动会话撤权断开、任务保留与取消、重启持久化；Windows 按用户决定暂缓，完整 Story 不 Archive。
+2026-09-23：macOS Verification Goal 已通过，覆盖真实 SQLite 17 迁移、Agent 管理 UI、UDS权限拒绝、活动会话撤权断开、任务保留与取消、重启持久化。
+
+2026-11-01：Windows 原生 Verification Goal 已通过，覆盖 Agent 管理 UI 登记/禁用/启用/撤权、Named Pipe `-32003` 权限拒绝、活动 `user_input` 会话撤权断开、任务正式取消及重启持久化；证据见 [Windows验证报告](../../../../openspec/changes/ag-s6-local-agent-registration/verification-windows-20261101.md)。测试残留均已收口。正式安装签名、跨用户 ACL 与生产认证仍属于 AG-S1 门禁。

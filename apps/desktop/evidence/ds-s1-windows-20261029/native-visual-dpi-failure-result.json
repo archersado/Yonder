@@ -1,0 +1,56 @@
+﻿{
+    "platform":  "windows",
+    "background":  {
+                       "r":  220,
+                       "g":  230,
+                       "b":  242,
+                       "a":  255
+                   },
+    "process_id":  48792,
+    "window":  {
+                   "x":  640,
+                   "y":  400,
+                   "width":  200,
+                   "height":  200
+               },
+    "image":  "native-visual.png",
+    "background_pixels":  0,
+    "content_pixels":  40000,
+    "transparent_corner_count":  0,
+    "corners":  [
+                    {
+                        "r":  255,
+                        "g":  255,
+                        "b":  255,
+                        "a":  255
+                    },
+                    {
+                        "r":  255,
+                        "g":  255,
+                        "b":  255,
+                        "a":  255
+                    },
+                    {
+                        "r":  255,
+                        "g":  255,
+                        "b":  255,
+                        "a":  255
+                    },
+                    {
+                        "r":  255,
+                        "g":  255,
+                        "b":  255,
+                        "a":  255
+                    }
+                ],
+    "window_size_passed":  true,
+    "transparent_edges_passed":  false,
+    "visible_content_passed":  true,
+    "passed":  false,
+    "error":  "原生视觉像素门禁未通过",
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=434"
+                       ]
+}

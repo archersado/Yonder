@@ -5,6 +5,9 @@
 - [x] 增加真实 SQLCipher 集成检查并运行核心回归
 - [x] 创建独立 Verification Goal 并检查规划关联
 - [ ] PR 隔离审阅、平台验证及 Archive
+  - [x] Windows 核心平台验证（`verification-windows-20261101.md`）
+  - [x] Windows桌面消费者长时原生验证：running超过180秒不收起，完成后允许自然收起
+  - [ ] PR 隔离审阅及 Archive
 
 - [x] 先补充 AD-TM-02 与 TM-S6 AC5–8 三份设计
 - [x] 实现数据库与准入占用只读汇总

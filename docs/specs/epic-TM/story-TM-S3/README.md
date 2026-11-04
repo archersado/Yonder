@@ -24,6 +24,8 @@ Accepted AD-TM-04审阅通过，首批仅created取消；openspec/changes/tm-s3-
 
 首批created取消与macOS原生按钮验证PASS，记录[独立Verification Goal](../../../../openspec/changes/tm-s3-pending-cancel/verification-pending-cancel.md)。完整执行中暂停/取消/接管仍待停止确认，Windows暂缓。
 
+2026-11-01：Windows created 卡片取消及取消后任务/事件保留子范围 PASS，见 [Windows Verification Goal](../../../../openspec/changes/tm-s3-pending-cancel/verification-windows-20261101.md)。执行中暂停/取消/接管、Recording 与交回仍未通过，不据此关闭完整 TM-S3。
+
 当前openspec/changes/tm-s3-cancel-retain-data/，Accepted AD-TM-06按用户明确变更保留数据。之前pending-cancel核心PASS保留历史，撤销删除清理。
 
 取消保留数据/实验格式安全兼容首批PASS，见[独立验证](../../../../openspec/changes/tm-s3-cancel-retain-data/verification-retain-data.md)。真实两任务/说明/四条事件与Outbox保留；完整执行中停止/接管尚未完成。

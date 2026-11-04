@@ -87,7 +87,7 @@ async fn main() -> Result<(), String> {
     assert!(!accepts_frame(MAX_FRAME_BYTES + 1));
 
     let trusted = std::env::var("YONDER_WSS_PROBE_URL")
-        .unwrap_or_else(|_| "wss://echo.websocket.org".into());
+        .unwrap_or_else(|_| "wss://websocket-echo.com/".into());
     trusted_wss_roundtrip(&trusted).await?;
     sleep(Duration::from_millis(retry_delay_ms(0, 0))).await;
     trusted_wss_roundtrip(&trusted).await?;

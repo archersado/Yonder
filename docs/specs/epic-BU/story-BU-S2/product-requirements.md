@@ -13,13 +13,13 @@ Browser Task Space 目前只在单次Bridge返回中存在，Yonda重启或进�
 - 成功Bridge结果、attempt observed、任务sequence、事件、Outbox和浏览器引用同事务提交。
 - unknown、身份不符、旧sequence、非法引用或Outbox失败不得更新引用。
 - finish保留引用审计并标记完成；重启后可读，不自动重开或接管空间。
-- Windows Runtime暂缓时明确能力不可用，不伪造引用。
+- Windows Runtime不可用时明确能力不可用，不伪造引用；BU-S1 Windows Bridge通过后，须补充正式Named Pipe Gateway、真实ego-lite与SQLite重启恢复的Windows证据。
 - 授权Task Space可只读查看已提交引用的安全摘要；查询不得启动、接管或交接ego-lite空间。
 - 2026-09-18用户修订：活动引用提供“打开 ego-lite”；用户点击后以`handOff()`进入对应Task Space，Agent恢复时以`takeOverTaskSpace()`进入同一空间。动作必须Observe并进入任务事件，不创建替代空间。
 
 ## 待决事项
 
-Agent Gateway动作方法在引用事务通过后独立接入；Windows继续暂缓。
+Agent Gateway动作方法在引用事务通过后独立接入；Windows暂缓已于2026-10-25随BU-S1验证通过解除，完整Story验证仍以独立Verification Goal为准。
 
 ## 需求来源
 

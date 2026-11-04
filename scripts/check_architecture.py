@@ -153,7 +153,8 @@ def check_planning(root):
                     raise ValueError(f"非法 OpenSpec：{sid}")
                 prefix = planning_change_prefix(root, change)
                 proposal = repository_file(root, f"{prefix}/proposal.md").read_text(encoding="utf-8")
-                if not re.search(rf"(?<![A-Za-z0-9_-]){sid}(?![A-Za-z0-9_-])", proposal) or f"{prefix}/" not in text:
+                link_prefix = prefix.replace("\\", "/")
+                if not re.search(rf"(?<![A-Za-z0-9_-]){sid}(?![A-Za-z0-9_-])", proposal) or f"{link_prefix}/" not in text.replace("\\", "/"):
                     raise ValueError(f"Story/Proposal 缺少双向关联：{sid}")
             stories[sid] = (path, info)
     return stories

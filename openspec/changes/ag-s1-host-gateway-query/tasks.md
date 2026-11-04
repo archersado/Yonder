@@ -7,5 +7,6 @@
 - [x] 独立Verification Goal与架构检查
 - [ ] 后续传输认证与双平台原生验证
   - [x] macOS生产UDS当前OS用户私有端点与首帧身份绑定已验证
-  - [ ] Windows Named Pipe、正式安装签名与细粒度Agent注册撤权验证
+  - [x] Windows当前用户Named Pipe、Host Gateway查询/写入与细粒度Agent注册撤权验证
+  - [ ] Windows正式签名安装包、跨用户Named Pipe ACL与生产认证验证
 - [ ] 完整Story/PR通过后Archive

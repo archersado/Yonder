@@ -1,7 +1,7 @@
 # BU-S2 Browser引用只读详情独立 Verification Goal
 
 日期：2026-09-18  
-结论：PASS（macOS读取与打开子范围）。Windows按用户决定暂缓；完整Story不Archive。
+结论：PASS（macOS 2026-09-18；Windows补证 2026-10-25）。完整Story技术验证通过，仍需PR与Archive流程。
 
 ## 验收结果
 
@@ -23,4 +23,12 @@
 - `cargo test --offline --locked -p yonder-protocol -p yonder-application -p yonder-adapters -p yonder-desktop`
 - `python3 scripts/check_architecture.py`
 
-浏览器详情并发与失败使用显式UI夹具；持久化引用、Gateway协商、只读返回及本机用户hand-off由SQLite集成测试覆盖。正式应用与真实ego-lite完成一次端到端交接。Windows原生证据不在本次通过范围。
+浏览器详情并发与失败使用显式UI夹具；持久化引用、Gateway协商、只读返回及本机用户hand-off由SQLite集成测试覆盖。正式应用与真实ego-lite完成一次端到端交接。
+
+## Windows补证（2026-10-25）
+
+- 正式Windows桌面通过当前用户Named Pipe Gateway读取已提交引用，并在真实`ego:8`上验证Agent→用户→Agent控制权路径、finish审计和桌面重启后读取。
+- ego-lite TaskSpace 9验证安全摘要、“打开 ego-lite”仅提交`task_id + expected_sequence`以及引用读取失败时基础详情继续可见。
+- Windows产品目标单作业测试76项通过、0失败；并行全Workspace尝试因系统分页文件不足以`LNK1102`中断，不计为产品失败，改用单作业产品目标复验通过。
+- 验证脚本使用唯一测试Agent，结束后将该Agent停用；完成任务作为不可变审计保留。未执行CUA。
+- 证据：`apps/desktop/evidence/bu-s2-windows-20261025/result.json`、`verify-windows.ps1`、`browser-reference-round-04.mjs`。

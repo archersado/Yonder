@@ -1,0 +1,19 @@
+{
+  "platform": "Windows 11 x64",
+  "capture_api": "Windows.Graphics.Capture",
+  "display_config_available": true,
+  "three_consecutive_runs": true,
+  "display_count": 1,
+  "negative_origin_available": false,
+  "logical_width": 240,
+  "logical_height": 160,
+  "pixels_width": 360,
+  "pixels_height": 240,
+  "scale": 1.5,
+  "color_checks": true,
+  "scale_check": true,
+  "pixels_released_after_check": true,
+  "screenshot_persisted": false,
+  "input_listeners_installed": false,
+  "passed": true
+}

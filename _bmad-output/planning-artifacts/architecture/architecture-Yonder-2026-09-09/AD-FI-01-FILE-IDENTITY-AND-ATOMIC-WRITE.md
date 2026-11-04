@@ -18,4 +18,4 @@ macOS候选使用`File::try_lock`检测宿主占用。WPS真实DOCX对照已证�
 
 ## Spike门禁
 
-统一样本覆盖软链接、硬链接、父目录逃逸、同文件锁与同目录原子替换；另用Office/WPS真实打开文件验证锁语义。macOS与Windows证据齐备前保持Proposed，FI-S1和DO-S2不得接产品Gateway。
+统一样本覆盖软链接或 Windows 等价 reparse 别名、硬链接、父目录逃逸、同文件锁与同目录原子替换；Windows 未启用开发者模式时允许用目录 Junction 形成无需提权的同文件别名，但必须记录别名类型和文件符号链接权限错误。另用Office/WPS真实打开文件验证锁语义。macOS与Windows证据齐备前保持Proposed，FI-S1和DO-S2不得接产品Gateway。

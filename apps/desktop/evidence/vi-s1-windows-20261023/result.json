@@ -1,0 +1,29 @@
+{
+  "process_id": 66312,
+  "voice_window_visible": true,
+  "controls": [
+    {
+      "name": "取消并关闭",
+      "control_type": "ControlType.Button",
+      "automation_id": "close",
+      "enabled": true,
+      "offscreen": false
+    },
+    {
+      "name": "正在请求系统权限…",
+      "control_type": "ControlType.Text",
+      "automation_id": "",
+      "enabled": true,
+      "offscreen": false
+    },
+    {
+      "name": "停止",
+      "control_type": "ControlType.Button",
+      "automation_id": "stop",
+      "enabled": true,
+      "offscreen": false
+    }
+  ],
+  "reports_explicit_failure": false,
+  "passed": false
+}

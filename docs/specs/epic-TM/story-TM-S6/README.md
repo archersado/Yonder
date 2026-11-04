@@ -28,3 +28,5 @@ openspec/changes/tm-s6-running-state-query/
 本轮在同一 Change 补充 AC9–11 收起预约，按 AD-TM-02 先更新设计再实施；不解除 DS-S1 门禁。
 
 [收起预约独立验证](../../../../openspec/changes/tm-s6-running-state-query/verification-rest-reservation.md)：20 项核心测试通过；同一准入实例内竞争已覆盖，原生接线仍待 DS-S1 门禁。
+
+2026-11-01：Windows 核心平台验证 PASS（Adapters 35/35、Application 19/19），覆盖全局运行态、Unknown、未释放占用、锁中毒、收起预约与准入竞争，见 [Windows Verification Goal](../../../../openspec/changes/tm-s6-running-state-query/verification-windows-20261101.md)。桌面消费者接线、PR 与 Archive 仍未完成。

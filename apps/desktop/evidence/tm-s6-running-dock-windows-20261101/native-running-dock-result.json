@@ -1,0 +1,47 @@
+﻿{
+    "platform":  "windows",
+    "cua_executed":  false,
+    "ego_lite_executed":  true,
+    "running_observation_seconds":  190,
+    "post_finish_timeout_seconds":  205,
+    "process_id":  11684,
+    "agent_id":  "tm-s6-win-d38f167bdd",
+    "task_id":  "task_3c593901b2c69c2b5d1df8ffc7b8bf22",
+    "external_task_ref":  "ego:18",
+    "expanded_at_running_start":  {
+                                      "x":  1180,
+                                      "y":  596,
+                                      "width":  200,
+                                      "height":  200
+                                  },
+    "running_elapsed_seconds":  190.896,
+    "running_docked":  false,
+    "expanded_after_running_threshold":  {
+                                             "x":  1180,
+                                             "y":  596,
+                                             "width":  200,
+                                             "height":  200
+                                         },
+    "task_final":  "completed",
+    "post_finish_dock_elapsed_seconds":  166.53,
+    "docked_after_finish":  {
+                                "x":  1224,
+                                "y":  1336,
+                                "width":  112,
+                                "height":  56
+                            },
+    "passed":  true,
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=371",
+                           "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=listening, elapsed_ms=401",
+                           "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=executing, elapsed_ms=412",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=executing, elapsed_ms=864",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=executing, elapsed_ms=30988",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=executing, elapsed_ms=60990",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=executing, elapsed_ms=90989",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=executing, elapsed_ms=120989",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=executing, elapsed_ms=150990",
+                           "桌宠停靠：edge=bottom, position=PhysicalPosition { x: 1836, y: 2004 }, size=PhysicalSize { width: 168, height: 84 }"
+                       ]
+}

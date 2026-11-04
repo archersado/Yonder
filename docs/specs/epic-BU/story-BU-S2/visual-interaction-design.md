@@ -10,7 +10,7 @@ finished引用仅用于审计，不显示为可继续控制；引用缺失、Run
 
 ## 无障碍与平台验证
 
-无新增视觉控件；结构化状态供后续键盘可达入口消费。macOS真实验证，Windows暂缓并明确不可用。
+无新增视觉控件；结构化状态供后续键盘可达入口消费。macOS保留既有真实验证；Windows在BU-S1解锁后补正式Gateway与真实ego-lite证据。原生“打开 ego-lite”按钮的Windows人工可见性不由无头Gateway证据替代。
 
 ## 待决事项
 

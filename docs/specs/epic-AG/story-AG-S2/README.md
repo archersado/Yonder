@@ -22,3 +22,5 @@ OpenSpec: ag-s2-local-task-registration
 2026-09-21 macOS原生桌宠面板端到端通过，见[Verification Goal](../../../../openspec/changes/ag-s2-local-task-registration/verification-native-panel-macos.md)。生产UDS登记的两个Agent任务在原生悬停面板可见，详情、按钮可用性和失焦隐藏均已验证；Windows仍暂缓，完整Story保持implementing。
 
 2026-09-22 提出[Proposed AD-AG-08](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-AG-08-LOCAL-AGENT-REGISTRATION.md)：本地 Agent 注册与撤权是 MVP 之后能力，不并入当前 AG-S2 实现。
+
+2026-11-01 Windows Named Pipe 与原生桌宠面板端到端子范围 PASS：正式 Gateway 创建命名任务，原生 Task Space 展示名称、Agent、状态和任务 ID，UI 取消后任务与事件保留；全部测试任务已正式收口。证据见[Windows验证报告](../../../../openspec/changes/ag-s2-local-task-registration/verification-windows-20261101.md)。完整 Story/PR Archive 仍保留。

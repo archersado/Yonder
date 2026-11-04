@@ -7,5 +7,7 @@
 - [x] 独立Verification Goal与macOS原生证据
 - [x] 接管停止与定位实现及macOS原生验证
 - [ ] Recording与交回清除接管闸
-- [ ] Windows证据（按用户要求暂缓）
+- [ ] Windows完整证据
+  - [x] created卡片取消、刷新后数据/历史保留（`verification-windows-20261101.md`）
+  - [ ] 执行中停止、接管定位、Recording与交回闸
 - [ ] 完整Story/PR后Archive
