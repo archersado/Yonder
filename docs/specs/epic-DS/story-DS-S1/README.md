@@ -1,5 +1,15 @@
 # DS-S1 透明桌宠与桌面基础验证
 
+2026-11-01：Windows 真实 BUA `browser.execute(create) → executing` 核心展示状态应用延迟子范围 PASS，观测上界14.225ms且请求仍在途；真实finish完成并关闭Task Space，任务最终completed，随后展示success并恢复既有paused基线。证据见[Windows BUA展示状态延迟验证](../../../../openspec/changes/e0-validate-desktop-foundation/verification-windows-bua-latency-20261101.md)。success包含外部完成耗时、恢复包含终态脉冲，未冒充300ms纯UI目标；其余状态和双平台总门禁仍保留。
+
+2026-10-31：Windows 正式 Gateway `task.create → listening` 核心展示状态应用延迟子范围 PASS，观测上界15.829ms，低于300ms当前优化目标；验证任务随后通过正式协议进入 `cancelled`。证据见[Windows 核心展示状态延迟验证](../../../../openspec/changes/e0-validate-desktop-foundation/verification-windows-presentation-latency-20261031.md)。本项不覆盖 executing、等待、暂停、终态/恢复、完整可用状态或macOS同口径，Story仍不Done。
+
+2026-10-29：Windows 原生托盘与退出生命周期子范围 PASS。修复 DS-S2 菜单增量覆盖“显示小龙 / 退出 Yonda”的回归；真实系统菜单语义激活可从最小化找回当前 pet 窗口，随后正常退出码0，退出前归属的宿主及11个WebView2进程全部消失，无TCP且未强制清理。证据见[Windows 托盘与退出验证](../../../../openspec/changes/e0-validate-desktop-foundation/verification-windows-tray-exit-20261029.md)。菜单变化后的macOS回归及Story其余门禁仍保留。
+
+2026-10-29：Windows 真实 BUA 展示增量 PASS。Named Pipe Gateway 任务依次驱动 `idle/listening/executing/success/idle`，真实 ego-lite Browser Task Space 已完成并关闭；修复了正式终态清单缺项导致 success 回退 idle 的缺陷。证据见[Windows 真实 BUA 展示验证](../../../../openspec/changes/e0-validate-desktop-foundation/verification-windows-bua-presentation-20261029.md)。未执行 CUA；其余状态、九态完整原生链路和双平台总门禁仍未完成。
+
+同日补齐[Windows 当前版本性能证据](../../../../openspec/changes/e0-validate-desktop-foundation/verification-windows-performance-20261029.md)：五分钟完整进程树样本已取得，但工作集平均863.84MiB、单核口径CPU平均21.9259%，优化目标未达。依Accepted AD-E0-01当前不阻断功能，发布前仍须优化与复审。
+
 Story: DS-S1
 Epic: DS
 Status: implementing

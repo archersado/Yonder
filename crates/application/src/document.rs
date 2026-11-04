@@ -1,5 +1,9 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DocumentFormat { Docx, Xlsx, Pptx }
+pub enum DocumentFormat {
+    Docx,
+    Xlsx,
+    Pptx,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentSnapshot {
@@ -10,7 +14,10 @@ pub struct DocumentSnapshot {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReplaceUniqueText<'a> { pub before: &'a str, pub after: &'a str }
+pub struct ReplaceUniqueText<'a> {
+    pub before: &'a str,
+    pub after: &'a str,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentTransform {
@@ -32,6 +39,14 @@ pub enum DocumentError {
 }
 
 pub trait DocumentPort {
-    fn inspect(&self, source: &[u8], max_text_nodes: usize) -> Result<DocumentSnapshot, DocumentError>;
-    fn replace_unique_text(&self, source: &[u8], operation: ReplaceUniqueText<'_>) -> Result<DocumentTransform, DocumentError>;
+    fn inspect(
+        &self,
+        source: &[u8],
+        max_text_nodes: usize,
+    ) -> Result<DocumentSnapshot, DocumentError>;
+    fn replace_unique_text(
+        &self,
+        source: &[u8],
+        operation: ReplaceUniqueText<'_>,
+    ) -> Result<DocumentTransform, DocumentError>;
 }

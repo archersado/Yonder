@@ -6,3 +6,5 @@
 - [x] 原生卡片和真实数据保留证据
 - [x] 独立Verification Goal
 - [ ] Windows及完整Story/PR后Archive
+  - [x] Windows created 取消后任务与事件保留（`verification-windows-20261101.md`）
+  - [ ] 完整Story/PR与Archive

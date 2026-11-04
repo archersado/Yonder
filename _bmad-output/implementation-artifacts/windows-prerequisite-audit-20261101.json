@@ -1,0 +1,18 @@
+{
+  "collected_at": "2026-11-01T23:11:48.3662077+08:00",
+  "platform": "Windows 11 Pro 10.0.26200 64-bit",
+  "display_count": 1,
+  "displays": [
+    { "primary": true, "x": 0, "y": 0, "width": 2560, "height": 1440 }
+  ],
+  "active_audio_endpoint_count": 7,
+  "microphone_like_endpoint_count": 2,
+  "enabled_local_user_count": 4,
+  "has_second_enabled_local_user": true,
+  "yonder_debug_signature": "NotSigned",
+  "installed_yonder_package_count": 0,
+  "has_typesafe_api_key": false,
+  "has_openai_api_key": false,
+  "is_admin": false,
+  "secrets_or_device_names_recorded": false
+}

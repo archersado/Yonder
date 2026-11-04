@@ -7,4 +7,5 @@
 - [x] 分层回归与独立Verification Goal
 - [x] 活动引用打开ego-lite并验证外部空间存在
 - [x] 打开入口独立Verification Goal
-- [ ] Windows与完整Story验证后Archive
+- [x] Windows与完整Story验证
+- [ ] PR与Archive

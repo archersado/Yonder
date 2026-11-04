@@ -9,6 +9,9 @@
 - [x] 验证macOS局部选择层的CGHID合成原生拖动、选区尺寸、鼠标恢复和不抢前台
 - [x] 验证macOS主显示器模式变化后确认卡清场并恢复分辨率
 - [ ] 验证macOS副屏/负坐标、运行中撤权与物理断开清场
-- [x] 实现并验证Windows 100%缩放同一样本（负坐标副屏连续三次PASS；200%主屏按边界跳过）
+- [ ] 实现并验证Windows完整同一样本
+  - [x] Windows Graphics Capture 单显示器四色/DPI/DisplayConfig核心样本连续三次通过（`verification-windows-20261101.md`）
+  - [x] Windows 96 DPI负坐标副屏连续三次PASS；192 DPI主屏按批准边界安全降级
+  - [ ] Windows其他DPI、物理选择/Esc、权限拒绝与运行中撤销
 - [ ] 完成全量双平台统一样本后接受或拒绝完整ADR（当前只接受各自有证据的受限子范围）
 - [x] ADR接受后生成Windows受限产品实施Proposal

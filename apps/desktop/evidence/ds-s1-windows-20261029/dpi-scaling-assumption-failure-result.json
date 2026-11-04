@@ -1,0 +1,40 @@
+﻿{
+    "platform":  "windows",
+    "executable":  "F:\\workspace\\yonder\\target\\debug\\yonder-desktop.exe",
+    "interaction_delay_seconds":  20,
+    "pre_dock_check_seconds":  170,
+    "dock_timeout_seconds":  190,
+    "process_id":  57880,
+    "work_area":  {
+                      "left":  0,
+                      "top":  0,
+                      "right":  2560,
+                      "bottom":  1392
+                  },
+    "interaction_reset":  {
+                              "interaction":  "native primary click",
+                              "checked_after_seconds":  170.016,
+                              "rect":  {
+                                           "x":  1224,
+                                           "y":  0,
+                                           "width":  112,
+                                           "height":  56
+                                       },
+                              "remained_expanded":  false
+                          },
+    "passed":  false,
+    "error":  "交互后未满180秒窗口已提前停靠",
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=443",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=31004",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=61008",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=90000",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=121010",
+                           "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=idle, elapsed_ms=150002",
+                           "桌宠空闲计时：phase=dock-attempt, mode=awake, task_state=idle, elapsed_ms=180002",
+                           "桌宠停靠：edge=top, position=PhysicalPosition { x: 1836, y: 0 }, size=PhysicalSize { width: 168, height: 84 }",
+                           "桌宠空闲计时：phase=docked, mode=docked, task_state=idle, elapsed_ms=180343"
+                       ]
+}

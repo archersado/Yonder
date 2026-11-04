@@ -5,4 +5,4 @@
 - [x] Application/SQLite 分页前过滤
 - [x] 桌面进行中视图接线
 - [x] 独立 Verification Goal
-- [ ] Windows 证据（按用户要求暂缓）
+- [x] Windows 原生证据（`verification-windows-20261101.md`）

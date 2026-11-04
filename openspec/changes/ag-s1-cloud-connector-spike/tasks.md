@@ -5,6 +5,6 @@
 - [x] 选择最小Rust WSS候选并固定依赖
 - [x] 实现统一TLS、帧、断线与重连样本
 - [x] 完成macOS独立Verification Goal
-- [ ] 完成Windows独立Verification Goal
+- [x] 完成Windows独立Verification Goal（`verification-windows-20261024.md`）
 - [ ] 比较证据并接受或拒绝AD
 - [ ] 外部平台契约完成后另建产品Connector Proposal

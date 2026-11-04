@@ -1,0 +1,21 @@
+{
+  "platform": "windows",
+  "flow": [
+    "idle",
+    "listening",
+    "executing",
+    "success",
+    "idle",
+    "listening",
+    "failed",
+    "idle"
+  ],
+  "process_id": 41412,
+  "passed": false,
+  "error": "Gateway调用失败 task.fail: {\"code\":-32010,\"message\":\"任务失败终结需要协议1.18及CUA Runtime\"}",
+  "diagnostic_log": [
+    "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=1",
+    "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=1",
+    "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=428"
+  ]
+}

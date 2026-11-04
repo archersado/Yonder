@@ -1,5 +1,8 @@
 //! 独立目录测试宿主，复用正式桌面的私有stdio研发连接。
-use std::{path::PathBuf, sync::{Arc, Mutex}};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 use yonder_desktop::{TaskHost, local_agent_stdio};
 fn main() {
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
@@ -7,5 +10,8 @@ fn main() {
         let host = TaskHost::open(&directory).map_err(|_| "测试宿主打开失败")?;
         local_agent_stdio::serve(Arc::new(Mutex::new(Some(host))))
     })();
-    if result.is_err() { eprintln!("本地Agent测试连接失败"); std::process::exit(1); }
+    if result.is_err() {
+        eprintln!("本地Agent测试连接失败");
+        std::process::exit(1);
+    }
 }

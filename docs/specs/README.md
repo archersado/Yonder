@@ -210,3 +210,9 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 2026-09-22 E0/DS-S1证据完成分层复核并产出[Proposed AD-E0-01](../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-E0-01-DESKTOP-FOUNDATION.md)：macOS子范围按证据保留阶段事实，四边完整休眠、跨用户拒绝、完整延迟、生命周期与Windows当前版本证据仍缺；ADR未Accepted，Story不Done/Archive。
 
 2026-09-22 DS-S2人工接管/Recording设计已按AD-RC-01回写为“受控会话输入”：不再宣称物理用户来源，DS只展示Application已提交事实。Recording继续默认关闭，产品协议、持久化与交回Observe仍等RC-S1后续Architecture Decision。
+
+2026-11-01 CX-S2 Windows Graphics Capture核心子范围PASS：自绘无敏感四色窗口在150% Per-Monitor DPI下连续三次完成240×160逻辑到360×240像素、四色、DisplayConfig、释放与不落盘校验。当前机器仅单显示器，物理选择/Esc、权限拒绝/撤销、副屏/负坐标/不同DPI仍是完整Windows同样本门禁；AD-CX-01继续只接受macOS Preview，不据此扩展Windows产品Port。
+
+2026-11-01 CX-S2 Windows显示变化清场接线PASS：新增会话期message-only HWND观察`WM_DISPLAYCHANGE`，并明确排除可能被无关USB变化触发的通用`WM_DEVICECHANGE`；单元与产品原生合成通知均证明预览隐藏、共享资源清零、观察器销毁及托盘正常退出；修复`display-change`清场原因被降级为`close`。真实显示模式变化、物理断开、副屏/负坐标仍保留门禁。
+
+2026-11-02 VI-S1 Windows显式候选FAIL：开启联机语音识别并再次授权后，未打包候选成功打开麦克风和播放公开句，但没有部分/最终识别结果，且`StopAsync`超过10秒。探针已有限时退出且无残留进程；下一步按微软要求建立最小MSIX身份Spike，同一样本通过后才能接受路线。

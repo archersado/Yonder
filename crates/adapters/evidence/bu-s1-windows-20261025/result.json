@@ -1,0 +1,32 @@
+{
+  "story": "BU-S1",
+  "platform": "windows",
+  "date": "2026-10-25",
+  "ego_runtime": "C:\\Program Files\\Citro Labs\\ego lite\\Application\\0.6.1.11\\ego-browser.exe",
+  "ego_skill_guide": "2.1.0",
+  "launcher": "Windows PowerShell 5.1 fixed command with UTF-8 .mjs file URL import",
+  "lifecycle": {
+    "external_task_ref": "ego:5",
+    "create": true,
+    "observe": true,
+    "hand_off": true,
+    "take_over": true,
+    "finish": true
+  },
+  "persistence": {
+    "external_task_ref": "ego:6",
+    "persisted_after_reopen": true,
+    "finished_persisted": true,
+    "space_cleaned": true,
+    "observed_sequence": 4
+  },
+  "checks": {
+    "windows_adapter_tests": "35 passed; 0 failed",
+    "windows_workspace_tests": "77 passed; 0 failed",
+    "architecture_tests": "17 passed; 0 failed",
+    "openspec_strict": "valid",
+    "diff_check": "clean"
+  },
+  "cua_executed": false,
+  "result": "PASS"
+}

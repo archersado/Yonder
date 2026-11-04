@@ -10,4 +10,4 @@
 - [x] Desktop Agent管理独立窗口实现
 - [x] 独立Verification Goal（macOS）
 - [x] macOS真实验证：SQLite迁移、UI登记/禁用/撤权、UDS拒绝、活动会话断开、任务保留与取消、重启持久化
-- [ ] Windows真实验证（按用户决定暂缓）
+- [x] Windows真实验证：原生UI登记/禁用/启用/撤权、Named Pipe拒绝与活动输入会话断开、任务取消、重启持久化

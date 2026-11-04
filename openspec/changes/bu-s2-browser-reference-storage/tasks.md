@@ -4,3 +4,4 @@
 - [x] 实现schema12与原子引用结果
 - [x] 验证成功、finish、unknown、回滚和迁移
 - [x] 完成独立Verification Goal
+- [x] Windows真实Gateway、SQLite重启与引用恢复补证

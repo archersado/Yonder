@@ -274,9 +274,7 @@ impl SqliteTaskStore {
         Ok(Self(db))
     }
 
-    fn agent_registration(
-        row: &rusqlite::Row<'_>,
-    ) -> Result<AgentRegistration, rusqlite::Error> {
+    fn agent_registration(row: &rusqlite::Row<'_>) -> Result<AgentRegistration, rusqlite::Error> {
         let status: String = row.get(1)?;
         let status = match status.as_str() {
             "enabled" => AgentRegistrationStatus::Enabled,
@@ -345,11 +343,7 @@ impl SqliteTaskStore {
 }
 
 impl AgentRegistry for SqliteTaskStore {
-    fn register_agent(
-        &mut self,
-        agent_id: &str,
-        now_ms: u64,
-    ) -> Result<AgentRegistration, Error> {
+    fn register_agent(&mut self, agent_id: &str, now_ms: u64) -> Result<AgentRegistration, Error> {
         if !yonder_application::valid_id(agent_id)
             || now_ms >= i64::MAX as u64
             || now_ms < 1_000_000_000_000
@@ -365,7 +359,8 @@ impl AgentRegistry for SqliteTaskStore {
             params![agent_id, now_ms as i64],
         )
         .map_err(storage)?;
-        let value = Self::get_agent_registration(&tx, agent_id)?.ok_or(Error::StorageUnavailable)?;
+        let value =
+            Self::get_agent_registration(&tx, agent_id)?.ok_or(Error::StorageUnavailable)?;
         tx.commit().map_err(storage)?;
         Ok(value)
     }
@@ -441,11 +436,9 @@ impl AgentRegistry for SqliteTaskStore {
         tx.commit().map_err(storage)?;
         Ok(())
     }
-
 }
 
 impl SqliteTaskStore {
-
     fn update_focus(
         &mut self,
         task_id: &str,
@@ -3164,7 +3157,10 @@ mod tests {
 
     #[test]
     fn agent_registry_gates_writes_and_preserves_existing_tasks() {
-        use yonder_application::{admission::Admission, gateway::{GatewaySession, Platform}};
+        use yonder_application::{
+            admission::Admission,
+            gateway::{GatewaySession, Platform},
+        };
         use yonder_protocol::{QueryResult, Response};
 
         let mut store =
@@ -3174,15 +3170,7 @@ mod tests {
         let hello = br#"{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{"agent_id":"a1","capability":"task.read","deadline":2000,"protocol_version":{"major":1,"minor":3}}}"#;
         let (blocked_hello, _) = session
             .handle_encoded_with_runtimes(
-                &mut store,
-                &gate,
-                None,
-                None,
-                None,
-                false,
-                "host",
-                hello,
-                1000,
+                &mut store, &gate, None, None, None, false, "host", hello, 1000,
             )
             .unwrap();
         assert!(
@@ -3192,33 +3180,20 @@ mod tests {
         AgentRegistry::register_agent(&mut store, "a1", 1_000_000_000_000).unwrap();
         let (_, _) = session
             .handle_encoded_with_runtimes(
-                &mut store,
-                &gate,
-                None,
-                None,
-                None,
-                false,
-                "host",
-                hello,
-                1000,
+                &mut store, &gate, None, None, None, false, "host", hello, 1000,
             )
             .unwrap();
         let create = br#"{"jsonrpc":"2.0","id":"create","method":"task.create","params":{"agent_id":"a1","capability":"task.create","deadline":2000,"idempotency_key":"one","description":"test","name":"kept"}}"#;
         let (created, _) = session
             .handle_encoded_with_runtimes(
-                &mut store,
-                &gate,
-                None,
-                None,
-                None,
-                false,
-                "host",
-                create,
-                1000,
+                &mut store, &gate, None, None, None, false, "host", create, 1000,
             )
             .unwrap();
         let task_id = match yonder_protocol::decode_response(&created).unwrap() {
-            Response::Success { result: QueryResult::Snapshot { task }, .. } => task.task_id,
+            Response::Success {
+                result: QueryResult::Snapshot { task },
+                ..
+            } => task.task_id,
             value => panic!("任务创建应成功：{value:?}"),
         };
         AgentRegistry::set_agent_status(

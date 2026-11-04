@@ -1,0 +1,11 @@
+{
+  "platform": "Windows 11 x64",
+  "msvc_build": true,
+  "permission_denial_gate": true,
+  "denial_exit_code": 2,
+  "opened_microphone": false,
+  "played_audio": false,
+  "saved_audio": false,
+  "saved_transcript": false,
+  "explicit_capture_authorization_pending": true
+}

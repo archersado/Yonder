@@ -10,7 +10,7 @@ schema12新增每任务一行的task_browser_refs，包含受限`ego:<数字>`�
 
 ## 失败与验证
 
-非法引用、unknown、旧身份、CAS或Outbox失败全部回滚；迁移前备份，未知格式拒绝。真实macOS Bridge结果写入SQLite并重开读取；Windows暂缓。
+非法引用、unknown、旧身份、CAS或Outbox失败全部回滚；迁移前备份，未知格式拒绝。真实macOS/Windows Bridge结果写入SQLite并重开读取；Windows通过当前用户私有Named Pipe进入同一Gateway与Application用例，不增加平台旁路。
 
 ## 架构影响
 

@@ -1,0 +1,49 @@
+{
+  "collected_at": "2026-10-23T23:42:04.3920447+08:00",
+  "platform": {
+    "name": "Microsoft Windows 11 专业版",
+    "version": "10.0.26200",
+    "architecture": "64-bit",
+    "display_bounds": [0, 0, 2560, 1440],
+    "display_work_area": [0, 0, 2560, 1392]
+  },
+  "process": {
+    "id": 64608,
+    "responding": true,
+    "executable_sha256": "0c9eff1c7144bdbbb9feef61a9465cf97f1fd71c1ea2a9a6051cc960160d2bba",
+    "owned_tcp_connections": 0
+  },
+  "window": {
+    "class_name": "Tauri Window",
+    "title": "Yonda",
+    "visible": true,
+    "topmost": true,
+    "initial_rect": [1965, 621, 2165, 821],
+    "initial_size": [200, 200],
+    "docked_accessible_name": "点击趴在边缘的Yonda唤醒它，Agent未连接",
+    "docked_rect": [2352, 1021, 2552, 1221],
+    "docked_size": [200, 200],
+    "expected_right_edge_size": [56, 112],
+    "wake_invoke_succeeded": true,
+    "awake_accessible_name": "轻点Yonda小龙，按住移动可拖动，Agent未连接",
+    "after_wake_rect": [2352, 1021, 2552, 1221],
+    "geometry_result": "failed"
+  },
+  "resource_sample": {
+    "requested_duration_seconds": 300,
+    "actual_duration_seconds": 305.317,
+    "interval_seconds": 5,
+    "sample_count": 53,
+    "maximum_process_count": 13,
+    "working_set_average_bytes": 898713870,
+    "working_set_maximum_bytes": 905445376,
+    "working_set_p95_bytes": 905207808,
+    "working_set_average_mib": 857.08,
+    "working_set_maximum_mib": 863.50,
+    "cpu_aggregate_average_percent": 31.3848,
+    "cpu_aggregate_maximum_percent": 48.0,
+    "cpu_machine_normalized_average_percent": 1.3077,
+    "resource_result": "optimization-target-not-met"
+  },
+  "result": "partial-pass-with-failures"
+}

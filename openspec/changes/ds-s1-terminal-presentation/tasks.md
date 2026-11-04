@@ -5,4 +5,5 @@
 - [x] desktop 一次性事件和 pet 去重/恢复
 - [x] ego-browser 与 Rust 回归
 - [x] 独立 Verification Goal
-- [ ] Windows 原生证据（按用户要求暂缓）
+- [x] Windows 真实 BUA `completed → success → 恢复` 原生证据
+- [ ] Windows 真实 `failed → failed展示 → 恢复` 原生证据（依赖 CUA Runtime，本轮按用户要求排除）

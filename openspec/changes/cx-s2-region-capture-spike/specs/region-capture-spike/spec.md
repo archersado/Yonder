@@ -29,9 +29,9 @@ Spike MUST 在完成或失败后释放捕获像素和临时窗口，且证据 MU
 - **AND** 证据只含尺寸、坐标、校验布尔值和错误分类
 
 ### Requirement: 产品门禁
-在Windows/macOS统一样本或ADR尚未通过前，系统 MUST NOT 新增产品圈选Port、Gateway能力、常驻覆盖层或默认权限请求。
+在Windows统一样本和AD-CX-01的Windows扩展决定尚未通过前，系统 MUST NOT 为Windows新增产品圈选Port、Gateway能力、常驻覆盖层或默认权限请求；既有Accepted macOS Preview边界不受本条回退。
 
 #### Scenario: 证据未通过
 
-- **WHEN** Windows/macOS统一样本或ADR尚未通过
-- **THEN** 不得新增产品圈选Port、Gateway能力、常驻覆盖层或默认权限请求
+- **WHEN** Windows统一样本或AD-CX-01的Windows扩展决定尚未通过
+- **THEN** 不得为Windows新增产品圈选Port、Gateway能力、常驻覆盖层或默认权限请求

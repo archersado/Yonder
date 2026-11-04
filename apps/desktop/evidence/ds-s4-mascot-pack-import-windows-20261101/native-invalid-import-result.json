@@ -1,0 +1,47 @@
+﻿{
+    "platform":  "windows",
+    "cua_executed":  false,
+    "fixture":  "invalid-pet-pack.zip",
+    "pack_tree_before":  "absent",
+    "process_id":  28308,
+    "import_click":  {
+                         "x":  3473,
+                         "y":  1786,
+                         "index":  3
+                     },
+    "file_dialog":  {
+                        "dialog_name":  "打开",
+                        "filename_control":  "1148",
+                        "open_control":  "打开(O)",
+                        "closed":  true
+                    },
+    "ui_names_after_import":  [
+                                  "Yonda · Agent未连接",
+                                  "Yonda · Agent未连接 - Web 内容",
+                                  "圈选提问",
+                                  "语音输入",
+                                  "轻点Yonda小龙，按住移动可拖动，Agent未连接"
+                              ],
+    "feedback":  {
+                     "name":  "资源包不符合规范",
+                     "source":  "native-window-screenshot-and-structured-host-log"
+                 },
+    "screenshot":  {
+                       "file":  "native-invalid-feedback.png",
+                       "width":  300,
+                       "height":  300,
+                       "sha256":  "3127b48182da0a30ad54f84f3aaff6ed42a55b424fcadb9d75f7b889184104b7"
+                   },
+    "pack_tree_after":  "absent",
+    "active_pack_unchanged":  true,
+    "passed":  true,
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=411",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=paused, elapsed_ms=411",
+                           "桌宠资源包导入：result=invalid"
+                       ],
+    "import_result_log":  [
+                              "桌宠资源包导入：result=invalid"
+                          ]
+}

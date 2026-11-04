@@ -1,0 +1,1 @@
+{"platform":"Windows","capture_framework":"Windows.Media.Capture","speech_framework":"Windows.Media.SpeechRecognition","capture_api":true,"speech_api":true,"requested_permission":false,"opened_microphone":false}

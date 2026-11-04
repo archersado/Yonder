@@ -1,0 +1,1604 @@
+{
+  "platform": "windows",
+  "cua_executed": false,
+  "fixture": "real-gateway-and-ego-lite-with-dedicated-agent",
+  "process_id": 57760,
+  "protocol": {
+    "major": 1,
+    "minor": 19
+  },
+  "agent_id": "ds-s2-win-7fe87213457c",
+  "stage": "native-timeline-load-more",
+  "browser_task_id": "task_f956b3736988abefef2724bfd21b7b9b",
+  "ui_cancel_task_id": "task_eb83029f047f63a93f339081559e3b8b",
+  "preceding_non_running_count": 20,
+  "running_sequence_before_ui": "28",
+  "gateway_filter": {
+    "running_first_page": 1,
+    "running_task_id": "task_f956b3736988abefef2724bfd21b7b9b",
+    "all_first_page": 20,
+    "all_has_next": true,
+    "running_absent_from_all_first_page": true
+  },
+  "native_running": {
+    "file": "native-running.png",
+    "width": 480,
+    "height": 600,
+    "sha256": "5d85e043f5ce36371e564ce6330f2d7d9593107dc239e27180b9372a7c926cba"
+  },
+  "native_all_page1": {
+    "file": "native-all-page1.png",
+    "width": 480,
+    "height": 600,
+    "sha256": "803272a061cf5f64057241d55608d3c13e157c66b1a9cf82a8d8a166f9f7ce4a"
+  },
+  "native_all_page2": {
+    "file": "native-all-page2.png",
+    "width": 480,
+    "height": 600,
+    "sha256": "0639398abbb82f47db6277000580f1c15f029a23ba996095f0294b8bcc6fc44d"
+  },
+  "native_cancel_retained": {
+    "file": "native-cancel-retained.png",
+    "width": 480,
+    "height": 600,
+    "sha256": "3aea055f6571156b025b860b4408506e1e4ba48e15cdaf814697c5e70786535b"
+  },
+  "timeline_ui": {
+    "before": 20,
+    "after": 28,
+    "load_more_removed": true
+  },
+  "native_timeline_more": {
+    "file": "native-timeline-more.png",
+    "width": 480,
+    "height": 600,
+    "sha256": "e018a6b85819bc5b499a2cf6c7a965cfda5d92dcb11a8f088b8177b47f459325"
+  },
+  "accessibility_tree": [
+    {
+      "name": "Yonda · Task Space",
+      "type": "ControlType.Pane",
+      "enabled": true
+    },
+    {
+      "name": "Yonda · Task Space - Web 内容",
+      "type": "ControlType.Pane",
+      "enabled": true
+    },
+    {
+      "name": "Yonda · Task Space",
+      "type": "ControlType.Document",
+      "enabled": true
+    },
+    {
+      "name": "YONDA",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "任务总览 Task Space",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "刷新",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "关闭任务总览",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "任务筛选",
+      "type": "ControlType.Group",
+      "enabled": true
+    },
+    {
+      "name": "进行中",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "全部",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "显示真实任务状态",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "任务列表",
+      "type": "ControlType.Group",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 06Agent · ds-s2-win-a58db3254edf已中断接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 06 Agent · ds-s2-win-a58db3254edf 已中断",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 06",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-a58db3254edf",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已中断",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 20Agent · ds-s2-win-5a2dba517ce0已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 20 Agent · ds-s2-win-5a2dba517ce0 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 20",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-5a2dba517ce0",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS2W-7fe87213457c-08Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS2W-7fe87213457c-08 Agent · ds-s2-win-7fe87213457c 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS2W-7fe87213457c-08",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-7fe87213457c",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 06Agent · ds-s2-win-5a2dba517ce0已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 06 Agent · ds-s2-win-5a2dba517ce0 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 06",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-5a2dba517ce0",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 27Agent · ds-s2-win-c957aa37bcde已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 27 Agent · ds-s2-win-c957aa37bcde 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 27",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-c957aa37bcde",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 ds-s2-win-c8831df6e616 样本 01Agent · ds-s2-win-c8831df6e616已完成接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-c8831df6e616 样本 01 Agent · ds-s2-win-c8831df6e616 已完成",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-c8831df6e616 样本 01",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-c8831df6e616",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已完成",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 ds-s2-win-92aa3155b666 样本 13Agent · ds-s2-win-92aa3155b666已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-92aa3155b666 样本 13 Agent · ds-s2-win-92aa3155b666 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-92aa3155b666 样本 13",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-92aa3155b666",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 08Agent · ds-s2-win-c957aa37bcde已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 08 Agent · ds-s2-win-c957aa37bcde 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 08",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-c957aa37bcde",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 11Agent · ds-s2-win-c957aa37bcde已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 11 Agent · ds-s2-win-c957aa37bcde 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 11",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-c957aa37bcde",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 ds-s2-win-094bb2a589e8 样本 07Agent · ds-s2-win-094bb2a589e8已完成接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-094bb2a589e8 样本 07 Agent · ds-s2-win-094bb2a589e8 已完成",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-094bb2a589e8 样本 07",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-094bb2a589e8",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已完成",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 16Agent · ds-s2-win-d9472b329dbd已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 16 Agent · ds-s2-win-d9472b329dbd 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 16",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-d9472b329dbd",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 15Agent · ds-s2-win-5a2dba517ce0已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 15 Agent · ds-s2-win-5a2dba517ce0 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 15",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-5a2dba517ce0",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 ds-s2-win-92aa3155b666 样本 21Agent · ds-s2-win-92aa3155b666已完成接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-92aa3155b666 样本 21 Agent · ds-s2-win-92aa3155b666 已完成",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 ds-s2-win-92aa3155b666 样本 21",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-92aa3155b666",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已完成",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS2W-7fe87213457c-13Agent · ds-s2-win-7fe87213457c执行中接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS2W-7fe87213457c-13 Agent · ds-s2-win-7fe87213457c 执行中",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS2W-7fe87213457c-13",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-7fe87213457c",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "执行中",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "取消任务",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 04Agent · ds-s2-win-5a2dba517ce0已取消接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 04 Agent · ds-s2-win-5a2dba517ce0 已取消",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 04",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-5a2dba517ce0",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已取消",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 10Agent · ds-s2-win-d9472b329dbd已完成接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 10 Agent · ds-s2-win-d9472b329dbd 已完成",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 10",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-d9472b329dbd",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已完成",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 15Agent · ds-s2-win-c957aa37bcde已中断接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 15 Agent · ds-s2-win-c957aa37bcde 已中断",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 15",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-c957aa37bcde",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已中断",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S2 Windows样本 11Agent · ds-s2-win-5a2dba517ce0已完成接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 11 Agent · ds-s2-win-5a2dba517ce0 已完成",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S2 Windows样本 11",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s2-win-5a2dba517ce0",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已完成",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S1 Windows状态延迟验证Agent · ds-s1-latency-77a7a79418f0已中断接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S1 Windows状态延迟验证 Agent · ds-s1-latency-77a7a79418f0 已中断",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S1 Windows状态延迟验证",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s1-latency-77a7a79418f0",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已中断",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "DS-S1 Windows展示验证Agent · ds-s1-win-833b8d75fe03已完成接管取消任务",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "DS-S1 Windows展示验证 Agent · ds-s1-win-833b8d75fe03 已完成",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "DS-S1 Windows展示验证",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent · ds-s1-win-833b8d75fe03",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "已完成",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "接管：仅执行中的任务支持接管",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "取消任务：仅未开始或执行中的任务支持取消",
+      "type": "ControlType.Button",
+      "enabled": false
+    },
+    {
+      "name": "第 11 页 · 20 项",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "任务详情",
+      "type": "ControlType.Group",
+      "enabled": true
+    },
+    {
+      "name": "DS2W-7fe87213457c-13",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "任务 ID",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "任务 ID",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "task_f956b3736988abefef2724bfd21b7b9b",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "Agent",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "Agent",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "ds-s2-win-7fe87213457c",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "状态",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "状态",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "执行中",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "状态说明",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "状态说明",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "未提供",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "序号",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "序号",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "28",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "来源",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "来源",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "本地 Agent",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "当前步骤",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "当前步骤",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "第 Task Space",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "步骤标识",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "步骤标识",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "observe-6 · 接受序号 26",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "观察摘要",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "观察摘要",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "未观察",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "下一步意图",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "下一步意图",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "未声明意图",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "等待原因",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "等待原因",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "未提供",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "浏览器 Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "浏览器 Task Space",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "ego:16 · Agent控制 · 1个托管页面 · 活动 · 更新序号 28",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "\n",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "打开 ego-lite",
+      "type": "ControlType.Button",
+      "enabled": true
+    },
+    {
+      "name": "时间线",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#1已创建 → 已创建",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#1",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#2Agent 声明步骤：创建Browser Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#2",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#3已创建 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#3",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#4动作已观察：成功",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#4",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#5执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#5",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#6Agent 声明步骤：第 Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#6",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#7执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#7",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#8动作已观察：成功",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#8",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#9执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#9",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#10Agent 声明步骤：第 Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#10",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#11执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#11",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#12动作已观察：成功",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#12",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#13执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#13",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#14Agent 声明步骤：第 Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#14",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#15执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#15",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#16动作已观察：成功",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#16",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#17执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#17",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#18Agent 声明步骤：第 Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#18",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#19执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#19",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#20动作已观察：成功",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#20",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#21执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#21",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#22Agent 声明步骤：第 Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#22",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#23执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#23",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#24动作已观察：成功",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#24",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#25执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#25",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#26Agent 声明步骤：第 Task Space",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#26",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#27执行中 → 执行中",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#27",
+      "type": "ControlType.Text",
+      "enabled": true
+    },
+    {
+      "name": "#28动作已观察：成功",
+      "type": "ControlType.ListItem",
+      "enabled": true
+    },
+    {
+      "name": "#28",
+      "type": "ControlType.Text",
+      "enabled": true
+    }
+  ],
+  "cancel_readback": {
+    "status": "cancelled",
+    "sequence": "2",
+    "events": 2
+  },
+  "browser_final": {
+    "status": "completed",
+    "sequence": "34",
+    "events": 34,
+    "external_task_ref": "ego:16",
+    "finished": true
+  },
+  "passed": true,
+  "finally_created_cleanup": [],
+  "pagination_scan": [
+    {
+      "page": 2,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-12Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-12 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-12"
+      ]
+    },
+    {
+      "page": 3,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-17Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-17 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-17"
+      ]
+    },
+    {
+      "page": 4,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-09Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-09 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-09",
+        "DS2W-7fe87213457c-10Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-10 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-10",
+        "DS2W-7fe87213457c-20Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-20 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-20"
+      ]
+    },
+    {
+      "page": 5,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-11Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-11 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-11"
+      ]
+    },
+    {
+      "page": 6,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-21Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-21 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-21",
+        "DS2W-7fe87213457c-22Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-22 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-22",
+        "DS2W-7fe87213457c-05Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-05 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-05",
+        "DS2W-7fe87213457c-14Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-14 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-14",
+        "DS2W-7fe87213457c-15Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-15 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-15"
+      ]
+    },
+    {
+      "page": 7,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-04Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-04 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-04"
+      ]
+    },
+    {
+      "page": 8,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-07Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-07 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-07",
+        "DS2W-7fe87213457c-01Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-01 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-01"
+      ]
+    },
+    {
+      "page": 9,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-19Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-19 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-19",
+        "DS2W-7fe87213457c-02Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-02 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-02"
+      ]
+    },
+    {
+      "page": 10,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-06Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-06 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-06",
+        "DS2W-7fe87213457c-18Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-18 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-18"
+      ]
+    },
+    {
+      "page": 11,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-08Agent · ds-s2-win-7fe87213457c已创建接管取消任务",
+        "DS2W-7fe87213457c-08 Agent · ds-s2-win-7fe87213457c 已创建",
+        "DS2W-7fe87213457c-08",
+        "DS2W-7fe87213457c-13Agent · ds-s2-win-7fe87213457c执行中接管取消任务",
+        "DS2W-7fe87213457c-13 Agent · ds-s2-win-7fe87213457c 执行中",
+        "DS2W-7fe87213457c-13"
+      ]
+    },
+    {
+      "page": 1,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-03Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-03 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-03",
+        "DS2W-7fe87213457c-16Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-16 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-16"
+      ]
+    },
+    {
+      "page": 2,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-12Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-12 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-12"
+      ]
+    },
+    {
+      "page": 3,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-17Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-17 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-17"
+      ]
+    },
+    {
+      "page": 4,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-09Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-09 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-09",
+        "DS2W-7fe87213457c-10Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-10 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-10",
+        "DS2W-7fe87213457c-20Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-20 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-20"
+      ]
+    },
+    {
+      "page": 5,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-11Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-11 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-11"
+      ]
+    },
+    {
+      "page": 6,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-21Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-21 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-21",
+        "DS2W-7fe87213457c-22Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-22 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-22",
+        "DS2W-7fe87213457c-05Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-05 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-05",
+        "DS2W-7fe87213457c-14Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-14 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-14",
+        "DS2W-7fe87213457c-15Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-15 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-15"
+      ]
+    },
+    {
+      "page": 7,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-04Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-04 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-04"
+      ]
+    },
+    {
+      "page": 8,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-07Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-07 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-07",
+        "DS2W-7fe87213457c-01Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-01 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-01"
+      ]
+    },
+    {
+      "page": 9,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-19Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-19 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-19",
+        "DS2W-7fe87213457c-02Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-02 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-02"
+      ]
+    },
+    {
+      "page": 10,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-06Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-06 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-06",
+        "DS2W-7fe87213457c-18Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-18 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-18"
+      ]
+    },
+    {
+      "page": 11,
+      "target": "DS2W-7fe87213457c-08",
+      "seen": [
+        "DS2W-7fe87213457c-08Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-08 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-08",
+        "DS2W-7fe87213457c-13Agent · ds-s2-win-7fe87213457c执行中接管取消任务",
+        "DS2W-7fe87213457c-13 Agent · ds-s2-win-7fe87213457c 执行中",
+        "DS2W-7fe87213457c-13"
+      ]
+    },
+    {
+      "page": 11,
+      "target": "DS2W-7fe87213457c-13",
+      "seen": [
+        "DS2W-7fe87213457c-08Agent · ds-s2-win-7fe87213457c已取消接管取消任务",
+        "DS2W-7fe87213457c-08 Agent · ds-s2-win-7fe87213457c 已取消",
+        "DS2W-7fe87213457c-08",
+        "DS2W-7fe87213457c-13Agent · ds-s2-win-7fe87213457c执行中接管取消任务",
+        "DS2W-7fe87213457c-13 Agent · ds-s2-win-7fe87213457c 执行中",
+        "DS2W-7fe87213457c-13",
+        "DS2W-7fe87213457c-08"
+      ]
+    }
+  ],
+  "diagnostic_log": [
+    "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+    "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=302",
+    "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=listening, elapsed_ms=323",
+    "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=listening, elapsed_ms=372",
+    "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=executing, elapsed_ms=622",
+    "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=executing, elapsed_ms=30976",
+    "桌宠空闲计时：phase=timer-progress, mode=awake, task_state=executing, elapsed_ms=60974",
+    "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=success, elapsed_ms=76156",
+    "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=76158"
+  ],
+  "browser_finished": true,
+  "forced_process_cleanup": true
+}

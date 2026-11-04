@@ -1,0 +1,50 @@
+﻿{
+    "platform":  "windows",
+    "executable":  "F:\\workspace\\yonder\\target\\debug\\yonder-desktop.exe",
+    "interaction_delay_seconds":  20,
+    "pre_dock_check_seconds":  170,
+    "dock_timeout_seconds":  190,
+    "process_id":  14324,
+    "work_area":  {
+                      "left":  0,
+                      "top":  0,
+                      "right":  2560,
+                      "bottom":  1392
+                  },
+    "interaction_reset":  {
+                              "interaction":  "native primary click",
+                              "checked_after_seconds":  170.035,
+                              "rect":  {
+                                           "x":  1207,
+                                           "y":  1,
+                                           "width":  200,
+                                           "height":  200
+                                       },
+                              "remained_expanded":  true
+                          },
+    "top_dock":  {
+                     "rect":  {
+                                  "x":  1251,
+                                  "y":  0,
+                                  "width":  112,
+                                  "height":  56
+                              },
+                     "elapsed_since_interaction_seconds":  180.561,
+                     "passed":  true
+                 },
+    "passed":  false,
+    "error":  "顶部停靠后鼠标点击未恢复200×200窗口",
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=490",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0",
+                           "桌宠停靠：edge=top, position=PhysicalPosition { x: 1876, y: 0 }, size=PhysicalSize { width: 168, height: 84 }"
+                       ]
+}

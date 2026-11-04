@@ -44,6 +44,24 @@
 
 总 Goal 仍未通过，不 Archive。
 
+2026-10-25：Windows 自动空闲停靠子范围修复并经独立 Goal 复核通过。两个隔离无输入样本分别在181.401秒与181.210秒进入底边112×56和左边56×112；一次真实拖动样本按交互重置规则排除。详见 `verification-windows-idle-dock-20261025.md`。顶部/右侧、恢复交互、九态完整原生链路、性能及 macOS 剩余门禁仍保留，因此总 Goal 状态不变。
+
+2026-10-29：Windows 四边休眠的剩余原生子范围经独立 Goal 通过。原生点击后170.013秒仍展开、180.355秒顶部停靠；顶部可见眼睛点击恢复；右侧179.839秒停靠并由Enter恢复。方法用窗口句柄反查排除DPI注入误判，详见 `verification-windows-edges-wake-20261029.md`。结合2026-10-25证据，Windows四边停靠尺寸及点击/键盘恢复、交互重置已覆盖；人工拖动、九态完整原生链路、性能与macOS剩余门禁仍保留，总 Goal 状态不变。
+
+同日 Windows 原生合成输入拖动技术链路经独立 Goal 通过：窗口实际位移168×112逻辑像素，尺寸保持200×200，释放后继续移动光标不再带走窗口。详见 `verification-windows-drag-20261029.md`。该证据不冒充用户人工拖动；Windows原生视觉、人工确认、九态完整链路、性能与macOS剩余门禁不变。
+
+随后Windows当前素材原生视觉与透明边缘经独立Goal通过：200×200逻辑窗口在150%缩放下对应300×300物理截图，四角和61,492个透明区域像素透出受控背景，28,508个角色/UI像素可见；人工查看完整小龙未裁切且无矩形底。详见 `verification-windows-visual-20261029.md`。Windows用户亲手拖动、九态完整链路、性能/生命周期与macOS剩余门禁仍保留。
+
+同日 Windows 真实 BUA 展示子范围经独立 Goal 通过：Gateway 1.19 创建任务后进入 listening，两次真实 `browser.execute` 调用尚未返回时均进入 executing，`ego:3` 正常 finish 后任务完成并展示完整举爪 success，约2秒后恢复 idle。修复了正式清单缺少 success/failed 导致终态回退 idle 的缺陷；仅接入完整主体和闭眼层，未恢复已否决的局部切片。详见 `verification-windows-bua-presentation-20261029.md`。本轮未执行 CUA，也未伪造 failed；等待/暂停、thinking/recording、真实失败、九态完整链路与双平台总门禁继续保留。
+
+随后补齐 Windows 当前调试构建五分钟自然闲置性能样本：304.625秒、55点，完整后代进程树工作集平均863.84MiB、峰值917.57MiB；单核口径CPU平均21.9259%、峰值42.0%，24逻辑处理器归一平均0.9136%。详见 `verification-windows-performance-20261029.md`。因此“当前版本证据”缺口关闭，但 `<1%单核CPU / <150MB` 优化目标未达；按Accepted AD-E0-01暂不阻断功能，发布前仍须优化和复审，总Goal不变。
+
+同日修复任务总览增量覆盖 DS-S1 基础托盘入口的回归，并通过 Windows 原生托盘独立 Goal：真实菜单保留七项且首尾为“显示小龙 / 退出 Yonda”；系统语义激活可从最小化找回当前 pet 窗口，退出码0，退出前记录的宿主及11个WebView2进程全部消失、无TCP、未强制清理。详见 `verification-windows-tray-exit-20261029.md`。菜单变化后的macOS当前版本回归、Windows其余门禁和总Goal仍保留。
+
+2026-10-31：Windows 正式 Gateway `task.create → listening` 核心展示状态延迟子范围经独立 Goal 通过。从请求写入至 WebView `applyPresentation` 同步配置后首次白名单诊断的观测上界为15.829ms，低于300ms当前优化目标；任务随后经正式 `task.cancel` 进入 `cancelled`。详见 `verification-windows-presentation-latency-20261031.md`。启动基线因既有 `interrupted` 任务真实为 `paused`，未伪造固定 `idle`；executing、等待、暂停、终态/恢复、完整可用状态和macOS同口径仍保留，总Goal状态不变。
+
+2026-11-01：修复 Desktop 在多版本安装中误选未激活 ego Runtime 后，Windows 真实 BUA `browser.execute(create) → executing` 状态应用延迟子范围通过，观测上界14.225ms且请求仍在途；真实 `finish` 完成并关闭 `ego:7`，任务最终 `completed`，随后依次展示success并恢复既有paused基线。详见 `verification-windows-bua-latency-20261101.md`。success计时包含外部Task Space完成、恢复计时包含终态脉冲，均未冒充300ms纯UI目标；waiting、真实pause/failed、完整可用状态与macOS同口径仍保留，总Goal不变。
+
 启动/延迟增量见 verification-latency-macos.md：本机单次新进程到渲染报告1.990秒，托盘到原生几何恢复51.858ms；14秒原生诊断出现3次眨眼及呼吸。未将这些观测替代冷缓存首帧、完整可用状态或300ms核心事件链路验收。
 
 2026-09-13 用户要求 Windows 先暂缓；停止安排该平台复测，仍保留双平台完成门禁。继续推进 macOS 已授权范围，不能将暂缓记为已通过。

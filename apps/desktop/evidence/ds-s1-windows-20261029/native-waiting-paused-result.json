@@ -1,0 +1,9 @@
+﻿{
+    "platform":  "windows",
+    "scenarios":  {
+
+                  },
+    "cua_executed":  false,
+    "passed":  false,
+    "error":  "Pause未在已Observe边界停止"
+}

@@ -9,7 +9,7 @@
 - [x] 独立Verification Goal
 - [x] macOS生产UDS与首帧Agent身份下的真实MCP登记联调
 - [x] macOS原生桌宠面板端到端联调
-- [ ] Windows Named Pipe及原生桌宠端到端后续接线
+- [x] Windows Named Pipe及原生桌宠端到端：命名任务创建、Agent归属、分页/详情、UI取消与历史保留
 - [ ] 完整Story/PR通过后Archive
 
 ## Agent命名增量（2026-09-14）

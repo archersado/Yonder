@@ -40,3 +40,7 @@ OpenSpec: cx-s2-windows-region-capture
 2026-09-22：[显示器参数变化清场Change](../../../../openspec/changes/cx-s2-display-change-cleanup/proposal.md)已实现并在macOS主显示器模式变化样本中PASS；原生关闭路径先完成清场时与屏幕通知共享同一不变量。物理显示器断开、副屏/负坐标、运行中撤权与Windows仍保留门禁。
 
 2026-09-18 macOS单显示器子范围PASS：公开ScreenCaptureKit区域API对自绘无敏感窗口的像素尺寸、2倍缩放与四色校验连续三次通过，截图不落盘且无进程残留。全新临时bundle身份的未授权预检连续两次返回`permission-required`，没有请求权限或截图。非激活选择层的合成Esc/超时清场与CGHID选区拖动均连续三次通过。详见 [macOS Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-macos.md)。副屏/负坐标、运行中撤权、物理显示器断开、物理键盘/鼠标和Windows仍未验证。
+
+2026-11-01 Windows单显示器核心捕获子范围PASS：公开Windows Graphics Capture对自绘四色窗口连续三次完成240×160逻辑像素到360×240物理像素（150% Per-Monitor DPI）的尺寸与四色校验，DisplayConfig可用，像素立即释放且不落盘、不监听输入。详见 [Windows Verification Goal](../../../../openspec/changes/cx-s2-region-capture-spike/verification-windows-20261101.md)。本机无副屏/负坐标，物理选择/Esc、权限拒绝/撤销和受保护窗口仍未通过，因此AD-CX-01继续只接受macOS Preview，Windows产品边界不扩展。
+
+2026-11-01 Windows显示变化清场接线子范围PASS：短生命message-only HWND在圈选预览期间接收`WM_DISPLAYCHANGE`，并排除可能被无关USB变化触发的通用`WM_DEVICECHANGE`；合成原生通知使真实预览窗口隐藏、PreviewSession/语音/WebView共享清场且观察器销毁，应用随后从托盘正常退出；并修复共享结构化原因漏记`display-change`的缺陷。合成通知不替代真实改分辨率、拔屏、副屏/负坐标证据。

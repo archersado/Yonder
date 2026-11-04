@@ -5,4 +5,5 @@
 - [x] SQLite 6 备份迁移、幂等/CAS/配额及原子事件
 - [x] 私有 stdio Agent 创建、声明、读取与取消联调
 - [x] 独立 Verification Goal
-- [ ] 生产认证、真实动作/Observe、Windows 与完整 Story/PR 后续处理
+- [x] Windows Named Pipe真实BUA步骤声明/推进/Observe与最终收口
+- [ ] 生产签名认证、其他Driver对等验证与完整 Story/PR 后续处理

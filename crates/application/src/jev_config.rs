@@ -2,11 +2,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum JevServiceMode { Local, Remote }
+pub enum JevServiceMode {
+    Local,
+    Remote,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum JevCapability { Cua, Bua, Document, Command }
+pub enum JevCapability {
+    Cua,
+    Bua,
+    Document,
+    Command,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct JevConfig {
@@ -37,20 +45,34 @@ impl Default for JevConfig {
             step_limit: 10,
             time_limit_ms: 60_000,
             token_limit: 10_000,
-            capabilities: vec![JevCapability::Cua, JevCapability::Bua, JevCapability::Document, JevCapability::Command],
+            capabilities: vec![
+                JevCapability::Cua,
+                JevCapability::Bua,
+                JevCapability::Document,
+                JevCapability::Command,
+            ],
         }
     }
 }
 
 impl JevConfig {
     pub fn validate(&self) -> Result<(), JevConfigError> {
-        let (scheme, rest) = self.endpoint.split_once("://").ok_or(JevConfigError::InvalidEndpoint)?;
+        let (scheme, rest) = self
+            .endpoint
+            .split_once("://")
+            .ok_or(JevConfigError::InvalidEndpoint)?;
         if !matches!(scheme, "http" | "https") || rest.is_empty() || rest.contains('?') {
             return Err(JevConfigError::InvalidEndpoint);
         }
-        if !(1..=100).contains(&self.step_limit) { return Err(JevConfigError::InvalidStepLimit); }
-        if !(1_000..=600_000).contains(&self.time_limit_ms) { return Err(JevConfigError::InvalidTimeLimit); }
-        if !(1..=100_000).contains(&self.token_limit) { return Err(JevConfigError::InvalidTokenLimit); }
+        if !(1..=100).contains(&self.step_limit) {
+            return Err(JevConfigError::InvalidStepLimit);
+        }
+        if !(1_000..=600_000).contains(&self.time_limit_ms) {
+            return Err(JevConfigError::InvalidTimeLimit);
+        }
+        if !(1..=100_000).contains(&self.token_limit) {
+            return Err(JevConfigError::InvalidTokenLimit);
+        }
         let mut capabilities = self.capabilities.clone();
         capabilities.sort_unstable();
         capabilities.dedup();
@@ -72,7 +94,10 @@ mod tests {
 
     #[test]
     fn rejects_invalid_config() {
-        let mut config = JevConfig { capabilities: vec![JevCapability::Cua], ..JevConfig::default() };
+        let mut config = JevConfig {
+            capabilities: vec![JevCapability::Cua],
+            ..JevConfig::default()
+        };
         config.endpoint = "localhost".into();
         assert_eq!(config.validate(), Err(JevConfigError::InvalidEndpoint));
         config.endpoint = "http://localhost".into();

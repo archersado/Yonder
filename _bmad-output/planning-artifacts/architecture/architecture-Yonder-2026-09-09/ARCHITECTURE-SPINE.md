@@ -87,7 +87,7 @@ Accepted [AD-EX-03](AD-EX-03-JEV-CONFIG-INTERFACE.md) 单独允许实现最小 J
 
 CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。Qwen cua-driver 与 trycua cua-driver 使用相同 Windows/macOS 黑盒用例验证，只交付胜者；OSWorld 仅作基准。Driver 由 Supervisor 按需启动；崩溃或超时将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
 
-BUA Bridge 直接调用 ego-lite/ego-browser，保存 external_task_ref 并映射状态，不复制 Task Space。只有经 Yonder 调用才保证桌宠收到状态。由于 ego-lite 当前没有 Windows Runtime，Windows 首版 BUA 为 `capability_unavailable`；不得自动回退到 CUA 或另一套浏览器引擎。
+BUA Bridge 直接调用 ego-lite/ego-browser，保存 external_task_ref 并映射状态，不复制 Task Space。只有经 Yonder 调用才保证桌宠收到状态。Windows 与 macOS 均复用同一 BrowserUsePort；Runtime 缺失或不可达时返回 `capability_unavailable`，不得自动回退到 CUA 或另一套浏览器引擎。
 
 ### Command、File 与 Document
 
@@ -112,7 +112,7 @@ Recording 仅手动开始，每设备最多一个。原始时间线不可变，�
 - 文档：只处理明确授权或任务选择的文件，由实际活动触发；不全盘扫描。OOXML 复用 Document Adapter，文本/PDF 使用只读 Extractor；MVP 无 OCR。
 - 操作序列：仅手动 Recording 采集。密码框、安全界面与排除应用始终忽略。
 
-2026-09-18显式区域捕获候选见Proposed [AD-CX-01](AD-CX-01-EXPLICIT-REGION-CAPTURE.md)：只在用户启动“圈选提问”后建立短生命选择层与临时截图，未启动时不监听全局输入或截图。截图与问题不入日志、任务事件、Outbox或普通索引；双平台Spike和ADR接受前不形成产品能力。
+2026-09-18显式区域捕获候选见[AD-CX-01](AD-CX-01-EXPLICIT-REGION-CAPTURE.md)（Accepted仅限macOS Preview，Windows仍未授权）：只在用户启动“圈选提问”后建立短生命选择层与临时截图，未启动时不监听全局输入或截图。截图与问题不入日志、任务事件、Outbox或普通索引；Windows统一样本和Windows扩展决定通过前不形成Windows产品能力。
 
 2026-09-20圈选提交附件见Accepted [AD-CX-02](AD-CX-02-SESSION-INPUT-ATTACHMENT.md)：在同一已认证`AgentSession`内以有界分块暂存附件，`agent.input`只引用会话内附件标识；不发送本机路径、不扩大单帧、不持久化截图。隔离Spike与独立复核已通过，产品协议与确认卡发送仍须独立Change验证。
 

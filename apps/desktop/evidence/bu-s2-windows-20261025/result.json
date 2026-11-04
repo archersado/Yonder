@@ -1,0 +1,35 @@
+{
+  "story": "BU-S2",
+  "platform": "windows",
+  "date": "2026-10-25",
+  "gateway": {
+    "transport": "current-user-named-pipe",
+    "protocol": { "major": 1, "minor": 17 },
+    "browser_capability": "available"
+  },
+  "browser_lifecycle": {
+    "task_id": "task_82cfb598b501b53e954aaf2100a3a227",
+    "external_task_ref": "ego:8",
+    "ownership_path": ["agent", "agentDelegatedToUser", "agent"],
+    "final_status": "completed",
+    "final_sequence": "18",
+    "events": 18,
+    "observed_attempts": 4,
+    "persisted_after_desktop_restart": true,
+    "finished_reference_retained": true
+  },
+  "task_space_ui": {
+    "task_space_id": 9,
+    "browser_reference": true,
+    "browser_open": true,
+    "browser_partial_failure": true
+  },
+  "checks": {
+    "windows_product_tests": "76 passed; 0 failed",
+    "architecture_tests": "17 passed; 0 failed",
+    "openspec_strict": "3 changes valid",
+    "diff_check": "clean",
+    "cua_executed": false
+  },
+  "result": "PASS"
+}

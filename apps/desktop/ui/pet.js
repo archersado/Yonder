@@ -42,7 +42,12 @@
   let blinkStarted = 0;
   let reopenTimer;
   let responseTimer;
-  let idleTimer;
+  let idleTimer, idleWatchdog;
+  let idleDiagnosticCount = 0;
+  let lastIdleDiagnosticKey = '';
+  let lastIdleDiagnosticAt = 0;
+  let nextIdleDiagnosticMs = 30000;
+  let lastInteractionAt = Date.now();
   let hasTasks = null;
   let taskState = 'unknown';
   let agentConnected = false;
@@ -60,6 +65,16 @@
   const canBlink = () => ready && ['awake', 'docked'].includes(mode) && visible && !reduced.matches;
   const native = (command, args) => window.__TAURI_INTERNALS__?.invoke(command, args) ?? Promise.resolve();
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  function idleDiagnostic(phase) {
+    if (!window.__TAURI_INTERNALS__ || idleDiagnosticCount >= 10) return;
+    const now = Date.now();
+    const key = `${phase}|${mode}|${taskState}`;
+    if (key === lastIdleDiagnosticKey && now - lastIdleDiagnosticAt < 1000) return;
+    lastIdleDiagnosticKey = key;
+    lastIdleDiagnosticAt = now;
+    idleDiagnosticCount += 1;
+    native('pet_idle_diagnostic', { phase, mode, taskState, elapsedMs: Math.max(0, Date.now() - lastInteractionAt) }).catch(() => {});
+  }
   function setPackStatus(text, error = false) {
     packStatus.textContent = text;
     packStatus.dataset.error = String(error);
@@ -131,14 +146,27 @@
     sync();
   }
   function interact() {
+    lastInteractionAt = Date.now();
     clearTimeout(idleTimer);
-    if (mode === 'awake') idleTimer = setTimeout(hide, IDLE_MS);
+    if (mode === 'awake') {
+      idleTimer = setTimeout(hide, IDLE_MS);
+      idleWatchdog ||= setInterval(() => {
+        const elapsed = Date.now() - lastInteractionAt;
+        if (elapsed >= nextIdleDiagnosticMs && nextIdleDiagnosticMs < IDLE_MS) {
+          idleDiagnostic('timer-progress');
+          nextIdleDiagnosticMs += 30000;
+        }
+        if (mode === 'awake' && elapsed >= IDLE_MS) hide();
+      }, 1000);
+      idleDiagnostic('timer-armed');
+    }
   }
   regionTrigger.addEventListener('pointerdown', event => event.stopPropagation());
   regionTrigger.addEventListener('click', event => { event.stopPropagation(); interact(); regionStatus.textContent='正在暂停当前任务…'; native('region_preview_open').then(() => { regionStatus.textContent=''; }).catch(error => { regionStatus.textContent=String(error?.message??error).includes('desktop-stop-unconfirmed')?'当前任务结果待核实，暂不能圈选。':'圈选暂不可用，请稍后重试。'; }); });
   async function hide() {
     if (mode !== 'awake') return;
-    if (pointer || voiceActive || taskState === 'executing' || taskState === 'unknown') { interact(); return; }
+    idleDiagnostic('dock-attempt');
+    if (pointer || voiceActive || taskState === 'executing' || taskState === 'unknown') { idleDiagnostic('dock-local-blocked'); interact(); return; }
     clearTimeout(idleTimer);
     setMode('tucking');
     await wait(reduced.matches ? 0 : 320);
@@ -147,8 +175,10 @@
       const edge = await native('pet_dock');
       pet.dataset.edge = ['left', 'right', 'top', 'bottom'].includes(edge) ? edge : 'bottom';
       setMode('docked');
+      idleDiagnostic('docked');
     } catch (_) {
       setMode('awake'); interact();
+      idleDiagnostic('dock-failed');
       console.warn('暂不隐藏小龙：任务门禁或窗口停靠失败');
     }
   }
@@ -383,8 +413,8 @@
     showTaskMenu();
   });
   pet.addEventListener('pointermove', event => {
-    interact();
     if (!pointer || pointer.id !== event.pointerId || pointer.moved) return;
+    interact();
     if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) <= 4) return;
     pointer.moved = true;
     const invoke = window.__TAURI_INTERNALS__?.invoke;
@@ -444,15 +474,22 @@
     hasTasks = nextHasTasks;
     if (taskState !== nextState) {
       taskState = nextState; stateStarted = Date.now(); if (!voiceActive) pet.dataset.state = nextState; sync();
+      idleDiagnostic('presentation-change');
       if (mode === 'docked') wake();
     }
   }
-  async function loadInitialPresentation() {
+  async function loadInitialPresentation(attempt = 0) {
     try {
       const [nextHasTasks, nextState] = await native('pet_task_state');
       applyPresentation(nextHasTasks, nextState);
+      idleDiagnostic('presentation-ready');
     } catch {
+      if (attempt < 20) {
+        await wait(100);
+        return loadInitialPresentation(attempt + 1);
+      }
       hasTasks = null;
+      idleDiagnostic('presentation-unknown');
       if (taskState !== 'unknown') { taskState = 'unknown'; stateStarted = Date.now(); pet.dataset.state = 'unknown'; sync(); if (mode === 'docked') wake(); }
     }
   }
@@ -506,8 +543,8 @@
   const start = window.__TAURI_INTERNALS__
     ? loadActivePack().catch(() => loadBuiltIn())
     : loadBuiltIn();
-  start.then(() => { if (window.__TAURI_INTERNALS__) loadInitialPresentation(); })
-    .catch(error => { pet.dataset.assetError = String(error?.message ?? error); setPackStatus('状态素材加载失败', true); console.warn('状态素材加载失败，保留原透明小龙'); });
+  start.then(() => { if (window.__TAURI_INTERNALS__) return loadInitialPresentation(); })
+    .catch(error => { pet.dataset.assetError = String(error?.message ?? error); setPackStatus('状态素材或初始任务状态加载失败', true); console.warn('初始化失败，保持任务状态未知并禁止自动停靠'); });
   window.addEventListener('yonda-pet-pack-status', event => {
     const detail = event.detail;
     if (detail === 'validating') setPackStatus('正在检查资源包');
@@ -516,7 +553,10 @@
     else if (detail === 'unavailable') setPackStatus('资源包不可用', true);
     else if (detail === 'invalid') setPackStatus('资源包不符合规范', true);
   });
+  // 空闲停靠不能依赖装饰图片 decode；Windows WebView 在损坏/延迟资源上可能长期不结算 Promise。
+  interact();
   Promise.all([eyelids.decode(), document.querySelector('.peek-eyelids').decode()]).then(() => { ready = true; setMode('awake'); interact(); }).catch(() => {
     console.warn('闭眼素材加载失败，保留静态小龙');
+    interact();
   });
 })();
