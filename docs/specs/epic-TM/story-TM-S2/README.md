@@ -34,4 +34,6 @@ Failure Increment: [tm-s2-agent-fail](../../../../openspec/changes/tm-s2-agent-f
 
 尝试结果事务子范围PASS：observed/unknown与事件/Outbox原子提交，协议1.4兼容、1.5增量可见，真实macOS动作结果落库且占用保留；见[独立 Verification Goal](../../../../openspec/changes/tm-s2-attempt-result/verification-goal.md)。
 
+2026-11-01：Windows 结果事务与协议回归 PASS（Adapters 35/35、Application 19/19），覆盖 observed/unknown、幂等、旧身份、Outbox 回滚及协议版本门禁，见 [Windows Verification Goal](../../../../openspec/changes/tm-s2-attempt-result/verification-windows-20261101.md)。本轮不执行 CUA；真实 Windows Driver 与完整 Story 仍保留。
+
 2026-09-18：按 Accepted AD-TM-11 实施已观察失败终结。协议1.18、Gateway、SQLite既有attempt事实、CLI/MCP及桌宠failed出口已接通；`complete/fail` 对称拒绝相反动作结果，unknown仍不终结。macOS子范围PASS，见[独立 Verification Goal](../../../../openspec/changes/tm-s2-agent-fail/verification-goal.md)；Windows按用户要求暂缓，完整Story不Archive。

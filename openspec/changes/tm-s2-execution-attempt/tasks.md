@@ -8,5 +8,6 @@
 - [x] 独立Verification Goal
 - [ ] 真实Driver派发/Observe与Windows验证
   - [x] macOS prepared attempt经产品CU Port派发、固定SDK Worker后台AX输入并强制后置Observe（见CU-S2独立验证）
-  - [ ] Windows对等验证
+  - [x] Windows真实ego-lite BUA attempt派发、6轮Observe与Stopped结果验证
+  - [ ] Windows CUA Driver对等验证（本轮按用户要求排除）
 - [ ] 完整Story/PR通过后Archive

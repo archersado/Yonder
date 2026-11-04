@@ -15,18 +15,22 @@
 - [x] 呼吸、眨眼、点击反馈及拖动分流实现；ego-browser 页面验证通过（verification-animations.md）
 - [ ] 动画 Windows/macOS 原生完整验证
   - [x] macOS 原生透明边缘、待命双爪、背景与眨眼子范围证据
+  - [x] Windows 真实 BUA `idle/listening/executing/success/idle` 原生展示及终态清单修复（`verification-windows-bua-presentation-20261029.md`）
   - [ ] 真实 running/等待/暂停完整原生链路、九态完整语义与 Windows 原生验证
 - [x] 3 分钟闲置、最近四边探头及躲藏眨眼、点击回原位及原生任务门禁判断实现；ego-browser 页面回归通过
 - [ ] 最终边缘休眠原生/双平台验证与正式任务事件接线（verification-edge-rest.md）
   - [x] 四边布局、边界、等距选择与浏览器行为回归
   - [x] macOS 真实三分钟右侧隐藏、顶部原生视觉/几何与正式 Agent 状态唤醒
   - [ ] macOS 其余三边完整原生交互、点击恢复与跨 Space 连续可见
-  - [ ] Windows 对应原生验证
+  - [x] Windows 对应原生验证
+    - [x] Windows 无输入180秒自动停靠：底边112×56与左边56×112连续独立样本通过
+    - [x] Windows 顶部/右侧、点击/键盘恢复与交互重置完整原生验证（`verification-windows-edges-wake-20261029.md`）
 - [ ] 透明小龙双平台视觉、尺寸及拖动验证（verification-dragon.md）
   - [x] macOS 透明、200×200、原生完整形象与尺寸证据
   - [ ] macOS 人工原生拖动验证
-  - [ ] Windows 视觉、尺寸与拖动验证
+  - [x] Windows 当前素材原生视觉、200×200尺寸、透明边缘与合成输入拖动技术验证（`verification-windows-visual-20261029.md`、`verification-windows-drag-20261029.md`）
 - [x] 补充桌宠原生拖动与最小权限，配置检查和 Windows Release 编译/启动通过
+- [x] Windows 原生合成输入拖动技术链路、尺寸保持与释放停止验证（`verification-windows-drag-20261029.md`）
 - [ ] Windows 人工拖动验证；macOS 按用户要求暂缓，不据此通过双平台门禁（见 verification-drag.md）
 - [x] 创建 Local Socket echo 与 CLI 探针
 - [x] macOS同进程宿主echo接线、宿主UDS所有权、错误请求后可用、退出端点清理及重启（verification-host-ipc-macos.md）
@@ -35,6 +39,7 @@
 - [x] macOS独立IPC Spike的错误版本与无效JSON拒绝、异常退出端点清理（不替代跨用户权限拒绝）
 - [x] 原生托盘图标及显示/退出菜单实现，前端找回事件回归通过
 - [x] macOS原生托盘AX菜单与当前宿主/WebKit退出清理（verification-exit-coalition-macos.md；Windows及未来Worker不在本项范围）
+- [x] Windows 原生托盘回归修复、显示小龙找回及宿主/WebView2 正常退出清理（`verification-windows-tray-exit-20261029.md`）
 - [x] 完成 Linux 编译自检
 - [ ] 完成 Windows 实机验证并保存证据（2026-09-13 用户暂缓，保留门禁）
 - [ ] 完成 macOS 实机验证并保存证据
@@ -59,7 +64,9 @@
 - [x] macOS单次新进程渲染就绪与托盘几何恢复计时，保留原始日志和独立验证
 - [ ] 完整可用状态、核心窗口状态更新延迟及Windows对应性能证据
   - [ ] macOS 完整可用状态与核心窗口状态更新延迟
-  - [ ] Windows 当前版本性能证据
+  - [x] Windows 当前版本五分钟自然闲置性能证据已补齐，优化目标未达且继续保留（`verification-windows-performance-20261029.md`）
+  - [x] Windows 正式 Gateway `task.create → listening` 状态应用延迟观测上界15.829ms，低于300ms优化目标；其余状态仍保留（`verification-windows-presentation-latency-20261031.md`）
+  - [x] Windows 真实 BUA `browser.execute(create) → executing` 状态应用延迟观测上界14.225ms；真实success/恢复顺序已记录但不把外部完成与终态脉冲计入300ms比较（`verification-windows-bua-latency-20261101.md`）
 - [x] 正常LaunchServices启动渲染就绪功能：ready=true，4314.51ms；按2026-09-14用户变更功能PASS，性能优化后置（verification-launchservices-startup-macos.md）
 
 - [x] macOS从托盘明确重置时刻测三分钟无任务闲置，180.23秒仍展开、180.50秒首次几何收起（verification-idle-timing-macos.md）

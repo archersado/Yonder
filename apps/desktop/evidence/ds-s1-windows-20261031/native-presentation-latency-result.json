@@ -1,0 +1,46 @@
+﻿{
+    "platform":  "windows",
+    "target_ms":  300,
+    "cua_executed":  false,
+    "ego_lite_executed":  false,
+    "process_id":  50792,
+    "agent_id":  "ds-s1-latency-e2fed45ed0b5",
+    "protocol":  {
+                     "major":  1,
+                     "minor":  19
+                 },
+    "listening":  {
+                      "state":  "listening",
+                      "latency_ms_upper_bound":  15.829,
+                      "response_in_flight":  false,
+                      "diagnostic_line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=listening, elapsed_ms=4384"
+                  },
+    "task_id":  "task_55a96dd68fd3c32401a408be34864763",
+    "final_status":  "cancelled",
+    "request_durations_ms":  {
+                                 "task_create":  29.642,
+                                 "task_cancel":  7.181
+                             },
+    "cancel_presentation_note":  "取消请求在协议层进入cancelled；展示恢复受1.6秒listening脉冲及既有代表任务状态影响，不作为300毫秒核心状态应用样本。",
+    "diagnostic_observations":  [
+                                    {
+                                        "elapsed_ms":  9.594,
+                                        "line":  "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0"
+                                    },
+                                    {
+                                        "elapsed_ms":  14.974,
+                                        "line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=332"
+                                    },
+                                    {
+                                        "elapsed_ms":  15.811,
+                                        "line":  "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=paused, elapsed_ms=382"
+                                    },
+                                    {
+                                        "elapsed_ms":  15.829,
+                                        "line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=listening, elapsed_ms=4384"
+                                    }
+                                ],
+    "optimization_target_met":  true,
+    "passed":  true,
+    "finished":  true
+}

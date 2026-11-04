@@ -9,7 +9,7 @@ $server = [IO.Pipes.NamedPipeServerStream]::new(
     [IO.Pipes.PipeOptions]::None
 )
 
-$agent = Start-Job -ArgumentList $pipeName -ScriptBlock {
+$agent = Start-ThreadJob -ArgumentList $pipeName -ScriptBlock {
     param($name)
     $ErrorActionPreference = 'Stop'
     $utf8 = [Text.UTF8Encoding]::new($false)

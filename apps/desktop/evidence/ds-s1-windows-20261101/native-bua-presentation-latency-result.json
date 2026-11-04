@@ -1,0 +1,73 @@
+﻿{
+    "platform":  "windows",
+    "target_ms":  300,
+    "cua_executed":  false,
+    "ego_lite_executed":  true,
+    "process_id":  504,
+    "agent_id":  "ds-s1-bua-latency-4f63ecfe62",
+    "protocol":  {
+                     "major":  1,
+                     "minor":  19
+                 },
+    "task_id":  "task_4a5ab80604737e1095a21faaf94fabf2",
+    "external_task_ref":  "ego:7",
+    "executing":  {
+                      "state":  "executing",
+                      "latency_ms_upper_bound":  14.225,
+                      "response_in_flight":  true,
+                      "diagnostic_line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=executing, elapsed_ms=4415"
+                  },
+    "success_from_request":  {
+                                 "state":  "success",
+                                 "latency_ms_upper_bound":  347.383,
+                                 "response_in_flight":  false,
+                                 "diagnostic_line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=success, elapsed_ms=5190"
+                             },
+    "resume":  {
+                   "state":  "paused",
+                   "latency_ms_upper_bound":  873.994,
+                   "response_in_flight":  false,
+                   "diagnostic_line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=6056"
+               },
+    "final_status":  "completed",
+    "reference_finished":  true,
+    "request_durations_ms":  {
+                                 "browser_create":  413.119,
+                                 "browser_finish":  347.774
+                             },
+    "diagnostic_observations":  [
+                                    {
+                                        "elapsed_ms":  9.17,
+                                        "line":  "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0"
+                                    },
+                                    {
+                                        "elapsed_ms":  13.382,
+                                        "line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=344"
+                                    },
+                                    {
+                                        "elapsed_ms":  14.195,
+                                        "line":  "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=paused, elapsed_ms=394"
+                                    },
+                                    {
+                                        "elapsed_ms":  14.21,
+                                        "line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=listening, elapsed_ms=4392"
+                                    },
+                                    {
+                                        "elapsed_ms":  14.225,
+                                        "line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=executing, elapsed_ms=4415"
+                                    },
+                                    {
+                                        "elapsed_ms":  347.383,
+                                        "line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=success, elapsed_ms=5190"
+                                    },
+                                    {
+                                        "elapsed_ms":  873.994,
+                                        "line":  "桌宠空闲计时：phase=presentation-change, mode=awake, task_state=paused, elapsed_ms=6056"
+                                    }
+                                ],
+    "optimization_target_met":  true,
+    "success_latency_note":  "success从browser.finish请求写入计时，包含外部Task Space完成耗时，不与300毫秒UI状态应用目标比较。",
+    "resume_latency_note":  "resume从finish响应完成后计时，包含既有1.8秒终态展示脉冲，不与300毫秒UI状态应用目标比较。",
+    "passed":  true,
+    "finished":  true
+}

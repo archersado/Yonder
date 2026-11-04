@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="0.1.0.0" name="Yonder.VoiceSpike.Identity" />
+  <msix
+    xmlns="urn:schemas-microsoft-com:msix.v1"
+    publisher="CN=AppModelSamples, OID.2.25.311729368913984317654407730594956997722=1"
+    packageName="Yonder.VoiceSpike.Identity"
+    applicationId="VoiceProbe" />
+</assembly>

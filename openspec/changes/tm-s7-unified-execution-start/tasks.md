@@ -8,4 +8,5 @@
 - [ ] 在 FI-S1、DO-S2、CM-S1 门禁通过后接入 Document/Command
 - [x] 创建独立 Verification Goal，记录统一启动子范围结果
 - [x] 补充 macOS Browser Gateway 真实`created→running`证据
-- [ ] 完成 Windows/macOS 原生证据后 Archive
+- [x] Windows/macOS BUA统一启动原生证据
+- [ ] Document/Command接入及对应原生证据完成后 Archive

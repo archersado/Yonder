@@ -1,0 +1,63 @@
+﻿{
+    "platform":  "windows",
+    "background":  {
+                       "r":  220,
+                       "g":  230,
+                       "b":  242,
+                       "a":  255
+                   },
+    "process_id":  4956,
+    "window":  {
+                   "x":  640,
+                   "y":  400,
+                   "width":  200,
+                   "height":  200
+               },
+    "dpi":  144,
+    "scale_factor":  1.5,
+    "physical_capture":  {
+                             "x":  960,
+                             "y":  600,
+                             "width":  300,
+                             "height":  300
+                         },
+    "image":  "native-visual.png",
+    "background_pixels":  61492,
+    "content_pixels":  28508,
+    "transparent_corner_count":  4,
+    "corners":  [
+                    {
+                        "r":  220,
+                        "g":  230,
+                        "b":  242,
+                        "a":  255
+                    },
+                    {
+                        "r":  220,
+                        "g":  230,
+                        "b":  242,
+                        "a":  255
+                    },
+                    {
+                        "r":  220,
+                        "g":  230,
+                        "b":  242,
+                        "a":  255
+                    },
+                    {
+                        "r":  220,
+                        "g":  230,
+                        "b":  242,
+                        "a":  255
+                    }
+                ],
+    "window_size_passed":  true,
+    "transparent_edges_passed":  true,
+    "visible_content_passed":  true,
+    "passed":  true,
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=498"
+                       ]
+}

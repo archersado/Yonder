@@ -38,7 +38,7 @@ Accepted AD-TM-04由TM-S3首批实现created取消；Agent协议1.2协商task.ca
 
 依据Accepted AD-AG-05。desktop组合根以`interprocess`和Tokio监听`app_data_dir/agent.sock`，父目录0700、端点0600；首个`gateway.hello`的有效`agent_id`建立该连接专属`AuthContext::Agent`，后续请求由既有Gateway一致性校验拒绝身份切换。完整换行帧上限64KiB，坏帧只关闭当前连接；停止时释放Listener并清理端点。
 
-`apps/yonder-cli`只依赖`crates/protocol`及传输/序列化技术库。`yonder mcp`实现MCP stdio的initialize、tools/list和tools/call，把工具参数构造成Rust协议类型并经共享IPC客户端发送；启动时先hello 1.4。CLI不打开SQLite、不持有TaskHost、不启动Tauri、不接受外部agent_id。Windows仍映射Named Pipe但本轮不实现。
+`apps/yonder-cli`只依赖`crates/protocol`及传输/序列化技术库。`yonder mcp`实现MCP stdio的initialize、tools/list和tools/call，把工具参数构造成Rust协议类型并经共享IPC客户端发送；启动时先hello 1.4。CLI不打开SQLite、不持有TaskHost、不启动Tauri、不接受外部agent_id。2026-10-24 用户恢复 Windows：同一客户端在 Windows 通过固定 namespaced Local Socket 映射 Named Pipe，继续复用相同 hello、连接身份和帧限制。
 
 ## 云端 Connector 边界
 

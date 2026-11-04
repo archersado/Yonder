@@ -1,0 +1,15 @@
+﻿{
+    "platform":  "windows",
+    "active_alias":  "C:\\Users\\admin\\.local\\share\\ego\\active_version_dir\\ego-browser.exe",
+    "active_canonical_path":  "C:\\Program Files\\Citro Labs\\ego lite\\Application\\0.6.1.13\\ego-browser.exe",
+    "active_version":  "0.6.1.13",
+    "installed_versions":  [
+                               "0.6.1.13",
+                               "0.6.2.5"
+                           ],
+    "highest_installed_version":  "0.6.2.5",
+    "active_target_inside_fixed_root":  true,
+    "active_precedes_higher_unactivated_version":  true,
+    "cua_executed":  false,
+    "passed":  true
+}

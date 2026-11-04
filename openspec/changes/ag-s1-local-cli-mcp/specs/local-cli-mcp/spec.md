@@ -4,11 +4,15 @@
 
 ### Requirement: 当前用户私有本地Gateway
 
-macOS桌面进程 MUST 提供当前用户私有的UDS Gateway，并按连接绑定可信Agent身份。
+桌面进程 MUST 在 macOS 提供当前用户私有 UDS、在 Windows 提供当前用户私有 Named Pipe，并按连接绑定可信Agent身份。
 
 #### Scenario: 建立私有UDS连接
 
 macOS桌面进程必须在应用数据目录提供0700父目录、0600端点的UDS，每连接固定可信Agent身份并建立独立GatewaySession；不得开放HTTP/TCP或第二个TaskHost。
+
+#### Scenario: 建立 Windows 私有 Named Pipe 连接
+
+Windows 桌面进程必须通过固定 namespaced Local Socket 提供当前用户私有 Named Pipe，每连接固定可信 Agent 身份并建立独立 GatewaySession；不得开放 HTTP/TCP、接受外部覆盖名称或启动第二个 TaskHost。
 
 ### Requirement: Codex MCP桥接
 
@@ -28,8 +32,12 @@ macOS桌面进程必须在应用数据目录提供0700父目录、0600端点的U
 
 ### Requirement: 平台完成边界
 
-Story完成证据 MUST 覆盖macOS真实UDS、无TCP、单桌宠和Codex MCP创建任务。
+Story完成证据 MUST 分别覆盖 macOS 真实 UDS、Windows 真实 Named Pipe、无 TCP、单桌宠和 Codex MCP 创建任务。
 
 #### Scenario: macOS完成证据
 
-macOS必须提供真实UDS、无TCP、单桌宠及Codex MCP创建任务证据。Windows使用Named Pipe但当前暂缓，不得标记通过或Archive完整Story。
+macOS必须提供真实UDS、无TCP、单桌宠及Codex MCP创建任务证据。
+
+#### Scenario: Windows 完成证据
+
+Windows 必须提供真实 Named Pipe、无 TCP、单桌宠及 Codex MCP 创建任务证据；不得以隔离管道样本或 macOS 证据替代。

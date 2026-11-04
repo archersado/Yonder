@@ -1,4 +1,4 @@
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn main() {
     use std::{path::Path, time::Duration};
     use yonder_adapters::{ego_lite::EgoLiteBridge, task_store::SqliteTaskStore};
@@ -120,7 +120,7 @@ fn main() {
     );
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn main() {
     eprintln!("capability_unavailable");
     std::process::exit(2)

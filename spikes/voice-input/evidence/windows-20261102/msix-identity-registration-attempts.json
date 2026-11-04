@@ -1,0 +1,41 @@
+{
+  "platform": "Windows 11 Professional",
+  "version": "10.0.26200",
+  "display_version": "25H2",
+  "package_name": "Yonder.VoiceSpike.Identity",
+  "user_confirmed_install_state_change": true,
+  "attempts": [
+    {
+      "mode": "self-signed-current-user-trusted-people",
+      "result": "failed",
+      "hresult": "0x800B0109",
+      "reason": "AppxDeployment did not trust the signature root from CurrentUser TrustedPeople",
+      "rolled_back": true
+    },
+    {
+      "mode": "allow-unsigned-custom-oid",
+      "result": "failed",
+      "hresult": "0x80073D2C",
+      "reason": "publisher was not in the Windows unsigned namespace",
+      "rolled_back": true
+    },
+    {
+      "mode": "allow-unsigned-official-marker",
+      "publisher": "CN=AppModelSamples, OID.2.25.311729368913984317654407730594956997722=1",
+      "result": "failed",
+      "hresult": "0x80080204",
+      "reason": "AppxDeployment rejected the official unsigned Publisher string as invalid on this OS build",
+      "rolled_back": true
+    }
+  ],
+  "final_package_count": 0,
+  "final_current_user_trusted_certificate_count": 0,
+  "final_current_user_personal_certificate_count": 0,
+  "final_state_file_exists": false,
+  "final_probe_process_count": 0,
+  "root_store_changed": false,
+  "developer_mode_changed": false,
+  "microphone_opened": false,
+  "next_step": "administrator-approved LocalMachine TrustedPeople test certificate",
+  "passed": false
+}

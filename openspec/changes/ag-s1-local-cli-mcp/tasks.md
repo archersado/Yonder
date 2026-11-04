@@ -7,5 +7,5 @@
 - [x] 协议/集成测试及真实Codex CLI验证
 - [x] 独立Verification Goal
 - [x] MCP子进程10分钟空闲退出，防止宿主侧遗留长驻进程
-- [ ] Windows Named Pipe与原生验证（用户暂缓）
+- [x] Windows Named Pipe实现与原生验证
 - [ ] 完整Story/PR通过后Archive

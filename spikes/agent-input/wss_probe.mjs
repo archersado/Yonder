@@ -9,8 +9,10 @@ import { join } from 'node:path';
 const temporary = mkdtempSync(join(tmpdir(), 'yonder-agent-wss-'));
 const key = join(temporary, 'key.pem');
 const cert = join(temporary, 'cert.pem');
-execFileSync('/usr/bin/openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes',
-  '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=localhost'], { stdio: 'ignore' });
+const openssl = process.env.OPENSSL ?? (process.platform === 'win32' ? 'openssl.exe' : '/usr/bin/openssl');
+const opensslArgs = ['req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+  '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=localhost'];
+execFileSync(openssl, opensslArgs, { stdio: 'ignore' });
 
 function frame(value) {
   const payload = Buffer.from(JSON.stringify(value));

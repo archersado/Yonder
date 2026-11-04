@@ -9,3 +9,12 @@
 `run-lifecycle-macos.sh`验证非激活短生命选择层的Esc与超时清场。Esc使用合成AppKit原生事件，只验证应用内分发路径；不声称为物理键盘证据。探针不安装全局监听，关闭后检查窗口已移除且前台应用未变。
 
 `run-selection-macos.sh`用系统CGHID合成事件对一个480×320点非激活局部选择层执行按下、拖动和松开，验证160×100点的AppKit选区与关闭路径，然后恢复原鼠标位置。它是系统输入路径的合成样本，不是物理鼠标证据。
+
+Windows候选先编译后运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
+& "$env:TEMP\yonder-region-capture-spike\windows-probe.exe"
+```
+
+探针使用Windows Graphics Capture只捕获自身绘制的240×160逻辑像素四色窗口，并用DisplayConfig与Per-Monitor DPI校验当前显示器。像素只在内存中校验后释放，不保存截图、不安装输入监听、不接产品Port或Gateway。

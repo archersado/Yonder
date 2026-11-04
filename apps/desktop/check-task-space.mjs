@@ -5,18 +5,20 @@ export async function checkPetInteraction(page) {
   await page.cdp('Emulation.setDeviceMetricsOverride',{width:640,height:480,deviceScaleFactor:1,mobile:false});
   await page.cdp('Page.addScriptToEvaluateOnNewDocument', {source:`
     window.nativeCalls=[];window.nativeArguments=[];
+    window.presentationQueriedBeforeFramesReady=false;
     window.fixtureHasTasks=false;window.fixtureState='idle';window.fixtureFailure=false;
     window.emitPresentation=(hasTasks,state,extra={})=>window.dispatchEvent(new CustomEvent('yonda-presentation',{detail:{hasTasks,state,...extra}}));
     window.__TAURI_INTERNALS__={invoke:async (command,args)=>{
       window.nativeCalls.push(command);
       window.nativeArguments.push({command,args});
       if(command==='pet_is_visible')return true;
-      if(command==='pet_task_state') {if(window.fixtureFailure)throw Error('test');return [window.fixtureHasTasks,window.fixtureState];}
+      if(command==='pet_task_state') {window.presentationQueriedBeforeFramesReady=document.getElementById('pet')?.classList.contains('frames-ready')!==true;if(window.fixtureFailure)throw Error('test');return [window.fixtureHasTasks,window.fixtureState];}
       if(command==='task_menu_show')return window.fixtureHasTasks;
       if(command==='pet_dock')return 'bottom';
     }};`});
   await page.reload();
   await page.waitForFunction(() => document.getElementById('pet').dataset.state === 'idle');
+  assert.equal(await page.evaluate(() => window.presentationQueriedBeforeFramesReady),false);
   await page.waitForTimeout(300);
   assert.equal(await page.evaluate(() => window.nativeCalls.filter(c=>c==='task_menu_show').length),0);
   await page.click('#pet', {button: 'right'});

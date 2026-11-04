@@ -19,3 +19,11 @@ debug预览中的麦克风入口附着在小龙上；同一Yonda进程创建贴�
 ## 候选判定
 
 优先选择能在两平台提供一致Application契约的最少依赖路线。平台原生实现允许Adapter内部不同，但必须产生相同状态与错误分类；单平台通过不接受ADR。
+
+## Windows稀疏MSIX身份对照
+
+Windows对照继续复用`windows-explicit-probe.exe`，不创建独立产品入口。构建脚本为该EXE内嵌side-by-side `msix`元数据，并生成只含身份清单的外部位置包；`packageName`、`publisher`和`applicationId`必须逐项一致。包使用`win32App + mediumIL`、`AllowExternalContent=true`与`runFullTrust`，外部位置只指向临时探针目录，不复制用户数据。
+
+自动阶段只允许编译、清单校验和生成未签名MSIX，不创建证书、不修改证书信任、不注册或安装包。取得用户单独安装确认后，当前用户`TrustedPeople`签名路线被本机部署策略以`0x800B0109`拒绝；Windows 11官方专用OID与`-AllowUnsigned`路线也分别以`0x80073D2C/0x80080204`拒绝，均已完整回滚，且没有修改Root或Developer Mode。后续只允许在用户再次明确授权管理员/UAC后，将短期不可导出测试证书的公钥导入`LocalMachine\TrustedPeople`并注册；不得改`LocalMachine\Root`。验证结束后按状态文件中的精确Package Full Name和证书指纹卸载并清理。证据不得保存PFX密码、私钥、设备名、PCM或转写正文。
+
+对照只回答包身份是否改变识别计数与停止行为：必须运行时确认Package Family Name存在、公开句产生部分或最终结果、停止/取消有限时完成且系统录音指示消失。任一项失败则拒绝该候选，不以身份包本身构建成功替代语音闭环。

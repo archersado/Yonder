@@ -1,0 +1,123 @@
+﻿{
+    "platform":  "windows",
+    "cua_executed":  false,
+    "process_id":  50424,
+    "minimized_before_show":  true,
+    "tray_icon":  {
+                      "x":  3324,
+                      "y":  1792,
+                      "name":  "Yonda",
+                      "class_name":  "SystemTray.NormalButton",
+                      "menu":  {
+                                   "left":  3324,
+                                   "top":  1541,
+                                   "width":  278,
+                                   "height":  251
+                               }
+                  },
+    "menu_capture":  {
+                         "file":  "native-tray-menu.png",
+                         "left":  3314,
+                         "top":  1531,
+                         "width":  298,
+                         "height":  271,
+                         "sha256":  "924cf5083d33d50a9d95c9c752639c8f3dd804b5e297bbfa31a45b8582cb6ceb"
+                     },
+    "show_click":  {
+                       "target_x":  3463,
+                       "target_y":  1559,
+                       "actual_x":  3463,
+                       "actual_y":  1559,
+                       "element_name":  "显示小龙",
+                       "element_type":  "ControlType.MenuItem",
+                       "invoked":  true
+                   },
+    "initial_window_handle":  1581846,
+    "restored_window_handle":  11017486,
+    "restored_by_first_item":  true,
+    "process_tree_before_exit":  [
+                                     {
+                                         "ProcessId":  24372,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  28816,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  50424,
+                                         "ParentProcessId":  48112,
+                                         "Name":  "yonder-desktop.exe"
+                                     },
+                                     {
+                                         "ProcessId":  51196,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  51428,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  51564,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  55456,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  56704,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  58584,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  59816,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  60692,
+                                         "ParentProcessId":  50424,
+                                         "Name":  "msedgewebview2.exe"
+                                     },
+                                     {
+                                         "ProcessId":  62664,
+                                         "ParentProcessId":  60692,
+                                         "Name":  "msedgewebview2.exe"
+                                     }
+                                 ],
+    "owned_tcp_connections":  0,
+    "quit_click":  {
+                       "target_x":  3463,
+                       "target_y":  1774,
+                       "actual_x":  3463,
+                       "actual_y":  1774,
+                       "element_name":  "退出 Yonda",
+                       "element_type":  "ControlType.MenuItem",
+                       "invoked":  true
+                   },
+    "exit_latency_ms_upper_bound":  108.312,
+    "remaining_owned_process_ids":  [
+
+                                    ],
+    "normal_exit_code":  0,
+    "passed":  true,
+    "diagnostic_log":  [
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=unknown, elapsed_ms=0",
+                           "桌宠空闲计时：phase=presentation-ready, mode=awake, task_state=idle, elapsed_ms=440",
+                           "桌宠空闲计时：phase=timer-armed, mode=awake, task_state=idle, elapsed_ms=0"
+                       ],
+    "forced_cleanup":  false
+}

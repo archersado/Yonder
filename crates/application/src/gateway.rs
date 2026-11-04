@@ -307,9 +307,19 @@ mod tests {
 
     #[test]
     fn local_first_hello_binds_the_declared_agent_id() {
-        let hello = |agent| format!(r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":1}}}}}}"#);
-        assert_eq!(local_hello_agent_id(hello("agent-a").as_bytes(), 1000), Ok("agent-a".into()));
-        assert_eq!(local_hello_agent_id(hello("agent-b").as_bytes(), 1000), Ok("agent-b".into()));
+        let hello = |agent| {
+            format!(
+                r#"{{"jsonrpc":"2.0","id":"hello","method":"gateway.hello","params":{{"agent_id":"{agent}","capability":"task.read","deadline":2000,"protocol_version":{{"major":1,"minor":1}}}}}}"#
+            )
+        };
+        assert_eq!(
+            local_hello_agent_id(hello("agent-a").as_bytes(), 1000),
+            Ok("agent-a".into())
+        );
+        assert_eq!(
+            local_hello_agent_id(hello("agent-b").as_bytes(), 1000),
+            Ok("agent-b".into())
+        );
         assert!(local_hello_agent_id(br#"{"jsonrpc":"2.0","id":"list","method":"task.list","params":{"agent_id":"agent-a","capability":"task.read","deadline":2000,"limit":1}}"#, 1000).is_err());
     }
 
@@ -420,7 +430,8 @@ impl<'a> GatewaySession<'a> {
                     error: RpcError::new(-32003, "Agent已禁用、撤权或未登记"),
                 };
                 return Ok((
-                    yonder_protocol::encode(&response).map_err(|_| crate::Error::StorageUnavailable)?,
+                    yonder_protocol::encode(&response)
+                        .map_err(|_| crate::Error::StorageUnavailable)?,
                     false,
                 ));
             }
@@ -951,29 +962,237 @@ impl<'a> GatewaySession<'a> {
                     && store.supports_controls();
                 self.can_focus = self.can_controls && params.protocol_version.minor >= 13;
                 self.can_advance = self.can_attempt_results && params.protocol_version.minor >= 7;
-                self.can_browser = self.can_advance && params.protocol_version.minor >= 8 && self.browser_available && store.supports_browser_references();
-                self.can_browser_read = self.negotiated && params.protocol_version.minor >= 15 && store.supports_browser_references();
-                self.can_running_filter = self.negotiated && params.protocol_version.minor >= 16 && store.supports_running_filter();
-                self.can_wait_for_user = self.can_advance && params.protocol_version.minor >= 17 && store.supports_wait_for_user();
-                self.can_presentation = self.negotiated && params.protocol_version.minor >= 19 && store.supports_presentation();
-                self.can_computer=self.can_advance&&params.protocol_version.minor>=11&&self.computer_available&&!self.computer_permission_required;
-                self.can_computer_step=self.can_computer&&params.protocol_version.minor>=12;
-                self.can_complete=self.can_computer&&params.protocol_version.minor>=10;
-                self.can_fail=self.can_complete&&params.protocol_version.minor>=18;
-                if !self.negotiated { return Err(RpcError::new(-32010, "协议主版本不兼容")); }
-                let mut capabilities = vec![CapabilityInfo { name: Capability::TaskRead, version: ProtocolVersion { major: 1, minor: if self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else { 0 } }, availability: Availability::Available, reason: None }];
-                let version = ProtocolVersion { major: 1, minor: if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)) || self.can_presentation {19} else if self.can_fail {18} else if self.can_wait_for_user {17} else if self.can_running_filter {16} else if self.can_browser_read {15} else if params.offered_capabilities.as_deref().is_some_and(|value|value.contains(&yonder_protocol::OfferedCapability::UserInput)) {14} else if self.can_focus {13} else if self.can_computer_step {12} else if self.can_computer {11} else if self.can_browser { 8 } else if self.can_advance { 7 } else if self.can_controls { 6 } else if self.can_attempt_results { 5 } else if self.can_steps { 4 } else if self.can_name { 3 } else if self.can_cancel { 2 } else { u16::from(self.can_create) } };
-                if self.can_create { capabilities.push(CapabilityInfo { name: Capability::TaskCreate, version: ProtocolVersion { major: 1, minor: if self.can_name { 3 } else { 1 } }, availability: Availability::Available, reason: None }); }
-                if self.can_cancel { capabilities.push(CapabilityInfo { name: Capability::TaskCancel, version: ProtocolVersion { major: 1, minor: 2 }, availability: Availability::Available, reason: Some("仅支持未开始任务取消".into()) }); }
-                if self.can_steps { capabilities.push(CapabilityInfo { name: Capability::TaskStepDeclare, version: ProtocolVersion { major: 1, minor: 4 }, availability: Availability::Available, reason: Some("仅支持created任务声明".into()) }); }
-                if self.can_controls { capabilities.push(CapabilityInfo { name: Capability::TaskControl, version: ProtocolVersion { major: 1, minor: if self.can_focus{13}else{6} }, availability: Availability::Available, reason: Some("登记停止请求，执行器在步骤边界确认".into()) }); }
-                if self.can_advance { capabilities.push(CapabilityInfo { name: Capability::TaskStepAdvance, version: ProtocolVersion { major: 1, minor: 7 }, availability: Availability::Available, reason: Some("仅推进已完成Observe的步骤".into()) }); }
-                if params.protocol_version.minor >= 8 && store.supports_browser_references() { capabilities.push(CapabilityInfo { name: Capability::BrowserExecute, version: ProtocolVersion { major: 1, minor: 8 }, availability: if self.can_browser { Availability::Available } else { Availability::DependencyMissing }, reason: (!self.can_browser).then(|| "ego-lite Bridge不可用".into()) }); }
-                if params.protocol_version.minor>=11&&store.supports_execution_attempts() {capabilities.push(CapabilityInfo{name:Capability::ComputerExecute,version:ProtocolVersion{major:1,minor:if params.protocol_version.minor>=12{12}else{11}},availability:if self.can_computer{Availability::Available}else if self.computer_permission_required{Availability::PermissionRequired}else{Availability::DependencyMissing},reason:(!self.can_computer).then(||if self.computer_permission_required{"Yonda需要macOS辅助功能权限".into()}else{"CUA Runtime不可用".into()})});}
-                if self.can_complete{capabilities.push(CapabilityInfo{name:Capability::TaskComplete,version:ProtocolVersion{major:1,minor:10},availability:Availability::Available,reason:Some("仅完成已Observe并推进边界的CUA任务".into())});}
-                if self.can_fail{capabilities.push(CapabilityInfo{name:Capability::TaskFail,version:ProtocolVersion{major:1,minor:18},availability:Availability::Available,reason:Some("仅终结已Observe失败并推进边界的CUA任务".into())});}
-                if self.can_wait_for_user{capabilities.push(CapabilityInfo{name:Capability::TaskWaitForUser,version:ProtocolVersion{major:1,minor:17},availability:Availability::Available,reason:Some("仅在已Observe并推进的步骤边界等待".into())});}
-                return Ok(QueryResult::Hello { protocol_version: version, platform: self.platform, capabilities });
+                self.can_browser = self.can_advance
+                    && params.protocol_version.minor >= 8
+                    && self.browser_available
+                    && store.supports_browser_references();
+                self.can_browser_read = self.negotiated
+                    && params.protocol_version.minor >= 15
+                    && store.supports_browser_references();
+                self.can_running_filter = self.negotiated
+                    && params.protocol_version.minor >= 16
+                    && store.supports_running_filter();
+                self.can_wait_for_user = self.can_advance
+                    && params.protocol_version.minor >= 17
+                    && store.supports_wait_for_user();
+                self.can_presentation = self.negotiated
+                    && params.protocol_version.minor >= 19
+                    && store.supports_presentation();
+                self.can_computer = self.can_advance
+                    && params.protocol_version.minor >= 11
+                    && self.computer_available
+                    && !self.computer_permission_required;
+                self.can_computer_step = self.can_computer && params.protocol_version.minor >= 12;
+                self.can_complete = self.can_computer && params.protocol_version.minor >= 10;
+                self.can_fail = self.can_complete && params.protocol_version.minor >= 18;
+                if !self.negotiated {
+                    return Err(RpcError::new(-32010, "协议主版本不兼容"));
+                }
+                let mut capabilities = vec![CapabilityInfo {
+                    name: Capability::TaskRead,
+                    version: ProtocolVersion {
+                        major: 1,
+                        minor: if self.can_presentation {
+                            19
+                        } else if self.can_fail {
+                            18
+                        } else if self.can_wait_for_user {
+                            17
+                        } else if self.can_running_filter {
+                            16
+                        } else if self.can_browser_read {
+                            15
+                        } else if self.can_focus {
+                            13
+                        } else if self.can_computer_step {
+                            12
+                        } else if self.can_computer {
+                            11
+                        } else if self.can_browser {
+                            8
+                        } else if self.can_advance {
+                            7
+                        } else if self.can_controls {
+                            6
+                        } else if self.can_attempt_results {
+                            5
+                        } else if self.can_steps {
+                            4
+                        } else if self.can_name {
+                            3
+                        } else {
+                            0
+                        },
+                    },
+                    availability: Availability::Available,
+                    reason: None,
+                }];
+                let version = ProtocolVersion {
+                    major: 1,
+                    minor: if params.offered_capabilities.as_deref().is_some_and(|value| {
+                        value.contains(&yonder_protocol::OfferedCapability::UserInputAttachment)
+                    }) || self.can_presentation
+                    {
+                        19
+                    } else if self.can_fail {
+                        18
+                    } else if self.can_wait_for_user {
+                        17
+                    } else if self.can_running_filter {
+                        16
+                    } else if self.can_browser_read {
+                        15
+                    } else if params.offered_capabilities.as_deref().is_some_and(|value| {
+                        value.contains(&yonder_protocol::OfferedCapability::UserInput)
+                    }) {
+                        14
+                    } else if self.can_focus {
+                        13
+                    } else if self.can_computer_step {
+                        12
+                    } else if self.can_computer {
+                        11
+                    } else if self.can_browser {
+                        8
+                    } else if self.can_advance {
+                        7
+                    } else if self.can_controls {
+                        6
+                    } else if self.can_attempt_results {
+                        5
+                    } else if self.can_steps {
+                        4
+                    } else if self.can_name {
+                        3
+                    } else if self.can_cancel {
+                        2
+                    } else {
+                        u16::from(self.can_create)
+                    },
+                };
+                if self.can_create {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskCreate,
+                        version: ProtocolVersion {
+                            major: 1,
+                            minor: if self.can_name { 3 } else { 1 },
+                        },
+                        availability: Availability::Available,
+                        reason: None,
+                    });
+                }
+                if self.can_cancel {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskCancel,
+                        version: ProtocolVersion { major: 1, minor: 2 },
+                        availability: Availability::Available,
+                        reason: Some("仅支持未开始任务取消".into()),
+                    });
+                }
+                if self.can_steps {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskStepDeclare,
+                        version: ProtocolVersion { major: 1, minor: 4 },
+                        availability: Availability::Available,
+                        reason: Some("仅支持created任务声明".into()),
+                    });
+                }
+                if self.can_controls {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskControl,
+                        version: ProtocolVersion {
+                            major: 1,
+                            minor: if self.can_focus { 13 } else { 6 },
+                        },
+                        availability: Availability::Available,
+                        reason: Some("登记停止请求，执行器在步骤边界确认".into()),
+                    });
+                }
+                if self.can_advance {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskStepAdvance,
+                        version: ProtocolVersion { major: 1, minor: 7 },
+                        availability: Availability::Available,
+                        reason: Some("仅推进已完成Observe的步骤".into()),
+                    });
+                }
+                if params.protocol_version.minor >= 8 && store.supports_browser_references() {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::BrowserExecute,
+                        version: ProtocolVersion { major: 1, minor: 8 },
+                        availability: if self.can_browser {
+                            Availability::Available
+                        } else {
+                            Availability::DependencyMissing
+                        },
+                        reason: (!self.can_browser).then(|| "ego-lite Bridge不可用".into()),
+                    });
+                }
+                if params.protocol_version.minor >= 11 && store.supports_execution_attempts() {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::ComputerExecute,
+                        version: ProtocolVersion {
+                            major: 1,
+                            minor: if params.protocol_version.minor >= 12 {
+                                12
+                            } else {
+                                11
+                            },
+                        },
+                        availability: if self.can_computer {
+                            Availability::Available
+                        } else if self.computer_permission_required {
+                            Availability::PermissionRequired
+                        } else {
+                            Availability::DependencyMissing
+                        },
+                        reason: (!self.can_computer).then(|| {
+                            if self.computer_permission_required {
+                                "Yonda需要macOS辅助功能权限".into()
+                            } else {
+                                "CUA Runtime不可用".into()
+                            }
+                        }),
+                    });
+                }
+                if self.can_complete {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskComplete,
+                        version: ProtocolVersion {
+                            major: 1,
+                            minor: 10,
+                        },
+                        availability: Availability::Available,
+                        reason: Some("仅完成已Observe并推进边界的CUA任务".into()),
+                    });
+                }
+                if self.can_fail {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskFail,
+                        version: ProtocolVersion {
+                            major: 1,
+                            minor: 18,
+                        },
+                        availability: Availability::Available,
+                        reason: Some("仅终结已Observe失败并推进边界的CUA任务".into()),
+                    });
+                }
+                if self.can_wait_for_user {
+                    capabilities.push(CapabilityInfo {
+                        name: Capability::TaskWaitForUser,
+                        version: ProtocolVersion {
+                            major: 1,
+                            minor: 17,
+                        },
+                        availability: Availability::Available,
+                        reason: Some("仅在已Observe并推进的步骤边界等待".into()),
+                    });
+                }
+                return Ok(QueryResult::Hello {
+                    protocol_version: version,
+                    platform: self.platform,
+                    capabilities,
+                });
             }
             Err(RpcError::new(-32002, "请先完成 Gateway 握手"))
         })();

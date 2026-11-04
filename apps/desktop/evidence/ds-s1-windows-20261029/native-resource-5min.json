@@ -1,0 +1,21 @@
+{
+  "collected_at": "2026-10-29T23:58:21.1726468+08:00",
+  "process_id": 55904,
+  "requested_duration_seconds": 300,
+  "actual_duration_seconds": 304.625,
+  "interval_seconds": 5,
+  "sample_count": 55,
+  "logical_processors": 24,
+  "maximum_process_count": 13,
+  "working_set": {
+    "average_bytes": 905801132,
+    "maximum_bytes": 962146304,
+    "p95_bytes": 932872192
+  },
+  "cpu": {
+    "aggregate_average_percent": 21.9259,
+    "aggregate_maximum_percent": 42.0,
+    "machine_normalized_average_percent": 0.9136
+  },
+  "result": "completed"
+}

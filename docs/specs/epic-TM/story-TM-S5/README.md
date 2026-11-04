@@ -38,3 +38,5 @@ AC11 全量忙碌/未知归 TM-S1/TM-S6，不属于本 Story。完整 TM-S5 下�
 2026-09-18 既有事件分页增量 [tm-s5-timeline-pagination](../../../../openspec/changes/tm-s5-timeline-pagination/proposal.md) macOS 子范围 PASS：Task Space 每页读取 20 条，以最后实际事件序号继续；失败保留并可重试。正式 54 条历史任务已验证 `#1..#20` 追加到 `#40`。Windows、产物、确认及新 payload 字节预算仍保留门禁。
 
 2026-09-18 首批只读时间线 macOS 子范围 PASS：ego-browser 与正式桌宠验证状态/声明/结果展示、局部失败和键盘入口；真实 Agent 步骤进入时间线。验证任务随后取消并保留数据。Windows及完整 TM-S5 继续保留门禁。
+
+2026-11-01 Windows 只读时间线与分页子范围 PASS：真实 BUA 事件初次显示 20 条、原生追加至 28 条且无重复；created 取消后两条历史仍可读。见 [Windows 合并 Verification Goal](../../../../openspec/changes/ds-s2-running-pagination/verification-windows-20261101.md)。产物、附件、确认与完整 TM-S5 仍保留门禁。

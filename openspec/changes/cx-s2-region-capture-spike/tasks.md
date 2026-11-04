@@ -10,5 +10,7 @@
 - [x] 验证macOS主显示器模式变化后确认卡清场并恢复分辨率
 - [ ] 验证macOS副屏/负坐标、运行中撤权与物理断开清场
 - [ ] 实现并验证Windows同一样本（依用户决定暂缓）
-- [ ] 双平台对照后接受或拒绝ADR
+  - [x] Windows Graphics Capture 单显示器四色/DPI/DisplayConfig核心样本连续三次通过（`verification-windows-20261101.md`）
+  - [ ] Windows副屏/负坐标/不同DPI、物理选择/Esc、权限拒绝与运行中撤销
+- [ ] 双平台对照后决定AD-CX-01是否扩展到Windows或拒绝Windows候选
 - [ ] ADR接受后生成产品实施Proposal
