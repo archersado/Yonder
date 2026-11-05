@@ -44,7 +44,7 @@ Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘�
 2. 指定能由 Host 观察器验证的当前 `attempt_id + worker_instance_id` 合成输入归属机制，覆盖 Windows `SendInput` 鼠标/键盘及 macOS 合成事件；UIA Invoke/Legacy、AX 语义动作须单独说明是否产生低级输入事件。未知或未绑定事件一律递增 generation 并冻结；不得按时间窗口、注入标志或 `dwExtraInfo = 0` 推断归属。
 3. 新 patch set 使用同一固定上游 revision、同一跨平台补丁文件集、独立目录与新哈希/manifest；相关样本定义版本升级并在双平台重跑。v1 只读证据继续保留，不能冒充 v2 动作证据。产品 Adapter、Gateway 和持久化仍不变。
 
-本节记录评估 v2 的必要条件，**不批准实施 v2 补丁或执行原生动作**。在设计与证据尚不能满足第 1、2 项时，维持 v1 原生 `unsupported/not_delivered`；五工作日期限内仍无可行机制，则以 Rejected 收口，不以缩小样本范围延长。
+本节记录评估 v2 的必要条件。后继 [AD-CU-08](AD-CU-08-AGENT-DESKTOP-V2-DELIVERY-PROOF.md) 已批准在同一截止日前建立独立 v2 **只读及可拒绝的机制验证**；它尚未批准原生动作。两项门禁未满足时，v1 与 v2 原生 `dispatch` 均保持 `unsupported/not_delivered`；五工作日期限内仍无可行机制，则以 Rejected 收口，不以缩小样本范围延长。
 
 ## 抢占、取消与结果语义
 

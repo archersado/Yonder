@@ -89,6 +89,8 @@ CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层�
 
 2026-11-05 Proposed [AD-CU-07](AD-CU-07-AGENT-DESKTOP-DRIVER-SPIKE.md)仅允许把 `agent-desktop` 作为低层、模型无关 Driver 候选进入五个工作日双平台 Spike。Application 继续拥有任务状态、任务级桌面租约、用户输入抢占、取消、每步 Observe 与 `unknown`；固定 revision 的最小 Rust bridge 必须隔离在受监管 Worker 并只使用 inherited stdio JSONL，禁用 raw 坐标、无目标按键、CDP、上游 MCP 和默认 trace。双平台证据及后继 Accepted ADR 前不替换 trycua、不接产品 Gateway、不形成长期双执行栈。
 
+2026-11-05 Proposed [AD-CU-08](AD-CU-08-AGENT-DESKTOP-V2-DELIVERY-PROOF.md)在 AD-CU-07 原截止日内批准独立 v2 机制验证：固定上游 revision，独立补丁/manifest/样本，分别证明最终副作用交付点的目标对象连续性及双平台输入归属。只读验证可开展；两项门禁与独立验证通过前原生 dispatch 保持关闭，产品接线仍不授权。
+
 BUA Bridge 直接调用 ego-lite/ego-browser，保存 external_task_ref 并映射状态，不复制 Task Space。只有经 Yonder 调用才保证桌宠收到状态。Windows 与 macOS 均复用同一 BrowserUsePort；Runtime 缺失或不可达时返回 `capability_unavailable`，不得自动回退到 CUA 或另一套浏览器引擎。
 
 ### Command、File 与 Document

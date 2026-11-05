@@ -12,6 +12,7 @@ Epic: CU
 - [CU-S2 受监管桌面执行与 Observe](story-CU-S2/README.md)
 - [CU-S3 后台原生动作与显式前台切换](story-CU-S3/README.md)
 - [CU-S4 agent-desktop Driver 可行性 Spike](story-CU-S4/README.md)
+- [CU-S5 agent-desktop v2 交付门禁 Spike](story-CU-S5/README.md)
 
 ## 验收与依赖
 

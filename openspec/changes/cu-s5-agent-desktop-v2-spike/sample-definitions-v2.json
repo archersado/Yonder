@@ -1,0 +1,20 @@
+{
+  "schema_version": "agent-desktop-spike-sample-definitions/v2",
+  "base_sample_definitions_sha256": "6bda6b0be4fd204c2efc9957252a42d79c3a48e3233db98f966dbd2e13410136",
+  "base_sample_catalog_sha256": "dd1f93746f9e2e9c38adfb945645b2f7eb64085f9cc79192a0ce400fbd3ba3ad",
+  "base_samples_required": ["IDENTITY-01", "IDENTITY-02", "ELEMENT-01", "APPSET-01", "APPSET-02", "FOCUS-01", "INPUT-01", "INPUT-02", "INPUT-03", "CANCEL-01", "CANCEL-02", "FAULT-01", "DISPLAY-01", "PERMISSION-01", "DIST-01"],
+  "default_action_deadline_ms": 10000,
+  "post_observe_deadline_ms": 5000,
+  "stable_window_ms": 500,
+  "minimum_sample_gap_ms": 250,
+  "automatic_retry_count": 0,
+  "gate_samples": [
+    {"id": "V2-SOURCE-01", "phase": "read_only", "action": "none", "predicate": "fixed revision and v1 patch/source hashes match; all known action and input seams enumerated", "oracle": "independent source hash and pinned call-site inspection", "failure": "reject"},
+    {"id": "V2-IDENTITY-01", "phase": "read_only", "action": "none", "predicate": "old retained native element becomes stale after same-window replacement; no rebound object is admitted", "oracle": "fixture object generation and zero side-effect counters", "failure": "reject"},
+    {"id": "V2-IDENTITY-02", "phase": "read_only", "action": "none", "predicate": "old retained native window/element becomes stale after window rebuild including full native ID reuse on Windows", "oracle": "fixture generation plus independent window/element identity", "failure": "unverified_if_reuse_unavailable"},
+    {"id": "V2-DELIVERY-01", "phase": "mechanism_proof", "action": "none", "predicate": "each supported action terminal is bound to retained native object at final side-effect delivery; no re-resolve, retry or fallback", "oracle": "source audit plus platform-specific provider proof", "failure": "reject"},
+    {"id": "V2-INPUT-01", "phase": "mechanism_proof", "action": "none", "predicate": "ten physical mouse and keyboard rounds have zero missed generations on each platform", "oracle": "independent ready observer with controlled fixture event count", "failure": "reject"},
+    {"id": "V2-INPUT-02", "phase": "mechanism_proof", "action": "none", "predicate": "ten current-worker and ten other-process synthetic rounds have zero misclassification including forged metadata", "oracle": "independent observer plus process-bound fixture counts", "failure": "reject"},
+    {"id": "V2-INPUT-03", "phase": "mechanism_proof", "action": "none", "predicate": "observer loss, timeout, restart, desktop/session switch and worker crash always freeze admission", "oracle": "supervisor generation and zero action-frame flushes", "failure": "reject"}
+  ]
+}

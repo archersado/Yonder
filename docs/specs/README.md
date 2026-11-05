@@ -171,6 +171,8 @@ CM-S1 macOS Spike子范围PASS：字面参数不经Shell解释，独立进程组
 
 2026-11-05新增[CU-S4 agent-desktop Driver 可行性 Spike](epic-CU/story-CU-S4/README.md)：仅把 `agent-desktop` 作为受监管低层 CUA Driver 候选，Yonder Application 继续拥有任务状态、任务级桌面租约、用户输入抢占、取消、每步 Observe 与 `unknown`。Proposed AD-CU-07 与五工作日双平台 OpenSpec 已建立；通过后继 Accepted ADR 前不替换 trycua、不接产品 Gateway、不形成长期双执行栈。
 
+2026-11-05新增[CU-S5 agent-desktop v2 交付门禁 Spike](epic-CU/story-CU-S5/README.md)：按 AD-CU-08 在 CU-S4 原截止日内独立验证最终交付对象连续性和双平台输入归属。原生动作门禁未通过前保持关闭，v1 构建与证据不变。
+
 2026-09-18 TM-S5既有时间线分页macOS子范围PASS：复用现有`task.events(after_sequence)`，Task Space每页20条，失败保留/重试及迟到选择保护通过；正式54条历史任务从`#1..#20`追加到`#40`。未来产物、确认、新payload字节预算与Windows证据仍保留门禁，完整TM-S5不Archive。
 
 2026-09-18 TM-S1进入`tm-s1-agent-wait-for-user`实施：Accepted AD-TM-10定稿协议1.17与schema14，只允许归属Agent在已Observe并推进的安全步骤边界提交等待用户原因；不实现Resume或等待外部响应。
