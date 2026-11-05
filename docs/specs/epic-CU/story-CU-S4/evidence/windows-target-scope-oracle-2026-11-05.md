@@ -12,6 +12,7 @@ Windows out-of-context `SetWinEventHook` 的全局范围是**当前桌面**；�
 - 负向原生测试创建另一个未切换到前台的 Windows desktop，把受控线程绑定到该 desktop；`verify_desktop_scope` 明确返回 `target is outside input desktop`，测试结束后线程与 desktop 句柄正常释放。
 - 独立 WinForms fixture 上，Rust 诊断观察器通过 `ready` 和屏障，`owner_matches_initial = true`；fixture 正常退出。该结果证明同会话、同桌面、同权限的一个外部窗口仍可通过只读核验。
 - `native-read-probe` 和诊断观察器在身份核验成功时输出 `target_scope_verified = true`；它不等于窗口代际证明。
+- 当前构建在新的独立 WinForms fixture 上复测：`target_scope_verified = true`、`marker_observed = true`、`owner_matches_initial = true`、`window_generation_proven = false`；fixture 正常退出。
 
 ## 未通过的门禁
 
