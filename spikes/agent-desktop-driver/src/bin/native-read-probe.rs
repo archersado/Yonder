@@ -122,6 +122,8 @@ fn main() -> anyhow::Result<()> {
             "selector_refs": selector_refs.len(),
             "selected_qualified_ref_sha256": digest(selector_refs[0]),
             "snapshot_id_sha256": digest(snapshot_id),
+            "root_native_id_kind": result.tree.identity.native_id.as_ref().map(|id| format!("{:?}", id.kind)),
+            "root_native_id_sha256": result.tree.identity.native_id.as_ref().map(|id| digest(&id.value)),
         })
     );
     Ok(())

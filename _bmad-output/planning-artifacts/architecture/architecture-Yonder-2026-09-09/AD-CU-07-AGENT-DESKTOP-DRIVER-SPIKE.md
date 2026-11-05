@@ -17,7 +17,9 @@ Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘�
 - 首次动作前，Host 必须通过同一 bridge `snapshot` 请求提交由只读 oracle 冻结的目标定位与身份（平台、进程、原生窗口、进程启动令牌哈希和拓扑 generation）；Worker 只能返回该目标下的 `snapshot_id` 与 opaque qualified refs。后续 `dispatch` 和 `observe` 必须引用这次 snapshot 与完全相同的冻结身份，不得按标题、前台窗口或其他隐式规则重新选目标。
 - Application 只依赖既有 ComputerUse Port。上游命令名、参数模型、interaction lease、snapshot ref 和 delivery disposition 均为 Adapter 内部细节，不得成为 Domain、Gateway 或持久化模型的第二来源。
 - 只允许 snapshot、qualified ref 动作和经样本验证的窗口操作。禁止 raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP；必须显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 等敏感字段进入证据。hit-test `unknown` 必须拒绝，不能沿用 fail-open。
-- 当前固定 revision 的公开 `execute_by_ref` 对 pointer hit-test `Unknown` 采用 fail-open，且未向调用方暴露可在副作用前拒绝的 verdict/hook；因此即使 snapshot/ref/target identity bridge 已补齐，原生 backend 仍必须返回 `unsupported/not_delivered`。在固定上游 API 能满足 fail-closed 前，不得另建通道、隐式重定位或以事后 Observe 代替副作用前拒绝。
+- 固定 revision 的原始 `execute_by_ref` 对 pointer hit-test `Unknown` 采用 fail-open。CU-S4 唯一补丁已将 `Unknown` 与不支持 hit-test 的物理派发改为副作用前拒绝；上游 core 回归测试通过，两平台构建必须解析到同一补丁源码。该修复只关闭 hit-test 缺口，不授权原生派发。
+- 2026-11-05 Windows 只读证据显示：`WindowInfo.id` 是 HWND，`process_instance` 是进程启动时间令牌，快照根节点无 `native_id`。仅凭 HWND 与进程令牌不能排除同一进程内销毁并复用 HWND。Host 独立只读 oracle 与 Worker 在派发前必须比较可证明区分窗口对象代际的令牌；若该令牌在既定平台样本中不可得，则按身份门槛拒绝并淘汰候选，不得以标题、前台窗口、延时或动作后 Observe 代替。此路线尚未定案，原生 Backend 继续 `unsupported/not_delivered`。
+- Windows UI Automation 的 RuntimeId 也不能单独当作永久窗口代际令牌：[微软文档](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomationelement-getruntimeid)明确允许标识符随时间复用；[CompareElements](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomation-compareelements) 的结果基于运行时标识符。若采用 UIA 对象比较，必须保留原对象、验证销毁重建样本并证明派发解析不会在比较后重新定位到替代对象；否则仍拒绝。
 - 上游 machine-wide interaction lease 只作为单次 dispatch 的附加互斥。任务级 ownership、fencing、崩溃恢复和唯一前台桌面租约仍由 Yonder 持有。
 
 ## 抢占、取消与结果语义

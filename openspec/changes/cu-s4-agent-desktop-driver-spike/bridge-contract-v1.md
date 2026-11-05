@@ -22,7 +22,7 @@
 各 kind 额外字段：
 
 - `hello`：`source_revision` 固定为 `d3dc190afbf34cd2377252398ddd5c30efbd093a`，并携带 `bridge_contract_sha256`、`sample_definitions_sha256`、`action_allowlist_sha256`。
-- `snapshot`：携带 `sample_id`、冻结 `target_fixture_id` 与 `target_identity`。identity 只含平台、Host 只读 oracle 给出的进程 ID、原生窗口 ID、进程启动令牌 SHA-256、原生窗口令牌 SHA-256、显示拓扑 generation 和冻结 `oracle_id`；不得按标题或前台窗口隐式选择。Worker 回应唯一 `snapshot_id`；每个固定 Spike 样本必须解析出恰好一个 opaque `qualified_ref`，零个或多个都按 ambiguous fail-closed，禁止默认选择首项。
+- `snapshot`：携带 `sample_id`、冻结 `target_fixture_id` 与 `target_identity`。identity 只含平台、Host 只读 oracle 给出的进程 ID、原生窗口 ID、进程启动令牌 SHA-256、原生窗口令牌 SHA-256、显示拓扑 generation 和冻结 `oracle_id`；不得按标题或前台窗口隐式选择。窗口令牌必须区分同一进程内窗口对象代际，单独哈希 HWND 与进程启动令牌不合格。Worker 回应唯一 `snapshot_id`；每个固定 Spike 样本必须解析出恰好一个 opaque `qualified_ref`，零个或多个都按 ambiguous fail-closed，禁止默认选择首项。
 - `dispatch`：`sample_id`、`action_id`、`snapshot_id`、`qualified_ref`。`sample_id ↔ action_id` 必须与 `sample-catalog.md` 和 `action-allowlist-v1.json` 的唯一绑定一致；不一致在 flush 前拒绝。`action_id` 不承载自由文本、raw 坐标、PID、窗口号或任意参数。
 - `observe`：`sample_id`、`predicate_id`、`oracle_id`、`prior_snapshot_id` 与完全相同的 `target_identity`。它必须绑定当前 pending dispatch 的 sample/snapshot/action/ref；predicate/oracle 只引用冻结定义，Worker 不决定最终通过结论。
 - `shutdown`：只允许在没有在途 `dispatch` 时使用，表示正常步骤间排空；不承担在途取消。

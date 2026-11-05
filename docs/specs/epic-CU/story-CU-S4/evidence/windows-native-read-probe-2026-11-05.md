@@ -47,6 +47,8 @@
 
 同一窗口放置两个相同 `AutomationId` 的按钮（PID `60156`）后，探针以 `fixture target is not unique` 拒绝，退出码 1。两个临时测试进程均已停止。此判据仅证明上游快照能生成唯一限定引用，尚未证明 Host 独立 oracle 与 Worker 派发前的冻结身份一致。
 
+额外检查快照根节点的原生身份（新受控窗口 PID `42832`）：`root_native_id_kind = null`、`root_native_id_sha256 = null`；快照仍完整、固定按钮仍唯一。原生窗口 ID 仅为 HWND 编码，进程令牌仅来自进程启动时间。该组合无法单独证明同进程窗口对象的代际，因此正式 Host `window_token_sha256` 尚无合格来源，原生派发继续关闭。此窗口也已停止。
+
 ## 后续门禁
 
 当前 bridge 仍未把 Host 的冻结身份独立绑定到唯一元素引用，也未实现原生动作、动作后 Observe、用户输入 observer 或 macOS 原生验证。因此 `NativeBackend::dispatch` 继续返回 `unsupported/not_delivered`，不得把本探针结果标为候选通过。
