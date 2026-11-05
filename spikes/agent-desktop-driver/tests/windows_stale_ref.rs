@@ -91,6 +91,32 @@ fn old_ref_is_rejected_after_fixture_rebuild_without_action() -> Result<(), Box<
         .stdin
         .as_mut()
         .ok_or("fixture stdin")?
+        .write_all(b"replace-button\n")?;
+    line.clear();
+    output.read_line(&mut line)?;
+    let button_replaced: serde_json::Value = serde_json::from_str(&line)?;
+    assert_eq!(button_replaced["window_id"].as_str(), Some(original_id));
+    let same_window = capture_identity01_window(pid, original_id)?;
+    assert_eq!(
+        original.window_token_sha256,
+        same_window.window_token_sha256
+    );
+    let old_element_rebound =
+        resolve_saved_ref(&adapter, &old_ref, Deadline::after(10_000)?, None).is_ok();
+    assert_eq!(same_window.click_count, 1);
+    eprintln!(
+        "identity02_read_only button_replaced=true window_generation_unchanged=true old_element_rebound={old_element_rebound}"
+    );
+    assert!(
+        old_element_rebound,
+        "fixed upstream no longer rebinds the element"
+    );
+
+    fixture
+        .0
+        .stdin
+        .as_mut()
+        .ok_or("fixture stdin")?
         .write_all(b"replace\n")?;
     line.clear();
     output.read_line(&mut line)?;

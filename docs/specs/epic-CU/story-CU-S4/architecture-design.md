@@ -42,6 +42,8 @@ Host/Worker 一致性实验可以启动两个独立的**诊断观察器进程**�
 
 允许 `IDENTITY-02` 的**只读诊断**在自建 fixture 中保存限定引用后，要求 fixture 自行销毁并重建目标窗口，再用上游公开 `resolve_saved_ref` 尝试重新定位旧引用；诊断只输出新旧窗口 ID 是否相同、代际是否变化、旧引用是否拒绝和两个点击计数，不调用 `execute_by_ref` 或原生动作。新旧 HWND 不相同时的拒绝只证明普通 stale 路径；只有完整 HWND 复用的受控样本才能检验该特定风险。此诊断不计入正式 `IDENTITY-02` 动作样本通过。
 
+同一诊断可先保持原窗口不变，让 fixture 销毁按钮并创建同 `AutomationId`、同标签、同位置的新按钮，再对旧限定引用调用 `resolve_saved_ref`。只记录旧引用是否重新绑定、窗口代际是否不变及零点击；即使观察到重新绑定，也只是只读解析风险证据，不能通过执行动作扩大样本。按钮替换不等价于完整 HWND 复用。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。

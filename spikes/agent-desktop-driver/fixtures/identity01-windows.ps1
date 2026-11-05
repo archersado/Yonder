@@ -46,6 +46,7 @@ public sealed class YonderIdentity01Fixture : ApplicationContext
             string command;
             while ((command = Console.ReadLine()) != null) {
                 if (command == "replace") target.BeginInvoke((Action)ReplaceTarget);
+                if (command == "replace-button") target.BeginInvoke((Action)ReplaceButton);
             }
         });
     }
@@ -58,6 +59,16 @@ public sealed class YonderIdentity01Fixture : ApplicationContext
         form.Size = new Size(300, 150);
         form.StartPosition = FormStartPosition.Manual;
         form.Location = new Point(x, 100);
+        AddButton(form);
+        IntPtr handle = form.Handle;
+        Put(handle, RoleProperty, role);
+        Put(handle, GenerationProperty, generation);
+        Put(handle, ClickCountProperty, 1);
+        return form;
+    }
+
+    private static void AddButton(Form form)
+    {
         var button = new Button();
         button.Name = ButtonId;
         button.Text = "Run";
@@ -70,11 +81,6 @@ public sealed class YonderIdentity01Fixture : ApplicationContext
             Put(form.Handle, ClickCountProperty, clicks + 1);
         };
         form.Controls.Add(button);
-        IntPtr handle = form.Handle;
-        Put(handle, RoleProperty, role);
-        Put(handle, GenerationProperty, generation);
-        Put(handle, ClickCountProperty, 1);
-        return form;
     }
 
     private static void Put(IntPtr hwnd, string name, int value)
@@ -99,6 +105,18 @@ public sealed class YonderIdentity01Fixture : ApplicationContext
         Console.WriteLine("{\"schema_version\":\"yonder-identity01-replaced/v1\",\"pid\":"
             + Process.GetCurrentProcess().Id + ",\"replacement_window_id\":\"w-"
             + replacement.Handle.ToInt64() + "\"}");
+        Console.Out.Flush();
+    }
+
+    private void ReplaceButton()
+    {
+        Control oldButton = target.Controls[0];
+        target.Controls.Remove(oldButton);
+        oldButton.Dispose();
+        AddButton(target);
+        Console.WriteLine("{\"schema_version\":\"yonder-identity01-button-replaced/v1\",\"pid\":"
+            + Process.GetCurrentProcess().Id + ",\"window_id\":\"w-"
+            + target.Handle.ToInt64() + "\"}");
         Console.Out.Flush();
     }
 
