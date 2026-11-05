@@ -38,6 +38,8 @@ Host/Worker 一致性实验可以启动两个独立的**诊断观察器进程**�
 
 `IDENTITY-01` 正式 fixture 在同一测试进程创建两个可见顶层窗口，标题、按钮角色与按钮无敏感标签相同；每个窗口恰好一个可点击按钮。目标由 Host 启动该 fixture 后读取 fixture 自身发布的窗口角色与原生窗口 ID 来冻结，不能靠标题或前台状态选择。两个按钮使用相同的固定元素标识：Windows `AutomationId = YonderIdentity01Button`，macOS `AXIdentifier = YonderIdentity01Button`；唯一性按冻结窗口内的完整快照验证。每个窗口在创建时由 fixture 自行设置不可变、互异的窗口代际标记；Windows Host/Worker 只读窗口 property，macOS Host/Worker 只读窗口 AX identifier，二者都不得向目标写入标记。点击计数只在 fixture 内按窗口分别累加，Host 独立只读核验目标为 1、诱饵为 0 且两次稳定采样一致。该 fixture 专用标记不代表任意应用的窗口代际能力；动作准入仍由前述 Worker 路径门禁控制。
 
+固定上游补丁扩围属于 AD-CU-07 的[待定决策](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-CU-07-AGENT-DESKTOP-DRIVER-SPIKE.md)：v1 唯一 hit-test 补丁不能被原位修改。v2 若要成立，须在代码前明确最终交付点怎样绑定原窗口对象，以及物理注入如何绑定当前 attempt/Worker；Windows `dwExtraInfo` 与 macOS `eventSourceUserData` 只是候选事件载体，不是已通过的归属机制。UIA Invoke/Legacy 与 AX 语义动作另需原生验证。无法提出可检验的交付点机制时，停止 v2，不能仅凭 fixture 的前置身份拒绝开启动作。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。
