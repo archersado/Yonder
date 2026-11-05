@@ -11,6 +11,7 @@
 - 首轮 Worker 快照因 `private file DACL grants an untrusted principal` 拒绝 RefStore 写入。原因是 Worker 预建状态目录继承宽 ACL。现改由上游 `WindowsPrivateFile::ensure_private` 创建缺失的原生状态根；预存在宽权限目录仍拒绝，不降低 ACL 门槛。相同测试随后通过。
 - 一次完整 `--all-targets` 测试中，此原生用例返回 `Driver` 拒绝；当时 Worker 标准错误被测试丢弃，无法定位阶段。随后将该受控用例的 Worker 标准错误接到测试输出（实现只输出阶段、错误类别和错误码），单独复测 5 次及连同 Worker 契约用例复测 3 次均通过。偶发拒绝的根因尚未确认；不据此声称稳定性门禁已通过。
 - 再次运行 `cargo test --all-targets --locked --offline` 全部通过：25 个库单元测试、1 个 Windows containment 测试、7 个 Worker 契约测试。`cargo clippy --all-targets -- -D warnings`、`cargo fmt --check`、生成物 `--check` 和 `git diff --check` 通过。
+- 后续在同一自建 fixture 的三个独立 Worker 会话中，真实目标身份取得唯一引用；把目标的窗口代际摘要替换为诱饵摘要时，Worker 返回 `identity` 拒绝和空引用；提交诱饵自身真实身份时同样返回 `identity` 拒绝和空引用。两个拒绝会话终止后，目标与诱饵点击计数均为 0。该反例只验证 snapshot 前置身份门禁。
 
 ## 边界
 

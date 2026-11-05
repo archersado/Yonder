@@ -352,46 +352,9 @@ fn native_snapshot_rejection_is_reported_before_worker_exits() -> Result<(), Box
 }
 
 #[cfg(target_os = "windows")]
-#[test]
-fn native_identity01_snapshot_uses_frozen_fixture_window() -> Result<(), Box<dyn Error>> {
-    use std::{io::BufRead, path::Path};
-    use yonder_agent_desktop_driver_spike::host_oracle::windows::capture_identity01_window;
-
-    struct Fixture(Child);
-    impl Drop for Fixture {
-        fn drop(&mut self) {
-            let _ = self.0.kill();
-            let _ = self.0.wait();
-        }
-    }
-
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/identity01-windows.ps1");
-    let mut fixture = Fixture(
-        Command::new("powershell.exe")
-            .args(["-Sta", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-            .arg(path)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?,
-    );
-    let mut fixture_output = BufReader::new(fixture.0.stdout.take().ok_or("fixture stdout")?);
-    let mut line = String::new();
-    if fixture_output.read_line(&mut line)? == 0 {
-        return Err("fixture startup eof".into());
-    }
-    let started: serde_json::Value = serde_json::from_str(&line)?;
-    let pid = u32::try_from(started["pid"].as_u64().ok_or("fixture pid")?)?;
-    let target_id = started["target_window_id"]
-        .as_str()
-        .ok_or("fixture target")?;
-    let decoy_id = started["decoy_window_id"].as_str().ok_or("fixture decoy")?;
-    let target = capture_identity01_window(pid, target_id)?;
-    let decoy = capture_identity01_window(pid, decoy_id)?;
-    assert_eq!((target.role, decoy.role), (1, 2));
-    assert_eq!((target.click_count, decoy.click_count), (1, 1));
-    assert_ne!(target.window_token_sha256, decoy.window_token_sha256);
-
+fn native_identity01_request(
+    target_identity: TargetIdentity,
+) -> Result<(WorkerResponse, bool), Box<dyn Error>> {
     let home = TempDir::new()?;
     let mut worker = Command::new(env!("CARGO_BIN_EXE_worker"))
         .env("AGENT_DESKTOP_HOME", home.path().join("native-home"))
@@ -432,19 +395,68 @@ fn native_identity01_snapshot_uses_frozen_fixture_window() -> Result<(), Box<dyn
             input_generation: 2,
             deadline_mono_ms: monotonic_millis()?.checked_add(20_000).ok_or("deadline")?,
             sample_id: "IDENTITY-01".into(),
-            target_identity: TargetIdentity {
-                platform: "windows".into(),
-                fixture_id: "identity-01".into(),
-                process_id: pid,
-                native_window_id: target_id.into(),
-                process_start_sha256: target.window.process_start_sha256,
-                window_token_sha256: target.window_token_sha256,
-                topology_generation: 1,
-                oracle_id: "O-NATIVE-WINDOW-IDENTITY-V1".into(),
-            },
+            target_identity,
         },
     )?;
-    let response: WorkerResponse = read_frame(&mut output)?.ok_or("snapshot eof")?;
+    let response = read_frame(&mut output)?.ok_or("snapshot eof")?;
+    drop(input);
+    let success = worker.wait()?.success();
+    Ok((response, success))
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn native_identity01_snapshot_uses_frozen_fixture_window() -> Result<(), Box<dyn Error>> {
+    use std::{io::BufRead, path::Path};
+    use yonder_agent_desktop_driver_spike::host_oracle::windows::capture_identity01_window;
+    use yonder_agent_desktop_driver_spike::protocol::ErrorClass;
+
+    struct Fixture(Child);
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/identity01-windows.ps1");
+    let mut fixture = Fixture(
+        Command::new("powershell.exe")
+            .args(["-Sta", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+            .arg(path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?,
+    );
+    let mut fixture_output = BufReader::new(fixture.0.stdout.take().ok_or("fixture stdout")?);
+    let mut line = String::new();
+    if fixture_output.read_line(&mut line)? == 0 {
+        return Err("fixture startup eof".into());
+    }
+    let started: serde_json::Value = serde_json::from_str(&line)?;
+    let pid = u32::try_from(started["pid"].as_u64().ok_or("fixture pid")?)?;
+    let target_id = started["target_window_id"]
+        .as_str()
+        .ok_or("fixture target")?;
+    let decoy_id = started["decoy_window_id"].as_str().ok_or("fixture decoy")?;
+    let target = capture_identity01_window(pid, target_id)?;
+    let decoy = capture_identity01_window(pid, decoy_id)?;
+    assert_eq!((target.role, decoy.role), (1, 2));
+    assert_eq!((target.click_count, decoy.click_count), (1, 1));
+    assert_ne!(target.window_token_sha256, decoy.window_token_sha256);
+
+    let identity = TargetIdentity {
+        platform: "windows".into(),
+        fixture_id: "identity-01".into(),
+        process_id: pid,
+        native_window_id: target_id.into(),
+        process_start_sha256: target.window.process_start_sha256,
+        window_token_sha256: target.window_token_sha256,
+        topology_generation: 1,
+        oracle_id: "O-NATIVE-WINDOW-IDENTITY-V1".into(),
+    };
+    let (response, success) = native_identity01_request(identity.clone())?;
     assert!(
         matches!(
             &response,
@@ -456,8 +468,36 @@ fn native_identity01_snapshot_uses_frozen_fixture_window() -> Result<(), Box<dyn
         ),
         "{response:?}"
     );
-    drop(input);
-    assert!(worker.wait()?.success());
+    assert!(success);
+    let mut wrong_generation = identity.clone();
+    wrong_generation.window_token_sha256 = decoy.window_token_sha256.clone();
+    let (response, success) = native_identity01_request(wrong_generation)?;
+    assert!(matches!(
+        response,
+        WorkerResponse::SnapshotResult {
+            status: Status::Rejected,
+            error_class: ErrorClass::Identity,
+            snapshot_id,
+            qualified_refs,
+            ..
+        } if snapshot_id.is_empty() && qualified_refs.is_empty()
+    ));
+    assert!(!success);
+    let mut decoy_identity = identity;
+    decoy_identity.native_window_id = decoy_id.into();
+    decoy_identity.window_token_sha256 = decoy.window_token_sha256;
+    let (response, success) = native_identity01_request(decoy_identity)?;
+    assert!(matches!(
+        response,
+        WorkerResponse::SnapshotResult {
+            status: Status::Rejected,
+            error_class: ErrorClass::Identity,
+            snapshot_id,
+            qualified_refs,
+            ..
+        } if snapshot_id.is_empty() && qualified_refs.is_empty()
+    ));
+    assert!(!success);
     let after_target = capture_identity01_window(pid, target_id)?;
     let after_decoy = capture_identity01_window(pid, decoy_id)?;
     assert_eq!((after_target.click_count, after_decoy.click_count), (1, 1));
