@@ -21,6 +21,7 @@ Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘�
 - 2026-11-05 Windows 只读证据显示：`WindowInfo.id` 是 HWND，`process_instance` 是进程启动时间令牌，快照根节点无 `native_id`。仅凭 HWND 与进程令牌不能排除同一进程内销毁并复用 HWND。Host 独立只读 oracle 与 Worker 在派发前必须比较可证明区分窗口对象代际的令牌；若该令牌在既定平台样本中不可得，则按身份门槛拒绝并淘汰候选，不得以标题、前台窗口、延时或动作后 Observe 代替。此路线尚未定案，原生 Backend 继续 `unsupported/not_delivered`。
 - Windows UI Automation 的 RuntimeId 也不能单独当作永久窗口代际令牌：[微软文档](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomationelement-getruntimeid)明确允许标识符随时间复用；[CompareElements](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomation-compareelements) 的结果基于运行时标识符。若采用 UIA 对象比较，必须保留原对象、验证销毁重建样本并证明派发解析不会在比较后重新定位到替代对象；否则仍拒绝。
 - 受控 Windows 探针证明同权限跨进程 `SetPropW` 可在窗口上附加标记，但该方法会写入目标窗口、受 UIPI 限制，且派发前读取与实际副作用之间仍有竞态；本 Spike 不将其视为只读身份 oracle，也不据此放开动作门禁。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-window-property-oracle-2026-11-05.md)。
+- 受控 Windows `SetWinEventHook` 探针在独立进程中收到了窗口销毁、创建、再销毁事件，说明只读生命周期追踪具备进一步验证价值。由于 out-of-context 回调异步，正式门禁仍要求可验证的事件屏障、观察器故障拒绝、复用样本与最终身份核对到副作用之间的竞态证明；当前尚不把事件计数当作合格窗口代际令牌。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-winevent-lifecycle-2026-11-05.md)。
 - 上游 machine-wide interaction lease 只作为单次 dispatch 的附加互斥。任务级 ownership、fencing、崩溃恢复和唯一前台桌面租约仍由 Yonder 持有。
 
 ## 抢占、取消与结果语义

@@ -31,3 +31,4 @@ Architecture Decision: Proposed AD-CU-07
 - [Windows 补丁构建证据](evidence/windows-patched-build-2026-11-05.md)
 - [Windows 原生只读探针证据](evidence/windows-native-read-probe-2026-11-05.md)
 - [Windows 窗口 property 代际探针证据](evidence/windows-window-property-oracle-2026-11-05.md)
+- [Windows WinEvent 生命周期探针证据](evidence/windows-winevent-lifecycle-2026-11-05.md)
