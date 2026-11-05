@@ -1,15 +1,14 @@
 diff --git a/crates/core/src/actionability/receives_events.rs b/crates/core/src/actionability/receives_events.rs
+index 4efb946..37abe5a 100755
 --- a/crates/core/src/actionability/receives_events.rs
 +++ b/crates/core/src/actionability/receives_events.rs
-@@ -95,8 +95,12 @@ pub(crate) fn require_receives_events(
+@@ -96,8 +96,10 @@ pub(crate) fn require_receives_events(
  ) -> Result<(), AdapterError> {
      let check = match adapter.hit_test(handle, point, deadline) {
          Ok(HitTestResult::ReachesTarget) => return Ok(()),
 -        Ok(HitTestResult::Unknown) => return Ok(()),
 -        Err(error) if error.code == ErrorCode::PlatformNotSupported => return Ok(()),
-+        Ok(HitTestResult::Unknown) => {
-+            unknown("receives_events", "hit test result inconclusive")
-+        }
++        Ok(HitTestResult::Unknown) => unknown("receives_events", "hit test result inconclusive"),
 +        Err(error) if error.code == ErrorCode::PlatformNotSupported => {
 +            unknown("receives_events", "hit testing is not supported")
 +        }
@@ -17,22 +16,101 @@ diff --git a/crates/core/src/actionability/receives_events.rs b/crates/core/src/
          Ok(HitTestResult::InterceptedBy { role, name, bounds }) => occluded(role, name, bounds),
      };
 diff --git a/crates/core/src/adapter/hit_test_tests.rs b/crates/core/src/adapter/hit_test_tests.rs
+index e08e330..a2d81a9 100755
 --- a/crates/core/src/adapter/hit_test_tests.rs
 +++ b/crates/core/src/adapter/hit_test_tests.rs
-@@ -261,2 +261,16 @@ fn not_supported_hit_test_is_non_blocking_evidence() {
+@@ -258,6 +258,42 @@ fn not_supported_hit_test_is_non_blocking_evidence() {
+     assert_eq!(check.status, ActionabilityStatus::Unknown);
+ }
+ 
 +#[test]
 +fn unknown_pointer_hit_test_rejects_before_delivery() {
-+    let error = run_receives_events_error(Ok(HitTestResult::Unknown));
++    let adapter = HitTestAdapter {
++        outcome: Ok(HitTestResult::Unknown),
++        actions: Vec::new(),
++        calls: AtomicUsize::new(0),
++    };
++    let error = crate::actionability::require_receives_events(
++        &NativeHandle::null(),
++        crate::Point { x: 30.0, y: 20.0 },
++        &adapter,
++        crate::Deadline::standard().unwrap(),
++    )
++    .expect_err("unknown hit test must block pointer delivery");
 +    assert_eq!(error.code, ErrorCode::ActionFailed);
 +    assert_eq!(error.disposition, crate::DeliverySemantics::not_delivered());
 +}
 +
 +#[test]
 +fn unsupported_pointer_hit_test_rejects_before_delivery() {
-+    let error = run_receives_events_error(Err(AdapterError::not_supported("hit_test")));
++    let adapter = HitTestAdapter {
++        outcome: Err(AdapterError::not_supported("hit_test")),
++        actions: Vec::new(),
++        calls: AtomicUsize::new(0),
++    };
++    let error = crate::actionability::require_receives_events(
++        &NativeHandle::null(),
++        crate::Point { x: 30.0, y: 20.0 },
++        &adapter,
++        crate::Deadline::standard().unwrap(),
++    )
++    .expect_err("unsupported hit test must block pointer delivery");
 +    assert_eq!(error.code, ErrorCode::ActionFailed);
 +    assert_eq!(error.disposition, crate::DeliverySemantics::not_delivered());
 +}
 +
  #[test]
  fn hit_test_probe_error_is_not_reclassified() {
+     let err = run_receives_events_error(Err(AdapterError::internal(
+diff --git a/crates/core/src/commands/point_resolve_tests.rs b/crates/core/src/commands/point_resolve_tests.rs
+index 0457ed1..d227b7a 100755
+--- a/crates/core/src/commands/point_resolve_tests.rs
++++ b/crates/core/src/commands/point_resolve_tests.rs
+@@ -172,29 +172,39 @@ fn reaches_target_allows_ref_targeted_point_resolution() {
+ }
+ 
+ #[test]
+-fn unknown_hit_test_result_allows_ref_targeted_resolution() {
++fn unknown_hit_test_result_rejects_ref_targeted_resolution() {
+     let _guard = HomeGuard::new();
+     let snapshot_id = ref_snapshot(42);
+     let adapter = HitTestOutcomeAdapter {
+         outcome: Ok(HitTestResult::Unknown),
+     };
+ 
+-    let resolved =
+-        resolve_test_point(ref_args(&snapshot_id), &adapter, &CommandContext::default()).unwrap();
+-    assert_eq!((resolved.point.x, resolved.point.y), (110.0, 205.0));
++    let error =
++        match resolve_test_point(ref_args(&snapshot_id), &adapter, &CommandContext::default()) {
++            Ok(_) => panic!("unknown hit test must block pointer delivery"),
++            Err(crate::AppError::Adapter(error)) => error,
++            Err(error) => panic!("unexpected error: {error}"),
++        };
++    assert_eq!(error.code, ErrorCode::ActionFailed);
++    assert_eq!(error.disposition, crate::DeliverySemantics::not_delivered());
+ }
+ 
+ #[test]
+-fn unsupported_hit_test_allows_ref_targeted_resolution() {
++fn unsupported_hit_test_rejects_ref_targeted_resolution() {
+     let _guard = HomeGuard::new();
+     let snapshot_id = ref_snapshot(42);
+     let adapter = HitTestOutcomeAdapter {
+         outcome: Err(AdapterError::not_supported("hit_test")),
+     };
+ 
+-    let resolved =
+-        resolve_test_point(ref_args(&snapshot_id), &adapter, &CommandContext::default()).unwrap();
+-    assert_eq!((resolved.point.x, resolved.point.y), (110.0, 205.0));
++    let error =
++        match resolve_test_point(ref_args(&snapshot_id), &adapter, &CommandContext::default()) {
++            Ok(_) => panic!("unsupported hit test must block pointer delivery"),
++            Err(crate::AppError::Adapter(error)) => error,
++            Err(error) => panic!("unexpected error: {error}"),
++        };
++    assert_eq!(error.code, ErrorCode::ActionFailed);
++    assert_eq!(error.disposition, crate::DeliverySemantics::not_delivered());
+ }
+ 
+ #[test]
