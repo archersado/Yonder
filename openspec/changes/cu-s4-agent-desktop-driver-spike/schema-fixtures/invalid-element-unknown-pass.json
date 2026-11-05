@@ -5,7 +5,7 @@
   "artifact_sha256": "c7f1257f64fd4d0ca5404c4c5451b18d9efe73ec0ad20db81ce3f1ffe6f856ce",
   "attempt_id": "attempt-invalid-unknown-fixture",
   "bridge_contract_sha256": "aff1bb362db53f54d4ffca4a7a266be2d15f981b74227dc4fa483dc7b6adfc1f",
-  "build_manifest_sha256": "15337d4a25ae5bba088b08841ab02817325cb275f48b0c1c35ffed5e341d5939",
+  "build_manifest_sha256": "656c243e9c1faaa2f39bb4ac98cec46c8e296192967e9688f710890358a0cb38",
   "cleanup_probes": {
     "desktop_handles_gone": true,
     "input_hooks_gone": true,

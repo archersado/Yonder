@@ -20,12 +20,12 @@
   "link_strategy": "platform crates are target-specific path dependencies to pinned patched source; no dynamic bridge ABI",
   "bridge_contract_sha256": "aff1bb362db53f54d4ffca4a7a266be2d15f981b74227dc4fa483dc7b6adfc1f",
   "action_allowlist_sha256": "212aefd4508aa92349229ec1aea2a2538aa53a360006a1d4393ebc2b4986d1b9",
-  "sample_definitions_sha256": "8c9501a859f8d19084b827221999d2b980400a0741f3287319f8207991951109",
+  "sample_definitions_sha256": "6bda6b0be4fd204c2efc9957252a42d79c3a48e3233db98f966dbd2e13410136",
   "authoritative_evidence_schema_sha256": "794637d24b00d199766946886396f6bc0e009ee81863292327e53989bd17ed3f",
   "generated_bridge_schema_sha256": "644f5b669684bfe06e89558e563be74fe9bcc4531878ac3e3c5dfb6217cdb124",
   "generated_evidence_schema_sha256": "794637d24b00d199766946886396f6bc0e009ee81863292327e53989bd17ed3f",
   "yonder_harness_baseline_commit": "3643a0e5f77c584c81eb4849aaf622b7fdd94cce",
-  "yonder_harness_tree_sha256": "6a32a4b9375768d8c1b0d34ad7ef6c0722d18fc94a6b9d8782652eeac9bb5ec9",
+  "yonder_harness_tree_sha256": "e3411a75b9011ee5396c2ae325a12d26e1760fc814af8c09bf3c772e1c6114e9",
   "git_dirty_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "yonder_harness_tree_scope": "spikes/agent-desktop-driver excluding target/ and build-manifest.json",
   "build_commands": [
@@ -42,5 +42,5 @@
     "harness.exe worker.exe"
   ],
   "artifacts": [],
-  "native_build_status": "contract_only_native_backend_unsupported"
+  "native_build_status": "identity01_fixture_read_only_native_dispatch_unsupported"
 }

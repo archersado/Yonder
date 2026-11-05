@@ -35,6 +35,9 @@ pub trait Backend {
     fn observe(&mut self, request: &HostRequest) -> ObserveReply;
 }
 
+#[cfg(target_os = "windows")]
+mod identity01_windows;
+
 pub struct MockBackend;
 
 impl Backend for MockBackend {
@@ -105,7 +108,12 @@ pub mod native {
     }
 
     impl Backend for NativeBackend {
-        fn snapshot(&mut self, _request: &HostRequest) -> SnapshotReply {
+        fn snapshot(&mut self, request: &HostRequest) -> SnapshotReply {
+            #[cfg(target_os = "windows")]
+            if matches!(request, HostRequest::Snapshot { sample_id, .. } if sample_id == "IDENTITY-01")
+            {
+                return super::identity01_windows::snapshot_identity01(&self.adapter, request);
+            }
             let _adapter: &dyn agent_desktop_core::PlatformAdapter = &self.adapter;
             SnapshotReply {
                 status: Status::Rejected,

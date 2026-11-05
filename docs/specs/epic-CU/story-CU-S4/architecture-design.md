@@ -36,6 +36,8 @@ WinEvent 零计数仅在目标确实位于观察器覆盖范围时有意义。Wi
 
 Host/Worker 一致性实验可以启动两个独立的**诊断观察器进程**，在同一受控窗口上同时接收生命周期事件并比较屏障前后计数。诊断入口只输出事件计数、布尔状态和进程身份摘要，不实现动作、不替代唯一产品 Worker bridge，也不改变 OpenSpec 的 bridge/evidence 协议。
 
+`IDENTITY-01` 正式 fixture 在同一测试进程创建两个可见顶层窗口，标题、按钮角色与按钮无敏感标签相同；每个窗口恰好一个可点击按钮。目标由 Host 启动该 fixture 后读取 fixture 自身发布的窗口角色与原生窗口 ID 来冻结，不能靠标题或前台状态选择。两个按钮使用相同的固定元素标识：Windows `AutomationId = YonderIdentity01Button`，macOS `AXIdentifier = YonderIdentity01Button`；唯一性按冻结窗口内的完整快照验证。每个窗口在创建时由 fixture 自行设置不可变、互异的窗口代际标记；Windows Host/Worker 只读窗口 property，macOS Host/Worker 只读窗口 AX identifier，二者都不得向目标写入标记。点击计数只在 fixture 内按窗口分别累加，Host 独立只读核验目标为 1、诱饵为 0 且两次稳定采样一致。该 fixture 专用标记不代表任意应用的窗口代际能力；动作准入仍由前述 Worker 路径门禁控制。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。

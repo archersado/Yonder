@@ -18,6 +18,8 @@ Bridge 语义固定在 [`bridge-contract-v1.md`](bridge-contract-v1.md)，动作
 
 原生 Backend 拒绝 snapshot 时，Worker 应返回带错误分类、空 `snapshot_id` 和空 `qualified_refs` 的 `snapshot_result`，然后终止会话；Host 保持派发门禁关闭。成功响应必须具有匹配身份和唯一限定引用。
 
+`IDENTITY-01` 使用 `sample-catalog.md` 的固定双窗口 fixture 规则：两个同名窗口的按钮标识也相同，Host 依据自启动进程与 fixture 自有窗口角色冻结原生窗口 ID 和不可变代际标记，Worker 独立只读重验，在冻结窗口完整快照中要求唯一限定引用。该标记只用于受控 fixture 的前置身份实验；在 Worker ref 解析至动作交付的生命周期门禁通过前，原生 dispatch 保持 `unsupported/not_delivered`。
+
 ## 取消与故障
 
 - 未派发及步骤间取消：冻结准入并确认没有新动作，可确定完成。

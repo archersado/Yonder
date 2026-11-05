@@ -26,5 +26,22 @@
     { "id": "O-WORKER-CONTAINMENT-V1", "definition": "read-only process containment lease input-state and temporary-resource checks after worker termination" },
     { "id": "O-PLATFORM-PERMISSION-V1", "definition": "read-only platform permission and integrity classification" },
     { "id": "O-BUILD-MANIFEST-V1", "definition": "hash-bound build manifest artifact dependency SBOM license provenance and platform-signing verification" }
+  ],
+  "fixtures": [
+    {
+      "sample_id": "IDENTITY-01",
+      "fixture_id": "identity-01",
+      "window_count": 2,
+      "same_title": "Yonder Identity Fixture",
+      "windows_button_count_each": 1,
+      "windows_button_automation_id": "YonderIdentity01Button",
+      "windows_role_property": "YonderCUIdentity01Role",
+      "windows_generation_property": "YonderCUIdentity01Generation",
+      "windows_click_count_property": "YonderCUIdentity01ClickCount",
+      "macos_button_ax_identifier": "YonderIdentity01Button",
+      "macos_window_ax_identifier_prefix": "YonderIdentity01Window:",
+      "target_expected_clicks": 1,
+      "decoy_expected_clicks": 0
+    }
   ]
 }

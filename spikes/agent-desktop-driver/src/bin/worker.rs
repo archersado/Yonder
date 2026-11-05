@@ -36,6 +36,16 @@ fn main() -> Result<()> {
     if !home.is_absolute() {
         bail!("AGENT_DESKTOP_HOME 必须是绝对路径");
     }
+    #[cfg(target_os = "windows")]
+    let mock = env::args().any(|arg| arg == "--mock");
+    #[cfg(target_os = "windows")]
+    if !mock {
+        use agent_desktop_core::PrivateFileOps;
+        agent_desktop_windows::WindowsPrivateFile::new().ensure_private(home)?;
+    } else {
+        fs::create_dir_all(home)?;
+    }
+    #[cfg(not(target_os = "windows"))]
     fs::create_dir_all(home)?;
     #[cfg(unix)]
     {

@@ -17,7 +17,7 @@ use windows_sys::Win32::{
             OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
         },
     },
-    UI::WindowsAndMessaging::{GetWindowThreadProcessId, IsWindow},
+    UI::WindowsAndMessaging::{GetPropW, GetWindowThreadProcessId, IsWindow},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,12 +40,7 @@ impl HostWindowEvidence {
 
 pub fn capture_window(process_id: u32, native_window_id: &str) -> Result<HostWindowEvidence> {
     ensure!(process_id > 0, "invalid target process");
-    let hwnd = native_window_id
-        .strip_prefix("w-")
-        .and_then(|text| text.parse::<usize>().ok())
-        .filter(|value| *value != 0)
-        .ok_or_else(|| anyhow!("invalid native window ID"))?;
-    let hwnd = hwnd as *mut core::ffi::c_void;
+    let hwnd = parse_hwnd(native_window_id)?;
     ensure!(unsafe { IsWindow(hwnd) } != 0, "target window is gone");
     let mut owner = 0_u32;
     let thread = unsafe { GetWindowThreadProcessId(hwnd, &mut owner) };
@@ -83,6 +78,63 @@ pub fn capture_window(process_id: u32, native_window_id: &str) -> Result<HostWin
     })();
     unsafe { CloseHandle(handle) };
     result
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Identity01WindowEvidence {
+    pub window: HostWindowEvidence,
+    pub role: u8,
+    pub generation: usize,
+    pub click_count: usize,
+    pub window_token_sha256: String,
+}
+
+/// Reads only properties created by Yonder's controlled IDENTITY-01 fixture.
+/// It does not establish an identity oracle for arbitrary applications.
+pub fn capture_identity01_window(
+    process_id: u32,
+    native_window_id: &str,
+) -> Result<Identity01WindowEvidence> {
+    let window = capture_window(process_id, native_window_id)?;
+    let hwnd = parse_hwnd(native_window_id)?;
+    let role = fixture_property(hwnd, "YonderCUIdentity01Role")?;
+    ensure!(role == 1 || role == 2, "fixture window role invalid");
+    let generation = fixture_property(hwnd, "YonderCUIdentity01Generation")?;
+    let click_count = fixture_property(hwnd, "YonderCUIdentity01ClickCount")?;
+    ensure!(
+        generation != 0 && click_count != 0,
+        "fixture property invalid"
+    );
+    let window_token_sha256 = sha256(
+        format!(
+            "identity-01/windows/v1\0{}\0{generation}",
+            window.process_start_sha256
+        )
+        .as_bytes(),
+    );
+    Ok(Identity01WindowEvidence {
+        window,
+        role: role as u8,
+        generation,
+        click_count,
+        window_token_sha256,
+    })
+}
+
+fn parse_hwnd(native_window_id: &str) -> Result<*mut core::ffi::c_void> {
+    native_window_id
+        .strip_prefix("w-")
+        .and_then(|text| text.parse::<usize>().ok())
+        .filter(|value| *value != 0)
+        .map(|value| value as *mut core::ffi::c_void)
+        .ok_or_else(|| anyhow!("invalid native window ID"))
+}
+
+fn fixture_property(hwnd: *mut core::ffi::c_void, name: &str) -> Result<usize> {
+    let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+    let value = unsafe { GetPropW(hwnd, wide.as_ptr()) } as usize;
+    ensure!(value != 0, "fixture property unavailable");
+    Ok(value)
 }
 
 fn verify_desktop_scope(process_id: u32, target_thread: u32) -> Result<()> {

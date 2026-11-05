@@ -151,7 +151,8 @@ fn verify_build_manifest(manifest_root: &Path, openspec: &Path) -> Result<()> {
     if planned.len() != 4
         || verified.len() != 1
         || verified[0] != "x86_64-pc-windows-msvc"
-        || value["native_build_status"] != "contract_only_native_backend_unsupported"
+        || value["native_build_status"]
+            != "identity01_fixture_read_only_native_dispatch_unsupported"
     {
         bail!("target 验证状态不得把计划目标冒充已构建目标");
     }

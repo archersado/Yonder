@@ -29,3 +29,12 @@
 ## Predicate、Oracle 与证据边界
 
 所有 predicate 与 oracle 的规范定义位于 `sample-definitions-v1.json`；build manifest 和每条证据分别记录该文件及具体定义的 SHA-256。所有 fixture 使用固定无敏感标记。证据只保存 predicate/identity verdict，不保存标记正文、截图、完整窗口树或应用列表。
+
+## `IDENTITY-01` 固定 fixture 选择规则
+
+- 同一自建 fixture 进程创建两个标题均为 `Yonder Identity Fixture` 的可见顶层窗口，目标和诱饵各含一个角色、标签与元素标识均相同的按钮；标题、前台状态和窗口列表顺序均不是 selector。
+- Windows 使用 WinForms 按钮 `Name = YonderIdentity01Button`，完整 UIA 快照中 `AutomationId = YonderIdentity01Button` 在**冻结窗口内**必须恰好匹配一次。fixture 自行设置非零且不可变的 `YonderCUIdentity01Role`（目标 `1`、诱饵 `2`）和 `YonderCUIdentity01Generation`（进程内每次建窗递增且互异）window property。Host 启动 fixture 后按 PID 与只读 role 定位目标，冻结 HWND、进程启动摘要和 generation 摘要；Worker 独立重读 role/generation。Host/Worker 不调用 `SetPropW`。
+- macOS 使用 AppKit 窗口与按钮；两个按钮的 `AXIdentifier` 都是 `YonderIdentity01Button`。fixture 创建窗口时设置互异、不可变的窗口 `accessibilityIdentifier`，格式为 `YonderIdentity01Window:<target|decoy>:<generation>`；Host/Worker 只读 AX 属性并与 PID、原生窗口 ID 绑定。若目标窗口或唯一按钮的 AX 属性不可读，即 `unsupported`，不得按标题回退。
+- Windows 的窗口代际摘要为 `SHA-256("identity-01/windows/v1" || NUL || process_start_sha256 || NUL || generation 十进制值)`；macOS 把前缀替换为 `identity-01/macos/v1`，输入为完整窗口 `accessibilityIdentifier`。两个平台都只在内部计算 token，不把原始标记写入 Spike 证据。
+- Windows fixture 自行维护每个窗口的 `YonderCUIdentity01ClickCount` property，数值 `1` 表示 0 次、`2` 表示 1 次点击；macOS fixture 在每个窗口的固定状态元素中暴露非敏感点击计数。Host 至少两次只读采样验证目标恰好 1 次、诱饵 0 次，且冻结身份未变化。样本失败时不把 Worker 自报结果当作通过。
+- fixture 专用代际标记仅用于这个受控样本。`IDENTITY-01` 的真实动作仍需先满足 WinEvent/AX 对象生命周期、Host/Worker 一致性和 Worker ref 解析至交付路径的安全门禁；它不授权通用应用派发。

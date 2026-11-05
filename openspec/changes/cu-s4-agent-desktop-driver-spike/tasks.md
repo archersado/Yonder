@@ -12,6 +12,7 @@
 - [x] 建立不接产品 Gateway/SQLite 的隔离 harness 和受监管 Worker
 - [x] 建立禁用能力 allowlist/denylist、线性化派发与结果映射契约测试
 - [x] 验证 Windows 固定工具链和原生 Backend 所需 COM/DPI 初始化；只读 fixture snapshot 不计为原生动作样本
+- [ ] 实现 `IDENTITY-01` 双窗口 fixture 与跨平台同语义 selector；使原生 Worker 只读 snapshot 独立核对 fixture 代际、目标身份和唯一限定引用
 - [ ] 验证 Windows WinEvent 生命周期观察器与隐藏窗口事件屏障，覆盖 HWND 复用、队列溢出、观察器故障、Host/Worker 一致性及会话/输入桌面/完整性权限拒绝；未通过前不得开放原生动作
 
 ## 双平台原生证据
