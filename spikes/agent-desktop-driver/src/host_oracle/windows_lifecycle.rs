@@ -236,11 +236,9 @@ fn barrier(target_hwnd: usize) -> Result<LifecycleSample> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn hidden_window_events_pass_the_barrier() -> Result<()> {
-        let observer = LifecycleObserver::start()?;
+    fn hidden_window() -> Result<HWND> {
         let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
-        let target = unsafe {
+        let window = unsafe {
             CreateWindowExW(
                 0,
                 class.as_ptr(),
@@ -256,7 +254,14 @@ mod tests {
                 std::ptr::null(),
             )
         };
-        ensure!(!target.is_null(), "test window unavailable");
+        ensure!(!window.is_null(), "test window unavailable");
+        Ok(window)
+    }
+
+    #[test]
+    fn hidden_window_events_pass_the_barrier() -> Result<()> {
+        let observer = LifecycleObserver::start()?;
+        let target = hidden_window()?;
         let id = format!("w-{}", target as usize);
         let before = observer.barrier_for(&id)?;
         unsafe { DestroyWindow(target) };
@@ -266,6 +271,29 @@ mod tests {
         ensure!(
             after.destroys > before.destroys,
             "destroy event not observed"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn event_capacity_exhaustion_rejects_barrier() -> Result<()> {
+        let observer = LifecycleObserver::start()?;
+        let target = hidden_window()?;
+        let id = format!("w-{}", target as usize);
+        observer.barrier_for(&id)?;
+        for _ in 0..EVENT_LIMIT {
+            let window = hidden_window()?;
+            unsafe { DestroyWindow(window) };
+        }
+        let outcome = observer.barrier_for(&id);
+        unsafe { DestroyWindow(target) };
+        let failure = match outcome {
+            Ok(_) => anyhow::bail!("event capacity exhaustion must reject the barrier"),
+            Err(error) => error,
+        };
+        ensure!(
+            failure.to_string().contains("overflowed"),
+            "event capacity exhaustion failed for another reason"
         );
         Ok(())
     }
