@@ -38,7 +38,7 @@
 各 kind 额外字段：
 
 - `hello_result`：固定 `source_revision`、`bridge_contract_sha256`、`sample_definitions_sha256`、`action_allowlist_sha256`、`capabilities_sha256`；任一不匹配时 Host 禁止派发。
-- `snapshot_result`：`snapshot_id`、非空且有界的 `qualified_refs`、`target_identity_verdict`；只允许返回 opaque ref，不得返回窗口树或正文。
+- `snapshot_result`：`snapshot_id`、有界的 `qualified_refs`、`target_identity_verdict`；`status = "ok"` 时目标身份必须匹配、`snapshot_id` 非空且恰好一个 opaque ref。Backend 明确拒绝时，Worker 回传错误分类、空 `snapshot_id` 和空 `qualified_refs`，随后终止会话；Host 不得进入派发。不得返回窗口树或正文。
 - `dispatch_result`：`delivery_disposition = "not_delivered" | "delivered_verified" | "delivered_unverified" | "unknown"`、`driver_status` 和可选 `next_snapshot_hint`；不得返回输入正文、通知、剪贴板、截图或完整窗口树。
 - `observe_result`：`snapshot_id`、`target_identity_verdict = "match" | "mismatch" | "ambiguous" | "stale" | "unavailable"`、`predicate_verdict = "satisfied" | "unsatisfied" | "unstable" | "unavailable"`、`element_count`。Host 仍须用独立只读 oracle 复核。
 - `shutdown_result`：只表示正常排空与 Worker 可退出；不得用作在途动作已取消或副作用已回滚的证据。

@@ -646,6 +646,26 @@ mod tests {
         supervisor
     }
 
+    #[test]
+    fn rejected_snapshot_never_admits_dispatch() {
+        let mut supervisor = Supervisor::new(state(), HostSafetyState::default());
+        assert!(supervisor.accept_hello(&hello(), &identity("hello"), &["b", "s", "a"]));
+        let rejected = WorkerResponse::SnapshotResult {
+            schema_version: BRIDGE_SCHEMA_VERSION.into(),
+            identity: identity("snapshot"),
+            status: Status::Rejected,
+            error_class: ErrorClass::Unsupported,
+            snapshot_id: String::new(),
+            qualified_refs: Vec::new(),
+            target_identity_verdict: IdentityVerdict::Unavailable,
+        };
+        assert!(!supervisor.accept_snapshot(&snapshot_request(100), &rejected, 1));
+        assert_eq!(
+            supervisor.dispatch(&state(), &request(100), &mut TestTransport(Vec::new()), 2),
+            DispatchResult::NotDispatched
+        );
+    }
+
     struct StableOracle(u64);
     impl ReadOnlyOracle for StableOracle {
         fn sample(&mut self, _target: &TargetIdentity, _predicate_id: &str) -> OracleSample {

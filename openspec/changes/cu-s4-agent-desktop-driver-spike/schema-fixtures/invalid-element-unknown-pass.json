@@ -4,8 +4,8 @@
   "arch": "x86_64",
   "artifact_sha256": "c7f1257f64fd4d0ca5404c4c5451b18d9efe73ec0ad20db81ce3f1ffe6f856ce",
   "attempt_id": "attempt-invalid-unknown-fixture",
-  "bridge_contract_sha256": "25e3ea598647331021104a43c34c397d8f72d82f03f52ae8d7d7bbbc3c7d8b9d",
-  "build_manifest_sha256": "8484701600c84b21fb38f9ffa6c0fba8afe59b056600d6bbfb9f9e8e34d53633",
+  "bridge_contract_sha256": "aff1bb362db53f54d4ffca4a7a266be2d15f981b74227dc4fa483dc7b6adfc1f",
+  "build_manifest_sha256": "bce95fc58a1a03586d6df88439eaaa34157e9e45a2b38bc08ca49e96ab6ce6ac",
   "cleanup_probes": {
     "desktop_handles_gone": true,
     "input_hooks_gone": true,

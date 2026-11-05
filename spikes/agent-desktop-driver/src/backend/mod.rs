@@ -123,7 +123,7 @@ pub mod native {
                 status: Status::Rejected,
                 error_class: ErrorClass::Unsupported,
                 disposition: DeliveryDisposition::NotDelivered,
-                driver_status: "upstream_hit_test_unknown_is_fail_open_and_not_exposed",
+                driver_status: "native_target_identity_gate_not_proven",
             }
         }
         fn observe(&mut self, _request: &HostRequest) -> ObserveReply {

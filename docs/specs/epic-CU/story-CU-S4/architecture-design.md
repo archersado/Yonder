@@ -16,6 +16,8 @@ Spike Harness（模拟 Application 语义）
 
 上游 interaction lease 只串行化参与该机制的一次 dispatch。Yonder 的任务级 lease/fencing 仍是唯一所有权来源。上游 snapshot ref、命令和 disposition 不进入 Domain，也不手写为第二份 Rust/TypeScript 产品协议。
 
+Worker 对可解析但被原生 Backend 拒绝的 snapshot 返回带错误分类的 `snapshot_result`，其中 `snapshot_id` 和 `qualified_refs` 为空，随后终止当前会话；Host 不得因此进入派发状态。只有 `status = ok`、目标身份匹配且恰好一个限定引用时才能继续。Backend 声称成功却缺少这些条件时视为协议故障并终止。
+
 原生 Worker 初始化先于任何平台 API：Windows 使用上游公开 `ensure_owned_process_mta_and_dpi` 并安装 Windows 私有文件操作；macOS 使用上游公开 `ensure_cocoa_multithreaded`。初始化失败即拒绝启动原生 Backend。只读诊断探针可在隔离 fixture 上验证窗口枚举与 snapshot，但其结果不等于动作、抢占或 Observe 闭环通过；诊断输出只含计数、布尔状态和身份摘要。
 
 只读 fixture 的元素探针只接受预置 `AutomationId = YonderProbeButton`，要求完整快照中恰好一个带 ref 的匹配元素；不得以可访问名称、标题或树中首项回退。这个诊断判据不能替代正式样本的 Host 独立身份 oracle；正式样本在目标与元素选择规则冻结前继续禁止原生派发。

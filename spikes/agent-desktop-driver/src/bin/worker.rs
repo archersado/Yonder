@@ -159,23 +159,24 @@ fn serve(
                     bail!("snapshot 身份、样本或目标身份错配");
                 }
                 let reply = backend.snapshot(&request);
-                if reply.status != Status::Ok
-                    || reply.identity
-                        != yonder_agent_desktop_driver_spike::protocol::IdentityVerdict::Match
-                    || reply.snapshot_id.is_empty()
-                    || reply.qualified_refs.len() != 1
-                    || !reply.qualified_refs[0].starts_with(&format!("@{}:", reply.snapshot_id))
-                {
+                let accepted = reply.status == Status::Ok
+                    && reply.identity
+                        == yonder_agent_desktop_driver_spike::protocol::IdentityVerdict::Match
+                    && !reply.snapshot_id.is_empty()
+                    && reply.qualified_refs.len() == 1
+                    && reply.qualified_refs[0].starts_with(&format!("@{}:", reply.snapshot_id));
+                if reply.status == Status::Ok && !accepted {
                     bail!("snapshot 未建立冻结目标与唯一限定引用");
                 }
-                let binding = binding.clone();
-                sequence = Sequence::SnapshotReady(
-                    binding,
-                    sample_id.clone(),
-                    reply.snapshot_id.clone(),
-                    reply.qualified_refs[0].clone(),
-                    target_identity.clone(),
-                );
+                if accepted {
+                    sequence = Sequence::SnapshotReady(
+                        binding.clone(),
+                        sample_id.clone(),
+                        reply.snapshot_id.clone(),
+                        reply.qualified_refs[0].clone(),
+                        target_identity.clone(),
+                    );
+                }
                 write_frame(
                     &mut output,
                     &WorkerResponse::SnapshotResult {
@@ -189,6 +190,9 @@ fn serve(
                     },
                 )
                 .map_err(io::Error::from)?;
+                if !accepted {
+                    bail!("snapshot 被 backend 拒绝，Worker 终止会话");
+                }
             }
             HostRequest::Dispatch { identity, .. } => {
                 let Sequence::SnapshotReady(

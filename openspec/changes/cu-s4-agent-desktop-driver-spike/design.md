@@ -14,6 +14,8 @@ Bridge 语义固定在 [`bridge-contract-v1.md`](bridge-contract-v1.md)，动作
 
 首次 snapshot 也走同一 stdio bridge：Host 提交只读 oracle 冻结的显式进程/原生窗口定位和哈希身份，Worker 返回该目标下的 opaque qualified refs。dispatch 与 Observe 必须引用同一 snapshot、ref 和冻结身份；不得按标题或当前前台窗口隐式选择。Host 对 Observe 结果执行至少两次、间隔不少于 250ms 且位于 500ms 窗口内的独立只读采样，不能以 Worker verdict 代替。
 
+原生 Backend 拒绝 snapshot 时，Worker 应返回带错误分类、空 `snapshot_id` 和空 `qualified_refs` 的 `snapshot_result`，然后终止会话；Host 保持派发门禁关闭。成功响应必须具有匹配身份和唯一限定引用。
+
 ## 取消与故障
 
 - 未派发及步骤间取消：冻结准入并确认没有新动作，可确定完成。

@@ -285,3 +285,68 @@ fn privacy_flags_are_required_not_defaulted() -> Result<(), Box<dyn Error>> {
     assert!(!status.success());
     Ok(())
 }
+
+#[cfg(target_os = "windows")]
+#[test]
+fn native_snapshot_rejection_is_reported_before_worker_exits() -> Result<(), Box<dyn Error>> {
+    use yonder_agent_desktop_driver_spike::protocol::{ErrorClass, IdentityVerdict};
+
+    let home = TempDir::new()?;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_worker"))
+        .env("AGENT_DESKTOP_HOME", home.path())
+        .env("AGENT_DESKTOP_TRACE", "off")
+        .env("AGENT_DESKTOP_SCREENSHOTS", "off")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let mut input = child.stdin.take().ok_or("stdin")?;
+    let mut output = BufReader::new(child.stdout.take().ok_or("stdout")?);
+    let h = hashes();
+    write_frame(
+        &mut input,
+        &HostRequest::Hello {
+            schema_version: BRIDGE_SCHEMA_VERSION.into(),
+            identity: identity("hello"),
+            input_generation: 2,
+            deadline_mono_ms: deadline()?,
+            source_revision: SOURCE_REVISION.into(),
+            bridge_contract_sha256: h[0].clone(),
+            sample_definitions_sha256: h[1].clone(),
+            action_allowlist_sha256: h[2].clone(),
+        },
+    )?;
+    assert!(matches!(
+        read_frame::<WorkerResponse>(&mut output)?.ok_or("hello eof")?,
+        WorkerResponse::HelloResult {
+            status: Status::Ok,
+            ..
+        }
+    ));
+    write_frame(
+        &mut input,
+        &HostRequest::Snapshot {
+            schema_version: BRIDGE_SCHEMA_VERSION.into(),
+            identity: identity("snapshot"),
+            input_generation: 2,
+            deadline_mono_ms: deadline()?,
+            sample_id: "ELEMENT-01".into(),
+            target_identity: TargetIdentity::fixture("fixture", "O-NATIVE-ELEMENT-IDENTITY-V1"),
+        },
+    )?;
+    assert!(matches!(
+        read_frame::<WorkerResponse>(&mut output)?.ok_or("snapshot eof")?,
+        WorkerResponse::SnapshotResult {
+            status: Status::Rejected,
+            error_class: ErrorClass::Unsupported,
+            target_identity_verdict: IdentityVerdict::Unavailable,
+            snapshot_id,
+            qualified_refs,
+            ..
+        } if snapshot_id.is_empty() && qualified_refs.is_empty()
+    ));
+    drop(input);
+    assert!(read_frame::<WorkerResponse>(&mut output)?.is_none());
+    assert!(!child.wait()?.success());
+    Ok(())
+}
