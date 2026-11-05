@@ -80,19 +80,27 @@ pub mod native {
     }
 
     impl NativeBackend {
-        pub fn new() -> Self {
-            Self {
+        pub fn new() -> Result<Self, agent_desktop_core::AdapterError> {
+            #[cfg(target_os = "windows")]
+            {
+                agent_desktop_windows::ensure_owned_process_mta_and_dpi()?;
+                agent_desktop_core::install_private_file_ops(Box::new(
+                    agent_desktop_windows::WindowsPrivateFile,
+                ))
+                .map_err(|_| {
+                    agent_desktop_core::AdapterError::internal(
+                        "Windows private file backend already installed",
+                    )
+                })?;
+            }
+            #[cfg(target_os = "macos")]
+            agent_desktop_macos::ensure_cocoa_multithreaded()?;
+            Ok(Self {
                 #[cfg(target_os = "windows")]
                 adapter: agent_desktop_windows::WindowsAdapter::new(),
                 #[cfg(target_os = "macos")]
                 adapter: agent_desktop_macos::MacOSAdapter::new(),
-            }
-        }
-    }
-
-    impl Default for NativeBackend {
-        fn default() -> Self {
-            Self::new()
+            })
         }
     }
 

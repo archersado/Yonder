@@ -62,7 +62,7 @@ fn backend() -> Result<Box<dyn Backend>> {
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         Ok(Box::new(
-            yonder_agent_desktop_driver_spike::backend::native::NativeBackend::new(),
+            yonder_agent_desktop_driver_spike::backend::native::NativeBackend::new()?,
         ))
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]

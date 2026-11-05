@@ -51,6 +51,10 @@ path = "src/bin/worker.rs"
 name = "harness"
 path = "src/bin/harness.rs"
 
+[[bin]]
+name = "native-read-probe"
+path = "src/bin/native-read-probe.rs"
+
 [workspace]
 resolver = "2"
 exclude = ["target/patched-agent-desktop"]

@@ -46,6 +46,8 @@ cargo build --manifest-path spikes/agent-desktop-driver/Cargo.toml --locked --bi
 cargo run --manifest-path spikes/agent-desktop-driver/Cargo.toml --bin harness --locked -- /absolute/path/to/worker
 ```
 
+Windows 原生只读诊断入口为 `cargo run --manifest-path spikes/agent-desktop-driver/Cargo.toml --bin native-read-probe --locked -- <测试窗口 PID>`。它要求该 PID 恰好有一个窗口，只输出身份摘要和快照计数，不派发动作；结果不替代统一样本。
+
 ## 已验证与未验证
 
 - 已实现：协议/证据 Rust 类型及唯一生成 schema、固定 action/ref/predicate/oracle 映射、64 KiB framing、握手与会话身份、deadline、admission/flush/cancel 状态机、宿主 quarantine、mock backend、Windows suspended Job Object/macOS process group 接口及实际哈希 evidence verifier。

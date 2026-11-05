@@ -11,6 +11,7 @@
 - [ ] 首次原生运行前冻结 harness commit/dirty diff、依赖锁、toolchain、features、targets、CRT/链接策略与制品哈希
 - [x] 建立不接产品 Gateway/SQLite 的隔离 harness 和受监管 Worker
 - [x] 建立禁用能力 allowlist/denylist、线性化派发与结果映射契约测试
+- [x] 验证 Windows 固定工具链和原生 Backend 所需 COM/DPI 初始化；只读 fixture snapshot 不计为原生动作样本
 
 ## 双平台原生证据
 

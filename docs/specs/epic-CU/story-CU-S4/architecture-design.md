@@ -16,6 +16,8 @@ Spike Harness（模拟 Application 语义）
 
 上游 interaction lease 只串行化参与该机制的一次 dispatch。Yonder 的任务级 lease/fencing 仍是唯一所有权来源。上游 snapshot ref、命令和 disposition 不进入 Domain，也不手写为第二份 Rust/TypeScript 产品协议。
 
+原生 Worker 初始化先于任何平台 API：Windows 使用上游公开 `ensure_owned_process_mta_and_dpi` 并安装 Windows 私有文件操作；macOS 使用上游公开 `ensure_cocoa_multithreaded`。初始化失败即拒绝启动原生 Backend。只读诊断探针可在隔离 fixture 上验证窗口枚举与 snapshot，但其结果不等于动作、抢占或 Observe 闭环通过；诊断输出只含计数、布尔状态和身份摘要。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。

@@ -1,0 +1,70 @@
+//! CU-S4 read-only native API probe; never dispatches desktop input.
+
+#[cfg(target_os = "windows")]
+fn main() -> anyhow::Result<()> {
+    use agent_desktop_core::{Deadline, ObservationOps, TreeOptions, WindowFilter, snapshot};
+    use sha2::{Digest, Sha256};
+
+    let mut args = std::env::args().skip(1);
+    let pid: u32 = args
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("expected one PID"))?
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid PID"))?;
+    anyhow::ensure!(pid > 0 && args.next().is_none(), "expected one valid PID");
+
+    agent_desktop_windows::ensure_owned_process_mta_and_dpi()
+        .map_err(|_| anyhow::anyhow!("Windows COM/DPI bootstrap failed"))?;
+    let adapter = agent_desktop_windows::WindowsAdapter::new();
+    let windows = adapter
+        .list_windows(&WindowFilter::default(), Deadline::after(5_000)?)
+        .map_err(|_| anyhow::anyhow!("window enumeration failed"))?;
+    let mut targets = windows.into_iter().filter(|window| window.pid.get() == pid);
+    let window = targets
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("target PID has no window"))?;
+    anyhow::ensure!(targets.next().is_none(), "target PID has multiple windows");
+    anyhow::ensure!(!window.id.is_empty(), "target has no native window ID");
+
+    let result = snapshot::build(
+        &adapter,
+        &TreeOptions::default(),
+        None,
+        Some(&window.id),
+        Deadline::after(15_000)?,
+    )
+    .map_err(|error| {
+        let category = match &error {
+            agent_desktop_core::AppError::Adapter(_) => "adapter",
+            agent_desktop_core::AppError::Io(_) => "io",
+            agent_desktop_core::AppError::Json(_) => "json",
+            agent_desktop_core::AppError::Internal(_) => "internal",
+        };
+        anyhow::anyhow!("native snapshot failed: {category}/{}", error.code())
+    })?;
+    anyhow::ensure!(result.window.pid.get() == pid, "snapshot process changed");
+    anyhow::ensure!(result.window.id == window.id, "snapshot window changed");
+
+    let digest = |value: &str| format!("{:x}", Sha256::digest(value.as_bytes()));
+    println!(
+        "{}",
+        serde_json::json!({
+            "schema_version": "yonder-agent-desktop-native-read-probe/v1",
+            "platform": "windows",
+            "pid": pid,
+            "window_id_sha256": digest(&window.id),
+            "process_instance_sha256": window.process_instance.as_deref().map(digest),
+            "snapshot_window_id_sha256": digest(&result.window.id),
+            "ref_count": result.refmap.len(),
+            "nodes_observed": result.nodes_observed,
+            "complete": result.complete,
+            "identity_unproven": result.identity_unproven.is_some(),
+        })
+    );
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn main() -> anyhow::Result<()> {
+    anyhow::bail!("native read probe currently requires Windows")
+}
