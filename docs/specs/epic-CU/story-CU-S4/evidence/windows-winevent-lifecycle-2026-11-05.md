@@ -18,6 +18,8 @@
 
 另一次受控屏障实验将 Hook 扩至当前桌面的所有进程。在目标第二个窗口创建并发布句柄后，Host 创建自己的标记窗口，以该窗口由系统生成的 `EVENT_OBJECT_CREATE` 回调作为屏障。本次 fixture PID `60564`，相关回调依次为 `DESTROY(3735798) → CREATE(3801334) → CREATE(859456，Host 标记)`；`barrier_after_target_events = true`，两个进程均正常退出。此前一次相同实验也得到相同的相关事件顺序。它验证了受控情况下的顺序，尚不足以证明跨应用、队列拥塞或观察器故障下的屏障可靠性。
 
+将 Host 标记窗口改为**隐藏**且仅创建 native HWND 后，仍收到由系统生成的创建事件。fixture PID `56324`，相关回调依次为 `DESTROY(1908722) → CREATE(1974258) → CREATE(1187110，隐藏 Host 标记)`；`barrier_after_target_events = true`，两个进程均正常退出。这避免了屏障窗口抢占前台，但仍只是一个受控样本。
+
 ## 下一轮门槛
 
 WinEvent 的 out-of-context 回调异步到达，调用方必须维持消息循环。仅观察当前已处理的回调数，不能证明更早生成的事件已排空。正式身份 oracle 需要：
