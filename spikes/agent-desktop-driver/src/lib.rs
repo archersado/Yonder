@@ -3,6 +3,7 @@ pub mod clock;
 pub mod containment;
 pub mod evidence;
 pub mod framing;
+pub mod host_oracle;
 pub mod protocol;
 pub mod supervisor;
 

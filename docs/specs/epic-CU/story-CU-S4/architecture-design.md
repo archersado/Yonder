@@ -24,6 +24,8 @@ Spike Harness（模拟 Application 语义）
 
 Windows 实测 `WindowInfo.id` 只编码 HWND、`process_instance` 只编码进程启动时间，快照根节点没有 `native_id`。这不足以证明同一进程内被复用的 HWND 指向原窗口。正式 `target_identity.window_token_sha256` 必须来自可区分窗口对象代际的只读证据，并由 Host 独立采样与 Worker 派发前核对；在证据与双平台等价路径确定前，现有受控 fixture 的限定引用只能作为只读能力证据，不能打开动作门禁。
 
+Host 的 Windows 只读探针可用 Win32 `IsWindow`、`GetWindowThreadProcessId`、`OpenProcess` 与 `GetProcessTimes` 独立核对 HWND 当前归属及进程创建时间，再与上游 `WindowInfo` 比较。它只能证明进程和句柄当前一致，不提供窗口对象代际；不得据此填入 `target_identity.window_token_sha256` 或打开派发。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。

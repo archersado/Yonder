@@ -65,6 +65,12 @@ fn main() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("target PID has no window"))?;
     anyhow::ensure!(targets.next().is_none(), "target PID has multiple windows");
     anyhow::ensure!(!window.id.is_empty(), "target has no native window ID");
+    let host_before =
+        yonder_agent_desktop_driver_spike::host_oracle::windows::capture_window(pid, &window.id)?;
+    anyhow::ensure!(
+        host_before.matches_adapter_window(&window),
+        "host and adapter process identity disagree"
+    );
 
     let result = snapshot::run_with_context(
         &adapter,
@@ -87,6 +93,12 @@ fn main() -> anyhow::Result<()> {
     })?;
     anyhow::ensure!(result.window.pid.get() == pid, "snapshot process changed");
     anyhow::ensure!(result.window.id == window.id, "snapshot window changed");
+    let host_after =
+        yonder_agent_desktop_driver_spike::host_oracle::windows::capture_window(pid, &window.id)?;
+    anyhow::ensure!(
+        host_before == host_after && host_after.matches_adapter_window(&result.window),
+        "host and snapshot process identity disagree"
+    );
     anyhow::ensure!(result.complete, "snapshot is incomplete");
     let snapshot_id = result
         .snapshot_id
@@ -113,6 +125,9 @@ fn main() -> anyhow::Result<()> {
             "pid": pid,
             "window_id_sha256": digest(&window.id),
             "process_instance_sha256": window.process_instance.as_deref().map(digest),
+            "host_process_start_sha256": host_after.process_start_sha256,
+            "host_identity_matches_adapter": true,
+            "window_generation_proven": false,
             "snapshot_window_id_sha256": digest(&result.window.id),
             "ref_count": result.refmap.len(),
             "nodes_observed": result.nodes_observed,

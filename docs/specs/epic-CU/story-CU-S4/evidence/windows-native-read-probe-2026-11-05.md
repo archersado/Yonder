@@ -49,6 +49,8 @@
 
 额外检查快照根节点的原生身份（新受控窗口 PID `42832`）：`root_native_id_kind = null`、`root_native_id_sha256 = null`；快照仍完整、固定按钮仍唯一。原生窗口 ID 仅为 HWND 编码，进程令牌仅来自进程启动时间。该组合无法单独证明同进程窗口对象的代际，因此正式 Host `window_token_sha256` 尚无合格来源，原生派发继续关闭。此窗口也已停止。
 
+Host 独立只读核验进一步使用 Win32 `GetWindowThreadProcessId` 与 `GetProcessTimes`，不读取上游的进程代际值来计算自身摘要。受控窗口 PID `28680` 的 Host 与上游进程启动摘要同为 `f21de5f0193a01061722cebb1512c9c0106ad5a14038b054083e59b6fb15e074`，快照前后窗口归属一致，`host_identity_matches_adapter = true`。输出明确标记 `window_generation_proven = false`；该窗口已停止。这只证明当前进程与 HWND 归属，不证明窗口对象代际或正式 Host/Worker 分进程闭环。
+
 ## 后续门禁
 
 当前 bridge 仍未把 Host 的冻结身份独立绑定到唯一元素引用，也未实现原生动作、动作后 Observe、用户输入 observer 或 macOS 原生验证。因此 `NativeBackend::dispatch` 继续返回 `unsupported/not_delivered`，不得把本探针结果标为候选通过。
