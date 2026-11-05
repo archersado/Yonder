@@ -16,7 +16,7 @@
 
 ## 输入观察门禁
 
-Host 独立维护单调 `input_generation`；只有同时绑定当前 `attempt_id` 与 `worker_instance_id` 的输入才可归为 `driver_current_attempt`。Windows `SendInput.dwExtraInfo` 和 macOS `CGEvent.eventSourceUserData` 仅作为 v2 补丁候选载体，不是身份认证：必须验证完整事件接收、伪造/碰撞、Worker 崩溃、观察器失效、桌面/会话切换、其他进程注入及 UIA/AX 语义动作。未知事件与观察器丢失均冻结。Windows 低级钩子可能被系统静默移除，不能单独作为持续准入事实；Raw Input 若无法覆盖其他程序注入事件，也不能单独通过。无法获得同时覆盖真实用户输入与未知合成输入且有可验证存活状态的来源时，`observer_ready=false`，不派发。
+Host 独立维护单调 `input_generation`；只有同时绑定当前 `attempt_id` 与 `worker_instance_id` 的输入才可归为 `driver_current_attempt`。Windows `SendInput.dwExtraInfo` 和 macOS `CGEvent.eventSourceUserData` 仅作为 v2 补丁候选载体，不是身份认证：必须覆盖 Windows 鼠标、键盘、shell surface 三处发送入口及 macOS HID post、键盘 `post_to_pid`、异常释放路径，并验证完整事件接收、伪造/碰撞、Worker 崩溃、观察器失效、桌面/会话切换、其他进程注入及 UIA/AX 语义动作。未知事件与观察器丢失均冻结。Windows 低级钩子可能被系统静默移除，不能单独作为持续准入事实；Raw Input 若无法覆盖其他程序注入事件，也不能单独通过。无法获得同时覆盖真实用户输入与未知合成输入且有可验证存活状态的来源时，`observer_ready=false`，不派发。
 
 ## 实施和证据顺序
 

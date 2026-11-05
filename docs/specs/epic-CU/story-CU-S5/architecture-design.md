@@ -12,7 +12,7 @@
 
 ## 门禁 B：输入观察
 
-Host 独立 observer 是准入事实源，维护单调 generation。候选标记必须与当前 attempt 和 Worker 实例绑定；其他 injected、无法辨认或 observer 丢失均递增 generation 并冻结。Windows `dwExtraInfo`、macOS `eventSourceUserData` 只提供候选载体，须通过伪造、碰撞、延迟事件、Worker 崩溃、会话/桌面变化与 observer 故障样本。Windows 低级钩子静默移除风险使其不能单独表明 observer ready；Raw Input 不能在未证明其他 injected 覆盖的情况下单独承担该职责。UIA Invoke/Legacy 和 AX 语义动作分别验证是否产生日志可见的低级输入事件。
+Host 独立 observer 是准入事实源，维护单调 generation。候选标记必须与当前 attempt 和 Worker 实例绑定；其他 injected、无法辨认或 observer 丢失均递增 generation 并冻结。Windows `dwExtraInfo`、macOS `eventSourceUserData` 只提供候选载体，须通过伪造、碰撞、延迟事件、Worker 崩溃、会话/桌面变化与 observer 故障样本。源码清单至少覆盖 Windows 鼠标、键盘及 shell surface 三处 `SendInput`，macOS 五处 HID post 文件及键盘 `post_to_pid`；漏掉清理/异常释放路径也视为归属不完整。Windows 低级钩子静默移除风险使其不能单独表明 observer ready；Raw Input 不能在未证明其他 injected 覆盖的情况下单独承担该职责。UIA Invoke/Legacy 和 AX 语义动作分别验证是否产生日志可见的低级输入事件。
 
 ## 构建和证据
 

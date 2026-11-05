@@ -4,67 +4,68 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import os
 from pathlib import Path
-import subprocess
+
+import prepare_upstream as prep
 
 
 HERE = Path(__file__).resolve().parent
-V1 = HERE.parent / "agent-desktop-driver"
-SOURCE = V1 / "target" / "patched-agent-desktop"
+SOURCE = prep.DESTINATION
 REVISION = "d3dc190afbf34cd2377252398ddd5c30efbd093a"
-
-
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def git(*args: str, cwd: Path) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
-    ).stdout.strip()
-
-
-def source_hash(root: Path) -> str:
-    digest = hashlib.sha256()
-    for name in sorted(filter(None, git("ls-files", "-z", cwd=root).split("\0"))):
-        path = root / name
-        encoded = name.encode()
-        digest.update(len(encoded).to_bytes(4, "big"))
-        digest.update(encoded)
-        digest.update(b"symlink:" + os.readlink(path).encode() if path.is_symlink() else path.read_bytes())
-    return digest.hexdigest()
 
 
 def read(relative: str) -> str:
     return (SOURCE / relative).read_text(encoding="utf-8")
 
 
+def seams(root: str, needle: str) -> list[str]:
+    base = SOURCE / root
+    return sorted(
+        path.relative_to(SOURCE).as_posix()
+        for path in base.rglob("*.rs")
+        if not path.name.endswith("tests.rs") and needle in path.read_text(encoding="utf-8")
+    )
+
+
 def run() -> dict[str, object]:
-    manifest = json.loads((V1 / "build-manifest.json").read_text(encoding="utf-8"))
-    stamp = json.loads((SOURCE / ".yonder-patched-source.json").read_text(encoding="utf-8"))
+    manifest = json.loads((HERE / "source-manifest.json").read_text(encoding="utf-8"))
+    stamp = prep.verify_existing()
     provenance = (
-        git("rev-parse", "HEAD", cwd=SOURCE) == REVISION
+        stamp is not None
         and manifest["source_revision"] == REVISION
         and stamp["source_revision"] == REVISION
-        and manifest["patch_sha256"] == stamp["patch_sha256"]
-        and sha256(V1 / "patches" / "0001-reject-inconclusive-pointer-hit-test.patch")
-        == stamp["patch_sha256"]
-        and source_hash(SOURCE) == manifest["patched_source_tree_sha256"]
-        == stamp["source_tree_sha256"]
+        and manifest["patch_set_sha256"] == stamp["patch_set_sha256"]
+        and manifest["patches"] == stamp["patches"]
+        and manifest["patched_source_tree_sha256"] == stamp["source_tree_sha256"]
+        and manifest["sample_definitions_sha256"] == stamp["sample_definitions_sha256"]
     )
     if not provenance:
-        raise RuntimeError("v1 固定源码来源校验失败；停止 v2 只读审计")
+        raise RuntimeError("v2 固定源码来源校验失败；停止只读审计")
 
     helpers = read("crates/core/src/commands/helpers.rs")
     wait = read("crates/core/src/ref_action/ref_action_wait.rs")
     dispatch = read("crates/core/src/ref_action/ref_action_single.rs")
     windows_mouse = read("crates/windows/src/input/mouse/mouse_send.rs")
     windows_key = read("crates/windows/src/input/keyboard/keyboard_send.rs")
+    windows_shell = read("crates/windows/src/system/shell/shell_surface_raise.rs")
     mac_mouse = read("crates/macos/src/input/mouse/mod.rs")
     mac_key = read("crates/macos/src/input/keyboard/keyboard_event.rs")
+    win_sendinput = seams("crates/windows/src", "SendInput(")
+    mac_hid_post = seams("crates/macos/src", ".post(CGEventTapLocation::HID)")
+    mac_pid_post = seams("crates/macos/src", ".post_to_pid(")
+    expected_win = [
+        "crates/windows/src/input/keyboard/keyboard_send.rs",
+        "crates/windows/src/input/mouse/mouse_send.rs",
+        "crates/windows/src/system/shell/shell_surface_raise.rs",
+    ]
+    expected_mac_hid = [
+        "crates/macos/src/input/keyboard/keyboard_event.rs",
+        "crates/macos/src/input/mouse/mod.rs",
+        "crates/macos/src/input/mouse/mouse_drag.rs",
+        "crates/macos/src/input/mouse/mouse_move.rs",
+        "crates/macos/src/input/mouse/mouse_scroll.rs",
+    ]
     checks = {
         "ref_store_reloaded_for_action": "load_ref_entry(&args.ref_id" in helpers,
         "action_re_resolves_saved_ref": "resolve_saved_ref(adapter, entry" in helpers,
@@ -72,17 +73,28 @@ def run() -> dict[str, object]:
         "dispatch_drops_landing_handle": ".map(|(result, _)| result)" in dispatch,
         "windows_mouse_untagged": "dwExtraInfo: 0" in windows_mouse,
         "windows_keyboard_untagged": "dwExtraInfo: 0" in windows_key,
+        "windows_shell_untagged": "dwExtraInfo: 0" in windows_shell,
         "mac_mouse_posts_event": ".post(CGEventTapLocation::HID)" in mac_mouse,
         "mac_keyboard_posts_event": ".post(" in mac_key,
         "mac_mouse_has_attempt_tag": "EventSourceUserData" in mac_mouse,
         "mac_keyboard_has_attempt_tag": "EventSourceUserData" in mac_key,
+        "synthesis_seams_match_reviewed_inventory": (
+            win_sendinput == expected_win
+            and mac_hid_post == expected_mac_hid
+            and mac_pid_post == ["crates/macos/src/input/keyboard/keyboard_event.rs"]
+        ),
     }
     return {
         "schema_version": "yonder-agent-desktop-v2-source-gate/v1",
         "source_revision": REVISION,
         "source_tree_sha256": stamp["source_tree_sha256"],
-        "patch_sha256": stamp["patch_sha256"],
+        "patch_set_sha256": stamp["patch_set_sha256"],
         "inspection_scope": "known_seams_only",
+        "synthesis_seams": {
+            "windows_sendinput": win_sendinput,
+            "macos_hid_post": mac_hid_post,
+            "macos_pid_post": mac_pid_post,
+        },
         "checks": checks,
         "identity_gate_passed": False,
         "input_gate_passed": False,

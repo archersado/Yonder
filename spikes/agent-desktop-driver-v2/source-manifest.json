@@ -1,0 +1,16 @@
+{
+  "schema_version": "yonder-agent-desktop-v2-source-manifest/v1",
+  "phase": "baseline_source_prepared_no_v2_patch",
+  "source_revision": "d3dc190afbf34cd2377252398ddd5c30efbd093a",
+  "patches": [
+    {
+      "name": "0001-reject-inconclusive-pointer-hit-test.patch",
+      "sha256": "3f625a14254d66126f931cb479fb67b698e0ea2a5a2e4a8caad1f8f9e3149023"
+    }
+  ],
+  "patch_set_sha256": "39cce93149b7d6267f3acf3b30819f138ca15d0d0a5581c16e3ec36761b11ec4",
+  "patched_source_tree_sha256": "78f37b45808177601ea6f5b3af1fcd9095ead4ecb9dcd405c3b7abe0e20f9872",
+  "sample_definitions_sha256": "593d153577f201831bdbd2e3103bff9b634dec740a4153ecbc769662c0bc73d1",
+  "native_dispatch_admitted": false,
+  "built_artifacts": []
+}
