@@ -26,6 +26,8 @@ Worker 对可解析但被原生 Backend 拒绝的 snapshot 返回带错误分类
 
 Windows 实测 `WindowInfo.id` 只编码 HWND、`process_instance` 只编码进程启动时间，快照根节点没有 `native_id`。这不足以证明同一进程内被复用的 HWND 指向原窗口。正式 `target_identity.window_token_sha256` 必须来自可区分窗口对象代际的只读证据，并由 Host 独立采样与 Worker 派发前核对；在证据与双平台等价路径确定前，现有受控 fixture 的限定引用只能作为只读能力证据，不能打开动作门禁。
 
+固定上游源码的 `execute_by_ref` 会从 RefStore 读回 ref，再调用 `resolve_saved_ref` 重新定位窗口；Windows 正常 ref 的窗口归属检查仅比较 HWND、PID 与进程启动令牌。若同一进程复用 HWND，新窗口又具有相同元素谓词，重新定位可能接受替代目标。Host 在调用前单独核验窗口不能覆盖后续解析到实际副作用的竞态；参见[源码审计](evidence/upstream-ref-window-generation-source-audit-2026-11-05.md)。窗口代际证明必须覆盖 Worker 内的这段真实动作路径，不能仅靠 snapshot 前后两个屏障通过。
+
 Host 的 Windows 只读探针可用 Win32 `IsWindow`、`GetWindowThreadProcessId`、`OpenProcess` 与 `GetProcessTimes` 独立核对 HWND 当前归属及进程创建时间，再与上游 `WindowInfo` 比较。它只能证明进程和句柄当前一致，不提供窗口对象代际；不得据此填入 `target_identity.window_token_sha256` 或打开派发。
 
 Windows 窗口生命周期候选探针可在首次目标快照前启动 `SetWinEventHook`，只追踪系统产生的窗口 `CREATE/DESTROY`，在独立消息循环中维护有界事件序列。身份采样前由 Host 创建隐藏的自有窗口，等待它的系统 `CREATE` 回调作为候选事件屏障，再比较目标 HWND、进程启动令牌与这段生命周期序列。观察器未就绪、重启、事件队列溢出、屏障超时或 Host/Worker 序列不一致均拒绝。该方案目前只有受控 WinForms 可见性与顺序证据；在 HWND 复用、目标应用、故障与最终动作竞态验证前不得填充正式窗口代际令牌或开放派发。
