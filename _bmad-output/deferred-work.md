@@ -9,3 +9,6 @@
 - source_plan: none
   summary: 调研并提案企业Agent/Skill资产导入WorkBuddy等用户Agent工具
   evidence: 该目标只需基于`/mnt/d/workspace/rea`既有Codex会话结论产出方案提案，与当前CX-S2 Windows高DPI截图扩围可独立评审和交付。
+- source_plan: `_bmad-output/plan-cu-s4-agent-desktop-driver-spike.md`
+  summary: 审计并原生验证固定 agent-desktop macOS Worker 是否会派生脱离受监管进程组的 helper
+  evidence: 当前代码与本地环境无法证明固定上游在 macOS 上的完整进程树行为；需完成上游静态调用链审计及授权 macOS 运行探针，若 helper 可逃逸则按 high 缺陷处理。

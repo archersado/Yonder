@@ -1,0 +1,11 @@
+[
+  {"claim":"Rust跨平台执行内核与C ABI边界","class":"architecture","pub_date":"2026-11"},
+  {"claim":"ref保护与raw输入绑定差距","class":"compatibility","pub_date":"2026-11"},
+  {"claim":"machine-wide dispatch lease及任务级缺口","class":"safety","pub_date":"2026-11"},
+  {"claim":"Driver不强制每动作Observe","class":"architecture","pub_date":"2026-11"},
+  {"claim":"Sigstore存在但OS原生签名缺失","class":"distribution","pub_date":"2026-11"},
+  {"claim":"Apache-2.0商业再分发边界","class":"license","pub_date":"2004-01"},
+  {"claim":"项目年龄与关键人集中","class":"ecosystem","pub_date":"2026-11"},
+  {"claim":"Windows VCRUNTIME发布缺陷","class":"compatibility","pub_date":"2026-11"},
+  {"claim":"可选CDP loopback网络例外","class":"network","pub_date":"2026-08"}
+]

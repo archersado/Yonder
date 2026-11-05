@@ -1,0 +1,707 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tuple_of_HostRequest_and_WorkerResponse",
+  "type": "array",
+  "maxItems": 2,
+  "minItems": 2,
+  "prefixItems": [
+    {
+      "$ref": "#/$defs/HostRequest"
+    },
+    {
+      "$ref": "#/$defs/WorkerResponse"
+    }
+  ],
+  "$defs": {
+    "ActionId": {
+      "type": "string",
+      "enum": [
+        "ACTION-NONE",
+        "ACTION-CLICK-QUALIFIED-REF",
+        "ACTION-TYPE-FIXTURE-TEXT-QUALIFIED-REF",
+        "ACTION-FOCUS-WINDOW-QUALIFIED-REF"
+      ]
+    },
+    "DeliveryDisposition": {
+      "type": "string",
+      "enum": [
+        "not_delivered",
+        "delivered_verified",
+        "delivered_unverified",
+        "unknown"
+      ]
+    },
+    "ErrorClass": {
+      "type": "string",
+      "enum": [
+        "none",
+        "schema",
+        "identity",
+        "deadline",
+        "permission",
+        "stale",
+        "ambiguous",
+        "unsupported",
+        "driver",
+        "observe"
+      ]
+    },
+    "HostRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action_allowlist_sha256": {
+              "type": "string"
+            },
+            "attempt_id": {
+              "type": "string"
+            },
+            "bridge_contract_sha256": {
+              "type": "string"
+            },
+            "deadline_mono_ms": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "input_generation": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "hello"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "sample_definitions_sha256": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "source_revision": {
+              "type": "string"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "input_generation",
+            "deadline_mono_ms",
+            "source_revision",
+            "bridge_contract_sha256",
+            "sample_definitions_sha256",
+            "action_allowlist_sha256"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "deadline_mono_ms": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "input_generation": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "snapshot"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "sample_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "target_identity": {
+              "$ref": "#/$defs/TargetIdentity"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "input_generation",
+            "deadline_mono_ms",
+            "sample_id",
+            "target_identity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_id": {
+              "$ref": "#/$defs/ActionId"
+            },
+            "attempt_id": {
+              "type": "string"
+            },
+            "deadline_mono_ms": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "input_generation": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "dispatch"
+            },
+            "qualified_ref": {
+              "type": "string"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "sample_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "snapshot_id": {
+              "type": "string"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "input_generation",
+            "deadline_mono_ms",
+            "sample_id",
+            "action_id",
+            "snapshot_id",
+            "qualified_ref"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "deadline_mono_ms": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "input_generation": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "observe"
+            },
+            "oracle_id": {
+              "type": "string"
+            },
+            "predicate_id": {
+              "type": "string"
+            },
+            "prior_snapshot_id": {
+              "type": "string"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "sample_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "target_identity": {
+              "$ref": "#/$defs/TargetIdentity"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "input_generation",
+            "deadline_mono_ms",
+            "sample_id",
+            "predicate_id",
+            "oracle_id",
+            "prior_snapshot_id",
+            "target_identity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "deadline_mono_ms": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "input_generation": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "shutdown"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "input_generation",
+            "deadline_mono_ms"
+          ]
+        }
+      ]
+    },
+    "IdentityVerdict": {
+      "type": "string",
+      "enum": [
+        "match",
+        "mismatch",
+        "ambiguous",
+        "stale",
+        "unavailable"
+      ]
+    },
+    "PredicateVerdict": {
+      "type": "string",
+      "enum": [
+        "satisfied",
+        "unsatisfied",
+        "unstable",
+        "unavailable"
+      ]
+    },
+    "Status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "rejected",
+        "unknown"
+      ]
+    },
+    "TargetIdentity": {
+      "type": "object",
+      "properties": {
+        "fixture_id": {
+          "type": "string"
+        },
+        "native_window_id": {
+          "type": "string"
+        },
+        "oracle_id": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "process_id": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "process_start_sha256": {
+          "type": "string"
+        },
+        "topology_generation": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "window_token_sha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "fixture_id",
+        "process_id",
+        "native_window_id",
+        "process_start_sha256",
+        "window_token_sha256",
+        "topology_generation",
+        "oracle_id"
+      ]
+    },
+    "WorkerResponse": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action_allowlist_sha256": {
+              "type": "string"
+            },
+            "attempt_id": {
+              "type": "string"
+            },
+            "bridge_contract_sha256": {
+              "type": "string"
+            },
+            "capabilities_sha256": {
+              "type": "string"
+            },
+            "error_class": {
+              "$ref": "#/$defs/ErrorClass"
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "hello_result"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "sample_definitions_sha256": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "source_revision": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/$defs/Status"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "status",
+            "error_class",
+            "source_revision",
+            "bridge_contract_sha256",
+            "sample_definitions_sha256",
+            "action_allowlist_sha256",
+            "capabilities_sha256"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "error_class": {
+              "$ref": "#/$defs/ErrorClass"
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "snapshot_result"
+            },
+            "qualified_refs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "snapshot_id": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/$defs/Status"
+            },
+            "target_identity_verdict": {
+              "$ref": "#/$defs/IdentityVerdict"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "status",
+            "error_class",
+            "snapshot_id",
+            "qualified_refs",
+            "target_identity_verdict"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "delivery_disposition": {
+              "$ref": "#/$defs/DeliveryDisposition"
+            },
+            "driver_status": {
+              "type": "string"
+            },
+            "error_class": {
+              "$ref": "#/$defs/ErrorClass"
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "dispatch_result"
+            },
+            "next_snapshot_hint": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/$defs/Status"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "status",
+            "error_class",
+            "delivery_disposition",
+            "driver_status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "element_count": {
+              "type": "integer",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            },
+            "error_class": {
+              "$ref": "#/$defs/ErrorClass"
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "observe_result"
+            },
+            "predicate_verdict": {
+              "$ref": "#/$defs/PredicateVerdict"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "snapshot_id": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/$defs/Status"
+            },
+            "target_identity_verdict": {
+              "$ref": "#/$defs/IdentityVerdict"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "status",
+            "error_class",
+            "snapshot_id",
+            "target_identity_verdict",
+            "predicate_verdict",
+            "element_count"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "error_class": {
+              "$ref": "#/$defs/ErrorClass"
+            },
+            "fence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "shutdown_result"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "schema_version": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/$defs/Status"
+            },
+            "worker_instance_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schema_version",
+            "request_id",
+            "attempt_id",
+            "worker_instance_id",
+            "fence",
+            "status",
+            "error_class"
+          ]
+        }
+      ]
+    }
+  }
+}

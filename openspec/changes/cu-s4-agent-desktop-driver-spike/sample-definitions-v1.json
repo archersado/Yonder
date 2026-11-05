@@ -1,0 +1,30 @@
+{
+  "schema_version": "agent-desktop-spike-sample-definitions/v1",
+  "predicates": [
+    { "id": "P-TARGET-UNCHANGED-V1", "definition": "post-observe target identity equals the frozen pre-dispatch target and the non-sensitive expected state is stable" },
+    { "id": "P-OLD-TARGET-REJECTED-V1", "definition": "the old qualified reference is rejected after target replacement and no alternate target changes" },
+    { "id": "P-FIXTURE-STATE-STABLE-V1", "definition": "two observations at least 250ms apart within 500ms report the same non-sensitive fixture-state boolean" },
+    { "id": "P-APPSET-STATE-STABLE-V1", "definition": "the installed fixed application task reaches its frozen non-sensitive state and remains stable for the observation window" },
+    { "id": "P-TARGET-VISIBLE-V1", "definition": "the frozen target is visible in the expected display or space without selecting a replacement" },
+    { "id": "P-USER-PREEMPTED-V1", "definition": "every physical test event increments generation and no later action frame is flushed" },
+    { "id": "P-DRIVER-INPUT-ATTRIBUTED-V1", "definition": "every synthetic test event is bound to the current attempt and worker with no user misclassification" },
+    { "id": "P-OBSERVER-FAIL-CLOSED-V1", "definition": "observer unready loss restart or generation regression prevents action-frame flush" },
+    { "id": "P-NOT-DISPATCHED-V1", "definition": "cancel wins before frame flush and the worker receives no action" },
+    { "id": "P-INFLIGHT-UNKNOWN-V1", "definition": "termination after frame flush records unknown with zero retry and a released or quarantined cleanup verdict" },
+    { "id": "P-FAULT-UNKNOWN-V1", "definition": "deadline or disconnect records unknown with zero retry" },
+    { "id": "P-REF-DISPLAY-INDEPENDENT-V1", "definition": "qualified-ref behavior remains correct for the frozen display topology without raw coordinates" },
+    { "id": "P-PERMISSION-REJECTED-V1", "definition": "insufficient permission is rejected without elevation settings launch or retry" },
+    { "id": "P-DISTRIBUTION-READY-V1", "definition": "the fixed artifact passes declared dependency and platform identity checks without conflating provenance and OS signing" }
+  ],
+  "oracles": [
+    { "id": "O-NATIVE-WINDOW-IDENTITY-V1", "definition": "read-only process-start identity plus native window identity captured before dispatch and compared after observe" },
+    { "id": "O-NATIVE-ELEMENT-IDENTITY-V1", "definition": "read-only native element identity under the frozen target window with no title-only fallback" },
+    { "id": "O-FIXED-APP-WINDOW-V1", "definition": "read-only identity of the predeclared installed application test window and fixed test resource" },
+    { "id": "O-DISPLAY-TOPOLOGY-V1", "definition": "read-only display identity logical bounds physical bounds scale primary flag and topology generation" },
+    { "id": "O-INPUT-GENERATION-V1", "definition": "host-session monotonic generation and source classification produced by the ready platform observer" },
+    { "id": "O-DISPATCH-BOUNDARY-V1", "definition": "supervisor record proving whether the complete JSONL action frame was flushed" },
+    { "id": "O-WORKER-CONTAINMENT-V1", "definition": "read-only process containment lease input-state and temporary-resource checks after worker termination" },
+    { "id": "O-PLATFORM-PERMISSION-V1", "definition": "read-only platform permission and integrity classification" },
+    { "id": "O-BUILD-MANIFEST-V1", "definition": "hash-bound build manifest artifact dependency SBOM license provenance and platform-signing verification" }
+  ]
+}

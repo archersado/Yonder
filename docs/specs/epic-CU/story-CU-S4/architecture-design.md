@@ -1,0 +1,71 @@
+# CU-S4 架构设计
+
+## 边界与依赖
+
+Spike 采用“`agent-desktop` 引擎 + Yonder 监管包装层”。探针模拟既有 Application ComputerUse Port；Adapter 内部启动一个受监管子进程，子进程运行固定 revision 的最小 Rust bridge，通过 inherited stdio JSONL 保留完整 disposition。不得使用 status-only C ABI/CLI 或其他 IPC，不得让探针、Driver 或 Worker 修改产品 SQLite、任务事件、Outbox 或 Gateway。
+
+```text
+Spike Harness（模拟 Application 语义）
+  ├─ Task-level lease / fencing / input generation / cancel / deadline
+  ├─ ComputerUse Port-shaped boundary
+  └─ Supervisor ── inherited stdio JSONL ── Worker / minimal Rust bridge
+                                              └─ agent-desktop core
+                                                     ├─ Windows UIA
+                                                     └─ macOS AX
+```
+
+上游 interaction lease 只串行化参与该机制的一次 dispatch。Yonder 的任务级 lease/fencing 仍是唯一所有权来源。上游 snapshot ref、命令和 disposition 不进入 Domain，也不手写为第二份 Rust/TypeScript 产品协议。
+
+## 允许集与拒绝集
+
+允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。
+
+固定 commit `d3dc190afbf34cd2377252398ddd5c30efbd093a`（v1.1.0），不因 CRT 缺陷漂移源码。Windows 固定静态 CRT 构建策略并以干净机验证；不能成立即淘汰。首次原生运行前写入 build manifest：上游 SHA、空或唯一 patch hash、Cargo.lock hash、Rust toolchain、target triple、features、CRT/链接策略、bridge/evidence schema、Yonder harness commit/dirty diff 与制品哈希。
+
+## 抢占与取消状态
+
+平台观察器只产生宿主会话级 `u64 input_generation` 与 `driver_current_attempt | user | unknown | observer_lost`，不保存具体输入。只有绑定当前 attempt/Worker 的合成事件不递增 generation；其余分类，以及 observer 未就绪、重启或 generation 回退时，都递增 generation 并按 fail-closed 处理。Worker 重启不重置 generation。
+
+派发、用户抢占和取消共用 Application-owned admission gate。严格顺序为 observer ready → task fence/lease → capture generation → snapshot/target oracle → compare control/fence/generation → 将完整动作帧写入绑定当前 attempt/Worker 的 stdio 并完成 flush。flush 是唯一线性化点；之前是 `not_dispatched`，之后是 `in_flight`。Worker 收帧后才等待上游 interaction lease，因此等待期间抢占仍按在途处理。
+
+取消结果分为：
+
+1. `not_dispatched`：尚未进入 Driver，可确定取消；
+2. `between_steps`：上一步已 Observe、下一步未派发，可确定停止新动作；
+3. `in_flight_unknown`：动作已进入 Driver，终止 Worker 后仍可能产生副作用；必须 `unknown`，禁止重试；
+4. `observed`：动作返回且新鲜 Observe 验证预期条件，才是已知结果。
+
+Windows Worker 使用 Job Object `KILL_ON_JOB_CLOSE`，macOS 使用受监管进程组并验证无脱离 helper。Worker 退出后用无副作用只读探针检查进程树、machine-wide lease、修饰键/鼠标按钮、临时文件，以及由全新实例执行的 Observe；禁止发送合成 key-up/button-up。清理失败进入 global desktop quarantine，任务仍 `unknown`；只有宿主重启或明确只读恢复程序全部通过才能重新准入 CUA。
+
+## Observe 与结果映射
+
+探针不能把上游动作返回直接当作成功。每个正常动作后必须请求新 snapshot，并验证样本预先冻结的 target identity oracle 与 Observe predicate。唯一 Rust bridge 必须输出完整 JSON delivery/retry disposition；丢失任一必需字段即淘汰，不允许按平台改换入口。
+
+`delivered_unverified`、Observe 失败、Worker 崩溃/断连、deadline、身份变化及未知 hit-test 一律映射 `unknown` 或明确拒绝，不自动重发。
+
+## 双平台统一样本
+
+下表保留 Story 级验证范围；精确 action、predicate、oracle 与阈值以 OpenSpec [固定样本目录](../../../../openspec/changes/cu-s4-agent-desktop-driver-spike/sample-catalog.md) 为准。
+
+| 组 | Windows | macOS | 关键判定 |
+|---|---|---|---|
+| 文本与元素 | Notepad + Electron fixture | TextEdit + Electron fixture | qualified ref 成功；正文不进证据 |
+| 固定应用集 | WPS + 文件资源管理器 | Microsoft Office + Finder | 已安装目标必须形成 Observe 闭环；环境缺失不得判通过 |
+| 身份漂移 | 同名双窗口、重启、句柄复用 | 同名双窗口、重启、AX对象替换 | 零误投递 |
+| 可见性 | 前后台、最小化、多显示器 | 前后台、Space/显示器 | 不把不可见误报成功 |
+| 用户抢占 | 真实鼠标/键盘与合成输入交错 | 真实事件与合成输入交错 | 用户输入后零新增派发 |
+| 故障 | deadline、Worker kill、断连 | deadline、Worker kill、断连 | unknown、不重试、资源释放 |
+| 显示 | 96/192 DPI、多显示器 | Retina/缩放、多显示器 | ref 语义一致；不启用 raw 坐标 |
+| 权限/分发 | 普通权限、干净机、Authenticode | AX拒绝、签名/公证 | fail closed、责任链可建立 |
+
+## 淘汰与结论
+
+AD-CU-07 的任一硬淘汰条件命中即停止扩围。通过不能由总分抵消安全失败。Spike 结论只更新 ADR，不修改产品 Adapter；若候选双平台通过，后续另建 Story/OpenSpec Apply 并证明替换路径，不保留单平台长期双栈出口。
+
+## 验证与证据
+
+结构化证据必须符合 `agent-desktop-spike-evidence/v1`，包含 revision/build manifest hash、platform/arch、sample/predicate、attempt/worker/fence、generation before/after、派发边界、delivery disposition、Observe identity/predicate verdict、cleanup verdict、单调耗时和 outcome 封闭枚举。样本 predicate 与 read-only target identity oracle 在开跑前冻结；不得包含输入正文、截图、完整窗口树、应用列表或 Agent Payload。Windows/macOS 各自需要原生执行日志和独立 Verification Goal。
+
+## 架构影响
+
+本 Story 是 architecture-change Spike，但当前不修改运行时架构。只有后继 Accepted ADR 与 Apply Change 可以改变 CUA Driver 依赖或产品接线。

@@ -87,6 +87,8 @@ Accepted [AD-EX-03](AD-EX-03-JEV-CONFIG-INTERFACE.md) 单独允许实现最小 J
 
 CUA Driver 仍保持模型无关；Jev 快脑位于 Application 执行协调层，不嵌入 Driver。Qwen cua-driver 与 trycua cua-driver 使用相同 Windows/macOS 黑盒用例验证，只交付胜者；OSWorld 仅作基准。Driver 由 Supervisor 按需启动；崩溃或超时将动作标为 unknown，重新 Observe 后交由外部 Agent 决策。
 
+2026-11-05 Proposed [AD-CU-07](AD-CU-07-AGENT-DESKTOP-DRIVER-SPIKE.md)仅允许把 `agent-desktop` 作为低层、模型无关 Driver 候选进入五个工作日双平台 Spike。Application 继续拥有任务状态、任务级桌面租约、用户输入抢占、取消、每步 Observe 与 `unknown`；固定 revision 的最小 Rust bridge 必须隔离在受监管 Worker 并只使用 inherited stdio JSONL，禁用 raw 坐标、无目标按键、CDP、上游 MCP 和默认 trace。双平台证据及后继 Accepted ADR 前不替换 trycua、不接产品 Gateway、不形成长期双执行栈。
+
 BUA Bridge 直接调用 ego-lite/ego-browser，保存 external_task_ref 并映射状态，不复制 Task Space。只有经 Yonder 调用才保证桌宠收到状态。Windows 与 macOS 均复用同一 BrowserUsePort；Runtime 缺失或不可达时返回 `capability_unavailable`，不得自动回退到 CUA 或另一套浏览器引擎。
 
 ### Command、File 与 Document

@@ -1,0 +1,45 @@
+{
+  "schema_version": "yonder-agent-desktop-driver-build/v1",
+  "source_revision": "d3dc190afbf34cd2377252398ddd5c30efbd093a",
+  "patch_sha256": null,
+  "cargo_lock_sha256": "a0aedc422bbdcc2d5fc35295106d9d09dc10372575a4e313f1e073dc4d1873f6",
+  "rust_toolchain": "1.89.0",
+  "edition": "2024",
+  "planned_targets": [
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin"
+  ],
+  "verified_targets": [
+    "x86_64-pc-windows-msvc"
+  ],
+  "features": [],
+  "windows_crt": "crt-static via target rustflags",
+  "link_strategy": "platform crates are target-specific git dependencies; no dynamic bridge ABI",
+  "bridge_contract_sha256": "cf087b2cecb406ef7b1f311d3d8acf65386a705c7e81b179b5746b508dc92443",
+  "action_allowlist_sha256": "212aefd4508aa92349229ec1aea2a2538aa53a360006a1d4393ebc2b4986d1b9",
+  "sample_definitions_sha256": "8c9501a859f8d19084b827221999d2b980400a0741f3287319f8207991951109",
+  "authoritative_evidence_schema_sha256": "794637d24b00d199766946886396f6bc0e009ee81863292327e53989bd17ed3f",
+  "generated_bridge_schema_sha256": "644f5b669684bfe06e89558e563be74fe9bcc4531878ac3e3c5dfb6217cdb124",
+  "generated_evidence_schema_sha256": "794637d24b00d199766946886396f6bc0e009ee81863292327e53989bd17ed3f",
+  "yonder_harness_baseline_commit": "3643a0e5f77c584c81eb4849aaf622b7fdd94cce",
+  "yonder_harness_tree_sha256": "17a99867f75f0879cdbe9b1867445d4ca4345799f6701a4cdd651021c6bd1b99",
+  "git_dirty_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "yonder_harness_tree_scope": "spikes/agent-desktop-driver excluding target/ and build-manifest.json",
+  "build_commands": [
+    "cargo build --locked --bins --target x86_64-pc-windows-msvc",
+    "cargo build --locked --bins --target aarch64-pc-windows-msvc",
+    "cargo build --locked --bins --target x86_64-apple-darwin",
+    "cargo build --locked --bins --target aarch64-apple-darwin"
+  ],
+  "verification_commands": [
+    "cargo check --manifest-path spikes/agent-desktop-driver/Cargo.toml --all-targets",
+    "cargo test --manifest-path spikes/agent-desktop-driver/Cargo.toml --locked --all-targets",
+    "cargo clippy --manifest-path spikes/agent-desktop-driver/Cargo.toml --locked --all-targets -- -D warnings",
+    "cargo run --manifest-path spikes/agent-desktop-driver/Cargo.toml --bin generate-schema -- --check",
+    "harness.exe worker.exe"
+  ],
+  "artifacts": [],
+  "native_build_status": "contract_only_native_backend_unsupported"
+}

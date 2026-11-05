@@ -1,0 +1,57 @@
+# AD-CU-07 agent-desktop 受监管 Driver Spike
+
+状态：Proposed；日期：2026-11-05。关联 CU-S4、CU-S2、TM-S3、AD-E0-02、AD-CU-02/04、AD-TM-08 与 `cu-s4-agent-desktop-driver-spike`。Architecture Impact：architecture-change（候选 CUA 引擎、Worker 监督边界与平台分发）。
+
+## 决策
+
+允许 `vercel-labs/agent-desktop` 以低层、模型无关 CUA Driver 候选进入五个工作日的 Windows/macOS 隔离 Spike。它只负责 snapshot、目标解析和经允许的原子动作；Yonder Application 继续独占任务状态、任务级桌面租约、派发准入、用户输入抢占、取消、deadline、每步 Observe、`unknown` 映射与恢复决策。
+
+当前 Accepted 基线仍是 `@trycua/cua-driver@0.25.0`。Spike 通过并产生后续 Accepted/Rejected ADR 前，不替换产品依赖、不接 Agent Gateway、不修改任务协议或 SQLite、不开放用户能力，也不长期维护双执行栈。
+
+Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘汰。任一平台硬门槛失败都淘汰候选路线，不允许通过单平台采用形成长期双执行栈。
+
+## 集成边界
+
+- 固定 `agent-desktop v1.1.0` 对应 commit `d3dc190afbf34cd2377252398ddd5c30efbd093a`，两个平台使用同一 revision 和 patch set，禁止跟随 `main`。已知 CRT 缺陷不得通过切换到后续 commit 绕过；必须使用 Spike 的固定构建策略验证，验证不通过即判定失败。
+- 唯一入口为 Worker 内最小 Rust bridge，经继承 stdio 传输版本化 JSONL 信封并保留完整 delivery/retry disposition；不得使用 status-only C ABI、CLI、其他私有 IPC 或平台各自入口。Desktop 主进程不得加载最小 Rust bridge 或候选引擎；不得调用上游 MCP，不得开放 HTTP/TCP。可选 CDP 路径必须关闭。
+- 首次动作前，Host 必须通过同一 bridge `snapshot` 请求提交由只读 oracle 冻结的目标定位与身份（平台、进程、原生窗口、进程启动令牌哈希和拓扑 generation）；Worker 只能返回该目标下的 `snapshot_id` 与 opaque qualified refs。后续 `dispatch` 和 `observe` 必须引用这次 snapshot 与完全相同的冻结身份，不得按标题、前台窗口或其他隐式规则重新选目标。
+- Application 只依赖既有 ComputerUse Port。上游命令名、参数模型、interaction lease、snapshot ref 和 delivery disposition 均为 Adapter 内部细节，不得成为 Domain、Gateway 或持久化模型的第二来源。
+- 只允许 snapshot、qualified ref 动作和经样本验证的窗口操作。禁止 raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP；必须显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 等敏感字段进入证据。hit-test `unknown` 必须拒绝，不能沿用 fail-open。
+- 当前固定 revision 的公开 `execute_by_ref` 对 pointer hit-test `Unknown` 采用 fail-open，且未向调用方暴露可在副作用前拒绝的 verdict/hook；因此即使 snapshot/ref/target identity bridge 已补齐，原生 backend 仍必须返回 `unsupported/not_delivered`。在固定上游 API 能满足 fail-closed 前，不得另建通道、隐式重定位或以事后 Observe 代替副作用前拒绝。
+- 上游 machine-wide interaction lease 只作为单次 dispatch 的附加互斥。任务级 ownership、fencing、崩溃恢复和唯一前台桌面租约仍由 Yonder 持有。
+
+## 抢占、取消与结果语义
+
+用户输入观察器只维护宿主会话级单调递增 `u64 input_generation` 与封闭分类 `driver_current_attempt | user | unknown | observer_lost`，不记录按键、文本或轨迹正文。只有能绑定当前 `attempt_id + worker_instance_id` 的合成事件归为 `driver_current_attempt`；其余三类都递增 generation 并冻结派发。observer 未就绪、丢失、重启或 generation 回退时，一律按 fail-closed 处理；Worker 重启不得重置 generation。
+
+派发、用户抢占和取消共用 Application-owned admission gate。唯一派发线性化点是 Supervisor 在最后一次比较 control/fence/generation/目标身份后，将绑定当前 attempt/Worker 的完整 JSONL 动作帧写入继承的 stdio 并完成 flush：之前为 `not_dispatched`，之后保守视为 `in_flight`。等待上游 interaction lease 发生在 Worker 接收帧之后，因此等待期间发生抢占也按在途 `unknown` 处理。
+
+未派发请求和步骤之间可以确定取消。动作进入 Driver 后，公开接口没有可依赖的协作式取消；Supervisor 只能终止独立 Worker。只要副作用可能已经交付，结果必须是 `unknown`，不得报告 `cancelled`、不得自动重试。
+
+Worker 必须受 Windows Job Object `KILL_ON_JOB_CLOSE` 或 macOS 受监管进程组约束，禁止派生脱离监管的 helper。退出后使用无副作用只读探针检查进程树、machine-wide lease、修饰键/鼠标按钮、临时文件，以及由全新实例执行的 Observe；禁止发送合成 key-up/button-up 冒充清理。任一残留或无法证明释放时进入全局桌面 quarantine，任务结果保持 `unknown`，禁止任何新 CUA 派发，直至宿主重启或明确只读恢复程序全部通过。
+
+正常动作返回后，Application 必须强制新 snapshot/Observe。`delivered_unverified`、Observe 失败、断连、身份不一致或入口未保留完整 delivery/retry disposition 时统一进入 `unknown`。Driver 响应、进程退出或 lease 释放都不能单独成为任务成功或安全停止事实。
+
+Host 的成功判定不得采信 Worker 自报 predicate。Host 只把 Worker Observe 当作候选快照，然后由独立只读 oracle 在 500 毫秒稳定窗口内执行至少两次、间隔不少于 250 毫秒的目标身份与 predicate 采样；两次结果均匹配且稳定才可完成该步。
+
+## Spike 门槛
+
+期限为 2026-11-05 至 2026-11-11。Windows/macOS 必须使用同一验收语义，覆盖可信目标、身份漂移、用户输入抢占、取消/故障、显示拓扑、权限、分发以及固定应用任务集；固定应用任务集必须包含 Windows WPS/文件资源管理器与 macOS Office/Finder。精确 action、predicate、oracle、deadline 和平台样本以 [固定样本目录](../../../../openspec/changes/cu-s4-agent-desktop-driver-spike/sample-catalog.md) 为唯一执行来源。
+
+缺少已授权测试环境时只能记为 `environment_unavailable` 并保持 Spike 未完成；目标已安装但 Driver 不支持时记录 `unsupported` 并触发淘汰。证据采用版本化 schema，只保存安全枚举、布尔、单调耗时、哈希和版本，不保存输入正文、截图、完整窗口树或 Agent Payload。
+
+任一条件成立即淘汰候选路线：
+
+1. 用户输入发生后仍派发下一动作，或无法可靠区分用户输入与 Driver 合成输入；
+2. 目标身份变化后发生一次误投递，而不是 stale/ambiguous/unknown 拒绝；
+3. 终止 Worker 后 interaction lease、按键/鼠标状态或临时资源残留；
+4. 任一动作不能稳定归为“已 Observe 验证”或“unknown 且不重试”；
+5. 不能由 Yonder 从固定源码可重现自建，或不能分别证明构建 provenance、Windows Authenticode 可签/验签、macOS Developer ID/hardened runtime/notarization/stapling/Gatekeeper 责任链；没有生产证书时必须明确为环境未满足，不能以 Sigstore provenance、测试证书或 ad-hoc 签名冒充产品身份通过；
+6. 干净 Windows 仍依赖未声明运行库，或不能生成 SBOM 与第三方许可清单；
+7. 任一平台硬门槛失败，或只能通过长期保留 trycua 与 agent-desktop 双栈才能采用。
+
+## 结论收口
+
+Spike 结论必须更新本 ADR 或建立后继 ADR，并由独立 Verification Goal 复核；Spike 本身不授权产品接线。
+
+研究依据：[agent-desktop 作为 Yonder CUA 候选评估](../../../research-vercel-labs-agent-desktop-yonder-cua/research-vercel-labs-agent-desktop-yonder-cua.md)。

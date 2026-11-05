@@ -1,0 +1,55 @@
+[package]
+name = "yonder-agent-desktop-driver-spike"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+publish = false
+
+[dependencies]
+anyhow = "1.0"
+libc = "0.2"
+schemars = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+agent-desktop-core = { git = "https://github.com/vercel-labs/agent-desktop", rev = "d3dc190afbf34cd2377252398ddd5c30efbd093a" }
+agent-desktop-windows = { git = "https://github.com/vercel-labs/agent-desktop", rev = "d3dc190afbf34cd2377252398ddd5c30efbd093a" }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_SystemInformation", "Win32_System_Threading"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+agent-desktop-core = { git = "https://github.com/vercel-labs/agent-desktop", rev = "d3dc190afbf34cd2377252398ddd5c30efbd093a" }
+agent-desktop-macos = { git = "https://github.com/vercel-labs/agent-desktop", rev = "d3dc190afbf34cd2377252398ddd5c30efbd093a" }
+
+[dev-dependencies]
+tempfile = "3.20"
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+
+[[bin]]
+name = "generate-schema"
+path = "src/bin/generate-schema.rs"
+
+[[bin]]
+name = "worker"
+path = "src/bin/worker.rs"
+
+[[bin]]
+name = "harness"
+path = "src/bin/harness.rs"
+
+[workspace]
+resolver = "2"

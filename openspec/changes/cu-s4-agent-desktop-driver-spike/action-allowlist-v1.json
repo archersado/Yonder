@@ -1,0 +1,38 @@
+{
+  "schema_version": "agent-desktop-spike-action-allowlist/v1",
+  "actions": [
+    {
+      "id": "ACTION-NONE",
+      "semantics": "no Driver action; distribution or environment verification only",
+      "requires_qualified_ref": false,
+      "allowed_samples": ["INPUT-03", "DIST-01"]
+    },
+    {
+      "id": "ACTION-CLICK-QUALIFIED-REF",
+      "semantics": "click only the qualified ref from the frozen snapshot; raw coordinates are impossible",
+      "requires_qualified_ref": true,
+      "allowed_samples": ["IDENTITY-01", "IDENTITY-02", "APPSET-02", "INPUT-01", "INPUT-02", "CANCEL-01", "CANCEL-02", "FAULT-01", "DISPLAY-01", "PERMISSION-01"]
+    },
+    {
+      "id": "ACTION-TYPE-FIXTURE-TEXT-QUALIFIED-REF",
+      "semantics": "type only the fixed non-sensitive fixture token selected by sample id into a qualified ref",
+      "requires_qualified_ref": true,
+      "allowed_samples": ["ELEMENT-01", "APPSET-01"]
+    },
+    {
+      "id": "ACTION-FOCUS-WINDOW-QUALIFIED-REF",
+      "semantics": "focus only the qualified window ref after frozen native identity verification",
+      "requires_qualified_ref": true,
+      "allowed_samples": ["FOCUS-01"]
+    }
+  ],
+  "forbidden": [
+    "raw_coordinates",
+    "foreground_queue_keypress_without_target",
+    "force",
+    "cdp",
+    "upstream_mcp",
+    "free_text_arguments",
+    "agent_supplied_pid_or_window_id"
+  ]
+}

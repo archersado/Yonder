@@ -24,6 +24,7 @@
 | B 两条执行路径；A 执行原则；S CUA 与 BUA | 模型无关 Driver、Observe、单前台租约 | CU / BU | Spike 结论不能替代产品 Driver/Bridge Story |
 | 用户2026-09-21快慢脑变更；B 产品定义/MVP 主干/两条执行路径；A 执行原则；S 产品边界/任务与恢复 | Jev 在 CUA/BUA/Document/Command 之上作有界动作决策，外部 Agent 首次规划及偏离后 replan，均走现有 Gateway；降低慢脑 token 并保持质量 | EX-S1～S4 | Accepted AD-EX-01 已修正禁止内置模型循环的旧边界；Proposed AD-EX-02 与双平台 Spike 仍是技术实施门禁，不删除原始 Driver/Observe/接管要求 |
 | 用户2026-09-18后台原生动作变更；B任务可见可控；S任务恢复 | 原生API/App Intent/SDK后台执行，显式切换CUA，统一Task Space时间线 | CU-S3 / TM-S5 | 已完成Story与Proposed AD-CU-06；先做macOS限时Spike，Windows暂缓，未接产品Gateway |
+| 用户2026-11-05 agent-desktop Driver 变更；B两条执行路径；S CUA与任务恢复 | 将 agent-desktop 仅作为低层 Driver 候选，外部监督用户抢占、取消、Observe与unknown | CU-S4 / CU-S2 / TM-S3 | Proposed AD-CU-07 与双平台限时Spike；当前trycua基线不变，未接产品Gateway |
 | B 首批权限；S Command、File 与 Document | 结构化命令、路径安全、文档默认另存与锁 | CM / FI / DO | 产品协议、确认与失败场景待细拆 |
 | B 产品定义、MVP 主干 3–5；S 个人上下文 | 显式录制、授权查询、同步外部上下文服务 | RC / CX / AG | CX-S1 是采集 Spike，历史检索/客户端同步/删除传播未细拆 |
 | B MVP 主干 9；A Task Space | 时间线、产物、结果检查与审计历史 | TM-S5 / DS-S2 / RC | 已补 TM-S5 三份设计与 9 条验收；事件/产物/确认契约仍待联审，不能用最后一条摘要代替 |

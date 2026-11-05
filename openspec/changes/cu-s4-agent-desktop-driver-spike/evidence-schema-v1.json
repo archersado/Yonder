@@ -1,0 +1,369 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence",
+  "type": "object",
+  "properties": {
+    "action_id": {
+      "$ref": "#/$defs/ActionId"
+    },
+    "action_result": {
+      "$ref": "#/$defs/ActionResult"
+    },
+    "arch": {
+      "type": "string"
+    },
+    "artifact_sha256": {
+      "type": "string"
+    },
+    "attempt_id": {
+      "type": "string"
+    },
+    "bridge_contract_sha256": {
+      "type": "string"
+    },
+    "build_manifest_sha256": {
+      "type": "string"
+    },
+    "cleanup_probes": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CleanupProbeEvidence"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cleanup_verdict": {
+      "$ref": "#/$defs/CleanupVerdict"
+    },
+    "control_state": {
+      "$ref": "#/$defs/ControlState"
+    },
+    "delivery_disposition": {
+      "$ref": "#/$defs/DeliveryDisposition"
+    },
+    "dispatch_boundary": {
+      "$ref": "#/$defs/DispatchBoundary"
+    },
+    "distribution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DistributionEvidence"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "elapsed_ms": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "error_class": {
+      "$ref": "#/$defs/ErrorClass"
+    },
+    "evidence_scope": {
+      "$ref": "#/$defs/EvidenceScope"
+    },
+    "fence": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "generation_after": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "generation_before": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "global_quarantine": {
+      "type": "boolean"
+    },
+    "host_oracle_independent": {
+      "type": "boolean"
+    },
+    "input_source": {
+      "$ref": "#/$defs/InputSource"
+    },
+    "observe_identity": {
+      "$ref": "#/$defs/IdentityVerdict"
+    },
+    "observe_predicate": {
+      "$ref": "#/$defs/PredicateVerdict"
+    },
+    "oracle_id": {
+      "type": "string"
+    },
+    "oracle_sha256": {
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/Outcome"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "predicate_id": {
+      "type": "string"
+    },
+    "predicate_sha256": {
+      "type": "string"
+    },
+    "retry_count": {
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "sample_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source_revision": {
+      "type": "string"
+    },
+    "stable_observation_count": {
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "stable_observation_interval_ms": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "worker_instance_id": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_scope",
+    "source_revision",
+    "build_manifest_sha256",
+    "bridge_contract_sha256",
+    "artifact_sha256",
+    "platform",
+    "arch",
+    "sample_id",
+    "action_id",
+    "predicate_id",
+    "predicate_sha256",
+    "oracle_id",
+    "oracle_sha256",
+    "attempt_id",
+    "worker_instance_id",
+    "fence",
+    "generation_before",
+    "generation_after",
+    "input_source",
+    "dispatch_boundary",
+    "delivery_disposition",
+    "error_class",
+    "observe_identity",
+    "observe_predicate",
+    "stable_observation_count",
+    "stable_observation_interval_ms",
+    "host_oracle_independent",
+    "cleanup_verdict",
+    "control_state",
+    "action_result",
+    "global_quarantine",
+    "elapsed_ms",
+    "retry_count",
+    "outcome"
+  ],
+  "$defs": {
+    "ActionId": {
+      "type": "string",
+      "enum": [
+        "ACTION-NONE",
+        "ACTION-CLICK-QUALIFIED-REF",
+        "ACTION-TYPE-FIXTURE-TEXT-QUALIFIED-REF",
+        "ACTION-FOCUS-WINDOW-QUALIFIED-REF"
+      ]
+    },
+    "ActionResult": {
+      "type": "string",
+      "enum": [
+        "observed",
+        "rejected",
+        "unknown",
+        "not_dispatched"
+      ]
+    },
+    "CleanupProbeEvidence": {
+      "type": "object",
+      "properties": {
+        "desktop_handles_gone": {
+          "type": "boolean"
+        },
+        "input_hooks_gone": {
+          "type": "boolean"
+        },
+        "permissions_released": {
+          "type": "boolean"
+        },
+        "process_tree_gone": {
+          "type": "boolean"
+        },
+        "temp_state_removed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "process_tree_gone",
+        "desktop_handles_gone",
+        "input_hooks_gone",
+        "permissions_released",
+        "temp_state_removed"
+      ]
+    },
+    "CleanupVerdict": {
+      "type": "string",
+      "enum": [
+        "not_required",
+        "released",
+        "residual",
+        "unproven"
+      ]
+    },
+    "ControlState": {
+      "type": "string",
+      "enum": [
+        "running",
+        "preempted",
+        "cancelled_before_dispatch",
+        "quarantined"
+      ]
+    },
+    "DeliveryDisposition": {
+      "type": "string",
+      "enum": [
+        "not_delivered",
+        "delivered_verified",
+        "delivered_unverified",
+        "unknown"
+      ]
+    },
+    "DispatchBoundary": {
+      "type": "string",
+      "enum": [
+        "not_dispatched",
+        "frame_flushed",
+        "response_received"
+      ]
+    },
+    "DistributionEvidence": {
+      "type": "object",
+      "properties": {
+        "artifact_provenance_sha256": {
+          "type": "string"
+        },
+        "clean_machine_runtime_verified": {
+          "type": "boolean"
+        },
+        "dependency_manifest_sha256": {
+          "type": "string"
+        },
+        "license_manifest_sha256": {
+          "type": "string"
+        },
+        "notarization_verified": {
+          "type": "boolean"
+        },
+        "production_identity_verified": {
+          "type": "boolean"
+        },
+        "sbom_sha256": {
+          "type": "string"
+        },
+        "signature_verified": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "dependency_manifest_sha256",
+        "sbom_sha256",
+        "license_manifest_sha256",
+        "artifact_provenance_sha256",
+        "production_identity_verified",
+        "signature_verified",
+        "notarization_verified",
+        "clean_machine_runtime_verified"
+      ]
+    },
+    "ErrorClass": {
+      "type": "string",
+      "enum": [
+        "none",
+        "schema",
+        "identity",
+        "deadline",
+        "permission",
+        "stale",
+        "ambiguous",
+        "unsupported",
+        "driver",
+        "observe"
+      ]
+    },
+    "EvidenceScope": {
+      "type": "string",
+      "enum": [
+        "contract_only",
+        "native"
+      ]
+    },
+    "IdentityVerdict": {
+      "type": "string",
+      "enum": [
+        "match",
+        "mismatch",
+        "ambiguous",
+        "stale",
+        "unavailable"
+      ]
+    },
+    "InputSource": {
+      "type": "string",
+      "enum": [
+        "driver_current_attempt",
+        "user",
+        "unknown",
+        "observer_lost",
+        "none"
+      ]
+    },
+    "Outcome": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "environment_unavailable",
+        "unsupported"
+      ]
+    },
+    "PredicateVerdict": {
+      "type": "string",
+      "enum": [
+        "satisfied",
+        "unsatisfied",
+        "unstable",
+        "unavailable"
+      ]
+    }
+  }
+}
