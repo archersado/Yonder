@@ -18,6 +18,10 @@ Spike Harness（模拟 Application 语义）
 
 原生 Worker 初始化先于任何平台 API：Windows 使用上游公开 `ensure_owned_process_mta_and_dpi` 并安装 Windows 私有文件操作；macOS 使用上游公开 `ensure_cocoa_multithreaded`。初始化失败即拒绝启动原生 Backend。只读诊断探针可在隔离 fixture 上验证窗口枚举与 snapshot，但其结果不等于动作、抢占或 Observe 闭环通过；诊断输出只含计数、布尔状态和身份摘要。
 
+只读 fixture 的元素探针只接受预置 `AutomationId = YonderProbeButton`，要求完整快照中恰好一个带 ref 的匹配元素；不得以可访问名称、标题或树中首项回退。这个诊断判据不能替代正式样本的 Host 独立身份 oracle；正式样本在目标与元素选择规则冻结前继续禁止原生派发。
+
+若探针验证上游限定引用，须在隔离私有状态目录中用上游公开 `snapshot::run_with_context` 保存 RefStore，并显式关闭 trace/screenshots。只输出限定引用格式是否正确及其摘要，不输出引用对应的树、文本或窗口内容。探针结束后目录按临时 fixture 数据处理，不得混入产品状态。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。
