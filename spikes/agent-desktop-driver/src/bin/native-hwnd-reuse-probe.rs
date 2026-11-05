@@ -41,6 +41,55 @@ fn main() -> anyhow::Result<()> {
         Ok(())
     }
 
+    fn seek_exact_reuse() -> anyhow::Result<()> {
+        const MAX_REPLACEMENTS: u32 = 70_000;
+        let pid = unsafe { GetCurrentProcessId() };
+        let first = hidden_window()?;
+        let id = format!("w-{}", first as usize);
+        let initial = windows::capture_window(pid, &id)?;
+        destroy(first)?;
+        let mut slot_reused_with_changed_handle = false;
+        let mut reuse_observed = false;
+        let mut same_host_fields = false;
+        let mut replacements = 0;
+        for attempt in 1..=MAX_REPLACEMENTS {
+            let current = hidden_window()?;
+            replacements = attempt;
+            if (current as usize & 0xffff) == (first as usize & 0xffff) {
+                if current == first {
+                    reuse_observed = true;
+                    same_host_fields = windows::capture_window(pid, &id)? == initial;
+                    destroy(current)?;
+                    break;
+                }
+                slot_reused_with_changed_handle = true;
+            }
+            destroy(current)?;
+        }
+        println!(
+            "{}",
+            serde_json::json!({
+                "schema_version": "yonder-agent-desktop-hwnd-reuse-probe/v1",
+                "platform": "windows",
+                "mode": "seek_exact",
+                "window_id_sha256": format!("{:x}", Sha256::digest(id.as_bytes())),
+                "replacements": replacements,
+                "reuse_observed": reuse_observed,
+                "slot_reused_with_changed_handle": slot_reused_with_changed_handle,
+                "same_host_fields": same_host_fields,
+                "lifecycle_observer_active": false,
+                "window_generation_proven": false,
+            })
+        );
+        Ok(())
+    }
+
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.as_slice() == ["--seek-exact"] {
+        return seek_exact_reuse();
+    }
+    ensure!(args.is_empty(), "unsupported diagnostic option");
+
     const MAX_REPLACEMENTS: u32 = 512;
     let observer = windows_lifecycle::LifecycleObserver::start()?;
     let pid = unsafe { GetCurrentProcessId() };
