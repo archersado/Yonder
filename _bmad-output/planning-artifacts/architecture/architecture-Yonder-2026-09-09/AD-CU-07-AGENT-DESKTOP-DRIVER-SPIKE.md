@@ -26,6 +26,7 @@ Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘�
 - 受控 Windows `SetWinEventHook` 探针在独立进程中收到了窗口销毁、创建、再销毁事件，说明只读生命周期追踪具备进一步验证价值。由于 out-of-context 回调异步，正式门禁仍要求可验证的事件屏障、观察器故障拒绝、复用样本与最终身份核对到副作用之间的竞态证明；当前尚不把事件计数当作合格窗口代际令牌。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-winevent-lifecycle-2026-11-05.md)。
 - 额外自建隐藏窗口探针在 512 次重建中观察到表槽重用但完整 HWND 值变化，未观察到完整值复用；扩大运行时事件队列溢出并按门禁拒绝。微软对句柄标识位的说明属于可变更实现细节，不能据此放松窗口代际要求。见[有界探针](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-hwnd-reuse-bounded-probe-2026-11-05.md)。
 - 两个独立 Rust 观察器在同一受控 WinForms 窗口销毁前后得到一致的事件计数和窗口失效判定；新窗口的 HWND 不同，且尚无同一动作帧内的 Host/Worker 身份冻结与派发证据。这只是可见性证据，不解除上述窗口代际门禁。见 [双进程实验](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-dual-lifecycle-observer-2026-11-05.md)。
+- 固定上游 Windows 鼠标和键盘 `SendInput` 路径的 `dwExtraInfo` 均为 `0`，没有绑定 Yonder attempt/Worker 的归属标记；低级钩子的 injected 标志只证明程序注入，不证明属于当前 Worker。UIA Invoke/Legacy 路径另需验证其事件可见性。当前不能据此通过 `INPUT-02` 或放开原生派发；如需扩大固定上游补丁范围，必须先修订本决策和 OpenSpec。见 [输入归属源码审计](../../../../docs/specs/epic-CU/story-CU-S4/evidence/upstream-windows-input-attribution-source-audit-2026-11-05.md)。
 - Windows 生命周期观察器只覆盖当前桌面；普通权限进程不能以 UI Automation 访问提升权限应用的 UI。Host 与 Worker 的只读身份 oracle 必须拒绝无法确认位于当前输入桌面、同一会话或高于自身完整性级别的目标，不能把此类目标的零事件计数当作窗口未变化。依据：[SetWinEventHook 范围](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook)、[UIAccess 安全边界](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-securityoverview)。
 - 上游 machine-wide interaction lease 只作为单次 dispatch 的附加互斥。任务级 ownership、fencing、崩溃恢复和唯一前台桌面租约仍由 Yonder 持有。
 
