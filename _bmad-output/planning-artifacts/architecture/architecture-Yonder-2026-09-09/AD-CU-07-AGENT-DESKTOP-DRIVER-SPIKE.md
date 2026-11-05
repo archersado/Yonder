@@ -20,6 +20,7 @@ Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘�
 - 固定 revision 的原始 `execute_by_ref` 对 pointer hit-test `Unknown` 采用 fail-open。CU-S4 唯一补丁已将 `Unknown` 与不支持 hit-test 的物理派发改为副作用前拒绝；上游 core 回归测试通过，两平台构建必须解析到同一补丁源码。该修复只关闭 hit-test 缺口，不授权原生派发。
 - 2026-11-05 Windows 只读证据显示：`WindowInfo.id` 是 HWND，`process_instance` 是进程启动时间令牌，快照根节点无 `native_id`。仅凭 HWND 与进程令牌不能排除同一进程内销毁并复用 HWND。Host 独立只读 oracle 与 Worker 在派发前必须比较可证明区分窗口对象代际的令牌；若该令牌在既定平台样本中不可得，则按身份门槛拒绝并淘汰候选，不得以标题、前台窗口、延时或动作后 Observe 代替。此路线尚未定案，原生 Backend 继续 `unsupported/not_delivered`。
 - Windows UI Automation 的 RuntimeId 也不能单独当作永久窗口代际令牌：[微软文档](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomationelement-getruntimeid)明确允许标识符随时间复用；[CompareElements](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomation-compareelements) 的结果基于运行时标识符。若采用 UIA 对象比较，必须保留原对象、验证销毁重建样本并证明派发解析不会在比较后重新定位到替代对象；否则仍拒绝。
+- 受控 Windows 探针证明同权限跨进程 `SetPropW` 可在窗口上附加标记，但该方法会写入目标窗口、受 UIPI 限制，且派发前读取与实际副作用之间仍有竞态；本 Spike 不将其视为只读身份 oracle，也不据此放开动作门禁。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-window-property-oracle-2026-11-05.md)。
 - 上游 machine-wide interaction lease 只作为单次 dispatch 的附加互斥。任务级 ownership、fencing、崩溃恢复和唯一前台桌面租约仍由 Yonder 持有。
 
 ## 抢占、取消与结果语义

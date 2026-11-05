@@ -30,3 +30,4 @@ Architecture Decision: Proposed AD-CU-07
 - [证据 Schema](../../../../openspec/changes/cu-s4-agent-desktop-driver-spike/evidence-schema-v1.json)
 - [Windows 补丁构建证据](evidence/windows-patched-build-2026-11-05.md)
 - [Windows 原生只读探针证据](evidence/windows-native-read-probe-2026-11-05.md)
+- [Windows 窗口 property 代际探针证据](evidence/windows-window-property-oracle-2026-11-05.md)
