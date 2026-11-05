@@ -55,6 +55,8 @@ fn main() -> anyhow::Result<()> {
         agent_desktop_windows::WindowsPrivateFile,
     ))
     .map_err(|_| anyhow::anyhow!("private file backend already installed"))?;
+    let lifecycle =
+        yonder_agent_desktop_driver_spike::host_oracle::windows_lifecycle::LifecycleObserver::start()?;
     let adapter = agent_desktop_windows::WindowsAdapter::new();
     let windows = adapter
         .list_windows(&WindowFilter::default(), Deadline::after(5_000)?)
@@ -65,6 +67,7 @@ fn main() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("target PID has no window"))?;
     anyhow::ensure!(targets.next().is_none(), "target PID has multiple windows");
     anyhow::ensure!(!window.id.is_empty(), "target has no native window ID");
+    let lifecycle_before = lifecycle.barrier_for(&window.id)?;
     let host_before =
         yonder_agent_desktop_driver_spike::host_oracle::windows::capture_window(pid, &window.id)?;
     anyhow::ensure!(
@@ -95,9 +98,14 @@ fn main() -> anyhow::Result<()> {
     anyhow::ensure!(result.window.id == window.id, "snapshot window changed");
     let host_after =
         yonder_agent_desktop_driver_spike::host_oracle::windows::capture_window(pid, &window.id)?;
+    let lifecycle_after = lifecycle.barrier_for(&window.id)?;
     anyhow::ensure!(
         host_before == host_after && host_after.matches_adapter_window(&result.window),
         "host and snapshot process identity disagree"
+    );
+    anyhow::ensure!(
+        lifecycle_before == lifecycle_after,
+        "target window lifecycle changed during snapshot"
     );
     anyhow::ensure!(result.complete, "snapshot is incomplete");
     let snapshot_id = result
@@ -128,6 +136,10 @@ fn main() -> anyhow::Result<()> {
             "host_process_start_sha256": host_after.process_start_sha256,
             "host_identity_matches_adapter": true,
             "window_generation_proven": false,
+            "lifecycle_barrier_observed": lifecycle_after.marker_observed,
+            "lifecycle_target_create_count": lifecycle_after.creates,
+            "lifecycle_target_destroy_count": lifecycle_after.destroys,
+            "lifecycle_changed_during_snapshot": false,
             "snapshot_window_id_sha256": digest(&result.window.id),
             "ref_count": result.refmap.len(),
             "nodes_observed": result.nodes_observed,
