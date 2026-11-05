@@ -1,0 +1,38 @@
+diff --git a/crates/core/src/actionability/receives_events.rs b/crates/core/src/actionability/receives_events.rs
+--- a/crates/core/src/actionability/receives_events.rs
++++ b/crates/core/src/actionability/receives_events.rs
+@@ -95,8 +95,12 @@ pub(crate) fn require_receives_events(
+ ) -> Result<(), AdapterError> {
+     let check = match adapter.hit_test(handle, point, deadline) {
+         Ok(HitTestResult::ReachesTarget) => return Ok(()),
+-        Ok(HitTestResult::Unknown) => return Ok(()),
+-        Err(error) if error.code == ErrorCode::PlatformNotSupported => return Ok(()),
++        Ok(HitTestResult::Unknown) => {
++            unknown("receives_events", "hit test result inconclusive")
++        }
++        Err(error) if error.code == ErrorCode::PlatformNotSupported => {
++            unknown("receives_events", "hit testing is not supported")
++        }
+         Err(error) => return Err(error),
+         Ok(HitTestResult::InterceptedBy { role, name, bounds }) => occluded(role, name, bounds),
+     };
+diff --git a/crates/core/src/adapter/hit_test_tests.rs b/crates/core/src/adapter/hit_test_tests.rs
+--- a/crates/core/src/adapter/hit_test_tests.rs
++++ b/crates/core/src/adapter/hit_test_tests.rs
+@@ -261,2 +261,16 @@ fn not_supported_hit_test_is_non_blocking_evidence() {
++#[test]
++fn unknown_pointer_hit_test_rejects_before_delivery() {
++    let error = run_receives_events_error(Ok(HitTestResult::Unknown));
++    assert_eq!(error.code, ErrorCode::ActionFailed);
++    assert_eq!(error.disposition, crate::DeliverySemantics::not_delivered());
++}
++
++#[test]
++fn unsupported_pointer_hit_test_rejects_before_delivery() {
++    let error = run_receives_events_error(Err(AdapterError::not_supported("hit_test")));
++    assert_eq!(error.code, ErrorCode::ActionFailed);
++    assert_eq!(error.disposition, crate::DeliverySemantics::not_delivered());
++}
++
+ #[test]
+ fn hit_test_probe_error_is_not_reclassified() {

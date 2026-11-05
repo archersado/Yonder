@@ -16,6 +16,8 @@
 
 固定上游公开 crate 已按 Windows/macOS target 和 git revision 锁入 `Cargo.lock`；bridge 现已包含首次 snapshot/result、qualified refs 与冻结 target identity。真实原生动作仍 fail-closed 为 `unsupported`：固定上游 `execute_by_ref` 在 pointer hit-test 返回 `Unknown` 时继续执行，而且公开结果/API 不暴露可供 wrapper 在副作用前强制拒绝的 hit-test verdict。不得用 CLI、C ABI、额外 IPC 或隐式目标选择绕过；修复固定上游 API 或采用可证明的副作用前只读判据后，才能运行双平台样本。
 
+`patches/0001-reject-inconclusive-pointer-hit-test.patch` 是针对冻结 revision 的候选补丁，附带副作用前拒绝的回归测试。已验证它能干净应用到固定源码，但尚未用于构建；manifest 的 `patch_sha256: null` 仍准确表示当前二进制使用未打补丁的上游。接入原生样本前须在隔离 checkout 实跑补丁后的上游测试，并重冻 patch hash 与制品来源。
+
 ## 验证命令
 
 ```bash
