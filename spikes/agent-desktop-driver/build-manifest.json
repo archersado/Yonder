@@ -25,7 +25,7 @@
   "generated_bridge_schema_sha256": "644f5b669684bfe06e89558e563be74fe9bcc4531878ac3e3c5dfb6217cdb124",
   "generated_evidence_schema_sha256": "794637d24b00d199766946886396f6bc0e009ee81863292327e53989bd17ed3f",
   "yonder_harness_baseline_commit": "3643a0e5f77c584c81eb4849aaf622b7fdd94cce",
-  "yonder_harness_tree_sha256": "108f8cd0a58c1c6a70b0dc44bfe617c5f60b119e4fc512cc2d338687fa5c39e6",
+  "yonder_harness_tree_sha256": "0a5d0e3c7019fa3415b94fc6d886e19f4172862820f8449d82be06e3dc53e351",
   "git_dirty_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "yonder_harness_tree_scope": "spikes/agent-desktop-driver excluding target/ and build-manifest.json",
   "build_commands": [

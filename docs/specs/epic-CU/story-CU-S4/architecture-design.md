@@ -28,6 +28,8 @@ Host 的 Windows 只读探针可用 Win32 `IsWindow`、`GetWindowThreadProcessId
 
 Windows 窗口生命周期候选探针可在首次目标快照前启动 `SetWinEventHook`，只追踪系统产生的窗口 `CREATE/DESTROY`，在独立消息循环中维护有界事件序列。身份采样前由 Host 创建隐藏的自有窗口，等待它的系统 `CREATE` 回调作为候选事件屏障，再比较目标 HWND、进程启动令牌与这段生命周期序列。观察器未就绪、重启、事件队列溢出、屏障超时或 Host/Worker 序列不一致均拒绝。该方案目前只有受控 WinForms 可见性与顺序证据；在 HWND 复用、目标应用、故障与最终动作竞态验证前不得填充正式窗口代际令牌或开放派发。
 
+Host/Worker 一致性实验可以启动两个独立的**诊断观察器进程**，在同一受控窗口上同时接收生命周期事件并比较屏障前后计数。诊断入口只输出事件计数、布尔状态和进程身份摘要，不实现动作、不替代唯一产品 Worker bridge，也不改变 OpenSpec 的 bridge/evidence 协议。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。

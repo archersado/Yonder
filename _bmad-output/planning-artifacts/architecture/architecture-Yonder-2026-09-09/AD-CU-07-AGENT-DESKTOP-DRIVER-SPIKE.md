@@ -22,6 +22,7 @@ Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘�
 - Windows UI Automation 的 RuntimeId 也不能单独当作永久窗口代际令牌：[微软文档](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomationelement-getruntimeid)明确允许标识符随时间复用；[CompareElements](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomation-compareelements) 的结果基于运行时标识符。若采用 UIA 对象比较，必须保留原对象、验证销毁重建样本并证明派发解析不会在比较后重新定位到替代对象；否则仍拒绝。
 - 受控 Windows 探针证明同权限跨进程 `SetPropW` 可在窗口上附加标记，但该方法会写入目标窗口、受 UIPI 限制，且派发前读取与实际副作用之间仍有竞态；本 Spike 不将其视为只读身份 oracle，也不据此放开动作门禁。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-window-property-oracle-2026-11-05.md)。
 - 受控 Windows `SetWinEventHook` 探针在独立进程中收到了窗口销毁、创建、再销毁事件，说明只读生命周期追踪具备进一步验证价值。由于 out-of-context 回调异步，正式门禁仍要求可验证的事件屏障、观察器故障拒绝、复用样本与最终身份核对到副作用之间的竞态证明；当前尚不把事件计数当作合格窗口代际令牌。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-winevent-lifecycle-2026-11-05.md)。
+- 两个独立 Rust 观察器在同一受控 WinForms 窗口销毁前后得到一致的事件计数和窗口失效判定；新窗口的 HWND 不同，且尚无同一动作帧内的 Host/Worker 身份冻结与派发证据。这只是可见性证据，不解除上述窗口代际门禁。见 [双进程实验](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-dual-lifecycle-observer-2026-11-05.md)。
 - 上游 machine-wide interaction lease 只作为单次 dispatch 的附加互斥。任务级 ownership、fencing、崩溃恢复和唯一前台桌面租约仍由 Yonder 持有。
 
 ## 抢占、取消与结果语义

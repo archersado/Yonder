@@ -33,3 +33,4 @@ Architecture Decision: Proposed AD-CU-07
 - [Windows 窗口 property 代际探针证据](evidence/windows-window-property-oracle-2026-11-05.md)
 - [Windows WinEvent 生命周期探针证据](evidence/windows-winevent-lifecycle-2026-11-05.md)
 - [Windows Rust 生命周期观察器验证](evidence/windows-rust-lifecycle-observer-2026-11-05.md)
+- [Windows 双进程生命周期观察器实验](evidence/windows-dual-lifecycle-observer-2026-11-05.md)
