@@ -14,13 +14,20 @@
 - mock Worker 写入的 fixture marker 只用于验证 Host 独立读取、完整 TargetIdentity 比较和稳定双采样契约；Harness 输出标记为 `contract_only_observe_protocol`，绝不构成真实桌面动作效果证据。
 - Windows Worker 使用 suspended spawn，加入 `KILL_ON_JOB_CLOSE` Job 后才 resume；任一步失败都终止并 wait。macOS helper 完整进程树行为仍待原生审计，不视为已验证。
 
-固定上游公开 crate 已按 Windows/macOS target 和 git revision 锁入 `Cargo.lock`；bridge 现已包含首次 snapshot/result、qualified refs 与冻结 target identity。真实原生动作仍 fail-closed 为 `unsupported`：固定上游 `execute_by_ref` 在 pointer hit-test 返回 `Unknown` 时继续执行，而且公开结果/API 不暴露可供 wrapper 在副作用前强制拒绝的 hit-test verdict。不得用 CLI、C ABI、额外 IPC 或隐式目标选择绕过；修复固定上游 API 或采用可证明的副作用前只读判据后，才能运行双平台样本。
+固定上游源码由 `prepare_upstream.py` 检出并应用唯一补丁，Windows/macOS 的 Cargo path dependency 均指向该隔离目录；bridge 现已包含首次 snapshot/result、qualified refs 与冻结 target identity。真实原生动作仍 fail-closed 为 `unsupported`，直到原生 runner 完成并通过双平台样本。不得用 CLI、C ABI、额外 IPC 或隐式目标选择绕过。
 
-`patches/0001-reject-inconclusive-pointer-hit-test.patch` 是针对冻结 revision 的候选补丁，附带副作用前拒绝的回归测试。已验证它能干净应用到固定源码；在 Windows 隔离副本中，将上游 workspace 临时缩为 `crates/core` 后，补丁版 core 的 1584 个单元测试和 2 个附加测试全部通过。此结果只覆盖上游 core，不覆盖 Windows/macOS 原生适配器。补丁尚未用于 Yonder 构建；manifest 的 `patch_sha256: null` 仍准确表示当前二进制使用未打补丁的上游。接入原生样本前须重冻 patch hash 与制品来源，并完成双平台原生验证。
+`patches/0001-reject-inconclusive-pointer-hit-test.patch` 针对冻结 revision 添加副作用前拒绝及回归测试。在 Windows 隔离副本中，将上游 workspace 临时缩为 `crates/core` 后，补丁版 core 的 1584 个单元测试和 2 个附加测试全部通过。Windows Spike 构建已解析到同一补丁源码；此结果尚不覆盖 Windows/macOS 原生动作。
+
+首次构建前准备源码；可用 `--source /path/to/checkout` 从已存在的固定上游仓库离线准备。脚本校验 commit、补丁改动集和源码摘要；已有目录摘要不符时拒绝继续，不能静默改用未打补丁的上游。
+
+```bash
+python3 spikes/agent-desktop-driver/prepare_upstream.py
+```
 
 ## 验证命令
 
 ```bash
+python3 spikes/agent-desktop-driver/prepare_upstream.py
 cargo fmt --manifest-path spikes/agent-desktop-driver/Cargo.toml -- --check
 cargo test --manifest-path spikes/agent-desktop-driver/Cargo.toml --locked
 cargo clippy --manifest-path spikes/agent-desktop-driver/Cargo.toml --locked --all-targets -- -D warnings

@@ -1,8 +1,9 @@
 {
   "schema_version": "yonder-agent-desktop-driver-build/v1",
   "source_revision": "d3dc190afbf34cd2377252398ddd5c30efbd093a",
-  "patch_sha256": null,
-  "cargo_lock_sha256": "a0aedc422bbdcc2d5fc35295106d9d09dc10372575a4e313f1e073dc4d1873f6",
+  "patch_sha256": "3f625a14254d66126f931cb479fb67b698e0ea2a5a2e4a8caad1f8f9e3149023",
+  "patched_source_tree_sha256": "78f37b45808177601ea6f5b3af1fcd9095ead4ecb9dcd405c3b7abe0e20f9872",
+  "cargo_lock_sha256": "696f2f8d29649c74ab940390f94f06fced39675bf347087d22289c862f3d4268",
   "rust_toolchain": "1.89.0",
   "edition": "2024",
   "planned_targets": [
@@ -16,7 +17,7 @@
   ],
   "features": [],
   "windows_crt": "crt-static via target rustflags",
-  "link_strategy": "platform crates are target-specific git dependencies; no dynamic bridge ABI",
+  "link_strategy": "platform crates are target-specific path dependencies to pinned patched source; no dynamic bridge ABI",
   "bridge_contract_sha256": "cf087b2cecb406ef7b1f311d3d8acf65386a705c7e81b179b5746b508dc92443",
   "action_allowlist_sha256": "212aefd4508aa92349229ec1aea2a2538aa53a360006a1d4393ebc2b4986d1b9",
   "sample_definitions_sha256": "8c9501a859f8d19084b827221999d2b980400a0741f3287319f8207991951109",
@@ -24,7 +25,7 @@
   "generated_bridge_schema_sha256": "644f5b669684bfe06e89558e563be74fe9bcc4531878ac3e3c5dfb6217cdb124",
   "generated_evidence_schema_sha256": "794637d24b00d199766946886396f6bc0e009ee81863292327e53989bd17ed3f",
   "yonder_harness_baseline_commit": "3643a0e5f77c584c81eb4849aaf622b7fdd94cce",
-  "yonder_harness_tree_sha256": "2bd3892027a89e370424551636086dfbc9730d323e6bea2849f8f8733a84bd2d",
+  "yonder_harness_tree_sha256": "f59124b10fe14716732e5171c680622ed71ae78b454d140352c58d6cacae2f47",
   "git_dirty_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "yonder_harness_tree_scope": "spikes/agent-desktop-driver excluding target/ and build-manifest.json",
   "build_commands": [

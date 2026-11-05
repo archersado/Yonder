@@ -73,6 +73,12 @@ fn verify_build_manifest(manifest_root: &Path, openspec: &Path) -> Result<()> {
     let checks = [
         ("source_revision", SOURCE_REVISION.to_owned()),
         (
+            "patch_sha256",
+            file_sha256(
+                &manifest_root.join("patches/0001-reject-inconclusive-pointer-hit-test.patch"),
+            )?,
+        ),
+        (
             "cargo_lock_sha256",
             file_sha256(&manifest_root.join("Cargo.lock"))?,
         ),
@@ -105,6 +111,17 @@ fn verify_build_manifest(manifest_root: &Path, openspec: &Path) -> Result<()> {
         if value[field].as_str() != Some(&expected) {
             bail!("build manifest 字段漂移: {field}");
         }
+    }
+    let prepared: serde_json::Value = serde_json::from_slice(&fs::read(
+        manifest_root.join("target/patched-agent-desktop/.yonder-patched-source.json"),
+    )?)?;
+    for field in ["source_revision", "patch_sha256"] {
+        if prepared[field] != value[field] {
+            bail!("prepared source 与 build manifest 不一致: {field}");
+        }
+    }
+    if prepared["source_tree_sha256"] != value["patched_source_tree_sha256"] {
+        bail!("prepared source 摘要与 build manifest 不一致");
     }
     let repo = manifest_root.join("../..");
     let tree_hash = harness_tree_sha256(manifest_root)?;
