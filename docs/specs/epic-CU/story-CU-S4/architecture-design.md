@@ -40,6 +40,8 @@ Host/Worker 一致性实验可以启动两个独立的**诊断观察器进程**�
 
 固定上游补丁扩围属于 AD-CU-07 的[待定决策](../../../../_bmad-output/planning-artifacts/architecture/architecture-Yonder-2026-09-09/AD-CU-07-AGENT-DESKTOP-DRIVER-SPIKE.md)：v1 唯一 hit-test 补丁不能被原位修改。v2 若要成立，须在代码前明确最终交付点怎样绑定原窗口对象，以及物理注入如何绑定当前 attempt/Worker；Windows `dwExtraInfo` 与 macOS `eventSourceUserData` 只是候选事件载体，不是已通过的归属机制。UIA Invoke/Legacy 与 AX 语义动作另需原生验证。无法提出可检验的交付点机制时，停止 v2，不能仅凭 fixture 的前置身份拒绝开启动作。
 
+允许 `IDENTITY-02` 的**只读诊断**在自建 fixture 中保存限定引用后，要求 fixture 自行销毁并重建目标窗口，再用上游公开 `resolve_saved_ref` 尝试重新定位旧引用；诊断只输出新旧窗口 ID 是否相同、代际是否变化、旧引用是否拒绝和两个点击计数，不调用 `execute_by_ref` 或原生动作。新旧 HWND 不相同时的拒绝只证明普通 stale 路径；只有完整 HWND 复用的受控样本才能检验该特定风险。此诊断不计入正式 `IDENTITY-02` 动作样本通过。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。

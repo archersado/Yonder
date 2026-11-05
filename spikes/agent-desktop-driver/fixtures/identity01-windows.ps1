@@ -21,6 +21,7 @@ public sealed class YonderIdentity01Fixture : ApplicationContext
     private const string ButtonId = "YonderIdentity01Button";
     private readonly Form target;
     private readonly Form decoy;
+    private Form replacement;
     private readonly Timer timeout;
     private int openForms = 2;
 
@@ -39,8 +40,14 @@ public sealed class YonderIdentity01Fixture : ApplicationContext
         Console.Out.Flush();
         timeout = new Timer();
         timeout.Interval = 180000;
-        timeout.Tick += delegate { target.Close(); decoy.Close(); };
+        timeout.Tick += delegate { target.Close(); decoy.Close(); if (replacement != null) replacement.Close(); };
         timeout.Start();
+        System.Threading.ThreadPool.QueueUserWorkItem(delegate {
+            string command;
+            while ((command = Console.ReadLine()) != null) {
+                if (command == "replace") target.BeginInvoke((Action)ReplaceTarget);
+            }
+        });
     }
 
     private Form MakeForm(int role, int generation, int x)
@@ -80,6 +87,19 @@ public sealed class YonderIdentity01Fixture : ApplicationContext
     {
         openForms--;
         if (openForms == 0) ExitThread();
+    }
+
+    private void ReplaceTarget()
+    {
+        target.Close();
+        replacement = MakeForm(1, 3, 100);
+        replacement.FormClosed += OnFormClosed;
+        openForms++;
+        replacement.Show();
+        Console.WriteLine("{\"schema_version\":\"yonder-identity01-replaced/v1\",\"pid\":"
+            + Process.GetCurrentProcess().Id + ",\"replacement_window_id\":\"w-"
+            + replacement.Handle.ToInt64() + "\"}");
+        Console.Out.Flush();
     }
 
     public static void Start()
