@@ -7,8 +7,8 @@ use std::{
 };
 
 use agent_desktop_core::{
-    AccessibilityNode, CommandContext, Deadline, ErrorCode, IdentifierKind, PrivateFileOps,
-    RefStore, TreeOptions, refs::resolve_saved_ref::resolve_saved_ref, snapshot,
+    AccessibilityNode, CommandContext, Deadline, ErrorCode, IdentifierKind, ObservationOps,
+    PrivateFileOps, RefStore, TreeOptions, refs::resolve_saved_ref::resolve_saved_ref, snapshot,
 };
 use tempfile::TempDir;
 use yonder_agent_desktop_driver_spike::host_oracle::windows::capture_identity01_window;
@@ -85,6 +85,12 @@ fn old_ref_is_rejected_after_fixture_rebuild_without_action() -> Result<(), Box<
     button_refs(&captured.tree, &mut refs);
     assert_eq!(refs.len(), 1);
     let old_ref = RefStore::new()?.load_ref(&refs[0])?;
+    let retained = resolve_saved_ref(&adapter, &old_ref, Deadline::after(10_000)?, None)?;
+    assert!(
+        adapter
+            .get_live_element(&retained, Deadline::after(10_000)?)
+            .is_ok()
+    );
 
     fixture
         .0
@@ -103,9 +109,12 @@ fn old_ref_is_rejected_after_fixture_rebuild_without_action() -> Result<(), Box<
     );
     let old_element_rebound =
         resolve_saved_ref(&adapter, &old_ref, Deadline::after(10_000)?, None).is_ok();
+    let retained_read = adapter.get_live_element(&retained, Deadline::after(10_000)?);
+    let retained_read_ok = retained_read.is_ok();
+    let retained_error_code = retained_read.err().map(|error| format!("{:?}", error.code));
     assert_eq!(same_window.click_count, 1);
     eprintln!(
-        "identity02_read_only button_replaced=true window_generation_unchanged=true old_element_rebound={old_element_rebound}"
+        "identity02_read_only button_replaced=true window_generation_unchanged=true old_element_rebound={old_element_rebound} retained_read_ok={retained_read_ok} retained_error_code={retained_error_code:?}"
     );
     assert!(
         old_element_rebound,
@@ -132,6 +141,12 @@ fn old_ref_is_rejected_after_fixture_rebuild_without_action() -> Result<(), Box<
     );
     assert_eq!((replacement.click_count, decoy.click_count), (1, 1));
 
+    let retained_after_window = adapter.get_live_element(&retained, Deadline::after(10_000)?);
+    assert!(matches!(
+        retained_after_window,
+        Err(ref error) if error.code == ErrorCode::StaleRef
+    ));
+
     let error = match resolve_saved_ref(&adapter, &old_ref, Deadline::after(10_000)?, None) {
         Ok(_) => return Err("old ref unexpectedly resolved after window replacement".into()),
         Err(error) => error,
@@ -141,7 +156,7 @@ fn old_ref_is_rejected_after_fixture_rebuild_without_action() -> Result<(), Box<
         ErrorCode::StaleRef | ErrorCode::WindowNotFound
     ));
     eprintln!(
-        "identity02_read_only old_hwnd_reused={} generation_changed=true old_ref_rejected=true",
+        "identity02_read_only old_hwnd_reused={} generation_changed=true old_ref_rejected=true retained_handle_stale=true",
         original_id == replacement_id
     );
     let replacement = capture_identity01_window(pid, replacement_id)?;

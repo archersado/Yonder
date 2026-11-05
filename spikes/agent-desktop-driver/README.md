@@ -48,6 +48,8 @@ cargo run --manifest-path spikes/agent-desktop-driver/Cargo.toml --bin harness -
 
 Windows 原生只读诊断入口为 `cargo run --manifest-path spikes/agent-desktop-driver/Cargo.toml --bin native-read-probe --locked -- <测试窗口 PID>`。运行前须提供绝对路径 `AGENT_DESKTOP_HOME`，并将 `AGENT_DESKTOP_TRACE=off`、`AGENT_DESKTOP_SCREENSHOTS=off` 显式传入 Windows 进程。它要求该 PID 恰好有一个窗口、固定 `AutomationId` 恰好匹配一个限定引用，只输出身份与引用摘要及快照计数，不派发动作；结果不替代统一样本。
 
+`native-input-observer-probe -- <duration_ms>` 是 Windows 输入钩子的只读聚合诊断，只输出线程状态、generation 和分类计数。Windows 可能静默移除低级钩子，诊断固定输出 `admission_ready=false`、`hook_health_proven=false`；不得将其接入 Supervisor 派发准入或记为 `INPUT-01/02` 通过。
+
 ## 已验证与未验证
 
 - 已实现：协议/证据 Rust 类型及唯一生成 schema、固定 action/ref/predicate/oracle 映射、64 KiB framing、握手与会话身份、deadline、admission/flush/cancel 状态机、宿主 quarantine、mock backend、Windows suspended Job Object/macOS process group 接口及实际哈希 evidence verifier。

@@ -67,6 +67,10 @@ path = "src/bin/native-hwnd-reuse-probe.rs"
 name = "native-identity01-read-probe"
 path = "src/bin/native-identity01-read-probe.rs"
 
+[[bin]]
+name = "native-input-observer-probe"
+path = "src/bin/native-input-observer-probe.rs"
+
 [workspace]
 resolver = "2"
 exclude = ["target/patched-agent-desktop"]

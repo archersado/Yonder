@@ -26,12 +26,16 @@ Bridge 语义固定在 [`bridge-contract-v1.md`](bridge-contract-v1.md)，动作
 
 附加只读反例保持窗口不变而替换其同标识按钮，用相同旧引用检查上游是否重新绑定新按钮；无论结果如何都只输出布尔判定和零点击，不把按钮替换视作 HWND 复用，也不调用动作 API。
 
+同一反例另可在替换前保留原生 `NativeHandle`，在按钮替换和整窗重建后只用上游 `get_live_element` 读取其是否失效。保留对象可读不自动代表旧对象安全，不可读也不代表最终动作安全；两者均只提供 v2 交付点方案的前置证据。
+
 ## 取消与故障
 
 - 未派发及步骤间取消：冻结准入并确认没有新动作，可确定完成。
 - 在途取消：终止 Worker；若可能交付，固定为 `unknown`，不得重试。
 - Worker 终止后：Windows Job Object/macOS 受监管进程组保证 containment；无副作用只读探针检查完整进程树、interaction lease、修饰键/鼠标按钮、临时资源和新实例 Observe。禁止合成补偿输入；任一残留进入 global desktop quarantine，宿主重启或明确只读恢复程序通过前不得新派发。
 - 用户输入：观察器只维护宿主会话 `u64 generation` 与 `driver_current_attempt | user | unknown | observer_lost`。只有绑定当前 attempt/Worker 的合成事件可忽略；其余分类、observer 未 ready/重启/回退均递增并冻结。固定交错样本要求零漏分、零误分。
+
+Windows Host 可先建立只读低级鼠标/键盘钩子诊断；无归属标记的注入事件记为 `unknown`，普通事件记为 `user`，只输出计数与 generation，不输出事件内容。Windows 可能静默移除超时钩子，诊断线程存活或安装成功不能证明钩子持续覆盖，因此该诊断 `admission_ready=false`，不替代 `INPUT-01/02` 真实输入交错样本，也不授权原生动作。
 
 ## 统一矩阵
 

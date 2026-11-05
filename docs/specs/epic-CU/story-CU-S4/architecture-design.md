@@ -44,6 +44,8 @@ Host/Worker 一致性实验可以启动两个独立的**诊断观察器进程**�
 
 同一诊断可先保持原窗口不变，让 fixture 销毁按钮并创建同 `AutomationId`、同标签、同位置的新按钮，再对旧限定引用调用 `resolve_saved_ref`。只记录旧引用是否重新绑定、窗口代际是否不变及零点击；即使观察到重新绑定，也只是只读解析风险证据，不能通过执行动作扩大样本。按钮替换不等价于完整 HWND 复用。
 
+为评估避免重绑定的候选机制，诊断可在按钮替换**前**通过公开 `resolve_saved_ref` 保留原生 `NativeHandle`，在按钮替换和整窗重建后分别调用 `get_live_element` 只读检查该保留对象是否失效；不调用 `execute_verified_action` 或任何动作。若保留对象仍能读取，须进一步判断读取的是旧对象还是新对象，不能单凭成功/失败放开派发；若明确失效，也仍需验证最终交付点与 macOS 等价路径。
+
 ## 允许集与拒绝集
 
 允许集：snapshot、qualified ref 动作、动作前目标重识别及经样本验证的窗口操作。拒绝集：raw 坐标、Windows 无目标按键、`--force`、CDP 和上游 MCP。显式关闭默认开启的结构化 trace，保持 screenshots 禁用，并阻止 notification/snapshot/clipboard/command output 进入证据。hit-test `unknown` 在包装层转换为拒绝，不调用动作。
@@ -53,6 +55,8 @@ Host/Worker 一致性实验可以启动两个独立的**诊断观察器进程**�
 ## 抢占与取消状态
 
 平台观察器只产生宿主会话级 `u64 input_generation` 与 `driver_current_attempt | user | unknown | observer_lost`，不保存具体输入。只有绑定当前 attempt/Worker 的合成事件不递增 generation；其余分类，以及 observer 未就绪、重启或 generation 回退时，都递增 generation 并按 fail-closed 处理。Worker 重启不重置 generation。
+
+Windows 诊断阶段可在 Host 独立线程安装 `WH_MOUSE_LL` 与 `WH_KEYBOARD_LL` 只读钩子，仅统计无正文的 `generation/user_count/unknown_count`；未带当前 attempt 归属的 injected 事件归为 `unknown`，非 injected 事件归为 `user`。安装成功和线程仍运行只能表示**诊断线程状态**，不能表示 observer 持续覆盖：Windows 可能静默移除超时钩子，应用无法获知。该诊断的 `admission_ready` 必须固定为 false，不参与派发准入；真实用户输入、其他程序注入、钩子/Raw Input 失效、合成归属和权限/桌面切换仍需双平台原生零漏分证据。
 
 派发、用户抢占和取消共用 Application-owned admission gate。严格顺序为 observer ready → task fence/lease → capture generation → snapshot/target oracle → compare control/fence/generation → 将完整动作帧写入绑定当前 attempt/Worker 的 stdio 并完成 flush。flush 是唯一线性化点；之前是 `not_dispatched`，之后是 `in_flight`。Worker 收帧后才等待上游 interaction lease，因此等待期间抢占仍按在途处理。
 
