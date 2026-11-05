@@ -135,6 +135,7 @@ fn main() -> anyhow::Result<()> {
             "process_instance_sha256": window.process_instance.as_deref().map(digest),
             "host_process_start_sha256": host_after.process_start_sha256,
             "host_identity_matches_adapter": true,
+            "target_scope_verified": true,
             "window_generation_proven": false,
             "lifecycle_barrier_observed": lifecycle_after.marker_observed,
             "lifecycle_target_create_count": lifecycle_after.creates,

@@ -23,6 +23,7 @@ Spike 只允许形成两种结论：双平台共享底层引擎，或整体淘�
 - 受控 Windows 探针证明同权限跨进程 `SetPropW` 可在窗口上附加标记，但该方法会写入目标窗口、受 UIPI 限制，且派发前读取与实际副作用之间仍有竞态；本 Spike 不将其视为只读身份 oracle，也不据此放开动作门禁。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-window-property-oracle-2026-11-05.md)。
 - 受控 Windows `SetWinEventHook` 探针在独立进程中收到了窗口销毁、创建、再销毁事件，说明只读生命周期追踪具备进一步验证价值。由于 out-of-context 回调异步，正式门禁仍要求可验证的事件屏障、观察器故障拒绝、复用样本与最终身份核对到副作用之间的竞态证明；当前尚不把事件计数当作合格窗口代际令牌。见 [实验记录](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-winevent-lifecycle-2026-11-05.md)。
 - 两个独立 Rust 观察器在同一受控 WinForms 窗口销毁前后得到一致的事件计数和窗口失效判定；新窗口的 HWND 不同，且尚无同一动作帧内的 Host/Worker 身份冻结与派发证据。这只是可见性证据，不解除上述窗口代际门禁。见 [双进程实验](../../../../docs/specs/epic-CU/story-CU-S4/evidence/windows-dual-lifecycle-observer-2026-11-05.md)。
+- Windows 生命周期观察器只覆盖当前桌面；普通权限进程不能以 UI Automation 访问提升权限应用的 UI。Host 与 Worker 的只读身份 oracle 必须拒绝无法确认位于当前输入桌面、同一会话或高于自身完整性级别的目标，不能把此类目标的零事件计数当作窗口未变化。依据：[SetWinEventHook 范围](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook)、[UIAccess 安全边界](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-securityoverview)。
 - 上游 machine-wide interaction lease 只作为单次 dispatch 的附加互斥。任务级 ownership、fencing、崩溃恢复和唯一前台桌面租约仍由 Yonder 持有。
 
 ## 抢占、取消与结果语义

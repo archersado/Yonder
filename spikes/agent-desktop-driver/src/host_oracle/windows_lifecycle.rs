@@ -85,9 +85,10 @@ pub struct LifecycleObserver {
 
 impl LifecycleObserver {
     pub fn start() -> Result<Self> {
+        let expected_desktop = super::windows::current_input_desktop_name()?;
         let (commands, incoming) = mpsc::channel();
         let (ready, launched) = mpsc::sync_channel(1);
-        let worker = thread::spawn(move || run(incoming, ready));
+        let worker = thread::spawn(move || run(incoming, ready, expected_desktop));
         match launched.recv_timeout(BARRIER_TIMEOUT) {
             Ok(Ok(())) => Ok(Self {
                 commands,
@@ -128,7 +129,22 @@ impl Drop for LifecycleObserver {
     }
 }
 
-fn run(incoming: Receiver<Command>, ready: mpsc::SyncSender<Result<()>>) {
+fn run(
+    incoming: Receiver<Command>,
+    ready: mpsc::SyncSender<Result<()>>,
+    expected_desktop: Vec<u16>,
+) {
+    match super::windows::current_input_desktop_name() {
+        Ok(actual) if actual == expected_desktop => {}
+        Ok(_) => {
+            let _ = ready.send(Err(anyhow!("observer desktop differs from caller")));
+            return;
+        }
+        Err(error) => {
+            let _ = ready.send(Err(error));
+            return;
+        }
+    }
     let hook = unsafe {
         SetWinEventHook(
             EVENT_OBJECT_CREATE,
@@ -149,7 +165,7 @@ fn run(incoming: Receiver<Command>, ready: mpsc::SyncSender<Result<()>>) {
         pump_messages();
         match incoming.recv_timeout(Duration::from_millis(5)) {
             Ok(Command::Barrier { target_hwnd, reply }) => {
-                let _ = reply.send(barrier(target_hwnd));
+                let _ = reply.send(barrier(target_hwnd, &expected_desktop));
             }
             Ok(Command::Stop) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
             Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -168,7 +184,11 @@ fn pump_messages() {
     }
 }
 
-fn barrier(target_hwnd: usize) -> Result<LifecycleSample> {
+fn barrier(target_hwnd: usize, expected_desktop: &[u16]) -> Result<LifecycleSample> {
+    ensure!(
+        super::windows::current_input_desktop_name()? == expected_desktop,
+        "input desktop changed before barrier"
+    );
     ensure!(
         !LOST.with(Cell::get),
         "WinEvent queue overflowed or reentered"
@@ -212,6 +232,10 @@ fn barrier(target_hwnd: usize) -> Result<LifecycleSample> {
     };
     unsafe { DestroyWindow(marker) };
     observed?;
+    ensure!(
+        super::windows::current_input_desktop_name()? == expected_desktop,
+        "input desktop changed during barrier"
+    );
     let (creates, destroys) = EVENTS.with(|events| {
         let events = events.borrow();
         (

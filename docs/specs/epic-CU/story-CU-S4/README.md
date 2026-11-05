@@ -34,3 +34,4 @@ Architecture Decision: Proposed AD-CU-07
 - [Windows WinEvent 生命周期探针证据](evidence/windows-winevent-lifecycle-2026-11-05.md)
 - [Windows Rust 生命周期观察器验证](evidence/windows-rust-lifecycle-observer-2026-11-05.md)
 - [Windows 双进程生命周期观察器实验](evidence/windows-dual-lifecycle-observer-2026-11-05.md)
+- [Windows 目标覆盖范围只读核验](evidence/windows-target-scope-oracle-2026-11-05.md)

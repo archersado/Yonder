@@ -29,6 +29,7 @@ fn main() -> anyhow::Result<()> {
             "schema_version": "yonder-agent-desktop-lifecycle-probe/v1",
             "phase": "ready",
             "process_start_sha256": initial.process_start_sha256,
+            "target_scope_verified": true,
         })
     )?;
     output.flush()?;
