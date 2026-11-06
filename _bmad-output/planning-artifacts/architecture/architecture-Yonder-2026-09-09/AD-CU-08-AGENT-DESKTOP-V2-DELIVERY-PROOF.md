@@ -18,6 +18,8 @@
 
 Host 独立维护单调 `input_generation`；只有同时绑定当前 `attempt_id` 与 `worker_instance_id` 的输入才可归为 `driver_current_attempt`。Windows `SendInput.dwExtraInfo` 和 macOS `CGEvent.eventSourceUserData` 仅作为 v2 补丁候选载体，不是身份认证：必须覆盖 Windows 鼠标、键盘、shell surface 三处发送入口及 macOS HID post、键盘 `post_to_pid`、异常释放路径，并验证完整事件接收、伪造/碰撞、Worker 崩溃、观察器失效、桌面/会话切换、其他进程注入及 UIA/AX 语义动作。未知事件与观察器丢失均冻结。Windows 低级钩子可能被系统静默移除，不能单独作为持续准入事实；Raw Input 若无法覆盖其他程序注入事件，也不能单独通过。无法获得同时覆盖真实用户输入与未知合成输入且有可验证存活状态的来源时，`observer_ready=false`，不派发。
 
+2026-11-06 [Windows 自建窗口诊断](../../../../docs/specs/epic-CU/story-CU-S5/evidence/windows-raw-input-forged-tag-2026-11-06.md)在父/子两个独立进程各 10 次 `F24` key-up 注入中，Raw Input 均收到对应事件，20 次的设备句柄均为空且相同 `dwExtraInfo` 标记均保留。由此否定“Raw Input 看不到本次 `SendInput`”的初步推断，同时实测表明标记可由另一进程伪造；仅靠该字段不得把事件归为当前 Worker。完整用户/未知输入覆盖与 observer 存活机制仍未证明，门禁不变。
+
 ## 实施和证据顺序
 
 1. 先冻结 CU-S5 三份 Story 设计、OpenSpec、v2 样本与拒绝门槛，再建立隔离源码和新补丁。v2 构建输入必须有单独 manifest；不能沿用 v1 构建或把 v1 只读结果计作 v2 动作结果。

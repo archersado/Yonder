@@ -11,5 +11,6 @@
 - [ ] Windows 保留原生对象、同窗替换、整窗重建及完整 HWND 复用机制证据
 - [ ] macOS AX 对象替换与窗口重建机制证据
 - [ ] 双平台真实用户/其他注入/当前 Worker 合成输入归属及 observer 失效证据
+- [x] Windows 自建窗口完成 10+10 次本进程/独立子进程同标记注入诊断；证实 Raw Input 可见且标记不能证明 Worker 归属，完整 INPUT-02 仍未通过
 - [ ] 门禁通过后修订 ADR，再执行隔离 fixture 原生动作与 CU-S4 完整样本
 - [ ] 独立 Verification Goal 复核 V2-01～05，更新 Accepted/Rejected ADR 结论并 Archive

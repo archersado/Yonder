@@ -5,3 +5,5 @@
 运行：`python3 spikes/agent-desktop-driver-v2/prepare_upstream.py`，再运行 `python3 spikes/agent-desktop-driver-v2/source_gate.py`。`--check` 在门禁未通过时返回 2，可作为 CI 拒绝信号。
 
 后续 v2 补丁必须放在本目录的新 patch set 和独立准备源码目录中，固定同一上游 revision，并重建 v2 manifest/样本；不得修改 CU-S4 的来源文件。
+
+`input-visibility/` 是 Windows 自建窗口诊断：仅当前台确认成功时，由本进程与子进程各发送最多十次无文本 `F24` key-up，记录 Raw Input 计数和相同标记。它不接 Worker、任务或真实应用，`admission_ready` 固定为 false。结果见 [原生证据](../../docs/specs/epic-CU/story-CU-S5/evidence/windows-raw-input-forged-tag-2026-11-06.md)。

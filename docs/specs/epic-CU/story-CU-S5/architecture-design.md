@@ -14,6 +14,8 @@
 
 Host 独立 observer 是准入事实源，维护单调 generation。候选标记必须与当前 attempt 和 Worker 实例绑定；其他 injected、无法辨认或 observer 丢失均递增 generation 并冻结。Windows `dwExtraInfo`、macOS `eventSourceUserData` 只提供候选载体，须通过伪造、碰撞、延迟事件、Worker 崩溃、会话/桌面变化与 observer 故障样本。源码清单至少覆盖 Windows 鼠标、键盘及 shell surface 三处 `SendInput`，macOS 五处 HID post 文件及键盘 `post_to_pid`；漏掉清理/异常释放路径也视为归属不完整。Windows 低级钩子静默移除风险使其不能单独表明 observer ready；Raw Input 不能在未证明其他 injected 覆盖的情况下单独承担该职责。UIA Invoke/Legacy 和 AX 语义动作分别验证是否产生日志可见的低级输入事件。
 
+Windows 的 `V2-INPUT-02` 前置诊断可使用独立自建窗口：先注册键盘 Raw Input，每轮确认该窗口仍是前台，由本进程及独立子进程各最多发送十次无文本的 `F24` key-up，两者故意携带相同固定测试标记。比较 `WM_KEYUP` 与对应 `WM_INPUT` 的计数、设备句柄是否为空及标记是否传递；子进程还须核对前台窗口类名与父进程 PID。若无法确认前台则不注入或停止后续轮次。此诊断只判断 Raw Input 的受控注入可见性与标记可伪造性，不表示 observer ready，不接 Worker 或任务派发。结束时注销 Raw Input、销毁窗口并尝试恢复原前台窗口；不通过合成补偿按键清理。只输出枚举/计数，不保留输入正文或其他键值。
+
 ## 构建和证据
 
 同一上游 commit、同一跨平台 patch set，v2 独立目录与 patch/source/lock/harness/sample 哈希；拒绝在 v1 `target/patched-agent-desktop` 原位改动。证据只记录封闭枚举、布尔、计数、耗时和哈希，不含输入正文、截图、完整窗口树。沿用 CU-S4 统一样本语义，v2 版本冻结后再跑 Windows/macOS；独立 Verification Goal 复核 V2-01～05。截止日 2026-11-11，结论只更新 ADR，产品接线另建 Story。
